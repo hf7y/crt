@@ -114,6 +114,17 @@ WHISPER_SERVER_TIMEOUT = float(os.environ.get("CRT_WHISPER_SERVER_TIMEOUT", "8")
 CHUNK_DUR = CHUNK / RATE
 THR_COL   = max(0, min(WIDTH - 1, int(THRESH / MFULL * WIDTH)))
 
+# Flash state for the meter line -- shared by the knob/ctl HUD (apply_ctl_line)
+# and by emit() flashing the raw STT output. Module-level (not main()-local)
+# so emit() can set it directly; main()'s display loop just reads it.
+# TODO: predictive-text double layer -- show a cheap fast guess first, then
+# flash/overwrite with the corrected transcription once it lands, for the
+# "instant" feel described in PARKING-LOT.md. Not implemented yet; this just
+# flashes the final (post-whisper) text.
+hud_msg = ""
+hud_until = 0.0
+FLASH_SECS = float(os.environ.get("CRT_FLASH_SECS", "2.5"))
+
 # whisper's canonical noise/silence hallucinations -- never emit these.
 HALLU = set("you thankyou thanks thankyouforwatching bye music musicplaying "
             "cricketschirping silence blankaudio sound soundeffects applause "
@@ -245,6 +256,8 @@ def emit(text):
     t = text.strip()
     if t and t[0] in "([*♪" and t[-1] in ")]*♪":
         return
+    global hud_msg, hud_until
+    hud_msg, hud_until = t[:WIDTH + 20], time.time() + FLASH_SECS
     ts = datetime.datetime.now().strftime("%H:%M:%S")
     sys.stdout.write('\r' + ' ' * (WIDTH + 20) + '\r')   # clear meter line
     if SINK == "claude":
@@ -277,8 +290,7 @@ def main():
     above = 0
     sil = 0.0
     last_meter = 0.0
-    hud_msg = ""
-    hud_until = 0.0
+    global hud_msg, hud_until
     ctl_pos = 0
     ring_state = None     # None | "tone" | "gap"
     ring_remaining = 0
