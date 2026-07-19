@@ -81,6 +81,35 @@ Config-only alternatives to try when A–D don't fully settle it:
 These are enumerated so an overnight job (or a VM session) can pick one, wire a
 toggle, and measure with Approach D — not to be all built blindly.
 
+## Approach F — streaming / rolling-window STT `[idea]` (nightly batch: research + prototype)
+
+Right now whisper.cpp runs **batch per VAD-cut utterance**: it waits for the
+phrase to end, transcribes the whole clip once, and never revises. Web/streaming
+ASR instead emits partial words and *revises them as more audio + language-model
+context arrive* (online transducer/attention decoders committing late). That
+self-correction is what makes browser dictation feel live.
+
+Whisper isn't natively streaming, but two routes approximate it:
+- **whisper.cpp `stream`** example — sliding window, partial results (crude; not
+  even built here yet — `make stream` in whisper.cpp).
+- **LocalAgreement rolling window** (à la `whisper_streaming`): re-decode a
+  growing buffer every ~0.5 s and only *commit* a word once two consecutive
+  windows agree on it, revising the uncommitted tail. Lower latency + context
+  self-correction.
+
+**Scope for the nightly batch (code only, no VM):** research both, and prototype
+the LocalAgreement approach as a NEW opt-in engine (e.g. `bin/crt-stt-stream.py`)
+alongside `crt-stt-solo.py` — do NOT replace the working batch engine. Wire the
+same sinks (stdout / claude) and the same hallucination + noise filters. Leave a
+clear note on CPU cost (re-decoding is much heavier than batch) since this runs
+on a VM. Honest caveat in code: not hardware-verified.
+
+**Reality check (already assessed 2026-07-19):** for a short-command console,
+streaming mainly buys latency and long-form self-correction; it will NOT fix
+noise-driven hallucinations — that's what the highpass/noisered filter (now in
+crt-stt-solo.py) and a better VAD (Silero) are for. So treat F as a
+feel/latency upgrade, not the noise fix.
+
 ---
 
 ## How the overnight batch should use this

@@ -71,6 +71,11 @@ PREROLL= int(os.environ.get("CRT_VAD_PREROLL", "3"))               # chunks kept
 WIDTH  = int(os.environ.get("CRT_METER_WIDTH", "20"))
 MFULL  = float(os.environ.get("CRT_METER_FULL", "0.30"))          # peak that fills the bar
 NORM   = os.environ.get("CRT_NORMALIZE", "1") != "0"
+# Noise pre-filtering before whisper (helps in a noisy room, e.g. AC hum making
+# whisper hallucinate sound tags). All opt-in / off by default.
+HP      = os.environ.get("CRT_HIGHPASS", "0")          # high-pass cutoff Hz; "0" = off
+NR_PROF = os.environ.get("CRT_NOISERED_PROF", "")      # sox noise profile (from `sox ac.wav -n noiseprof x.prof`)
+NR_AMT  = os.environ.get("CRT_NOISERED_AMT", "0.21")   # noisered strength 0..1 (higher = more aggressive)
 
 CHUNK_DUR = CHUNK / RATE
 THR_COL   = max(0, min(WIDTH - 1, int(THRESH / MFULL * WIDTH)))
@@ -108,9 +113,18 @@ def transcribe(frames):
             w.setnchannels(1); w.setsampwidth(2); w.setframerate(RATE)
             w.writeframes(frames)
         feed = raw
+        # One sox pass: high-pass -> noise reduction -> peak normalize, in that
+        # order (denoise before normalizing so we don't amplify the noise first).
+        effects = []
+        if HP != "0":
+            effects += ["highpass", HP]
+        if NR_PROF and os.path.exists(NR_PROF):
+            effects += ["noisered", NR_PROF, NR_AMT]
         if NORM:
-            norm = raw[:-4] + "_n.wav"
-            if subprocess.run(["sox", raw, norm, "gain", "-n", "-1"],
+            effects += ["gain", "-n", "-1"]
+        if effects:
+            norm = raw[:-4] + "_f.wav"
+            if subprocess.run(["sox", raw, norm] + effects,
                               stderr=subprocess.DEVNULL).returncode == 0:
                 feed = norm
         out = subprocess.run([WBIN, "-m", MODEL, "-f", feed, "-nt", "-np"],
@@ -128,6 +142,11 @@ def transcribe(frames):
 def emit(text):
     key = "".join(c for c in text.lower() if c.isalpha())
     if not text or len(key) < 2 or key in HALLU:
+        return
+    # Drop non-speech sound tags whisper emits on noise: "(metal clanging)",
+    # "[BLANK_AUDIO]", "*applause*", "♪ music ♪" -- fully bracket/symbol-wrapped.
+    t = text.strip()
+    if t and t[0] in "([*♪" and t[-1] in ")]*♪":
         return
     ts = datetime.datetime.now().strftime("%H:%M:%S")
     sys.stdout.write('\r' + ' ' * (WIDTH + 20) + '\r')   # clear meter line
