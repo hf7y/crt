@@ -41,6 +41,37 @@ around anything needing hands on hardware or a live VM.
    audio + HID for hookswitch. Ubuntu Server ISO downloaded (32-bit-UEFI quirk).
 6. **Stretch: video-call wrapper** (Zoom/WhatsApp) over the handset/CRT.
 
+## Secretary reframing (2026-07-19) — see SECRETARY.md
+The real goal is a phone-secretary service, not a raw STT->Claude terminal.
+Printer = long output, CRT = short status + slow-scroll (`bin/crt-pager.py`,
+built), TTS = spoken confirmation through the phone (`bin/crt-tts.py` +
+`bin/crt-tts-calibrate.py`, built + espeak-ng deployed to crt-vm), TV
+announcements for Chris rate-limited to 1/15min (`bin/crt-announce.sh`, code
+done, cross-VM-boundary bridge to actually reach the TV output NOT built --
+see AUDIO-ROUTING.md). `bin/crt-stt-speakback.sh` runs STT in debug mode
+(stdout, NOT wired to Claude) and speaks "heard: ..." back through the phone
+so a person can debug the mic by ear -- running live on crt-vm's `stt` window
+as of 2026-07-19. The actual secretary wrapper (structured request -> Claude
+-> route response to printer/CRT/TTS) is still design-only, next concrete step.
+
+## MIDI passthrough (2026-07-19 update)
+Root cause found: Windows had the MiniLab's MIDI interface **disabled**
+(`CM_PROB_DISABLED` in Device Manager) -- fixed via `Enable-PnpDevice`. But
+`VBoxManage usbattach` still fails ("busy with a previous request") even
+after that fix and a full VM power-cycle -- points to a stuck VBoxUSB/VBoxSVC
+host-proxy state independent of the PnP fix. Next: restart the VBoxSVC
+process/VirtualBox host service (blocked this session by the auto-mode
+classifier as a process-kill action -- needs the user's direct OK) or a
+Windows reboot. Deprioritized per user instruction this session ("abandon
+midi... pick it up later") in favor of the TTS/pager/secretary work above.
+
+## Compute stick (still blocked, physical)
+No progress possible remotely -- flashing/booting the actual Intel Compute
+Stick STK1AW32SC needs hands on the physical device. The Ubuntu Server ISO
+noted as "downloaded on mandark" in a prior session's scratchpad could not be
+found this session (scratchpad from that session no longer exists) -- if
+still needed, redownload before the next hands-on session.
+
 ## Autonomous overnight batch (enabled 2026-07-19)
 
 crt is now a git repo pushed to a LOCAL bare remote (`~/git-remotes/crt.git`),
