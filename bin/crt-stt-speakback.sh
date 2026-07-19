@@ -13,6 +13,7 @@ cd "$BIN_DIR"
 export CRT_AUDIO_DEV="${CRT_AUDIO_DEV:-crtmic}"
 export CRT_HIGHPASS="${CRT_HIGHPASS:-100}"
 export CRT_NOISERED_PROF="${CRT_NOISERED_PROF:-$HOME/crt/noise.prof}"
+export CRT_CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
 
 python3 ./crt-stt-solo.py 2>&1 | while IFS= read -r line; do
   echo "$line"

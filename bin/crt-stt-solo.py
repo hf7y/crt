@@ -18,7 +18,7 @@
 #
 # Output: transcriptions scroll; a live "MIC [####|....] 12.3% TALK" meter is
 # redrawn on the bottom line (same widget as crt-meter.py). Ctrl-C to quit.
-import sys, os, array, time, wave, tempfile, subprocess, datetime
+import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request
 from collections import deque
 
 # SINK: where recognized text goes.
@@ -80,6 +80,36 @@ NR_AMT  = float(os.environ.get("CRT_NOISERED_AMT", "0.21"))  # noisered strength
 # engine applies the change and flashes an on-screen bar. Empty = disabled.
 CTL     = os.environ.get("CRT_CTL_FILE", "")
 MUTED   = False
+# "Ring" the phone: play a bursty tone N times; if the handset is picked up
+# (voice detected) it stops immediately; if all rings finish unanswered, a
+# message is printed (shows up on whatever screen this pane is on -- the
+# CRT, if this is the visible tmux window). Triggered via the same CTL file
+# ("ring <n>", default 4) so any script (e.g. bin/crt-ring.sh) can fire it
+# without needing to touch the mic itself -- this process is the sole reader.
+RING_ON_SECS  = float(os.environ.get("CRT_RING_ON_SECS", "1.5"))
+RING_GAP_SECS = float(os.environ.get("CRT_RING_GAP_SECS", "2.5"))
+RING_TIMEOUT_MSG = os.environ.get("CRT_RING_TIMEOUT_MSG", "[ring] no answer")
+_ring_tone_path = None
+
+
+def ring_tone_path():
+    """Lazily synthesize a warbling ring tone once, cache the wav path."""
+    global _ring_tone_path
+    if _ring_tone_path and os.path.exists(_ring_tone_path):
+        return _ring_tone_path
+    fd, path = tempfile.mkstemp(suffix="_ring.wav"); os.close(fd)
+    subprocess.run(["sox", "-n", path, "synth", str(RING_ON_SECS),
+                    "sine", "900", "tremolo", "20", "80", "vol", "-6dB"],
+                   stderr=subprocess.DEVNULL)
+    _ring_tone_path = path
+    return path
+# Optional: send the WAV to a faster-whisper HTTP service running natively on
+# dexter's Ryzen host instead of invoking whisper.cpp inside the (CPU-capped)
+# guest. Same VAD/capture/denoise pipeline either way -- only the inference
+# step moves. See bin/dexter-whisper-server.py. Empty = local whisper.cpp
+# (default, unchanged behavior).
+WHISPER_SERVER = os.environ.get("CRT_WHISPER_SERVER", "")   # e.g. http://192.168.0.22:8991/transcribe
+WHISPER_SERVER_TIMEOUT = float(os.environ.get("CRT_WHISPER_SERVER_TIMEOUT", "8"))
 
 CHUNK_DUR = CHUNK / RATE
 THR_COL   = max(0, min(WIDTH - 1, int(THRESH / MFULL * WIDTH)))
@@ -153,6 +183,23 @@ def apply_ctl_line(line):
     return hud_bar(name, shown, lo, hi, unit)
 
 
+def transcribe_remote(wav_path):
+    """POST the WAV to dexter's faster-whisper service; fall back to empty
+    (silently dropped, same as any other transcription failure) on any error
+    -- never block the capture loop on a flaky network call."""
+    import json
+    try:
+        with open(wav_path, "rb") as f:
+            data = f.read()
+        req = urllib.request.Request(WHISPER_SERVER, data=data,
+                                      headers={"Content-Type": "audio/wav"})
+        with urllib.request.urlopen(req, timeout=WHISPER_SERVER_TIMEOUT) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        return result.get("text", "")
+    except Exception:
+        return ""
+
+
 def transcribe(frames):
     raw = norm = None
     try:
@@ -175,6 +222,8 @@ def transcribe(frames):
             if subprocess.run(["sox", raw, norm] + effects,
                               stderr=subprocess.DEVNULL).returncode == 0:
                 feed = norm
+        if WHISPER_SERVER:
+            return transcribe_remote(feed)
         out = subprocess.run([WBIN, "-m", MODEL, "-f", feed, "-nt", "-np"],
                              capture_output=True, text=True).stdout
         return " ".join(out.split())
@@ -231,6 +280,10 @@ def main():
     hud_msg = ""
     hud_until = 0.0
     ctl_pos = 0
+    ring_state = None     # None | "tone" | "gap"
+    ring_remaining = 0
+    ring_phase_until = 0.0
+    ring_proc = None
     try:
         while True:
             data = read_exact(proc.stdout, NBYTES)
@@ -254,11 +307,44 @@ def main():
                             chunk = fh.read()
                             ctl_pos = fh.tell()
                         for ln in chunk.splitlines():   # apply every new line once
+                            if ln.startswith("ring"):
+                                parts = ln.split()
+                                n = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 4
+                                ring_state, ring_remaining = "tone", n
+                                ring_phase_until = now + RING_ON_SECS
+                                ring_proc = subprocess.Popen(
+                                    ["aplay", "-q", ring_tone_path()],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                print("[ring] ringing (%d)" % n)
+                                continue
                             r = apply_ctl_line(ln)
                             if r:
                                 hud_msg, hud_until = r, now + 1.6
                 except OSError:
                     pass
+
+            if ring_state is not None:
+                if ring_state == "gap" and not MUTED and peak >= THRESH:
+                    if ring_proc and ring_proc.poll() is None:
+                        ring_proc.terminate()
+                    ring_state, ring_proc = None, None
+                    print("[ring] answered")
+                elif now >= ring_phase_until:
+                    if ring_state == "tone":
+                        ring_state = "gap"
+                        ring_phase_until = now + RING_GAP_SECS
+                    else:   # gap elapsed, unanswered
+                        ring_remaining -= 1
+                        if ring_remaining > 0:
+                            ring_state = "tone"
+                            ring_phase_until = now + RING_ON_SECS
+                            ring_proc = subprocess.Popen(
+                                ["aplay", "-q", ring_tone_path()],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        else:
+                            ring_state, ring_proc = None, None
+                            print(RING_TIMEOUT_MSG)
+                continue   # ringing suppresses normal VAD/utterance handling
 
             if not in_utt and now - last_meter > 0.1:
                 if now < hud_until:
