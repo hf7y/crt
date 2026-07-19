@@ -1,0 +1,8 @@
+# --- crt autoboot: appended by install.sh ---
+# Only fire on the physical console login (tty1), not over SSH or in
+# other terminal sessions, so this doesn't hijack every shell.
+if [ "$(tty)" = "/dev/tty1" ] && [ -z "${CRT_STARTED:-}" ]; then
+  export CRT_STARTED=1
+  exec "$CRT_PROJECT_DIR/bin/crt-console.sh"
+fi
+# --- end crt autoboot ---
