@@ -65,6 +65,28 @@ classifier as a process-kill action -- needs the user's direct OK) or a
 Windows reboot. Deprioritized per user instruction this session ("abandon
 midi... pick it up later") in favor of the TTS/pager/secretary work above.
 
+## faster-whisper network service on dexter (2026-07-19, DONE, live)
+`bin/dexter-whisper-server.py` runs faster-whisper natively on dexter's Ryzen
+(port 8991, `/health` + `/transcribe`) so transcription isn't CPU-capped by
+the VM. `crt-stt-solo.py` uses it when `CRT_WHISPER_SERVER=http://192.168.0.22:8991/transcribe`
+is set — verified working live. Not auto-starting yet (manual
+`Start-Process` on dexter); add a Scheduled Task next. See project memory for
+the VPN/huggingface.co gotcha and how the model got there.
+
+## Ring/pickup detection (2026-07-19, smoke-tested)
+`bin/crt-ring.sh <n>` rings the phone via `crt-stt-solo.py` (the sole mic
+reader) — warble tone in bursts, checks for voice only in the silent gaps
+(avoids the tone false-triggering), stops on pickup, prints a timeout
+message on the active screen if unanswered. No physical hookswitch yet, so
+"pickup" is inferred from voice activity alone.
+
+## Parking lot: deep end-state vision — see PARKING-LOT.md
+RF power-on-TV-when-handset-lifts, HDMI-to-RF multi-channel personas, hidden
+transcription (blinking cursor only), predictive-typing-then-overwrite
+aesthetic, two core jobs (morning reports + media playback), start on
+dexter/Ryzen natively while the Compute Stick waits on a DAC. Not being
+built yet — captured so the direction survives.
+
 ## Compute stick (still blocked, physical)
 No progress possible remotely -- flashing/booting the actual Intel Compute
 Stick STK1AW32SC needs hands on the physical device. The Ubuntu Server ISO
