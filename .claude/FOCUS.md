@@ -6,9 +6,17 @@ reliable. See `../HANDOFF.md` for full state and access.
 
 ## Now (core STT)
 
-- Reliability of detection: confirm the shared-capture + always-on level meter
-  fixed the intermittent "stops detecting" (VirtualBox capture going stale).
-  If the meter goes flat mid-speech, add a watchdog that re-opens capture.
+- **Reliability of detection ("stops detecting" / stale capture)** is the top
+  problem. See **`AUDIO-DEBUG.md`** — it enumerates several parallel approaches,
+  now partly implemented (all opt-in, none disturbs the working pipeline):
+  - A `bin/crt-capture-watchdog.sh` — detects a flatlined capture, re-asserts
+    mixer, kills stale readers, optionally bounces the stt window. `[needs VM test]`
+  - B `bin/crt-console-solo.sh` + `crt-stt-solo.py CRT_STT_SINK=claude` —
+    single-reader console (no dsnoop) so a second reader can't starve capture.
+  - C keep-alive (built into the watchdog, `CRT_WD_KEEPALIVE=1`).
+  - D `bin/crt-audio-doctor.sh` — `check` / `monitor` liveness telemetry to find
+    what the staleness correlates with.
+  Next: run A/B/D on `crt-vm`, capture a `~/.crt/liveness.csv`, decide the fix.
 - The standalone STT view (`bin/crt-stt.sh`) — verify it runs and is useful for
   watching/tuning transcription, decoupled from Claude.
 - Ongoing calibration: `CRT_VAD_THRESHOLD`, Windows mic boost, normalization.
@@ -16,8 +24,9 @@ reliable. See `../HANDOFF.md` for full state and access.
 ## Deferred (not in current focus — do not pull these into an STT session)
 
 These are tracked here so they're not lost. Most are **physical/hardware** and
-cannot be done by an autonomous agent — hence this project registers with the
-scheduler with autonomous tiers OFF (see `schedule/crt.conf` in the scheduler).
+cannot be done by an autonomous agent. The scheduler's overnight batch (now
+enabled — see below) is scoped to the CODE-shaped items only and told to branch
+around anything needing hands on hardware or a live VM.
 
 1. **MIDI controller** (Arturia MiniLab mkII, USB 1c75:0289). USB2/EHCI
    passthrough enabled; device was "Captured" by VBox but not enumerating in
@@ -32,9 +41,12 @@ scheduler with autonomous tiers OFF (see `schedule/crt.conf` in the scheduler).
    audio + HID for hookswitch. Ubuntu Server ISO downloaded (32-bit-UEFI quirk).
 6. **Stretch: video-call wrapper** (Zoom/WhatsApp) over the handset/CRT.
 
-## To enable autonomous work later
+## Autonomous overnight batch (enabled 2026-07-19)
 
-If/when the code-shaped deferred items (e.g. USB-module firmware, a video
-wrapper) warrant nightly batches: make this a git repo with a deploy remote,
-set `REPO_URL` + a `BATCH_*` tier in `schedule/crt.conf`, and
-`bin/sync-crontab.sh --apply`.
+crt is now a git repo pushed to a LOCAL bare remote (`~/git-remotes/crt.git`),
+and registered with the scheduler's Tier 2 batch (`schedule/crt.conf`), 3
+passes/night (01:45/03:45/05:45), 30-day auto-sunset. Each run reads this file
++ `AUDIO-DEBUG.md` and advances the code-shaped backlog (audio approaches, STT
+watchdog/single-reader, USB firmware, video wrapper), branching around anything
+physical. Reports land in `~/reports/crt/`. A GitHub mirror is optional later
+(deploy key `~/.ssh/crt_deploy_key` is ready; swap `REPO_URL` in the conf).

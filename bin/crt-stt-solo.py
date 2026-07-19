@@ -21,6 +21,39 @@
 import sys, os, array, time, wave, tempfile, subprocess, datetime
 from collections import deque
 
+# SINK: where recognized text goes.
+#   stdout (default) -- scroll transcriptions; standalone STT/debug view.
+#   claude           -- type into the tmux Claude Code pane + voice-control keys,
+#                       exactly like stt-feed.sh, but from this SINGLE-reader
+#                       engine (no dsnoop, no second reader) -- Approach B in
+#                       AUDIO-DEBUG.md. Use via bin/crt-console-solo.sh.
+SINK    = os.environ.get("CRT_STT_SINK", "stdout")
+SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
+PANE    = os.environ.get("CRT_TMUX_PANE", "0")
+
+# Single-word control utterances -> keystrokes (kept in sync with stt-feed.sh).
+CONTROL = {
+    "enter": "Enter", "submit": "Enter", "send": "Enter", "return": "Enter",
+    "go": "Enter", "proceed": "Enter", "yes": "Enter", "yeah": "Enter",
+    "yep": "Enter", "confirm": "Enter", "accept": "Enter", "okay": "Enter",
+    "ok": "Enter",
+    "no": "Escape", "nope": "Escape", "cancel": "Escape", "escape": "Escape",
+    "abort": "Escape", "dismiss": "Escape", "nevermind": "Escape",
+    "up": "Up", "previous": "Up", "back": "Up",
+    "down": "Down", "next": "Down",
+    "clear": "C-u", "scratch": "C-u", "backspace": "C-u",
+}
+
+
+def send_to_claude(text, key):
+    """Type text (or send a control keystroke) into the tmux Claude pane."""
+    target = "%s:%s" % (SESSION, PANE)
+    if " " not in text and key in CONTROL:
+        subprocess.run(["tmux", "send-keys", "-t", target, CONTROL[key]])
+        return
+    subprocess.run(["tmux", "send-keys", "-t", target, "-l", text])
+    subprocess.run(["tmux", "send-keys", "-t", target, "Enter"])
+
 RATE   = 16000
 CHUNK  = int(RATE * 0.1)                 # 100 ms analysis window
 NBYTES = CHUNK * 2                        # S16_LE mono
@@ -98,10 +131,23 @@ def emit(text):
         return
     ts = datetime.datetime.now().strftime("%H:%M:%S")
     sys.stdout.write('\r' + ' ' * (WIDTH + 20) + '\r')   # clear meter line
-    print("%s  %s" % (ts, text))
+    if SINK == "claude":
+        # Show what was sent (so the meter strip still doubles as a log), then
+        # type it into Claude / fire the control keystroke.
+        label = "(key %s)" % CONTROL[key] if (" " not in text and key in CONTROL) else "->"
+        print("%s  %s %s" % (ts, label, text))
+        send_to_claude(text, key)
+    else:
+        print("%s  %s" % (ts, text))
 
 
 def main():
+    # claude sink: don't start feeding keystrokes until the target session is up
+    # (it may still be launching `claude`), else the first utterances are lost.
+    if SINK == "claude":
+        while subprocess.run(["tmux", "has-session", "-t", SESSION],
+                             stderr=subprocess.DEVNULL).returncode != 0:
+            time.sleep(1)
     proc = subprocess.Popen(
         ["arecord", "-D", DEV, "-f", "S16_LE", "-c", "1", "-r", str(RATE), "-t", "raw"],
         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)

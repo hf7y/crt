@@ -12,6 +12,11 @@ width = int(os.environ.get('CRT_METER_WIDTH', '20'))
 full = float(os.environ.get('CRT_METER_FULL', '0.30'))
 thr_col = max(0, min(width - 1, int(thresh / full * width)))
 
+# --peaks: machine-readable mode for the capture watchdog -- print one peak
+# fraction per 100 ms chunk (line-buffered), no bar/redraw. Lets a supervising
+# script (bin/crt-capture-watchdog.sh) detect a flatlined/stale capture.
+PEAKS = '--peaks' in sys.argv[1:]
+
 while True:
     data = sys.stdin.buffer.read(NBYTES)
     if not data:
@@ -23,6 +28,10 @@ while True:
     if not a:
         continue
     peak = max(abs(x) for x in a) / 32768.0
+    if PEAKS:
+        sys.stdout.write('%.5f\n' % peak)
+        sys.stdout.flush()
+        continue
     filled = max(0, min(width, int(peak / full * width)))
     bar = ''.join('#' if i < filled else ('|' if i == thr_col else '.')
                   for i in range(width))
