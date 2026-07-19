@@ -124,6 +124,13 @@ THR_COL   = max(0, min(WIDTH - 1, int(THRESH / MFULL * WIDTH)))
 hud_msg = ""
 hud_until = 0.0
 FLASH_SECS = float(os.environ.get("CRT_FLASH_SECS", "2.5"))
+# STT text always gets logged to CRT_STT_LOG (for the claude-feed merge to
+# read), but only gets PRINTED/scrolled to this pane's terminal (persisting
+# in scrollback) when debug mode is on. Off by default: raw STT should only
+# flash briefly, never linger, to mask recognition errors -- the merged,
+# cleaned-up text from claude is what should persist on screen instead.
+STT_LOG = os.environ.get("CRT_STT_LOG", os.path.expanduser("~/.crt/stt.log"))
+STT_DEBUG_PERSIST = os.environ.get("CRT_STT_DEBUG_PERSIST", "0") != "0"
 
 # whisper's canonical noise/silence hallucinations -- never emit these.
 HALLU = set("you thankyou thanks thankyouforwatching bye music musicplaying "
@@ -260,13 +267,18 @@ def emit(text):
     hud_msg, hud_until = t[:WIDTH + 20], time.time() + FLASH_SECS
     ts = datetime.datetime.now().strftime("%H:%M:%S")
     sys.stdout.write('\r' + ' ' * (WIDTH + 20) + '\r')   # clear meter line
+    try:
+        os.makedirs(os.path.dirname(STT_LOG), exist_ok=True)
+        with open(STT_LOG, "a") as f:
+            f.write("%s  %s\n" % (ts, text))
+    except OSError:
+        pass
     if SINK == "claude":
-        # Show what was sent (so the meter strip still doubles as a log), then
-        # type it into Claude / fire the control keystroke.
         label = "(key %s)" % CONTROL[key] if (" " not in text and key in CONTROL) else "->"
-        print("%s  %s %s" % (ts, label, text))
+        if STT_DEBUG_PERSIST:
+            print("%s  %s %s" % (ts, label, text))
         send_to_claude(text, key)
-    else:
+    elif STT_DEBUG_PERSIST:
         print("%s  %s" % (ts, text))
 
 
