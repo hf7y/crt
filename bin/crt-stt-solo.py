@@ -75,7 +75,11 @@ NORM   = os.environ.get("CRT_NORMALIZE", "1") != "0"
 # whisper hallucinate sound tags). All opt-in / off by default.
 HP      = os.environ.get("CRT_HIGHPASS", "0")          # high-pass cutoff Hz; "0" = off
 NR_PROF = os.environ.get("CRT_NOISERED_PROF", "")      # sox noise profile (from `sox ac.wav -n noiseprof x.prof`)
-NR_AMT  = os.environ.get("CRT_NOISERED_AMT", "0.21")   # noisered strength 0..1 (higher = more aggressive)
+NR_AMT  = float(os.environ.get("CRT_NOISERED_AMT", "0.21"))  # noisered strength 0..1
+# Live-tune control file: a knob/MIDI writer appends "<param> <value>" lines; the
+# engine applies the change and flashes an on-screen bar. Empty = disabled.
+CTL     = os.environ.get("CRT_CTL_FILE", "")
+MUTED   = False
 
 CHUNK_DUR = CHUNK / RATE
 THR_COL   = max(0, min(WIDTH - 1, int(THRESH / MFULL * WIDTH)))
@@ -97,12 +101,56 @@ def read_exact(f, n):
 
 
 def meter(peak):
+    thr_col = max(0, min(WIDTH - 1, int(THRESH / MFULL * WIDTH)))  # tracks live THRESH
     filled = max(0, min(WIDTH, int(peak / MFULL * WIDTH)))
-    bar = ''.join('#' if i < filled else ('|' if i == THR_COL else '.')
+    bar = ''.join('#' if i < filled else ('|' if i == thr_col else '.')
                   for i in range(WIDTH))
-    tag = 'TALK' if filled > THR_COL else '    '
+    tag = 'MUTE' if MUTED else ('TALK' if filled > thr_col else '    ')
     sys.stdout.write('\rMIC [%s] %5.1f%% %s' % (bar, peak * 100, tag))
     sys.stdout.flush()
+
+
+# Live-tunable params driven by the control file / MIDI knobs. Each entry:
+#   name -> (global var, lo, hi, unit, value shown = raw*scale)
+# THRESH is stored as a fraction but shown/entered as a percent (scale 100).
+CTL_MAP = {
+    "vad":   ("THRESH", 0.3, 8.0, "%",  100.0),
+    "nr":    ("NR_AMT", 0.0, 0.3, "",   1.0),
+    "trail": ("TRAIL",  0.3, 2.0, "s",  1.0),
+    "min":   ("MINUTT", 0.2, 1.0, "s",  1.0),
+}
+
+
+def hud_bar(name, shown, lo, hi, unit):
+    w = 14
+    frac = 0.0 if hi == lo else (shown - lo) / (hi - lo)
+    filled = max(0, min(w, round(frac * w)))
+    bar = "#" * filled + "." * (w - filled)
+    return "%-5s[%s] %5.2f%s" % (name.upper(), bar, shown, unit)
+
+
+def apply_ctl_line(line):
+    """Parse a '<param> <value>' control line, clamp+apply, return a HUD string.
+    Values are given in display units (vad in %, trail/min in s, nr 0-0.3).
+    Special: 'mute 1|0'."""
+    global THRESH, NR_AMT, TRAIL, MINUTT, MUTED
+    parts = line.split()
+    if len(parts) < 2:
+        return None
+    name, raw = parts[0].lower(), parts[1]
+    if name == "mute":
+        MUTED = raw not in ("0", "off", "false")
+        return "MUTE  %s" % ("ON" if MUTED else "off")
+    if name not in CTL_MAP:
+        return None
+    gvar, lo, hi, unit, scale = CTL_MAP[name]
+    try:
+        shown = float(raw.rstrip("%s"))
+    except ValueError:
+        return None
+    shown = max(lo, min(hi, shown))
+    globals()[gvar] = shown / scale
+    return hud_bar(name, shown, lo, hi, unit)
 
 
 def transcribe(frames):
@@ -119,7 +167,7 @@ def transcribe(frames):
         if HP != "0":
             effects += ["highpass", HP]
         if NR_PROF and os.path.exists(NR_PROF):
-            effects += ["noisered", NR_PROF, NR_AMT]
+            effects += ["noisered", NR_PROF, "%.3f" % NR_AMT]
         if NORM:
             effects += ["gain", "-n", "-1"]
         if effects:
@@ -180,6 +228,9 @@ def main():
     above = 0
     sil = 0.0
     last_meter = 0.0
+    hud_msg = ""
+    hud_until = 0.0
+    ctl_mtime = -1.0
     try:
         while True:
             data = read_exact(proc.stdout, NBYTES)
@@ -189,12 +240,32 @@ def main():
             peak = (max(abs(x) for x in a) / FULL) if a else 0.0
 
             now = time.time()
+
+            # Live-tune: a knob/MIDI writer appends "<param> <value>" to CTL.
+            # On change, apply it and flash the level bar over the meter.
+            if CTL:
+                try:
+                    m = os.stat(CTL).st_mtime
+                    if m != ctl_mtime:
+                        ctl_mtime = m
+                        lines = open(CTL).read().strip().splitlines()
+                        if lines:
+                            r = apply_ctl_line(lines[-1])
+                            if r:
+                                hud_msg, hud_until = r, now + 1.6
+                except OSError:
+                    pass
+
             if not in_utt and now - last_meter > 0.1:
-                meter(peak); last_meter = now
+                if now < hud_until:
+                    sys.stdout.write('\r%-40s' % hud_msg[:40]); sys.stdout.flush()
+                else:
+                    meter(peak)
+                last_meter = now
 
             if not in_utt:
                 pre.append(data)
-                if peak >= THRESH:
+                if not MUTED and peak >= THRESH:
                     above += 1
                     if above >= START:
                         in_utt = True
