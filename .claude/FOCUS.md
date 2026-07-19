@@ -80,6 +80,16 @@ reader) — warble tone in bursts, checks for voice only in the silent gaps
 message on the active screen if unanswered. No physical hookswitch yet, so
 "pickup" is inferred from voice activity alone.
 
+## Inner monologue / on-screen narration (2026-07-19, DONE, live)
+`bin/crt-think.sh "text"` appends a timestamped line to `~/.crt/thoughts.log`;
+`bin/crt-monologue.sh` tails it on-screen, word-wrapped, in first person as
+the machine narrating itself ("i'm a crt, i have a handset..."). This is now
+the CRT's active tmux window (STT moved to a background window, still
+running/speaking, just not what's displayed). **Ongoing practice going
+forward: narrate real work into this log in-character as it happens** (via
+`crt-think.sh` over SSH) rather than only reporting after the fact — it
+doubles as a durable append-only context record for later sessions.
+
 ## Parking lot: deep end-state vision — see PARKING-LOT.md
 RF power-on-TV-when-handset-lifts, HDMI-to-RF multi-channel personas, hidden
 transcription (blinking cursor only), predictive-typing-then-overwrite
