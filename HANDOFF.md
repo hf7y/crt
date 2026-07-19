@@ -1,77 +1,142 @@
 # crt — current state & handoff
 
-Voice-driven Claude Code console: a landline handset + CRT TV as a speech
-front-end, running in a Debian VM on a Windows mini-PC. This doc is the
-pick-up-where-we-left-off summary. See `README.md` for the how-and-why of each
-piece, including a detailed **Audio capture troubleshooting** section.
+Voice-driven secretary console: a landline handset + CRT TV as the human
+interface, backed by a Debian VM (`crt-vm`) on a Windows mini-PC (`dexter`),
+with the CPU-heavy transcription now offloaded to `dexter` itself. This doc
+is the pick-up-where-we-left-off summary — read this first, then follow the
+pointers below for depth on any one piece.
+
+**Read next, depending on what you're doing:**
+- `README.md` — the how-and-why of each original piece, incl. detailed audio
+  troubleshooting.
+- `.claude/FOCUS.md` — current backlog/status, kept up to date per session.
+- `SECRETARY.md` — the actual product vision (phone secretary, not a raw STT
+  terminal) and what's built vs. still design-only.
+- `AUDIO-DEBUG.md` — mic capture staleness debugging (5 parallel approaches).
+- `AUDIO-ROUTING.md` — TV vs. phone-earpiece audio output separation (still
+  unsolved — this is the active priority, see below).
+- `PARKING-LOT.md` — the deep end-state vision (RF power-on, hidden
+  transcription, predictive-text feel, morning-reports + media-playback as
+  the two core jobs). Not built, captured so it isn't lost.
 
 ## Where it runs
 
-- **`dexter`** — Windows 11 Pro mini-PC (Minisforum/Ryzen). Host.
+- **`dexter`** — Windows 11 Pro mini-PC (Minisforum/Ryzen). Host, and now also
+  runs the transcription service natively (see below).
   - SSH: `ssh dexter.local` (key auth; drops into PowerShell).
+  - **If SSH pubkey auth ever silently breaks** (host reachable, key
+    unchanged, clean handshake then rejected): check
+    `C:\ProgramData\ssh\administrators_authorized_keys` — Windows OpenSSH
+    ignores the per-user `authorized_keys` for admin accounts and only reads
+    this file. Hit this exact issue 2026-07-19; fixed by writing the key
+    there directly (paste corruption is a real risk over a remote shell —
+    split long tokens into short chunks and concatenate in PowerShell rather
+    than pasting one long line).
+  - `scp`/`sftp` do **not** work against this Windows OpenSSH setup (fails
+    with "dest open ... Failure"). For binary transfers, base64-encode and
+    pipe through `ssh '...' | python decode.py'` instead.
   - VirtualBox 7.2.12 + Extension Pack installed. `VBoxManage` at
     `C:\Program Files\Oracle\VirtualBox\VBoxManage.exe` (call via `& "..."`).
-- **`crt-vm`** — Debian 13 guest on dexter. The console itself.
+  - Has a Surfshark VPN active — this specifically resets connections to
+    `huggingface.co` (other HTTPS is fine) — watch for this if anything ever
+    needs to download from the HF Hub directly on dexter again.
+- **`crt-vm`** — Debian 13 guest on dexter. The console itself (mic capture,
+  VAD, tmux/CRT display).
   - SSH: `ssh -p 2222 zach@dexter.local` (NAT port-forward 2222→22, key auth).
   - Password `kw0kWXESrKQpNvuKXiU8`; passwordless sudo enabled.
   - To see its screen: at dexter's KVM, open **VirtualBox Manager** and
-    double-click `crt-vm` (GUI mode). Do NOT use "Show" on a headless VM (hangs),
-    and do NOT `startvm --type gui` over SSH (no window appears).
-- **`mandark`** — Dell XPS 13 (this Linux laptop). Dev box; where the repo and
-  the deferred-feature archive live. Also has whisper.cpp built for local tests.
+    double-click `crt-vm` (GUI mode). Do NOT use "Show" on a headless VM
+    (hangs), and do NOT `startvm --type gui` over SSH (no window appears
+    unless someone is already logged into dexter's local interactive
+    session).
+- **`mandark`** — this Linux laptop. Dev box; the repo's origin of truth,
+  pushed to a local bare remote (`~/git-remotes/crt.git`) that the VM does
+  *not* pull from directly (no git link VM→mandark — files are copied over
+  SSH by hand/script when deploying).
 
-## What works now (core STT)
+## What's actually running right now (2026-07-19 evening)
 
-Voice → whisper → Claude Code, end to end, through the handset. The autoboot
-chain (power on → tty1 autologin → `bin/crt-console.sh`) comes up unattended
-into: full-screen `claude`, a hidden `stt` window running `bin/stt-feed.sh`, and
-a 2-row **live mic level meter** strip at the bottom.
+On `crt-vm`, tmux session `claude` (tty1-autologin-attached — **never**
+`tmux kill-session` this, only kill/replace specific windows/panes):
+- **window 0** (`bash`) — the original full-screen `claude` pane, untouched.
+- **window 1** (`stt`, currently active/visible on the CRT) — split into two
+  panes:
+  - top pane: `bin/crt-monologue.sh` — tails `~/.crt/thoughts.log` on screen,
+    word-wrapped, first-person ("i'm a crt, i have a handset...").
+  - bottom pane (3 lines): `bin/crt-stt-speakback.sh` running
+    `crt-stt-solo.py` — the live mic meter, with the raw STT transcription
+    **flashing** over it when someone talks (not routed to Claude — this is
+    debug/secretary-prototype mode, not the original stt-feed.sh pipeline).
 
-Calibration that made it work (all persistent):
-- **Windows "Microphone Boost" +20/+30 dB** on dexter — THE key fix. Without it
-  the handset signal was ~1.4% of full scale and whisper only hallucinated.
-- Guest ALSA `Input Source` = **Line** (VirtualBox routes the host mic to the
-  HDA codec's Line input, not Mic). stt-feed re-asserts this on every start.
-- User in the **`audio`** group (else `/dev/snd` is unreachable over SSH).
-- `CRT_VAD_THRESHOLD=1.5` (speech ~16% peak, AC floor ~4% peak with boost on).
-- Per-utterance normalize + whisper-hallucination filter + single-word voice
-  control keys ("enter"/"yes"/"no"/"up"/"down").
-- `claude` launches with `--permission-mode bypassPermissions` (zero prompts).
-- Console tuning knobs live in `~/.bash_profile` (CRT_VAD_THRESHOLD,
-  CRT_AUDIO_DEV=crtmic, CRT_CLAUDE_ARGS) and `/etc/default/grub`
-  (`video=Virtual-1:640x480` — CRT overscan/bezel knob).
+On `dexter` (native Windows, not the VM): `dexter-whisper-server.py`
+(faster-whisper, int8, full Ryzen cores) listening on `0.0.0.0:8991`
+(`/health`, `/transcribe`). `crt-stt-solo.py` on the VM calls it via
+`CRT_WHISPER_SERVER=http://192.168.0.22:8991/transcribe` instead of local
+whisper.cpp. **Not auto-starting** — currently launched manually via
+`Start-Process`; needs a Scheduled Task or service wrapper to survive a
+dexter reboot.
 
-## Shared audio capture (why dsnoop)
+## Core pieces (bin/), what each does
 
-Raw ALSA capture is single-consumer, but the console needs stt-feed AND the
-level meter reading the mic at once. `/etc/asound.conf` defines a `dsnoop`
-device **`crtmic`**; both read it via `arecord`. Keeping one stream continuously
-open (the meter) also keeps VirtualBox's emulated capture **warm** — the
-suspected cure for the intermittent "stops detecting" (stt-feed's per-utterance
-open/close was letting the capture go stale). Gotchas already paid for: stale
-stuck `arecord` procs block new dsnoop readers; `arecord | python3 -` steals
-stdin from the audio (meter python lives in its own file, `bin/crt-meter.py`).
+- `crt-stt-solo.py` — the sole mic reader (single-consumer by design, see
+  AUDIO-DEBUG.md Approach B). VAD, denoise, whisper (local or network),
+  live-tunable via a control file (`~/.crt/ctl`, byte-offset tailed), on-screen
+  HUD flash, and now: **ring/pickup detection** (`bin/crt-ring.sh <n>` rings a
+  warble tone, listens for voice only in the silent gaps so the tone can't
+  self-trigger, stops on pickup, prints a timeout message if unanswered — no
+  physical hookswitch exists yet, so "pickup" is inferred from voice alone).
+- `crt-tts.py` + `crt-tts-calibrate.py` — espeak-ng/piper TTS, calibrated
+  profile in `~/.crt/tts.conf`. Deployed + smoke-tested (exit 0) on crt-vm;
+  **not yet confirmed audible/good by a human ear**.
+- `crt-announce.sh` — rate-limited (1/15min) TV-facing TTS for Chris. Code
+  done; the actual bridge to reach the TV's audio device from inside the VM
+  does not exist yet (VirtualBox maps only one host audio device per VM) —
+  **this is the current top priority**, see AUDIO-ROUTING.md.
+- `crt-pager.py` — slow auto-scroll pager for long text on the CRT
+  (control-file driven, same channel as the knob HUD). Not wired to anything
+  real yet.
+- `crt-think.sh` / `crt-monologue.sh` — the append-only thought log + its
+  on-screen narration. **Ongoing practice: narrate real work into this log
+  in-character as it happens**, not just after the fact.
+- `dexter-whisper-server.py` — see above.
+- `crt-midi-knobs.py` — MIDI CC/notes → the control file. Blocked, see MIDI
+  status below.
+- `cad/wall_hook.scad` — simple hang-up hook with a reserved hole for a later
+  hanging switch (distinct from `cradle.scad`/`hook_lever.scad`, the fuller
+  see-saw switch assembly).
 
-## Open / in-progress
+## Current priorities (in order)
 
-- **Standalone STT view** (`bin/crt-stt.sh`) — JUST ADDED, lightly tested.
-  A focused screen (transcription log + meter, no claude) via
-  `CRT_STT_SINK=stdout` in stt-feed. Built because transcriptions were hard to
-  see inside claude. **Verify it runs** and shows timestamped phrases.
-- **Intermittent signal drop** — watch the meter; if it goes flat mid-speech,
-  add a watchdog that re-opens capture. The warm-stream fix may already cover it.
-- **MIDI controller** — Arturia MiniLab mkII (VID 1c75 PID 0289). USB 2.0
-  (EHCI) passthrough is enabled and VirtualBox "Captured" it, but it was **not
-  enumerating** in guest ALSA (`amidi -l` empty) last we looked. Intended use:
-  pads → Enter/Esc/arrows (unambiguous prompt control), knobs → scroll.
-- Everything else is parked in the deferred-feature archive (see
-  `~/Documents/Project Archive/scheduler/`).
+1. **TV audio bridge** (promoted 2026-07-19 evening; MIDI explicitly parked
+   in favor of this). VirtualBox only maps one host audio device per VM —
+   getting `crt-announce.sh` to actually reach the TV (not just whatever
+   device the VM happens to be mapped to) needs either a small always-on
+   listener on dexter that the guest posts to, or moving TTS-for-Chris
+   entirely to a native-dexter process. See AUDIO-ROUTING.md for the
+   options and the dead-end already tried (raw COM PolicyConfig from
+   PowerShell reproducibly fails QueryInterface; `nircmd.exe` would work but
+   needs the user's OK to fetch a third-party binary).
+2. Get a human to actually listen to the TTS and calibrate it by ear
+   (`crt-tts-calibrate.py`) — nothing audio-output has been human-verified
+   yet, only exit-code-verified.
+3. Build the real secretary wrapper (SECRETARY.md steps 1-4) instead of raw
+   STT→Claude keystrokes — decide printer vs. CRT vs. TTS per response,
+   structured requests instead of typing everything verbatim.
+4. **MIDI passthrough — parked.** Root cause found (Windows had the
+   MiniLab's interface Device-Manager-disabled; fixed via `Enable-PnpDevice`)
+   but `VBoxManage usbattach` still errors "busy with a previous request"
+   even after that + a full VM power-cycle. Needs a VBoxSVC/VirtualBox host
+   service restart (a process-kill action the harness blocks without the
+   user doing it directly). Pick back up once the TV bridge is done.
+5. Compute stick — blocked on a DAC arriving (no analog audio in on the
+   stick); also physically can't be advanced remotely regardless.
 
-## Deferred (archived)
+## Autonomous overnight batch (scheduler)
 
-Moved out of focus to `~/Documents/Project Archive/scheduler/`: the physical
-hookswitch build, OctoPrint on a spare Pi, a Benchy calibration print, the USB
-phone-interface module (for the bare-metal Intel Compute Stick target), and a
-stretch video-call wrapper. The Ubuntu Server ISO (for the compute stick's
-32-bit-UEFI quirk) and the official 3DBenchy STL are downloaded on `mandark`
-under the session scratchpad.
+Registered in `~/Documents/Project Archive/scheduler/schedule/crt.conf`.
+REPO_URL points at the local bare remote. **Tier 2 batch enable is staged but
+not applied** — the harness classifier blocks writing the
+`BATCH_JOB_NAME`+`claude -p` prompt that stands up recurring autonomous
+execution. Ready-to-paste block: `scratchpad/crt.conf.batch-block` (from a
+prior session — verify it still exists/is current before using). Batch scope
+is CODE-shaped work only; it can't reach the VM or dexter's Windows side.
