@@ -230,7 +230,7 @@ def main():
     last_meter = 0.0
     hud_msg = ""
     hud_until = 0.0
-    ctl_mtime = -1.0
+    ctl_pos = 0
     try:
         while True:
             data = read_exact(proc.stdout, NBYTES)
@@ -245,12 +245,16 @@ def main():
             # On change, apply it and flash the level bar over the meter.
             if CTL:
                 try:
-                    m = os.stat(CTL).st_mtime
-                    if m != ctl_mtime:
-                        ctl_mtime = m
-                        lines = open(CTL).read().strip().splitlines()
-                        if lines:
-                            r = apply_ctl_line(lines[-1])
+                    sz = os.path.getsize(CTL)
+                    if sz < ctl_pos:          # file truncated/rotated -> restart
+                        ctl_pos = 0
+                    if sz > ctl_pos:
+                        with open(CTL) as fh:
+                            fh.seek(ctl_pos)
+                            chunk = fh.read()
+                            ctl_pos = fh.tell()
+                        for ln in chunk.splitlines():   # apply every new line once
+                            r = apply_ctl_line(ln)
                             if r:
                                 hud_msg, hud_until = r, now + 1.6
                 except OSError:
