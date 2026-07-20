@@ -47,6 +47,18 @@ those are debug/nice-to-have. The hookswitch (off-hook = start listening,
 on-hook = stop/power down) is the fundamental interaction model, closer to
 an actual telephone than a computer terminal.
 
+## Multiple phone installations (2026-07-19, gallery/art concept)
+Two separate installation ideas, distinct from the personal-secretary crt:
+1. **Distributed answering machines for a gallery** — visitors can leave
+   messages or receive them; phones that physically ring when there's
+   something waiting. Multiple units, presumably networked to a shared
+   backend (or independent per-phone).
+2. **A payphone people actually pay quarters into** — coin mechanism routes
+   to a TTS/AI backend that "does something" (answers questions, has a
+   conversation). Stretch idea: a token economy — sometimes it gives more
+   tokens back than were inserted, turning it into more of a game/gamble
+   than a straightforward vending transaction.
+
 ## Deployment sequencing
 - **Start on the Minisforum Ryzen (dexter)** as the primary/first working
   target — full native speed, no VM/compute-stick constraints, matches the

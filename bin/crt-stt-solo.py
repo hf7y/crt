@@ -254,7 +254,7 @@ def transcribe(frames):
                 except OSError: pass
 
 
-def emit(text):
+def emit(text, peak=1.0):
     key = "".join(c for c in text.lower() if c.isalpha())
     if not text or len(key) < 2 or key in HALLU:
         return
@@ -264,7 +264,15 @@ def emit(text):
     if t and t[0] in "([*♪" and t[-1] in ")]*♪":
         return
     global hud_msg, hud_until
-    hud_msg, hud_until = t[:WIDTH + 20], time.time() + FLASH_SECS
+    # How much of the utterance actually flashes on screen scales with how
+    # loud it was spoken -- quiet mumbling shows a word or two, a loud/clear
+    # utterance shows the whole thing. The full text still goes to the log
+    # and to claude either way; this only affects the ephemeral flash.
+    loud_frac = min(1.0, peak / MFULL)
+    words = t.split()
+    n_show = max(1, round(len(words) * loud_frac))
+    shown = " ".join(words[:n_show]) + (" .." if n_show < len(words) else "")
+    hud_msg, hud_until = shown[:WIDTH + 20], time.time() + FLASH_SECS
     ts = datetime.datetime.now().strftime("%H:%M:%S")
     sys.stdout.write('\r' + ' ' * (WIDTH + 20) + '\r')   # clear meter line
     try:
@@ -298,6 +306,7 @@ def main():
 
     pre = deque(maxlen=PREROLL)
     in_utt = False
+    utt_peak = 0.0
     buf = bytearray()
     above = 0
     sil = 0.0
@@ -385,16 +394,18 @@ def main():
                         in_utt = True
                         buf = bytearray(b"".join(pre)); pre.clear()
                         sil = 0.0
+                        utt_peak = peak
                 else:
                     above = 0
             else:
                 buf += data
+                utt_peak = max(utt_peak, peak)
                 sil = sil + CHUNK_DUR if peak < THRESH else 0.0
                 dur = len(buf) / 2 / RATE
                 if sil >= TRAIL or dur >= MAXUTT:
                     in_utt = False; above = 0
                     if dur >= MINUTT:
-                        emit(transcribe(bytes(buf)))
+                        emit(transcribe(bytes(buf)), utt_peak)
                     buf = bytearray()
     except KeyboardInterrupt:
         pass
