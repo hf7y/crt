@@ -293,12 +293,34 @@ def route_claude_reply(reply):
         print_full(reply)
 
 
+FALLTHROUGH_LOG = os.path.expanduser(
+    os.environ.get("CRT_FALLTHROUGH_LOG", "~/.crt/fallthrough.log"))
+
+
+def log_fallthrough(text):
+    """Every request no playbook matched, logged (not acted on) so a
+    future session can see which requests keep escalating to Claude and
+    are worth writing a new playbook for -- SUPERVISOR.md's open item.
+    Best-effort: a broken log write must never block the real Claude
+    routing that follows it."""
+    try:
+        d = os.path.dirname(FALLTHROUGH_LOG)
+        if d:
+            os.makedirs(d, exist_ok=True)
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(FALLTHROUGH_LOG, "a") as f:
+            f.write("%s  %s\n" % (ts, text))
+    except OSError:
+        pass
+
+
 def handle(text):
     _, action = find_playbook(text)
     if action:
         action(text)
         return
 
+    log_fallthrough(text)
     before = capture_pane()
     send_to_claude(text)
     reply = wait_for_claude_reply(before)

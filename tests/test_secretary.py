@@ -185,5 +185,48 @@ class TestWhatTimePlaybook(unittest.TestCase):
         self.assertTrue(spoken[0].startswith("It's") or spoken[0][0].isdigit())
 
 
+class TestFallthroughLogging(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.tmpdir = tempfile.mkdtemp()
+        self.sec.FALLTHROUGH_LOG = os.path.join(self.tmpdir, "fallthrough.log")
+        # Stub out the whole Claude-routing path -- this is about whether
+        # the log write happens, not about tmux/Claude behavior.
+        self.sec.capture_pane = lambda: ""
+        self.sec.send_to_claude = lambda text: None
+        self.sec.wait_for_claude_reply = lambda before: ""
+        self.sec.route_claude_reply = lambda reply: None
+
+    def test_matched_playbook_does_not_log(self):
+        self.sec.speak = lambda text, device="handset": None
+        self.sec.handle("what time is it")
+        self.assertFalse(os.path.exists(self.sec.FALLTHROUGH_LOG))
+
+    def test_unmatched_request_gets_logged(self):
+        self.sec.handle("refactor the audio pipeline please")
+        self.assertTrue(os.path.exists(self.sec.FALLTHROUGH_LOG))
+        with open(self.sec.FALLTHROUGH_LOG) as f:
+            content = f.read()
+        self.assertIn("refactor the audio pipeline please", content)
+
+    def test_multiple_fallthroughs_append_not_overwrite(self):
+        self.sec.handle("first novel request")
+        self.sec.handle("second novel request")
+        with open(self.sec.FALLTHROUGH_LOG) as f:
+            lines = [ln for ln in f.read().splitlines() if ln.strip()]
+        self.assertEqual(len(lines), 2)
+
+    def test_broken_log_path_does_not_crash_routing(self):
+        # A directory that can't be created (parent is actually a file)
+        # must not prevent the real Claude-routing fallback from running.
+        blocker = os.path.join(self.tmpdir, "not_a_dir")
+        open(blocker, "w").close()
+        self.sec.FALLTHROUGH_LOG = os.path.join(blocker, "fallthrough.log")
+        called = []
+        self.sec.send_to_claude = lambda text: called.append(text)
+        self.sec.handle("this should still reach claude")
+        self.assertEqual(called, ["this should still reach claude"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -71,10 +71,12 @@ below). This keeps the 90%-offline number actually climbing over time
 instead of being a one-time snapshot.
 
 ## Open items
-- No usage tracking yet on which requests fall through to Claude most
-  often — that's the actual signal for "what to playbook next," and
-  doesn't exist. A cheap first version: append the raw text to a log file
-  whenever `handle()` falls through, and eyeball it periodically.
+- ~~No usage tracking on Claude fallthroughs~~ **DONE (2026-07-20)**:
+  `handle()` now appends every unmatched request to
+  `~/.crt/fallthrough.log` (timestamped, best-effort — a broken log write
+  can never block the real Claude routing that follows it) before
+  escalating. Nothing reads/summarizes this log yet — that's still a
+  manual "eyeball it periodically" step, not automated.
 - ~~No playbook yet for the display-calibration game~~ **DONE
   (2026-07-20)**: `calibrate` runs `crt-calibrate-display.py show` (the
   single-shot pattern render only, not the interactive multi-round `run`
