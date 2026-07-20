@@ -90,9 +90,20 @@ This is where "never annoying" has to be a hard rule, not a vibe:
   already surfaced and still unanswered. (Needs a small "have I already
   chimed for this" marker — cheapest implementation: hash the report/
   question's first line, store seen-hashes in `~/.crt/idle-bait.seen`.)
-- **Quiet hours** — open question for Chris, not guessed: what hours
-  should idle-bait audio be silent (screen teaser can still update, just
-  mute)? Logged in `.claude/QUESTIONS.md`.
+- **Idle timeout, not clock-based quiet hours** (resolved 2026-07-19, per
+  Chris: "like a screensaver... a combination of low handset volume and
+  other markers going idle"). The whole mechanism — teaser line AND
+  chime, not just audio — only activates once the room's been quiet for a
+  while, same idea as a screensaver only appearing after inactivity, not
+  a fixed hour-of-day window. Implemented in `crt-idle-teaser.sh`:
+  `is_idle()` checks the newest mtime across `~/.crt/stt.log` (someone
+  spoke) and `~/.crt/sideband.state` (a state transition happened,
+  `SIDEBAND.md`) against a timeout (`CRT_IDLE_TIMEOUT_SECS`, default 20
+  minutes — a first guess, needs tuning once live). `~/.crt/mic-level` is
+  reserved as a marker path for a future lower-bar "someone's near the
+  phone" signal (a raw peak ping from `crt-stt-solo.py`, below the VAD
+  utterance threshold) — nothing produces it yet, harmless to list since a
+  missing marker just doesn't count as recent.
 - **Backoff on no-pickup**: if `crt-ring.sh` times out unanswered, do not
   retry on any fixed schedule — that's the exact "he turns the TV off"
   failure mode. Let the next *genuinely new* item be the next bait; don't

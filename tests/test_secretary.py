@@ -34,6 +34,10 @@ class TestPlaybookMatching(unittest.TestCase):
         name, _ = self.sec.find_playbook("can you run the tests")
         self.assertEqual(name, "run_tests")
 
+    def test_morning_report_matches(self):
+        name, _ = self.sec.find_playbook("give me the morning report")
+        self.assertEqual(name, "morning_report")
+
     def test_what_time_matches(self):
         name, _ = self.sec.find_playbook("what time is it")
         self.assertEqual(name, "what_time")
@@ -93,6 +97,49 @@ class TestRunTestsPlaybook(unittest.TestCase):
         self.sec.TEST_SUITE = os.path.join(REPO_DIR, "tests", "run_tests.sh")
         self.sec.handle_run_tests("run the tests")
         self.assertIn("green", self.spoken[0].lower())
+
+
+class _FakeResult:
+    def __init__(self, stdout):
+        self.stdout = stdout
+        self.returncode = 0
+
+
+class TestMorningReportPlaybook(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.spoken = []
+        self.printed = []
+        self.sec.speak = lambda text, device="handset": self.spoken.append(text)
+        self.sec.print_full = lambda text: self.printed.append(text)
+
+    def test_missing_presenter_speaks_and_does_not_crash(self):
+        self.sec.MORNING_REPORT_BIN = "/nonexistent/presenter.py"
+        self.sec.handle_morning_report("morning report")
+        self.assertIn("don't have", self.spoken[0].lower())
+        self.assertEqual(self.printed, [])
+
+    def test_no_sections_speaks_nothing_new(self):
+        self.sec.MORNING_REPORT_BIN = __file__  # any existing path works
+        self.sec.sh = lambda cmd, **kw: _FakeResult("")
+        self.sec.handle_morning_report("morning report")
+        self.assertIn("nothing", self.spoken[0].lower())
+
+    def test_sections_present_speaks_count_and_prints_full(self):
+        self.sec.MORNING_REPORT_BIN = __file__
+        calls = []
+
+        def fake_sh(cmd, **kw):
+            calls.append(cmd)
+            if cmd[-1] == "screen":
+                return _FakeResult("chezz: all green\nwtul: rip speed shipped\n")
+            return _FakeResult("full report body here")
+
+        self.sec.sh = fake_sh
+        self.sec.handle_morning_report("morning report")
+        self.assertIn("2 project", self.spoken[0])
+        self.assertEqual(self.printed, ["full report body here"])
+        self.assertEqual(len(calls), 2)
 
 
 class TestWhatTimePlaybook(unittest.TestCase):

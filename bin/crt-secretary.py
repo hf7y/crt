@@ -159,12 +159,45 @@ def handle_what_time(text):
     speak(datetime.datetime.now().strftime("It's %I:%M %p.").lstrip("0"))
 
 
+# --- Playbook: morning_report --------------------------------------------
+# The scheduler's CROSS-PROJECT morning report (chezz, wtul, crt itself,
+# etc. -- see MORNING-REPORT-PRESENTATION.md), presented entirely without
+# a Claude call via bin/crt-present-morning-report.py, which just parses
+# bin/morning-report.sh's own output. Distinct from the `status` playbook
+# above, which only covers crt's OWN reports/questions.
+MORNING_REPORT_TRIGGERS = (
+    "morning report", "give me the morning report", "read me the morning report",
+)
+MORNING_REPORT_BIN = os.environ.get(
+    "CRT_MORNING_REPORT_BIN", os.path.join(BIN_DIR, "crt-present-morning-report.py"))
+
+
+def match_morning_report(text):
+    return _matches_any(text, MORNING_REPORT_TRIGGERS)
+
+
+def handle_morning_report(text):
+    if not os.path.exists(MORNING_REPORT_BIN):
+        speak("I don't have a morning report presenter installed.")
+        return
+    r = sh(["python3", MORNING_REPORT_BIN, "screen"])
+    lines = [ln for ln in (r.stdout or "").splitlines() if ln.strip()]
+    if not lines:
+        speak("Nothing in the morning report right now.")
+        return
+    speak("%d project%s in this morning's report. Printing the full thing."
+          % (len(lines), "" if len(lines) == 1 else "s"))
+    full = sh(["python3", MORNING_REPORT_BIN, "print-all"])
+    print_full(full.stdout or "")
+
+
 # Ordered: first match wins. See SUPERVISOR.md for what belongs here vs.
 # what should stay a Claude call.
 PLAYBOOKS = (
     ("status", match_status, handle_status),
     ("run_tests", match_run_tests, handle_run_tests),
     ("what_time", match_what_time, handle_what_time),
+    ("morning_report", match_morning_report, handle_morning_report),
 )
 
 

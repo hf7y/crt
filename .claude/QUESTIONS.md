@@ -16,7 +16,3 @@ something from this file.
   the earpiece cable once the VM is reachable.
   > (answer inline here)
 
-- **2026-07-19 (design session): idle-bait quiet hours?** What hours
-  should idle-bait audio cues (`IDLE-BAIT.md`) go silent? Screen teaser
-  can still update; only the earcon needs a curfew.
-  > (answer inline here)

@@ -27,8 +27,44 @@ POLL_SECS="${CRT_IDLE_POLL:-30}"
 ANNOUNCE_LOCK="${CRT_ANNOUNCE_LOCK:-$HOME/.crt/announce.lastrun}"
 ANNOUNCE_MIN_GAP="${CRT_ANNOUNCE_MIN_GAP:-900}"
 
+# Idle timeout (2026-07-19, replaces an earlier "quiet hours" clock-window
+# idea per Chris: "like a screensaver... a combination of low handset
+# volume and other markers going idle"). The WHOLE idle-bait mechanism --
+# teaser line AND chime, not just audio -- only activates once the room's
+# been quiet for a while, the way a screensaver only appears after
+# inactivity. See IDLE-BAIT.md for the full writeup.
+#
+# "Activity" = the newest mtime across CRT_IDLE_MARKERS: today that's just
+# ~/.crt/stt.log (someone spoke) and ~/.crt/sideband.state (a state
+# transition happened, SIDEBAND.md) -- both already exist/get touched by
+# other pieces of this project. ~/.crt/mic-level is a placeholder for a
+# future marker (a raw peak-level ping from crt-stt-solo.py even below the
+# VAD utterance threshold, i.e. "someone's near the phone" without having
+# said anything yet) -- nothing writes it yet, harmless to list since a
+# missing marker file just doesn't count toward "recent."
+IDLE_TIMEOUT_SECS="${CRT_IDLE_TIMEOUT_SECS:-1200}"   # 20min, first guess, tune once live
+IDLE_MARKERS="${CRT_IDLE_MARKERS:-$HOME/.crt/stt.log $HOME/.crt/mic-level $HOME/.crt/sideband.state}"
+
 mkdir -p "$(dirname "$SEEN")"
 touch "$SEEN"
+
+last_activity_epoch() {
+  local newest=0 f mtime
+  for f in $IDLE_MARKERS; do
+    [ -f "$f" ] || continue
+    mtime=$(stat -c %Y "$f" 2>/dev/null || echo 0)
+    [ "$mtime" -gt "$newest" ] && newest="$mtime"
+  done
+  echo "$newest"
+}
+
+is_idle() {
+  local now last elapsed
+  now=$(date +%s)
+  last=$(last_activity_epoch)
+  elapsed=$(( now - last ))
+  [ "$elapsed" -ge "$IDLE_TIMEOUT_SECS" ]
+}
 
 already_seen() {
   grep -qxF "$1" "$SEEN" 2>/dev/null
@@ -97,10 +133,21 @@ process_new_lines() {
   done < "$file"
 }
 
-echo "[crt-idle-teaser] watching $REPORTS_DIR/LATEST.md + $QUESTIONS (poll ${POLL_SECS}s)" >&2
+# Guarded so tests/test_idle_teaser.sh can source this file (to reuse
+# is_idle/last_activity_epoch/process_new_lines) without starting the
+# real infinite poll loop.
+if [ "${CRT_IDLE_TEASER_TEST_MODE:-0}" = "0" ]; then
+  echo "[crt-idle-teaser] watching $REPORTS_DIR/LATEST.md + $QUESTIONS (poll ${POLL_SECS}s, idle timeout ${IDLE_TIMEOUT_SECS}s)" >&2
 
-while true; do
-  process_new_lines "$REPORTS_DIR/LATEST.md" report
-  process_new_lines "$QUESTIONS" question
-  sleep "$POLL_SECS"
-done
+  while true; do
+    # Screensaver-style: while the room's been active recently, don't even
+    # look for new items to tease -- anything that shows up gets left
+    # unmarked (not "seen" yet) so it's picked up the moment is_idle()
+    # flips true, rather than being missed or requiring a separate queue.
+    if is_idle; then
+      process_new_lines "$REPORTS_DIR/LATEST.md" report
+      process_new_lines "$QUESTIONS" question
+    fi
+    sleep "$POLL_SECS"
+  done
+fi

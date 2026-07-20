@@ -21,6 +21,10 @@ echo "== sideband ambient tone =="
 bash "$DIR/test_sideband.sh" || fail=1
 echo
 
+echo "== idle-teaser screensaver gate =="
+bash "$DIR/test_idle_teaser.sh" || fail=1
+echo
+
 echo "== crt-pager.py =="
 python3 "$DIR/test_pager.py" || fail=1
 echo
@@ -40,6 +44,12 @@ echo
 echo "== crt-calibrate-display.py =="
 if [ -f "$DIR/test_calibrate_display.py" ]; then
   python3 "$DIR/test_calibrate_display.py" || fail=1
+fi
+echo
+
+echo "== crt-present-morning-report.py =="
+if [ -f "$DIR/test_present_morning_report.py" ]; then
+  python3 "$DIR/test_present_morning_report.py" || fail=1
 fi
 
 if [ "$fail" -eq 0 ]; then
