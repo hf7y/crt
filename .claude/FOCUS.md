@@ -137,6 +137,14 @@ classifier as a process-kill action -- needs the user's direct OK) or a
 Windows reboot. Deprioritized per user instruction this session ("abandon
 midi... pick it up later") in favor of the TTS/pager/secretary work above.
 
+**Direction, 2026-07-20** (answered in `BLOCKERS.md`): develop this on the
+dexter/Windows side for now, but with the explicit long-term intent that
+it gets merged back into the bare-metal Linux distro eventually (see
+README's "Bare-metal deployment" / "Porting to native Windows later"
+sections) — so design/wiring choices made here should stay portable, not
+lean on anything Windows-only that would need re-solving on the eventual
+Linux target.
+
 ## faster-whisper network service on dexter (2026-07-19, DONE, live)
 `bin/dexter-whisper-server.py` runs faster-whisper natively on dexter's Ryzen
 (port 8991, `/health` + `/transcribe`) so transcription isn't CPU-capped by

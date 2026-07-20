@@ -67,7 +67,9 @@ phone at all.
   teach us later.
 
 ## Status
-Mechanism decided. Still needs: a specific rotary switch part chosen
-(commodity sourcing, not a design task), then the faceplate/knob CAD
-(blocked on that part's real dimensions, same as the hookswitch assembly).
-Added to `cad/CAD-BACKLOG.md`.
+Mechanism decided. **Switch part sourced 2026-07-20** —
+https://www.amazon.com/dp/B088W8WMTB (linked directly in `BLOCKERS.md`).
+Faceplate/knob CAD still blocked on that part's real dimensions once it's
+in hand (measure it the same way the hookswitch assembly's parts get
+measured — don't guess from the listing photos). Tracked in
+`cad/CAD-BACKLOG.md`.

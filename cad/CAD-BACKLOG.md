@@ -11,31 +11,38 @@ before printing anything.
   `cradle.scad` — the see-saw hookswitch. **Blocked on measuring the real
   handset barrel + microswitch** (`params.scad` has generic placeholders,
   explicitly flagged there) — physical, needs Chris's hands, not
-  advanceable remotely.
+  advanceable remotely. **2026-07-20**: caliper on hand (a specific one
+  linked in `BLOCKERS.md`), measurements not taken yet — closer than
+  before, still blocked on the actual numbers.
 - `wall_hook.scad` — simpler "just hang it up" alternative, reserved hole
   for a hanging switch. Same measurement dependency.
 
 ## New this session (speculative, design-stage only)
 - `ir_blaster_mount.scad` — bracket to aim an IR LED at the TV, for the
-  persona/channel-switch idea (`PHILOSOPHY.md` #5, `PARKING-LOT.md`'s
-  HDMI-to-RF multi-channel concept). No LED bought, no TV sensor position
-  measured — pure placeholder geometry to react to.
+  persona/channel-switch idea (`PHILOSOPHY.md` #5) and the TV-power-on
+  trigger (`PARKING-LOT.md`, corrected from RF to IR 2026-07-20 — one
+  blaster likely covers both jobs). **IR LED sourced 2026-07-20**:
+  https://www.amazon.com/dp/B099ZJ6555 — TV sensor position still not
+  measured, mount geometry stays placeholder until it's in hand.
 - `earcon_grille.scad` — speaker grille for a dedicated beep-speaker on
   the CRT chassis itself (see `IDLE-BAIT.md`/`SIDETONE.md`), separate
   from the handset earpiece — the console gets its own non-verbal voice
   independent of anything routed through the phone. No speaker bought.
 
-## Named but not yet stubbed (mechanism now decided, part not yet chosen)
+## Named but not yet stubbed (mechanism decided, part status noted)
 - **Persona-channel indicator** — mechanism decided in `PERSONA-CHANNEL.md`
   (2026-07-19): a real detented rotary switch Chris turns by hand, control
   and indicator are the same object, no servo/LED display to desync.
-  Still not stubbed because it needs a specific commodity switch part
-  chosen first (shaft/bushing dimensions) — the CAD work is a faceplate/
-  knob skin around that part, same measure-first rule as the hookswitch.
-- **RF power-on trigger housing** (`PARKING-LOT.md` — lifting the handset
-  sends RF to power the TV on, like an old remote-power trigger). Needs an
-  actual RF module chosen first (this is closer to an electronics-sourcing
-  task than a CAD task at this stage).
+  **Switch sourced 2026-07-20**: https://www.amazon.com/dp/B088W8WMTB —
+  still not stubbed pending real dimensions once it arrives (shaft/
+  bushing) — the CAD work is a faceplate/knob skin around that part, same
+  measure-first rule as the hookswitch.
+- **HDMI-to-RF multi-channel modulator housing** (`PARKING-LOT.md`'s
+  multi-persona TV-channel idea) — **the modulator itself is already
+  owned** (2026-07-20, supports daisy-chain multi-channel) — this is no
+  longer a sourcing blocker, just an unstubbed housing/mounting/wiring
+  integration task. Worth a first stub once its physical footprint is in
+  hand to measure.
 - **Handset internal mic/earpiece wiring harness** — implied by
   `SIDETONE.md`'s recommendation to design passive hardware sidetone
   *into* the handset wiring from the start, rather than retrofitting.

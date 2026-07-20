@@ -11,19 +11,31 @@ conversation. Stretch: a token economy where it sometimes gives back more
 than was inserted, turning it into more of a game/gamble than a vending
 transaction.
 
-## The load-bearing legal question — settle this FIRST
-**A machine that accepts real coins and sometimes pays out more coins/
-value than inserted is, depending on jurisdiction, a gambling device**,
-regardless of artistic intent. This isn't a minor compliance footnote —
-it can determine whether the piece is legal to operate at all in a given
-venue/state, and rules vary a lot by jurisdiction (games of skill vs.
-chance, prize value caps, whether it's sited in a licensed venue, etc.).
-**Do not build the real-payout version without an actual legal check for
-the specific venue/jurisdiction.** Recommended default, and the version
-this brief scopes below: **no real-money payout, ever.** The "sometimes
-gives more back than inserted" mechanic is scoped entirely in-world (see
-below) — genuinely safer, and arguably a better piece for it (the
-surprise/generosity is about *attention and conversation*, not cash).
+## The load-bearing legal question — RESOLVED 2026-07-20
+Confirmed direction: **real coin-operated mechanism, quarters as the
+prototyping currency, no real payout, never deployed for real money.**
+Specifically —
+- Build/test against a **real coin-operated mechanism that takes
+  quarters** — quarters are just the most available physical token for
+  prototyping, not a monetary design choice.
+- Target end-state is **token-only** (swap the mechanism to accept custom
+  tokens instead of quarters) *if that conversion turns out to be easy*.
+  If not easy, keep testing/developing on the quarter mechanism while the
+  token conversion proceeds as a **parallel work stream**, not a blocker
+  on everything else.
+- **No legal check needed under this framing** — explicitly confirmed,
+  because this is never deployed as a live/public installation using real
+  money. The original concern below (a machine that accepts real coins
+  and pays out more value than inserted is, in many jurisdictions, a
+  gambling device) only applies to a genuine public real-money deployment,
+  which this project isn't and won't be. Kept here as background for why
+  the framing matters, not as an open blocker anymore.
+
+The "sometimes gives more back than inserted" mechanic is still scoped
+entirely in-world (see below), independent of the quarters-vs-tokens
+question — even in the confirmed no-real-money framing, coins/tokens
+inserted are still consumed, not refunded as coins/tokens; what comes
+back is conversation time, a printed fortune, or a collectible token.
 
 ## Recommended framing (avoids the legal cliff entirely)
 - Coins/tokens are **consumed**, not refunded as coins. What comes back
@@ -40,12 +52,17 @@ surprise/generosity is about *attention and conversation*, not cash).
 - This preserves the "sometimes generous" game feel Chris described
   without the regulatory risk of a real-money payout mechanism.
 
-## Scope (draft, assuming the safe framing above)
+## Scope (draft, assuming the confirmed framing above)
 1. **Coin acceptor**: a standard commercial coin mechanism (e.g. a
    Coinco/Mars-style validator, common in arcade/vending — off-the-shelf,
    not custom-built) wired to a simple GPIO pulse-counter (Pi or
-   microcontroller). Accepts real quarters as a "play" trigger only —
-   never dispenses them back.
+   microcontroller). **Build/test phase: accepts real quarters** as a
+   "play" trigger only, never dispenses them back. **Parallel track**:
+   evaluate whether the same validator (or a compatible one) can be
+   reconfigured/re-calibrated to accept custom tokens instead of quarters
+   — many commercial validators support this via coin-size/weight
+   profiles — and if so, migrate to token-only once that's sorted,
+   without blocking build progress on quarters in the meantime.
 2. **Handset + hookswitch**: reuse the `cad/` assembly design directly,
    this is the same mechanical problem as the personal crt.
 3. **Backend**: a conversational TTS/AI backend, much closer to the
@@ -65,10 +82,8 @@ surprise/generosity is about *attention and conversation*, not cash).
    the payout question above; don't skip it.
 
 ## Open questions (need the artist, not guessed here)
-1. Confirm the no-real-payout framing is acceptable creatively, or if a
-   real-payout version is actually wanted — if the latter, **stop and get
-   real legal advice for the specific venue before building anything**,
-   this brief does not scope that version.
+1. ~~Confirm the no-real-payout framing~~ **ANSWERED 2026-07-20** — see
+   the resolved legal section above.
 2. What's the actual conversation? A fixed bit (payphone has a
    personality/backstory, canned-ish responses) vs. genuinely open Claude-
    Code-backed conversation (higher cost per call, higher variance,
@@ -88,6 +103,8 @@ surprise/generosity is about *attention and conversation*, not cash).
   `RFP-GALLERY.md`).
 
 ## Status
-Design brief only. No venue, no budget, no build started. The legal
-framing question is the one thing to nail down before any other work on
-this concept, including hardware sourcing.
+Design brief, direction confirmed 2026-07-20 (quarters for prototyping,
+token conversion in parallel, no legal blocker under this framing). No
+venue, no budget, no build started yet — but unlike before, hardware
+sourcing (a real coin validator) is no longer blocked on an open
+decision.

@@ -57,14 +57,75 @@ waiting. Phones physically ring when something's waiting for them.
      if unanswered. Needs a real creative decision, not an engineering
      default.
 
+## Architecture possibilities (2026-07-20, requested writeup)
+Direction given: explore per-unit-Raspberry-Pi (centralized or autonomous)
+vs. real POTS wiring through a switcher, "from a possibilities standpoint
+— what do different choices make possible." Three real options, not two —
+the original "centralized vs. independent" framing below undersells it:
+
+**A1 — Per-unit Pi, centralized backend** (the original draft above).
+Each phone has its own compute, but all logic/storage lives on one
+central server; units are thin clients. Gets WiFi-only deployment (no
+cabling) and per-unit hardware uniformity, but inherits a single point of
+failure (the central server) AND N units' worth of hardware cost — worth
+naming that this option is dominated by A2 or B below on most axes: it
+doesn't get A2's resilience/personality upside, and doesn't get B's cost
+advantage.
+
+**A2 — Per-unit Pi, autonomous/networked** (the leaning, per direction
+given). Each Pi runs its own message logic and personality, and units
+talk to each other peer-to-peer (or over a lightweight shared bus like
+MQTT) rather than through one brain. What this makes possible:
+- **Genuine per-unit character** — each phone's STT quirks, voice, and
+  local message queue could actually differ, closer to `PHILOSOPHY.md`
+  #6 (imperfection is character) applied at installation scale: not
+  identical terminals, actual distinct beings.
+- **Failure isolation** — one Pi crashing doesn't take the show down; the
+  others keep working. Directly answers the original brief's stated top
+  risk ("far more reliable for an unattended multi-day show").
+  Independent units *already* had this property in the original framing
+  — autonomous-but-networked keeps it while adding the message-hopping
+  magic independent units lacked.
+  - **Emergent message propagation** — a message could genuinely "wander"
+  the room over time (gossip-protocol style) rather than "leave at A,
+  mystery unit B rings" being the only shape — a substantially more
+  interesting mechanic than the original pitch, and one only this
+  architecture makes possible.
+- Costs: N Pis' worth of hardware and N images/configs to keep alive
+  across a multi-day show — real per-unit maintenance burden, and the
+  gossip/message-propagation design itself needs real creative work, not
+  just engineering.
+
+**B — Real POTS wiring through a switcher.** Visitors' handsets are real
+dumb analog phones; a small PBX/FXS-FXO switch (or simple key-telephone
+hardware) does all the compute centrally, real wiring runs to each unit.
+What this makes possible:
+- **Much lower per-unit cost** — a real analog handset is $5-20 secondhand,
+  zero compute per phone. At any real N, this is the cheap option.
+- **Authentic feel** — real electromechanical ringing, real handset
+  weight/acoustics, closer to "an old phone system," not "a Pi in a
+  shell." The wiring itself (visible conduit runs, or hidden-in-the-walls)
+  is part of the aesthetic either way, a real installation-design choice.
+- **One STT/TTS instance to run**, not N — simpler audio pipeline, though
+  it costs A2's per-unit-personality upside unless deliberately varied
+  per line in software.
+- Costs: a real single point of failure (the switch going down takes
+  every phone out at once — worse than A2, though only one machine to
+  babysit instead of N), and physical cable runs across the venue, a real
+  logistics/venue constraint A2's WiFi-only deployment doesn't have.
+
+**Report summary**: A2 (autonomous networked Pis) and B (POTS+switcher)
+are the two real choices — they optimize for different things (character/
+resilience/no-cabling vs. cost/authenticity/simplicity) and neither
+dominates the other. A1 is likely not worth pursuing on its own terms.
+This is exactly the kind of call that should wait for a real venue/budget
+(same "don't over-invest before this is answered" note as before) — but
+now it's a three-way creative choice, not an engineering default.
+
 ## Open questions (need the artist/curator, not guessed here)
-1. **Centralized backend vs. fully independent units?** Independent units
-   (no shared network at all, no message hand-off between phones) are
-   far more reliable for an unattended multi-day show and have zero
-   network-risk — but lose the "leave a message, a stranger picks it up
-   elsewhere in the room" magic that's the whole pitch. This is the
-   single highest-leverage design decision — settle it before any
-   hardware is bought.
+1. **Which architecture — A2 (autonomous Pis) or B (POTS+switcher)?**
+   See the possibilities writeup above. This is still the single
+   highest-leverage decision — settle it before any hardware is bought.
 2. Does a visitor ever get an AI-generated reply, or is this pure
    human-to-human (visitor leaves a message, another visitor hears it,
    nothing synthetic in between)? Pure human-to-human is simpler, more
