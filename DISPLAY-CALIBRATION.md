@@ -65,13 +65,15 @@ numeric settings. The shape:
   with synthetic feedback sequences (including a deliberately
   contradictory one, to confirm it doesn't oscillate forever).
 
-## Not done this session
-- Wiring the saved margin into `crt-pager.py`/`crt-monologue.sh`'s actual
-  rendering (reduce effective WIDTH/HEIGHT by the margin) — the
-  calibration tool produces a number, but nothing *consumes* it yet.
-  Small follow-up once the calibration flow itself has been run live at
-  least once (no point wiring consumption of a number nobody's confirmed
-  is right).
+## Not done this session (as of 2026-07-19)
+- ~~Wiring the saved margin into rendering~~ **DONE (2026-07-20)**: both
+  `crt-pager.py` (`load_display_margins`/`apply_margins`, applied
+  regardless of whether WIDTH/HEIGHT came from env override or
+  auto-detect) and `crt-monologue.sh` now read `~/.crt/display.conf` and
+  shrink the usable area accordingly. No-op until the calibration game
+  has actually produced a real margin — still untested against a real
+  overscan crop, only against synthetic conf files
+  (`tests/test_pager.py`, `tests/test_monologue_margin.sh`).
 - The STT-response-to-per-edge-feedback parser is a first-draft guess at
   phrasing ("top right is gone," "all four are fine") — real voice
   responses in a noisy room will need the same charitable-inference

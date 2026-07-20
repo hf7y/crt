@@ -13,6 +13,10 @@ echo "== crt-monologue.sh width resolution =="
 bash "$DIR/test_monologue_width.sh" || fail=1
 echo
 
+echo "== crt-monologue.sh overscan margin =="
+bash "$DIR/test_monologue_margin.sh" || fail=1
+echo
+
 echo "== hookswitch debounce =="
 bash "$DIR/test_hookswitch_debounce.sh" || fail=1
 echo
@@ -23,6 +27,10 @@ echo
 
 echo "== idle-teaser screensaver gate =="
 bash "$DIR/test_idle_teaser.sh" || fail=1
+echo
+
+echo "== stt-feed.sh CRT_SECRETARY opt-in gate =="
+bash "$DIR/test_stt_feed_secretary_flag.sh" || fail=1
 echo
 
 echo "== crt-pager.py =="

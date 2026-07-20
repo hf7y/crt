@@ -4,9 +4,16 @@
 # each one locally with whisper.cpp, and types the result into the tmux
 # session/pane running Claude Code, followed by Enter.
 set -euo pipefail
+BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 SESSION="${CRT_TMUX_SESSION:-claude}"
 PANE="${CRT_TMUX_PANE:-0}"
+# Opt-in (2026-07-20, default OFF): route each utterance through
+# bin/crt-secretary.py's playbook supervisor (SUPERVISOR.md) instead of
+# typing it straight into the claude pane. Off by default because nobody
+# has watched this run live yet -- see SECRETARY.md's own status note.
+# The raw tmux send-keys path below is completely unchanged when this is 0.
+USE_SECRETARY="${CRT_SECRETARY:-0}"
 # Where recognized text goes:
 #   claude  - type it into the tmux Claude Code pane (+ voice control keystrokes)
 #   stdout  - just print timestamped transcriptions (standalone STT view / debug)
@@ -130,6 +137,12 @@ while true; do
         echo "[stt-feed] (key) clear line"
         tmux send-keys -t "${SESSION}:${PANE}" C-u; continue ;;
     esac
+  fi
+
+  if [ "$USE_SECRETARY" != "0" ]; then
+    echo "[stt-feed] -> (secretary) $text"
+    python3 "$BIN_DIR/crt-secretary.py" "$text" || true
+    continue
   fi
 
   echo "[stt-feed] -> $text"

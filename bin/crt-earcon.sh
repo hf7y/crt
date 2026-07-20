@@ -71,34 +71,43 @@ note() {  # note <freq> <secs> <out.wav>
   sox -n -r 22050 "$3" synth "$2" sine "$1" vol 0.5 fade 0.01 "$2" "$fadeout"
 }
 
+sweep() {  # sweep <f1> <f2> <secs> <out.wav> -- a true glissando (continuous
+  # pitch bend, sox's "f1-f2" frequency syntax) rather than discrete
+  # stepped notes -- EXPRESSIVE-TONE.md named this as the un-reached
+  # "next pass" (only `oops` used it before 2026-07-20); a real prosodic
+  # slide reads as more alive/less robotic than a note sequence for
+  # anything meant to feel like a single gesture (a "psst," a "hmm"),
+  # while `question`/`content` below still benefit from a little internal
+  # shape (a sweep, then a settle) rather than being pure straight lines.
+  local fadeout
+  fadeout=$(awk -v s="$FADE_SCALE" 'BEGIN{v=0.02*s; if (v<0.005) v=0.005; printf "%.3f", v}')
+  sox -n -r 22050 "$4" synth "$3" sine "$1"-"$2" vol 0.5 fade 0.01 "$3" "$fadeout"
+}
+
 case "$NAME" in
   bait)
-    # two soft notes, rising a third -- "psst, over here", not a ring.
-    note 660 0.09 "$TMP/a.wav"
-    note 880 0.13 "$TMP/b.wav"
-    sox "$TMP/a.wav" "$TMP/b.wav" "$TMP/out.wav"
+    # single continuous upward slide -- "psst, over here" as one fluid
+    # gesture, not two stepped notes.
+    sweep 660 880 0.16 "$TMP/out.wav"
     ;;
   curious)
-    # slower, gentler rise than `bait` -- a minor third, unhurried. "hm,
+    # slower, gentler slide than `bait` -- a minor third, unhurried. "hm,
     # interesting" rather than "psst, over here."
-    note 494 0.16 "$TMP/a.wav"
-    note 587 0.20 "$TMP/b.wav"
-    sox "$TMP/a.wav" "$TMP/b.wav" "$TMP/out.wav"
+    sweep 494 587 0.30 "$TMP/out.wav"
     ;;
   question)
-    # three notes, rising -- a little more present than `bait` but still
-    # a question mark, not an alarm (ends up, like an actual question).
-    note 660 0.08 "$TMP/a.wav"
-    note 784 0.08 "$TMP/b.wav"
-    note 988 0.14 "$TMP/c.wav"
-    sox "$TMP/a.wav" "$TMP/b.wav" "$TMP/c.wav" "$TMP/out.wav"
+    # one continuous rise across the full range, ending on an uptick --
+    # closer to actual questioning intonation (which is itself a
+    # continuous rise) than three stepped notes were.
+    sweep 660 988 0.24 "$TMP/out.wav"
     ;;
   content)
-    # rise then settle back down -- something pending finally resolved.
-    note 523 0.10 "$TMP/a.wav"
-    note 659 0.10 "$TMP/b.wav"
-    note 587 0.18 "$TMP/c.wav"
-    sox "$TMP/a.wav" "$TMP/b.wav" "$TMP/c.wav" "$TMP/out.wav"
+    # rise then settle back down, now as two joined sweeps instead of
+    # three stepped notes -- something pending finally resolved, the
+    # "ahh, good" contour.
+    sweep 523 659 0.14 "$TMP/a.wav"
+    sweep 659 587 0.16 "$TMP/b.wav"
+    sox "$TMP/a.wav" "$TMP/b.wav" "$TMP/out.wav"
     ;;
   success)
     # short bright chirp, single note, quick -- satisfied, not celebratory

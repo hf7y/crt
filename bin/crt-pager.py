@@ -38,6 +38,8 @@ import sys, os, time, shutil, textwrap
 
 FALLBACK_WIDTH = 40   # CLAUDE.md's assumed CRT geometry -- last resort only
 FALLBACK_HEIGHT = 15
+DISPLAY_CONF = os.path.expanduser(os.environ.get("CRT_DISPLAY_CONF", "~/.crt/display.conf"))
+MARGIN_EDGES = ("top", "bottom", "left", "right")
 
 
 def detect_size():
@@ -55,7 +57,40 @@ def detect_size():
     return int(env_w) if env_w else cols, int(env_h) if env_h else max(2, lines - 1)
 
 
+def load_display_margins(path=DISPLAY_CONF):
+    """Reads the overscan safe-margin profile bin/crt-calibrate-display.py
+    writes (DISPLAY-CALIBRATION.md) -- same KEY=value shape as tts.conf.
+    Missing file/keys default to 0 (no margin), so this is a no-op until
+    someone's actually run the calibration game."""
+    margins = {e: 0 for e in MARGIN_EDGES}
+    if os.path.exists(path):
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k = k.strip()
+                if k in margins:
+                    try:
+                        margins[k] = int(v.strip())
+                    except ValueError:
+                        pass
+    return margins
+
+
+def apply_margins(width, height, margins):
+    """Shrinks the usable content area by the calibrated safe margin --
+    applied regardless of whether WIDTH/HEIGHT came from env override or
+    auto-detection, since the margin represents a physical overscan crop
+    that's true either way."""
+    w = max(1, width - margins.get("left", 0) - margins.get("right", 0))
+    h = max(1, height - margins.get("top", 0) - margins.get("bottom", 0))
+    return w, h
+
+
 WIDTH, HEIGHT = detect_size()   # HEIGHT already leaves 1 line for the footer
+WIDTH, HEIGHT = apply_margins(WIDTH, HEIGHT, load_display_margins())
 SCROLL_SECS = float(os.environ.get("CRT_PAGER_SCROLL_SECS", "2.5"))  # per line
 CTL = os.environ.get("CRT_CTL_FILE", "")
 

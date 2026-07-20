@@ -68,4 +68,46 @@ else
   echo "ok - active room: no teaser fires while active"
 fi
 
+# --- ANSI color-per-register (EXPRESSIVE-TONE.md) ---
+run_color_for_line() {
+  CRT_IDLE_TEASER_TEST_MODE=1 bash -c '
+    source "'"$BIN_DIR"'/crt-idle-teaser.sh"
+    color_for_line "'"$1"'"
+  '
+}
+
+COLOR_URGENT_EXPECTED=$'\033[1;31m'
+got="$(run_color_for_line "- **09:00 (BLOCKER):** something broke")"
+check "blocker line -> urgent red" "$COLOR_URGENT_EXPECTED" "$got"
+
+COLOR_QUESTION_EXPECTED=$'\033[33m'
+got="$(run_color_for_line "- **09:00 (QUESTION):** pick one")"
+check "question line -> yellow" "$COLOR_QUESTION_EXPECTED" "$got"
+
+COLOR_CURIOUS_EXPECTED=$'\033[36m'
+got="$(run_color_for_line "- **09:00 (note):** just fyi")"
+check "plain note -> curious cyan" "$COLOR_CURIOUS_EXPECTED" "$got"
+
+# End-to-end: a colored teaser actually lands in thoughts.log wrapped in
+# the color + a reset code, once idle.
+report_file2="$TMPDIR/LATEST2.md"
+echo "- **09:00 (BLOCKER):** something broke" > "$report_file2"
+touch -d "2020-01-01" "$TMPDIR/old_marker"
+CRT_IDLE_TEASER_TEST_MODE=1 CRT_IDLE_MARKERS="$TMPDIR/old_marker" \
+  CRT_IDLE_TIMEOUT_SECS=60 CRT_IDLE_SEEN="$TMPDIR/seen2" \
+  CRT_THOUGHT_LOG="$TMPDIR/thoughts2.log" \
+  bash -c '
+    source "'"$BIN_DIR"'/crt-idle-teaser.sh"
+    if is_idle; then
+      process_new_lines "'"$report_file2"'" report
+    fi
+  ' >/dev/null 2>&1
+if grep -qF $'\033[1;31m' "$TMPDIR/thoughts2.log" 2>/dev/null && \
+   grep -qF $'\033[0m' "$TMPDIR/thoughts2.log" 2>/dev/null; then
+  echo "ok - colored teaser reaches thoughts.log with color + reset"
+else
+  echo "FAIL - colored teaser missing color/reset codes in thoughts.log"
+  fail=1
+fi
+
 exit "$fail"

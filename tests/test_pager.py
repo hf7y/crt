@@ -8,6 +8,7 @@
 import io
 import os
 import sys
+import tempfile
 import unittest
 import importlib.util
 import contextlib
@@ -50,6 +51,54 @@ class TestDetectSize(unittest.TestCase):
         # No COLUMNS/LINES, no real tty in this sandbox -> hardware fallback.
         self.assertEqual(m.WIDTH, m.FALLBACK_WIDTH)
         self.assertGreaterEqual(m.HEIGHT, 2)
+
+
+class TestDisplayMargins(unittest.TestCase):
+    def test_no_conf_file_is_a_noop(self):
+        m = load_pager({"CRT_PAGER_WIDTH": "40", "CRT_PAGER_HEIGHT": "14",
+                         "CRT_DISPLAY_CONF": "/nonexistent/display.conf",
+                         "PATH": os.environ.get("PATH", "")})
+        self.assertEqual((m.WIDTH, m.HEIGHT), (40, 14))
+
+    def test_conf_margins_shrink_effective_size(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".conf", delete=False) as f:
+            f.write("top=1\nbottom=1\nleft=2\nright=2\n")
+            path = f.name
+        try:
+            m = load_pager({"CRT_PAGER_WIDTH": "40", "CRT_PAGER_HEIGHT": "14",
+                             "CRT_DISPLAY_CONF": path,
+                             "PATH": os.environ.get("PATH", "")})
+            self.assertEqual((m.WIDTH, m.HEIGHT), (36, 12))
+        finally:
+            os.unlink(path)
+
+    def test_margins_applied_even_with_explicit_env_override(self):
+        # The margin represents a physical overscan crop, true regardless
+        # of how WIDTH/HEIGHT were determined -- must still apply on top
+        # of an explicit CRT_PAGER_WIDTH/HEIGHT override.
+        with tempfile.NamedTemporaryFile("w", suffix=".conf", delete=False) as f:
+            f.write("left=5\nright=5\n")
+            path = f.name
+        try:
+            m = load_pager({"CRT_PAGER_WIDTH": "40", "CRT_PAGER_HEIGHT": "14",
+                             "CRT_DISPLAY_CONF": path,
+                             "PATH": os.environ.get("PATH", "")})
+            self.assertEqual(m.WIDTH, 30)
+        finally:
+            os.unlink(path)
+
+    def test_margin_never_shrinks_below_one(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".conf", delete=False) as f:
+            f.write("left=100\nright=100\ntop=100\nbottom=100\n")
+            path = f.name
+        try:
+            m = load_pager({"CRT_PAGER_WIDTH": "40", "CRT_PAGER_HEIGHT": "14",
+                             "CRT_DISPLAY_CONF": path,
+                             "PATH": os.environ.get("PATH", "")})
+            self.assertGreaterEqual(m.WIDTH, 1)
+            self.assertGreaterEqual(m.HEIGHT, 1)
+        finally:
+            os.unlink(path)
 
 
 class TestWrapLines(unittest.TestCase):

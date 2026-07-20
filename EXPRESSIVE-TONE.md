@@ -68,12 +68,13 @@ register mismatch (mouth says one thing, tone of voice says another,
 exactly the kind of dissonance that reads as "off" in a real conversation).
 
 ## Explicitly not doing (yet)
-- No actual pitch-contour synthesis beyond simple note sequences (`sox
-  synth sine`) — real prosodic pitch bends (glissando mid-note) are
-  possible with `sox`'s `synth ... sine 500-220` frequency-sweep syntax
-  (already used for `oops`) but weren't extended to every register; a
-  next pass could make every register a sweep-shape, not just a
-  note-sequence shape.
+- ~~No actual pitch-contour synthesis beyond simple note sequences~~
+  **DONE (2026-07-20)**: `bait`/`curious`/`question` are now single
+  continuous glissando sweeps (`sox`'s `f1-f2` syntax, previously only
+  `oops` used it) instead of stepped notes; `content` is two joined
+  sweeps (rise, then settle) instead of three discrete notes. Still
+  unheard by a human — all 21 tone×fade-scale combinations synth-render
+  clean, that's the only verification possible offline.
 - No color/brightness dimension yet, despite `CLAUDE.md` explicitly
   granting ANSI control of the screen — a natural extension (register
   also picks a color, not just line length) that this pass didn't reach.

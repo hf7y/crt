@@ -91,6 +91,32 @@ chime() {
   "$BIN_DIR/crt-earcon.sh" "$1" >/dev/null 2>&1 || true
 }
 
+# ANSI color-per-register (2026-07-20, EXPRESSIVE-TONE.md's color
+# dimension, named but not reached until now): each teaser kind gets a
+# color matching its register in that doc's table -- clipped/urgent
+# (blocker) reads red, a real question reads yellow (present, not
+# alarming), an ordinary find reads the same cyan "warm/curious" register
+# as the `curious`/`bait` earcons. crt-think.sh just appends whatever text
+# it's given, so the color codes ride along into thoughts.log and
+# crt-monologue.sh's tail+fold displays them as-is -- terminals interpret
+# ANSI codes regardless of exactly where fold's byte-counting wraps, so
+# this works even though fold (correctly) doesn't know the escape bytes
+# are zero-width; given how short these teaser lines are, in practice
+# that just doesn't come up.
+COLOR_URGENT=$'\033[1;31m'    # blocker
+COLOR_QUESTION=$'\033[33m'    # a real judgment call
+COLOR_CURIOUS=$'\033[36m'     # ordinary find
+COLOR_RESET=$'\033[0m'
+
+color_for_line() {
+  local line="$1"
+  case "$line" in
+    *BLOCKER*|*blocker*) printf '%s' "$COLOR_URGENT" ;;
+    *QUESTION*|*question*|*'> (answer'*) printf '%s' "$COLOR_QUESTION" ;;
+    *) printf '%s' "$COLOR_CURIOUS" ;;
+  esac
+}
+
 teaser_for_line() {
   # $1 = the raw report/question line. Turn it into a short curious
   # first-person hook rather than echoing the line verbatim -- verbatim
@@ -120,7 +146,8 @@ process_new_lines() {
     mark_seen "$h"
 
     teaser="$(teaser_for_line "$line")"
-    "$BIN_DIR/crt-think.sh" "$teaser"
+    color="$(color_for_line "$line")"
+    "$BIN_DIR/crt-think.sh" "${color}${teaser}${COLOR_RESET}"
 
     if [ "$kind" = "question" ]; then
       chime question
