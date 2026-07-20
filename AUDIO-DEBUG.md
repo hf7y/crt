@@ -81,7 +81,7 @@ Config-only alternatives to try when A–D don't fully settle it:
 These are enumerated so an overnight job (or a VM session) can pick one, wire a
 toggle, and measure with Approach D — not to be all built blindly.
 
-## Approach F — streaming / rolling-window STT `[idea]` (nightly batch: research + prototype)
+## Approach F — streaming / rolling-window STT `[partial]` (nightly batch: research + prototype)
 
 Right now whisper.cpp runs **batch per VAD-cut utterance**: it waits for the
 phrase to end, transcribes the whole clip once, and never revises. Web/streaming
@@ -109,6 +109,24 @@ streaming mainly buys latency and long-form self-correction; it will NOT fix
 noise-driven hallucinations — that's what the highpass/noisered filter (now in
 crt-stt-solo.py) and a better VAD (Silero) are for. So treat F as a
 feel/latency upgrade, not the noise fix.
+
+**Prototype built (2026-07-19 nightly batch):** `bin/crt-stt-stream.py` +
+`bin/crt-stt-stream-view.sh`. Same VAD/capture/denoise/hallucination-filter/
+log conventions as `crt-stt-solo.py`; the new part is `local_agreement_commit()`
+— every `CRT_STREAM_INTERVAL` (default 0.7s) it re-decodes the whole
+utterance-so-far and commits the prefix that agrees with the immediately
+prior decode (LocalAgreement-2), printing committed words plain and the
+uncommitted tail dimmed. On utterance end it does one more full decode and
+that — not the partial trail — is what actually reaches the log/claude sink,
+so accuracy of the *final* result is unaffected either way; only the live
+feel changes. Verified so far: syntax/compile clean, `local_agreement_commit`
+unit-tested (agreement + disagreement-halts-commit cases), and `transcribe()`
+smoke-tested against a real local whisper-cli + tiny.en model on the dev box
+(silence in, empty string out, no crash). **NOT verified:** live mic
+behavior, whether 0.7s ticks feel responsive vs. janky, or whether the
+guest's CPU cap (see COST WARNING in the file's header) makes this unusably
+slow without `CRT_WHISPER_SERVER` pointed at dexter — needs a VM/handset
+session with real speech.
 
 ---
 
