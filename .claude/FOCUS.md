@@ -93,23 +93,18 @@ listed — earlier items unblock/inform later ones (2 and 7 are related;
 
 ## Deferred (not in current focus — do not pull these into an STT session)
 
-These are tracked here so they're not lost. Most are **physical/hardware** and
-cannot be done by an autonomous agent. The scheduler's overnight batch (now
-enabled — see below) is scoped to the CODE-shaped items only and told to branch
-around anything needing hands on hardware or a live VM.
+**Moved 2026-07-20**: the hands-on-hardware items that used to live here
+(MIDI controller, physical hookswitch, OctoPrint, Benchy print, USB
+phone-interface module, the VM-hardware-check install) now live in the
+scheduler's cross-project `BLOCKERS.md`, under `## crt` — that file is the
+one-glance human-owned surface across every project; this one stays
+scoped to code-shaped backlog. Still deliberately **not** in current
+focus, still branch around anything needing hands on hardware or a live
+VM if it resurfaces here by mistake.
 
-1. **MIDI controller** (Arturia MiniLab mkII, USB 1c75:0289). USB2/EHCI
-   passthrough enabled; device was "Captured" by VBox but not enumerating in
-   guest ALSA. Goal: pads → Enter/Esc/arrows for prompt control, knobs → scroll.
-2. **Physical hookswitch** — handset on-hook/off-hook detection; pads/reed
-   switch → mute + pause STT + (stretch) TV power. See `cad/` and README.
-3. **OctoPrint** on a spare Raspberry Pi (OctoPi SD already flashed on mandark).
-4. **Benchy calibration print** once the Ender 3 SD path is verified (3DBenchy
-   STL downloaded on mandark).
-5. **USB phone-interface module** — for the bare-metal Intel Compute Stick
-   target (no 1/8" jack; audio must go over USB). Composite USB device:
-   audio + HID for hookswitch. Ubuntu Server ISO downloaded (32-bit-UEFI quirk).
-6. **Stretch: video-call wrapper** (Zoom/WhatsApp) over the handset/CRT.
+1. **Stretch: video-call wrapper** (Zoom/WhatsApp) over the handset/CRT —
+   not a blocker (nothing needed from a human to start), just genuinely
+   unstarted backlog, lowest priority.
 
 ## Secretary reframing (2026-07-19) — see SECRETARY.md
 The real goal is a phone-secretary service, not a raw STT->Claude terminal.
