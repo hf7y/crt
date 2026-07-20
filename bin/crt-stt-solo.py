@@ -149,6 +149,31 @@ def predictive_flash():
         return
     if out:
         hud_msg, hud_until = ("~ " + out)[:WIDTH + 20], time.time() + 10.0
+
+# Sideband ambient-presence state (2026-07-20, opt-in, off by default --
+# SIDEBAND.md). While CRT_SIDEBAND=1, this is the sole writer of
+# "listening" (mic actively capturing, the default while running) and
+# "thinking" (a real transcribe() call is in flight -- the same latency
+# window predictive_flash() above addresses visually, now also audible).
+# Never writes "idle"/"speaking" -- those belong to crt-idle-teaser.sh's
+# screensaver gate and whatever's actually playing TTS, respectively, not
+# to the mic-capture loop.
+SIDEBAND = os.environ.get("CRT_SIDEBAND", "0") != "0"
+SIDEBAND_SET_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt-sideband-set.sh")
+SIDEBAND_TIMEOUT = float(os.environ.get("CRT_SIDEBAND_SET_TIMEOUT", "0.5"))
+
+
+def set_sideband_state(state):
+    """Best-effort, like predictive_flash() -- a slow/broken sideband
+    setter must never delay real transcription."""
+    if not SIDEBAND:
+        return
+    try:
+        subprocess.run(["bash", SIDEBAND_SET_BIN, state],
+                        capture_output=True, timeout=SIDEBAND_TIMEOUT)
+    except Exception:
+        pass
+
 # STT text always gets logged to CRT_STT_LOG (for the claude-feed merge to
 # read), but only gets PRINTED/scrolled to this pane's terminal (persisting
 # in scrollback) when debug mode is on. Off by default: raw STT should only
@@ -328,6 +353,7 @@ def main():
     print("[crt-stt] sole reader on %s  model=%s  thr=%.1f%% (peak)"
           % (DEV, os.path.basename(MODEL), THRESH * 100))
     print("-" * 40)
+    set_sideband_state("listening")   # no-op unless CRT_SIDEBAND=1
 
     pre = deque(maxlen=PREROLL)
     in_utt = False
@@ -432,7 +458,9 @@ def main():
                     if dur >= MINUTT:
                         if PREDICT_FLASH:
                             predictive_flash()
+                        set_sideband_state("thinking")
                         emit(transcribe(bytes(buf)), utt_peak)
+                        set_sideband_state("listening")
                     buf = bytearray()
     except KeyboardInterrupt:
         pass

@@ -61,7 +61,7 @@ fi
 command -v sox >/dev/null 2>&1 || { echo "[crt-earcon] sox not installed" >&2; exit 1; }
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'rm -rf "$TMP"' EXIT   # redefined below, once the duck flag exists too
 
 FADE_SCALE="${CRT_EARCON_FADE_SCALE:-1.0}"
 
@@ -129,6 +129,15 @@ case "$NAME" in
     exit 2
     ;;
 esac
+
+# Sideband duck (SIDEBAND.md): mute the ambient tone for the duration of
+# this earcon, same reasoning/mechanism as crt-tts.py's play_wav -- inert
+# unless crt-sideband.sh happens to be running, no opt-in flag needed.
+SIDEBAND_MUTE_FILE="${CRT_SIDEBAND_MUTE_FILE:-$HOME/.crt/sideband.mute}"
+mkdir -p "$(dirname "$SIDEBAND_MUTE_FILE")" 2>/dev/null || true
+: > "$SIDEBAND_MUTE_FILE" 2>/dev/null || true
+unduck() { rm -f "$SIDEBAND_MUTE_FILE" 2>/dev/null || true; }
+trap 'rm -rf "$TMP"; unduck' EXIT
 
 # Same device routing as crt-tts.py: tv/handset go through dexter's audio
 # bridge (VirtualBox one-sink-per-VM workaround, see AUDIO-ROUTING.md),

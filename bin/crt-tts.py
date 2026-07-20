@@ -99,22 +99,48 @@ def pick_backend():
     return None
 
 
+# Sideband duck (SIDEBAND.md): mute the ambient tone for the duration of
+# actual TTS playback so the two never compete for the same device. Safe
+# to touch unconditionally -- writing/removing this flag file is inert
+# unless bin/crt-sideband.sh happens to be running and reading it (it's
+# not auto-started anywhere), so this needs no opt-in flag of its own.
+SIDEBAND_MUTE_FILE = os.path.expanduser(
+    os.environ.get("CRT_SIDEBAND_MUTE_FILE", "~/.crt/sideband.mute"))
+
+
+def _sideband_mute(muted):
+    try:
+        if muted:
+            d = os.path.dirname(SIDEBAND_MUTE_FILE)
+            if d:
+                os.makedirs(d, exist_ok=True)
+            open(SIDEBAND_MUTE_FILE, "w").close()
+        else:
+            os.unlink(SIDEBAND_MUTE_FILE)
+    except OSError:
+        pass
+
+
 def play_wav(wav, device):
-    if device in DEXTER_DEVICES:
-        try:
-            with open(wav, "rb") as f:
-                data = f.read()
-            req = urllib.request.Request(
-                DEXTER_URL + "?device=" + device, data=data,
-                headers={"Content-Type": "audio/wav"})
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                resp.read()
-            return True
-        except Exception as e:
-            sys.stderr.write("[crt-tts] dexter audio-out failed: %s\n" % e)
-            return False
-    subprocess.run(["aplay", "-D", device or DEV, "-q", wav])
-    return True
+    _sideband_mute(True)
+    try:
+        if device in DEXTER_DEVICES:
+            try:
+                with open(wav, "rb") as f:
+                    data = f.read()
+                req = urllib.request.Request(
+                    DEXTER_URL + "?device=" + device, data=data,
+                    headers={"Content-Type": "audio/wav"})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    resp.read()
+                return True
+            except Exception as e:
+                sys.stderr.write("[crt-tts] dexter audio-out failed: %s\n" % e)
+                return False
+        subprocess.run(["aplay", "-D", device or DEV, "-q", wav])
+        return True
+    finally:
+        _sideband_mute(False)
 
 
 def resolve_prosody(mood=None, pitch_semitones=None, rate_mult=None, volume_mult=None):

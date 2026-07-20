@@ -65,6 +65,17 @@ echo "== crt-tts.py prosody =="
 if [ -f "$DIR/test_tts_prosody.py" ]; then
   python3 "$DIR/test_tts_prosody.py" || fail=1
 fi
+echo
+
+echo "== sideband wiring (stt-solo state + tts duck) =="
+if [ -f "$DIR/test_sideband_wiring.py" ]; then
+  python3 "$DIR/test_sideband_wiring.py" || fail=1
+fi
+echo
+
+echo "== earcon sideband duck =="
+bash "$DIR/test_earcon_sideband_duck.sh" || fail=1
+echo
 
 if [ "$fail" -eq 0 ]; then
   echo "ALL GREEN"

@@ -61,13 +61,27 @@ for. Two guards, both non-negotiable:
   source-under-a-test-mode-guard technique used for
   `hookswitch-listen.sh`'s debounce logic).
 
+## Wiring, done 2026-07-20
+- `crt-stt-solo.py`: opt-in (`CRT_SIDEBAND=1`, default off) —
+  `set_sideband_state("listening")` once at startup, `"thinking"` around
+  each `transcribe()` call (the same latency window `predictive_flash()`
+  addresses visually), back to `"listening"` after. Never writes
+  `"idle"`/`"speaking"` — those belong to `crt-idle-teaser.sh`'s
+  screensaver gate and whatever's actually playing TTS.
+- `crt-tts.py` / `crt-earcon.sh`: the mute-duck is **always on**, no flag
+  needed — touching `~/.crt/sideband.mute` is inert unless
+  `crt-sideband.sh` happens to be running (nothing auto-starts it), so
+  there's no live-behavior risk in leaving it unconditional. Both use a
+  `finally`/`trap`-guaranteed unmute so a playback failure can't leave the
+  console muted forever.
+- Covered by `tests/test_sideband_wiring.py` (stt-solo gate + tts duck,
+  mocked subprocess) and `tests/test_earcon_sideband_duck.sh` (real sox
+  render, a fake `aplay` observes the mute flag's presence).
+
 ## Not done this session
-- No real wiring into `crt-stt-solo.py` (state transitions on VAD
-  start/stop) or `crt-secretary.py`/`crt-tts.py`/`crt-earcon.sh` (the mute
-  flag around their own playback) — needs a live device to confirm
-  ducking actually works before anything depends on it.
-- The tone textures themselves (a noise bed + a pulse) are a first guess,
-  completely unheard. `EXPRESSIVE-TONE.md`'s register taxonomy could
-  eventually extend to this channel too (a "clipped/urgent" sideband
-  texture during a real blocker?) — not attempted this pass, listed as a
-  future thread rather than guessed at blind.
+- The tone textures themselves (a noise bed + a pulse) are still a first
+  guess, completely unheard — none of the wiring above changes that.
+  `EXPRESSIVE-TONE.md`'s register taxonomy could eventually extend to
+  this channel too (a "clipped/urgent" sideband texture during a real
+  blocker?) — not attempted this pass, listed as a future thread rather
+  than guessed at blind.
