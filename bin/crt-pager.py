@@ -12,8 +12,15 @@
 #
 # STATUS: NOT hardware-verified (written without a live CRT to check layout
 # against). Terminal-based (curses-free, plain ANSI) so it works over the
-# existing tmux pane; WIDTH/HEIGHT default to the 40x15 CRT geometry from
-# CLAUDE.md, override via env if the real geometry differs.
+# existing tmux pane.
+#
+# WIDTH/HEIGHT (2026-07-19, was hardcoded 40x14): CRT_PAGER_WIDTH/HEIGHT env
+# vars win if set; otherwise auto-detect the real terminal size
+# (shutil.get_terminal_size) so this renders correctly whether it's the
+# actual small CRT tmux pane, a resized VM window, or a dev machine's
+# terminal during testing -- a hardcoded assumption silently misrenders the
+# moment any of those differ. Only falls back to the CLAUDE.md 40x15 CRT
+# default when detection itself fails (e.g. no tty at all, like a cron job).
 #
 # Usage:
 #   crt-pager.py file.txt
@@ -29,8 +36,26 @@
 #                                  a MIDI knob's relative/delta mode
 import sys, os, time, shutil, textwrap
 
-WIDTH  = int(os.environ.get("CRT_PAGER_WIDTH", "40"))
-HEIGHT = int(os.environ.get("CRT_PAGER_HEIGHT", "14"))   # leave 1 line for footer
+FALLBACK_WIDTH = 40   # CLAUDE.md's assumed CRT geometry -- last resort only
+FALLBACK_HEIGHT = 15
+
+
+def detect_size():
+    """env override > real terminal size > CRT hardware fallback. Kept as a
+    standalone function (not inlined at import time) so tests can call it
+    directly with a monkeypatched shutil.get_terminal_size."""
+    env_w = os.environ.get("CRT_PAGER_WIDTH")
+    env_h = os.environ.get("CRT_PAGER_HEIGHT")
+    if env_w and env_h:
+        return int(env_w), int(env_h)
+    try:
+        cols, lines = shutil.get_terminal_size(fallback=(FALLBACK_WIDTH, FALLBACK_HEIGHT))
+    except OSError:
+        cols, lines = FALLBACK_WIDTH, FALLBACK_HEIGHT
+    return int(env_w) if env_w else cols, int(env_h) if env_h else max(2, lines - 1)
+
+
+WIDTH, HEIGHT = detect_size()   # HEIGHT already leaves 1 line for the footer
 SCROLL_SECS = float(os.environ.get("CRT_PAGER_SCROLL_SECS", "2.5"))  # per line
 CTL = os.environ.get("CRT_CTL_FILE", "")
 

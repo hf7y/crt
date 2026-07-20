@@ -10,12 +10,20 @@
 #
 # Usage:
 #   crt-earcon.sh <name> [--device tv|handset]
+#   CRT_EARCON_FADE_SCALE=0.3 crt-earcon.sh bait   # clipped/urgent register
+#   CRT_EARCON_FADE_SCALE=2.5 crt-earcon.sh bait   # wistful/quiet register
 #
 # Names (see the `case` below for the actual tone recipe of each):
-#   bait      new idle-bait item landed on screen (curiosity-gap chime)
+#   bait      new idle-bait item landed on screen (curiosity-gap chime,
+#             fast-ish rise -- "look over here")
+#   curious   a gentler, slower rise than `bait` -- "hm, interesting" rather
+#             than "psst" -- a real register difference in contour, not
+#             just a slower `bait` (see EXPRESSIVE-TONE.md)
 #   question  a real judgment call needs Chris (a little more present than
 #             `bait`, still not urgent -- see IDLE-BAIT.md's rule that only
 #             genuine judgment calls get audio at all)
+#   content   something that was pending finally resolved -- rises then
+#             settles back down, the "ahh, good" sound
 #   success   a job finished clean (bright, quick, satisfied)
 #   ack       pickup acknowledged / now listening (a soft click, not a tone
 #             -- confirms the line is live without announcing anything)
@@ -23,12 +31,18 @@
 #             not scary (a little descending "whoop," cartoon-stumble, NOT
 #             a klaxon -- reserve real klaxon energy for nothing, ever)
 #
-# All idle-bait-triggered calls (bait/question) MUST go through the same
-# 15-minute shared lockfile crt-announce.sh uses (CRT_ANNOUNCE_LOCK) so a
-# chime and a TV announcement can never stack into a barrage -- enforce that
-# at the call site (whatever triggers the earcon), not here; this script
-# just plays the sound on request, it doesn't rate-limit itself, since
-# `ack`/`success` during an active call should never be throttled.
+# CRT_EARCON_FADE_SCALE (default 1.0) is the "how urgent does this feel
+# right now" dial, orthogonal to which tone/contour is picked above -- see
+# EXPRESSIVE-TONE.md's register table. Scales every tone's fade-out only
+# (attack stays put so the sound is still recognizable at any scale);
+# small (~0.3) reads clipped/urgent, large (~2.5+) reads wistful/unhurried.
+#
+# All idle-bait-triggered calls (bait/curious/question) MUST go through the
+# same 15-minute shared lockfile crt-announce.sh uses (CRT_ANNOUNCE_LOCK) so
+# a chime and a TV announcement can never stack into a barrage -- enforce
+# that at the call site (whatever triggers the earcon), not here; this
+# script just plays the sound on request, it doesn't rate-limit itself,
+# since `ack`/`success` during an active call should never be throttled.
 set -euo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -40,7 +54,7 @@ if [ "${1:-}" = "--device" ]; then
 fi
 
 if [ -z "$NAME" ]; then
-  echo "usage: crt-earcon.sh <bait|question|success|ack|oops> [--device tv|handset]" >&2
+  echo "usage: crt-earcon.sh <bait|curious|question|content|success|ack|oops> [--device tv|handset]" >&2
   exit 2
 fi
 
@@ -49,8 +63,12 @@ command -v sox >/dev/null 2>&1 || { echo "[crt-earcon] sox not installed" >&2; e
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+FADE_SCALE="${CRT_EARCON_FADE_SCALE:-1.0}"
+
 note() {  # note <freq> <secs> <out.wav>
-  sox -n -r 22050 "$3" synth "$2" sine "$1" vol 0.5 fade 0.01 "$2" 0.02
+  local fadeout
+  fadeout=$(awk -v s="$FADE_SCALE" 'BEGIN{v=0.02*s; if (v<0.005) v=0.005; printf "%.3f", v}')
+  sox -n -r 22050 "$3" synth "$2" sine "$1" vol 0.5 fade 0.01 "$2" "$fadeout"
 }
 
 case "$NAME" in
@@ -60,12 +78,26 @@ case "$NAME" in
     note 880 0.13 "$TMP/b.wav"
     sox "$TMP/a.wav" "$TMP/b.wav" "$TMP/out.wav"
     ;;
+  curious)
+    # slower, gentler rise than `bait` -- a minor third, unhurried. "hm,
+    # interesting" rather than "psst, over here."
+    note 494 0.16 "$TMP/a.wav"
+    note 587 0.20 "$TMP/b.wav"
+    sox "$TMP/a.wav" "$TMP/b.wav" "$TMP/out.wav"
+    ;;
   question)
     # three notes, rising -- a little more present than `bait` but still
     # a question mark, not an alarm (ends up, like an actual question).
     note 660 0.08 "$TMP/a.wav"
     note 784 0.08 "$TMP/b.wav"
     note 988 0.14 "$TMP/c.wav"
+    sox "$TMP/a.wav" "$TMP/b.wav" "$TMP/c.wav" "$TMP/out.wav"
+    ;;
+  content)
+    # rise then settle back down -- something pending finally resolved.
+    note 523 0.10 "$TMP/a.wav"
+    note 659 0.10 "$TMP/b.wav"
+    note 587 0.18 "$TMP/c.wav"
     sox "$TMP/a.wav" "$TMP/b.wav" "$TMP/c.wav" "$TMP/out.wav"
     ;;
   success)
@@ -80,7 +112,8 @@ case "$NAME" in
     ;;
   oops)
     # descending whoop, cartoon-stumble energy, not a klaxon.
-    sox -n -r 22050 "$TMP/out.wav" synth 0.25 sine 500-220 vol 0.5 fade 0.01 0.25 0.03
+    oops_fadeout=$(awk -v s="$FADE_SCALE" 'BEGIN{v=0.03*s; if (v<0.005) v=0.005; printf "%.3f", v}')
+    sox -n -r 22050 "$TMP/out.wav" synth 0.25 sine 500-220 vol 0.5 fade 0.01 0.25 "$oops_fadeout"
     ;;
   *)
     echo "[crt-earcon] unknown name: $NAME" >&2

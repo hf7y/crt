@@ -117,13 +117,38 @@ THR_COL   = max(0, min(WIDTH - 1, int(THRESH / MFULL * WIDTH)))
 # Flash state for the meter line -- shared by the knob/ctl HUD (apply_ctl_line)
 # and by emit() flashing the raw STT output. Module-level (not main()-local)
 # so emit() can set it directly; main()'s display loop just reads it.
-# TODO: predictive-text double layer -- show a cheap fast guess first, then
-# flash/overwrite with the corrected transcription once it lands, for the
-# "instant" feel described in PARKING-LOT.md. Not implemented yet; this just
-# flashes the final (post-whisper) text.
 hud_msg = ""
 hud_until = 0.0
 FLASH_SECS = float(os.environ.get("CRT_FLASH_SECS", "2.5"))
+
+# Predictive-text double layer (2026-07-19, opt-in, off by default): the
+# instant an utterance ends, flash a cheap local guess (bin/crt-predict.py,
+# trained on this room's own ~/.crt/stt.log history) BEFORE whisper -- which
+# genuinely takes real wall-clock time -- has run at all. emit() unconditionally
+# overwrites hud_msg/hud_until with the real transcription once transcribe()
+# returns, so the guess is always superseded, never mistaken for the real
+# thing (marked with a "~" prefix regardless). This is PARKING-LOT.md's
+# predictive-typing-then-overwrite aesthetic applied to the STT step itself.
+# Off by default until someone can watch it run live and judge whether a
+# wrong guess flashing for ~1s reads as charming or confusing (see
+# PHILOSOPHY.md #6 on where the imperfection-as-character line is).
+PREDICT_FLASH = os.environ.get("CRT_PREDICT_FLASH", "0") != "0"
+PREDICT_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt-predict.py")
+PREDICT_TIMEOUT = float(os.environ.get("CRT_PREDICT_TIMEOUT", "0.3"))
+
+
+def predictive_flash():
+    """Best-effort: a slow/broken predictor must never delay or crash real
+    transcription, so any failure here is silently swallowed."""
+    global hud_msg, hud_until
+    try:
+        out = subprocess.run(["python3", PREDICT_BIN, "guess"],
+                              capture_output=True, text=True,
+                              timeout=PREDICT_TIMEOUT).stdout.strip()
+    except Exception:
+        return
+    if out:
+        hud_msg, hud_until = ("~ " + out)[:WIDTH + 20], time.time() + 10.0
 # STT text always gets logged to CRT_STT_LOG (for the claude-feed merge to
 # read), but only gets PRINTED/scrolled to this pane's terminal (persisting
 # in scrollback) when debug mode is on. Off by default: raw STT should only
@@ -405,6 +430,8 @@ def main():
                 if sil >= TRAIL or dur >= MAXUTT:
                     in_utt = False; above = 0
                     if dur >= MINUTT:
+                        if PREDICT_FLASH:
+                            predictive_flash()
                         emit(transcribe(bytes(buf)), utt_peak)
                     buf = bytearray()
     except KeyboardInterrupt:

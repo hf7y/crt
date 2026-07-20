@@ -1,0 +1,18 @@
+# See crt-vm-hardware-check.service for the manual install steps and why
+# this isn't wired into install.sh automatically.
+#
+# Once/day, offset from the mandark scheduler's own nightly windows
+# (VM-JOBS.md) so a human reviewing both projects' reports isn't hit with
+# every project's report landing at once. Adjust OnCalendar freely --
+# there's no real reason it has to be nightly rather than, say, right
+# before the household usually wakes up.
+[Unit]
+Description=Run crt's VM-resident hardware check once a day
+
+[Timer]
+OnCalendar=*-*-* 06:30:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

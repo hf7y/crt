@@ -25,14 +25,13 @@ before printing anything.
   from the handset earpiece — the console gets its own non-verbal voice
   independent of anything routed through the phone. No speaker bought.
 
-## Named but not yet stubbed (needs more design first, not just measurements)
-- **Persona-channel indicator** (`PHILOSOPHY.md` #5) — a physical
-  indicator of which "self"/channel is currently active (imagined as
-  something like a small rotating disc or window, changed mechanically or
-  via a tiny servo when the IR channel-switch fires). Not stubbed because
-  the mechanism itself isn't decided yet (rotating disc vs. LED-lit icon
-  set vs. something else) — sketch the mechanism before writing geometry,
-  or it'll just be guessed twice.
+## Named but not yet stubbed (mechanism now decided, part not yet chosen)
+- **Persona-channel indicator** — mechanism decided in `PERSONA-CHANNEL.md`
+  (2026-07-19): a real detented rotary switch Chris turns by hand, control
+  and indicator are the same object, no servo/LED display to desync.
+  Still not stubbed because it needs a specific commodity switch part
+  chosen first (shaft/bushing dimensions) — the CAD work is a faceplate/
+  knob skin around that part, same measure-first rule as the hookswitch.
 - **RF power-on trigger housing** (`PARKING-LOT.md` — lifting the handset
   sends RF to power the TV on, like an old remote-power trigger). Needs an
   actual RF module chosen first (this is closer to an electronics-sourcing

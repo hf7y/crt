@@ -1,10 +1,59 @@
 # crt — focus & backlog
 
-**Current focus: the core STT pipeline.** Everything below the line is
-deliberately parked so interactive sessions stay on getting voice→text→Claude
-reliable. See `../HANDOFF.md` for full state and access.
+**Current focus: the core STT pipeline** (see "Now (core STT, blocked on
+VM)" below) — but every item there needs a live `crt-vm` session, which an
+unattended batch run doesn't have. **"Now (offline-safe, no VM/dexter
+needed)" is what tonight's actual autonomous work should be**, until VM
+access is available again. See `../HANDOFF.md` for full state and access.
 
-## Now (core STT)
+## Now (offline-safe, no VM/dexter needed) — registered 2026-07-20
+
+Every item here is buildable and testable with `tests/run_tests.sh` alone
+— no VM, no dexter, no real audio hardware. Each MUST land with its own
+test coverage added to `tests/`, and any behavior change to an existing
+default pipeline (stt-feed.sh, crt-stt-solo.py) MUST be opt-in via an env
+flag, default off, exactly like `CRT_PREDICT_FLASH` already is — none of
+this should change what the live console does today until a human can
+watch it run. Do NOT claim anything "sounds good," "feels right," or is
+hardware-verified — that bar still needs a real ear/eye, see the
+acceptance-bar note in `.claude/commands/nightly-batch.md`.
+
+1. **Wire `crt-secretary.py` into `stt-feed.sh`**, opt-in
+   (`CRT_SECRETARY=1`, default off — the raw send-keys path stays the
+   default). Test with a mocked tmux, same pattern as
+   `tests/test_secretary.py`. See `SECRETARY.md`/`SUPERVISOR.md`.
+2. **Consume the calibration margin**: `crt-pager.py`/`crt-monologue.sh`
+   don't read `~/.crt/display.conf` yet — subtract the saved margins from
+   the auto-detected WIDTH/HEIGHT. See `DISPLAY-CALIBRATION.md`'s "not
+   done this session" note.
+3. **Extend `crt-earcon.sh`'s pitch contours** — most registers are still
+   plain note sequences, not the glissando/sweep shapes `oops` already
+   uses. See `EXPRESSIVE-TONE.md`'s "explicitly not doing (yet)" list.
+4. **ANSI color-per-register** in `crt-idle-teaser.sh`/`crt-monologue.sh`
+   output — the color dimension `EXPRESSIVE-TONE.md` named but didn't
+   reach. `CLAUDE.md` explicitly grants ANSI control of the screen.
+5. **Per-call TTS prosody overrides** in `crt-tts.py` — pitch/rate/volume
+   currently only come from flat `tts.conf`/env config, not per-call, so
+   the register taxonomy can't actually vary spoken delivery yet. See
+   `EXPRESSIVE-TONE.md`.
+6. **Wire sideband state transitions**, opt-in — `crt-stt-solo.py` (VAD
+   start/stop -> listening/idle), `crt-secretary.py`/`crt-tts.py`/
+   `crt-earcon.sh` (mute-duck around their own playback via
+   `~/.crt/sideband.mute`). See `SIDEBAND.md`'s "not done this session."
+7. **A `calibrate` playbook** in `crt-secretary.py` — voice trigger runs
+   `crt-calibrate-display.py show`. Named as the natural next playbook in
+   `SUPERVISOR.md`.
+8. **Fallthrough-logging** in the supervisor — log any request that
+   matches no playbook (to a file, not acted on) so a future session can
+   see which requests keep escalating to Claude and are worth a new
+   playbook. `SUPERVISOR.md`'s open item.
+
+Stop-by-report-time applies as usual (see nightly-batch.md step 3's
+budget). If only some of these fit in one pass, do them in the order
+listed — earlier items unblock/inform later ones (2 and 7 are related;
+6 depends on nothing else here).
+
+## Now (core STT, blocked on VM)
 
 - **Reliability of detection ("stops detecting" / stale capture)** is the top
   problem. See **`AUDIO-DEBUG.md`** — it enumerates several parallel approaches,
@@ -17,9 +66,12 @@ reliable. See `../HANDOFF.md` for full state and access.
   - D `bin/crt-audio-doctor.sh` — `check` / `monitor` liveness telemetry to find
     what the staleness correlates with.
   Next: run A/B/D on `crt-vm`, capture a `~/.crt/liveness.csv`, decide the fix.
+  **All of this needs a live crt-vm session — not actionable by an
+  unattended batch run right now.**
 - The standalone STT view (`bin/crt-stt.sh`) — verify it runs and is useful for
-  watching/tuning transcription, decoupled from Claude.
+  watching/tuning transcription, decoupled from Claude. **Also needs the VM.**
 - Ongoing calibration: `CRT_VAD_THRESHOLD`, Windows mic boost, normalization.
+  **Also needs the VM.**
 
 ## Deferred (not in current focus — do not pull these into an STT session)
 
@@ -89,6 +141,13 @@ running/speaking, just not what's displayed). **Ongoing practice going
 forward: narrate real work into this log in-character as it happens** (via
 `crt-think.sh` over SSH) rather than only reporting after the fact — it
 doubles as a durable append-only context record for later sessions.
+
+## Offline test suite now exists (2026-07-19)
+`tests/run_tests.sh` — shell syntax checks, `crt-pager.py`/`crt-monologue.sh`
+width logic, `crt-predict.py` model logic. Zero VM/hardware needed. Any
+future nightly-batch pass should run this before claiming a code-shaped
+change "done" — it's real regression coverage now, not just an acceptance-
+bar reminder.
 
 ## Idle-bait / beeps / sidetone / philosophy design pass (2026-07-19)
 Design session, no VM access. Full detail in `.claude/SESSION-STATE.md`

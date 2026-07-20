@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+# Offline tests for bin/crt-secretary.py's playbook registry (SUPERVISOR.md)
+# -- exercises matching + the deterministic-local-state handlers (status,
+# run_tests, what_time) without tmux/Claude/TTS/printer hardware, by
+# monkeypatching the side-effecting functions (speak/print_full/sh).
+import importlib.util
+import os
+import tempfile
+import unittest
+
+BIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin")
+REPO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+
+
+def load_secretary():
+    spec = importlib.util.spec_from_file_location(
+        "crt_secretary", os.path.join(BIN_DIR, "crt-secretary.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class TestPlaybookMatching(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+
+    def test_status_matches_variants(self):
+        for phrase in ("what's up", "any reports for me", "anything new?",
+                       "give me a status"):
+            name, _ = self.sec.find_playbook(phrase)
+            self.assertEqual(name, "status", phrase)
+
+    def test_run_tests_matches(self):
+        name, _ = self.sec.find_playbook("can you run the tests")
+        self.assertEqual(name, "run_tests")
+
+    def test_what_time_matches(self):
+        name, _ = self.sec.find_playbook("what time is it")
+        self.assertEqual(name, "what_time")
+
+    def test_novel_request_matches_nothing(self):
+        name, action = self.sec.find_playbook("refactor the audio pipeline")
+        self.assertIsNone(name)
+        self.assertIsNone(action)
+
+    def test_first_match_wins_no_double_fire(self):
+        # A phrase that could plausibly brush two playbooks should still
+        # resolve to exactly one -- ordering in PLAYBOOKS is the tiebreak.
+        name, _ = self.sec.find_playbook("status: run the tests please")
+        self.assertIn(name, ("status", "run_tests"))
+
+
+class TestStatusPlaybook(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.tmpdir = tempfile.mkdtemp()
+        self.sec.REPORTS_DIR = self.tmpdir
+        self.sec.QUESTIONS = os.path.join(self.tmpdir, "QUESTIONS.md")
+        self.spoken = []
+        self.printed = []
+        self.sec.speak = lambda text, device="handset": self.spoken.append(text)
+        self.sec.print_full = lambda text: self.printed.append(text)
+
+    def test_quiet_when_nothing_new(self):
+        self.sec.handle_status("what's up")
+        self.assertIn("quiet", self.spoken[0].lower())
+        self.assertEqual(self.printed, [])
+
+    def test_speaks_count_and_prints_when_items_exist(self):
+        with open(os.path.join(self.tmpdir, "LATEST.md"), "w") as f:
+            f.write("- **09:00 (note):** something happened\n")
+        self.sec.handle_status("what's up")
+        self.assertIn("waiting", self.spoken[0].lower())
+        self.assertEqual(len(self.printed), 1)
+        self.assertIn("something happened", self.printed[0])
+
+
+class TestRunTestsPlaybook(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.spoken = []
+        self.sec.speak = lambda text, device="handset": self.spoken.append(text)
+        self.sec.print_full = lambda text: None
+
+    def test_reports_missing_suite(self):
+        self.sec.TEST_SUITE = "/nonexistent/run_tests.sh"
+        self.sec.handle_run_tests("run the tests")
+        self.assertIn("don't see", self.spoken[0].lower())
+
+    def test_runs_real_suite_and_reports_green(self):
+        # Uses this repo's own real test suite -- if THIS test is running,
+        # the suite it's part of had better still be green.
+        self.sec.TEST_SUITE = os.path.join(REPO_DIR, "tests", "run_tests.sh")
+        self.sec.handle_run_tests("run the tests")
+        self.assertIn("green", self.spoken[0].lower())
+
+
+class TestWhatTimePlaybook(unittest.TestCase):
+    def test_speaks_something_time_shaped(self):
+        sec = load_secretary()
+        spoken = []
+        sec.speak = lambda text, device="handset": spoken.append(text)
+        sec.handle_what_time("what time is it")
+        self.assertEqual(len(spoken), 1)
+        self.assertTrue(spoken[0].startswith("It's") or spoken[0][0].isdigit())
+
+
+if __name__ == "__main__":
+    unittest.main()
