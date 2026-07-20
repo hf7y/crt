@@ -1,5 +1,19 @@
 # crt — focus & backlog
 
+**Heads-up (2026-07-20, from scheduler's own repo) — check scheduler's
+current state before building against old assumptions.** A significant
+scheduler redesign session happened today: the `.claude/**` permission
+gate crt's own `MORNING-REPORT-PRESENTATION.md` work ran into is now
+root-caused and fixed (files move to a top-level `.scheduler/` dir,
+outside `.claude/`); `bin/morning-report.sh`/`DIGEST.md` — the interface
+`crt-present-morning-report.py` parses — is very likely getting retired
+in favor of `bin/scheduler` (a real, already-working CLI: `scheduler`,
+`scheduler -b/-f/-q/-r`), not just fixed for the hang bug crt reported.
+Before doing more work on the morning-report presenter specifically,
+read scheduler's own `.scheduler/FOCUS.md` (the "Vision", "Consolidation
+roadmap", and blockers-aggregation sections) to see whether the shape
+being parsed is still the right target.
+
 **Current focus: the core STT pipeline** (see "Now (core STT, blocked on
 VM)" below) — but every item there needs a live `crt-vm` session, which an
 unattended batch run doesn't have. See `../HANDOFF.md` for full state and
