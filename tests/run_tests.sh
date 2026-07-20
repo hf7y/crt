@@ -59,6 +59,12 @@ echo "== crt-present-morning-report.py =="
 if [ -f "$DIR/test_present_morning_report.py" ]; then
   python3 "$DIR/test_present_morning_report.py" || fail=1
 fi
+echo
+
+echo "== crt-tts.py prosody =="
+if [ -f "$DIR/test_tts_prosody.py" ]; then
+  python3 "$DIR/test_tts_prosody.py" || fail=1
+fi
 
 if [ "$fail" -eq 0 ]; then
   echo "ALL GREEN"

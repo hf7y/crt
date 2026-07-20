@@ -79,11 +79,15 @@ exactly the kind of dissonance that reads as "off" in a real conversation).
   granting ANSI control of the screen — a natural extension (register
   also picks a color, not just line length) that this pass didn't reach.
   Worth its own follow-up rather than bolting on hastily.
-- No TTS *prosody* control (piper/espeak pitch/rate per-register) — only
-  the earcons and raw text-shape were touched this pass. `crt-tts.py`
-  already exposes `CRT_TTS_PITCH`/`CRT_TTS_RATE`/`CRT_TTS_VOLUME` as flat
-  config, not yet per-call/per-register — a real next step once the
-  taxonomy above proves out on the simpler channels first.
+- ~~No TTS prosody control~~ **DONE (2026-07-20)**: `crt-tts.py` now
+  post-processes either backend's raw wav with sox (`pitch`/`tempo`/`vol`
+  effects) via `--mood <urgent|curious|content|wistful>` or explicit
+  `--pitch-semitones`/`--rate-mult`/`--volume-mult` flags (or the
+  `speak()` kwargs directly) — one mechanism for both backends, since
+  piper's CLI has no pitch knob and espeak's flags are baked in before
+  synthesis. No flags = byte-identical to the old behavior. Real sox
+  invocations tested (`tests/test_tts_prosody.py`); never heard by ear —
+  no TTS backend installed in this sandbox at all.
 
 ## Status
 Design + a first mechanism (`CRT_EARCON_FADE_SCALE`, `curious`/`content`

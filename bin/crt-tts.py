@@ -15,6 +15,8 @@
 #   echo "text" | crt-tts.py            # or via stdin
 #   crt-tts.py --device tv "ring the TV"        # route via dexter's native
 #   crt-tts.py --device handset "..."           # audio-out service (see below)
+#   crt-tts.py --mood urgent "hurry"            # EXPRESSIVE-TONE.md register preset
+#   crt-tts.py --pitch-semitones -1 --rate-mult 0.85 --volume-mult 0.8 "..."
 #
 # ROUTING (2026-07-19, confirmed working via live human test): when --device
 # is "tv" or "handset", audio is POSTed to dexter-audio-server.py
@@ -23,10 +25,30 @@
 # PortAudio -- this is the actual fix for VirtualBox's one-audio-device-per-VM
 # limit (see AUDIO-ROUTING.md). Any other --device value (or none) plays
 # locally in the guest via aplay, as before.
+#
+# PER-CALL PROSODY (2026-07-20, EXPRESSIVE-TONE.md): pitch/rate/volume used
+# to only come from flat tts.conf/env config, so every utterance sounded
+# the same regardless of register. Backends differ too much to control this
+# uniformly at synthesis time (piper's CLI has no pitch knob at all; espeak's
+# flags are baked in before synthesis, not adjustable after) -- instead,
+# apply_prosody() below post-processes whichever backend's raw wav with
+# sox (pitch/tempo/vol effects), one mechanism for both backends. --mood
+# is a shortcut onto EXPRESSIVE-TONE.md's register table; --pitch-semitones/
+# --rate-mult/--volume-mult (or the speak() kwargs) override individually.
+# No flags at all = byte-identical behavior to before this existed.
 import sys, os, subprocess, shlex, tempfile, urllib.request
 
 DEXTER_URL = os.environ.get("CRT_AUDIO_OUT_URL", "http://192.168.0.22:8992/play")
 DEXTER_DEVICES = ("tv", "handset")
+
+MOOD_PRESETS = {
+    # name: (pitch_semitones, rate_mult, volume_mult) -- EXPRESSIVE-TONE.md's
+    # register table, translated to sox's pitch/tempo/vol units.
+    "urgent":  (0, 1.15, 1.0),    # clipped/urgent: faster, no pitch change
+    "curious": (0, 1.0, 1.0),     # warm/curious: unmodified (the default)
+    "content": (0, 0.95, 1.0),    # content/settled: a touch slower, calm
+    "wistful": (-1, 0.85, 0.85),  # wistful/quiet: slower, softer, a shade lower
+}
 
 CONF = os.path.expanduser(os.environ.get("CRT_TTS_CONF", "~/.crt/tts.conf"))
 
@@ -95,42 +117,91 @@ def play_wav(wav, device):
     return True
 
 
-def speak_piper(text, device):
+def resolve_prosody(mood=None, pitch_semitones=None, rate_mult=None, volume_mult=None):
+    """Explicit pitch/rate/volume kwargs win; otherwise --mood's preset;
+    otherwise no override at all (None, None, None -- byte-identical to
+    pre-2026-07-20 behavior). Pure function, no I/O -- the actual sox
+    invocation lives in apply_prosody()."""
+    p, r, v = None, None, None
+    if mood:
+        preset = MOOD_PRESETS.get(mood)
+        if preset is None:
+            sys.stderr.write("[crt-tts] unknown mood %r, ignoring\n" % mood)
+        else:
+            p, r, v = preset
+    if pitch_semitones is not None:
+        p = pitch_semitones
+    if rate_mult is not None:
+        r = rate_mult
+    if volume_mult is not None:
+        v = volume_mult
+    return p, r, v
+
+
+def build_sox_effects(pitch_semitones=None, rate_mult=None, volume_mult=None):
+    """Pure -- translates prosody overrides into a sox effects-chain
+    argument list, or [] if there's nothing to apply."""
+    effects = []
+    if pitch_semitones:
+        effects += ["pitch", str(pitch_semitones * 100)]  # sox pitch is in cents
+    if rate_mult and rate_mult != 1.0:
+        effects += ["tempo", str(rate_mult)]
+    if volume_mult and volume_mult != 1.0:
+        effects += ["vol", str(volume_mult)]
+    return effects
+
+
+def apply_prosody(wav, pitch_semitones=None, rate_mult=None, volume_mult=None):
+    """Post-processes a synthesized wav with sox to apply per-call
+    pitch/tempo/volume, uniformly across both backends (see the module
+    header for why this can't happen at synthesis time instead). Returns
+    the wav to actually play -- the SAME path, unmodified, if there's
+    nothing to apply or sox isn't installed (never blocks playback on a
+    missing optional dependency)."""
+    effects = build_sox_effects(pitch_semitones, rate_mult, volume_mult)
+    if not effects or not have("sox"):
+        return wav
+    out = wav[:-4] + "_prosody.wav"
+    r = subprocess.run(["sox", wav] + [out] + effects, capture_output=True)
+    if r.returncode != 0:
+        sys.stderr.write("[crt-tts] prosody sox effects failed, playing unmodified: %s\n"
+                          % r.stderr[-300:])
+        return wav
+    return out
+
+
+def synth_piper(text):
     fd, wav = tempfile.mkstemp(suffix=".wav")
     os.close(fd)
-    try:
-        p = subprocess.run(
-            [PIPER_BIN, "--model", PIPER_MODEL, "--output_file", wav,
-             "--length_scale", str(LENGTH_SCALE)],
-            input=text, text=True, capture_output=True)
-        if p.returncode != 0:
-            sys.stderr.write("[crt-tts] piper failed: %s\n" % p.stderr[-400:])
-            return False
-        return play_wav(wav, device)
-    finally:
+    p = subprocess.run(
+        [PIPER_BIN, "--model", PIPER_MODEL, "--output_file", wav,
+         "--length_scale", str(LENGTH_SCALE)],
+        input=text, text=True, capture_output=True)
+    if p.returncode != 0:
+        sys.stderr.write("[crt-tts] piper failed: %s\n" % p.stderr[-400:])
         try: os.unlink(wav)
         except OSError: pass
+        return None
+    return wav
 
 
-def speak_espeak(text, device):
+def synth_espeak(text):
     binname = "espeak-ng" if have("espeak-ng") else "espeak"
     fd, wav = tempfile.mkstemp(suffix=".wav")
     os.close(fd)
-    try:
-        p = subprocess.run(
-            [binname, "-v", VOICE, "-s", str(RATE_WPM), "-p", str(PITCH),
-             "-a", str(VOLUME), "-w", wav, text],
-            capture_output=True, text=True)
-        if p.returncode != 0:
-            sys.stderr.write("[crt-tts] %s failed: %s\n" % (binname, p.stderr[-400:]))
-            return False
-        return play_wav(wav, device)
-    finally:
+    p = subprocess.run(
+        [binname, "-v", VOICE, "-s", str(RATE_WPM), "-p", str(PITCH),
+         "-a", str(VOLUME), "-w", wav, text],
+        capture_output=True, text=True)
+    if p.returncode != 0:
+        sys.stderr.write("[crt-tts] %s failed: %s\n" % (binname, p.stderr[-400:]))
         try: os.unlink(wav)
         except OSError: pass
+        return None
+    return wav
 
 
-def speak(text, device=None):
+def speak(text, device=None, mood=None, pitch_semitones=None, rate_mult=None, volume_mult=None):
     text = text.strip()
     if not text:
         return False
@@ -143,19 +214,46 @@ def speak(text, device=None):
             "https://github.com/rhasspy/piper -> ~/.local/bin/piper + a voice "
             ".onnx in ~/.crt/voices/\n")
         return False
-    if backend == "piper":
-        return speak_piper(text, device)
-    return speak_espeak(text, device)
+
+    raw_wav = synth_piper(text) if backend == "piper" else synth_espeak(text)
+    if raw_wav is None:
+        return False
+
+    p, r, v = resolve_prosody(mood, pitch_semitones, rate_mult, volume_mult)
+    play_wav_path = apply_prosody(raw_wav, p, r, v)
+    try:
+        return play_wav(play_wav_path, device)
+    finally:
+        for p_ in {raw_wav, play_wav_path}:
+            try: os.unlink(p_)
+            except OSError: pass
 
 
 def main():
     device = None
+    mood = None
+    pitch_semitones = None
+    rate_mult = None
+    volume_mult = None
     args = sys.argv[1:]
-    if args and args[0] == "--device":
-        device = args[1]
-        args = args[2:]
-    text = " ".join(args) if args else sys.stdin.read()
-    ok = speak(text, device)
+    rest = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--device" and i + 1 < len(args):
+            device = args[i + 1]; i += 2
+        elif a == "--mood" and i + 1 < len(args):
+            mood = args[i + 1]; i += 2
+        elif a == "--pitch-semitones" and i + 1 < len(args):
+            pitch_semitones = float(args[i + 1]); i += 2
+        elif a == "--rate-mult" and i + 1 < len(args):
+            rate_mult = float(args[i + 1]); i += 2
+        elif a == "--volume-mult" and i + 1 < len(args):
+            volume_mult = float(args[i + 1]); i += 2
+        else:
+            rest.append(a); i += 1
+    text = " ".join(rest) if rest else sys.stdin.read()
+    ok = speak(text, device, mood, pitch_semitones, rate_mult, volume_mult)
     sys.exit(0 if ok else 1)
 
 
