@@ -38,6 +38,8 @@ REPORTS_DIR = os.path.expanduser(os.environ.get("CRT_REPORTS_DIR", "~/reports/cr
 REPO_DIR = os.path.expanduser(os.environ.get("CRT_REPO_DIR", "~/crt"))
 QUESTIONS = os.environ.get("CRT_QUESTIONS_FILE", os.path.join(REPO_DIR, ".claude/QUESTIONS.md"))
 TEST_SUITE = os.environ.get("CRT_TEST_SUITE", os.path.join(REPO_DIR, "tests/run_tests.sh"))
+CALIBRATE_BIN = os.environ.get(
+    "CRT_CALIBRATE_BIN", os.path.join(BIN_DIR, "crt-calibrate-display.py"))
 
 CLAUDE_IDLE_SECS = float(os.environ.get("CRT_SECRETARY_IDLE_SECS", "3"))
 CLAUDE_MAX_WAIT = float(os.environ.get("CRT_SECRETARY_MAX_WAIT", "120"))
@@ -146,6 +148,38 @@ def handle_run_tests(text):
         print_full((r.stdout or "") + "\n" + (r.stderr or ""))
 
 
+# --- Playbook: calibrate --------------------------------------------------
+# The overscan calibration game's single-shot entry point (DISPLAY-
+# CALIBRATION.md) -- SUPERVISOR.md named this as the natural next
+# playbook. Deliberately only runs `show`, not the interactive `run` loop:
+# `run` blocks on real voice-driven back-and-forth (its own `input()`
+# loop), which doesn't fit handle()'s one-shot request/response shape --
+# launching it here would just hang this call until a multi-round
+# conversation finished. `show` renders the CURRENT saved margin's test
+# pattern once; a human decides from there whether to actually run the
+# full game by hand.
+CALIBRATE_TRIGGERS = ("calibrate the display", "calibrate the screen", "run the calibration")
+
+
+def match_calibrate(text):
+    return _matches_any(text, CALIBRATE_TRIGGERS)
+
+
+def handle_calibrate(text):
+    if not os.path.exists(CALIBRATE_BIN):
+        speak("I don't have the calibration tool installed.")
+        return
+    r = sh(["python3", CALIBRATE_BIN, "show"])
+    if not (r.stdout or "").strip():
+        speak("Couldn't render the calibration pattern.")
+        return
+    # The pattern itself is CRT-screen content, not something to speak or
+    # print -- write it straight to stdout, the same channel
+    # crt-monologue.sh's tmux pane already displays.
+    print(r.stdout, end="")
+    speak("Calibration pattern's up. Run the full game by hand if you want to adjust it.")
+
+
 # --- Playbook: what_time -------------------------------------------------
 # The trivial case, included to prove the pattern scales down cleanly.
 WHAT_TIME_TRIGGERS = ("what time is it", "what's the time", "whats the time")
@@ -196,6 +230,7 @@ def handle_morning_report(text):
 PLAYBOOKS = (
     ("status", match_status, handle_status),
     ("run_tests", match_run_tests, handle_run_tests),
+    ("calibrate", match_calibrate, handle_calibrate),
     ("what_time", match_what_time, handle_what_time),
     ("morning_report", match_morning_report, handle_morning_report),
 )

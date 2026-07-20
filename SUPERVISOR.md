@@ -70,14 +70,16 @@ a new playbook is worth writing (log it — `bin/crt-report.sh`-shaped note,
 below). This keeps the 90%-offline number actually climbing over time
 instead of being a one-time snapshot.
 
-## Open items (not built this session)
+## Open items
 - No usage tracking yet on which requests fall through to Claude most
   often — that's the actual signal for "what to playbook next," and
   doesn't exist. A cheap first version: append the raw text to a log file
   whenever `handle()` falls through, and eyeball it periodically.
-- No playbook yet for the display-calibration game (`DEVELOPMENT-
-  WORKFLOW.md` / calibration design, this session) — natural next
-  playbook once that script exists.
+- ~~No playbook yet for the display-calibration game~~ **DONE
+  (2026-07-20)**: `calibrate` runs `crt-calibrate-display.py show` (the
+  single-shot pattern render only, not the interactive multi-round `run`
+  loop — that needs real voice back-and-forth, which doesn't fit a
+  one-shot request/response playbook).
 - The playbook registry currently lives inline in `crt-secretary.py` — if
   the list grows much past what's here, worth splitting into its own
   `bin/crt-playbooks/` directory, one file per playbook, rather than one

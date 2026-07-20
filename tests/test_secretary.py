@@ -38,6 +38,10 @@ class TestPlaybookMatching(unittest.TestCase):
         name, _ = self.sec.find_playbook("give me the morning report")
         self.assertEqual(name, "morning_report")
 
+    def test_calibrate_matches(self):
+        name, _ = self.sec.find_playbook("calibrate the display")
+        self.assertEqual(name, "calibrate")
+
     def test_what_time_matches(self):
         name, _ = self.sec.find_playbook("what time is it")
         self.assertEqual(name, "what_time")
@@ -140,6 +144,35 @@ class TestMorningReportPlaybook(unittest.TestCase):
         self.assertIn("2 project", self.spoken[0])
         self.assertEqual(self.printed, ["full report body here"])
         self.assertEqual(len(calls), 2)
+
+
+class TestCalibratePlaybook(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.spoken = []
+        self.printed_stdout = []
+        self.sec.speak = lambda text, device="handset": self.spoken.append(text)
+
+    def test_missing_tool_speaks_and_does_not_crash(self):
+        self.sec.CALIBRATE_BIN = "/nonexistent/calibrate.py"
+        self.sec.handle_calibrate("calibrate the display")
+        self.assertIn("don't have", self.spoken[0].lower())
+
+    def test_empty_pattern_speaks_failure(self):
+        self.sec.CALIBRATE_BIN = __file__
+        self.sec.sh = lambda cmd, **kw: _FakeResult("")
+        self.sec.handle_calibrate("calibrate the display")
+        self.assertIn("couldn't render", self.spoken[0].lower())
+
+    def test_real_pattern_writes_to_stdout_and_speaks_ack(self):
+        self.sec.CALIBRATE_BIN = __file__
+        self.sec.sh = lambda cmd, **kw: _FakeResult("AAAA\nBBBB\n")
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            self.sec.handle_calibrate("calibrate the display")
+        self.assertIn("AAAA", buf.getvalue())
+        self.assertEqual(len(self.spoken), 1)
 
 
 class TestWhatTimePlaybook(unittest.TestCase):
