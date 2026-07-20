@@ -2,9 +2,16 @@
 
 **Current focus: the core STT pipeline** (see "Now (core STT, blocked on
 VM)" below) — but every item there needs a live `crt-vm` session, which an
-unattended batch run doesn't have. **"Now (offline-safe, no VM/dexter
-needed)" is what tonight's actual autonomous work should be**, until VM
-access is available again. See `../HANDOFF.md` for full state and access.
+unattended batch run doesn't have. See `../HANDOFF.md` for full state and
+access.
+
+**2026-07-20: all 8 offline-safe items below are DONE** (opt-in secretary
+wiring, calibration-margin consumption, glissando earcons, ANSI colors,
+TTS prosody, sideband wiring, calibrate playbook, fallthrough logging —
+126 offline checks green, `tests/run_tests.sh`). Kept below for the
+record/links; nothing left in this section for an unattended pass to
+pick up until either a new offline-safe batch is registered here, or VM
+access unblocks the STT section.
 
 ## Cross-project ask: locate prior demucs work on dexter (2026-07-20)
 
@@ -24,7 +31,7 @@ to reuse — to `wtul`'s `ROADMAP.md` #5 / `.claude/QUESTIONS.md` (the
 cross-project scheduler `BLOCKERS.md` has the `## wtul` heading if a
 quicker landing spot is wanted instead).
 
-## Now (offline-safe, no VM/dexter needed) — registered 2026-07-20
+## DONE (offline-safe, no VM/dexter needed) — registered 2026-07-20, completed 2026-07-20
 
 Every item here is buildable and testable with `tests/run_tests.sh` alone
 — no VM, no dexter, no real audio hardware. Each MUST land with its own

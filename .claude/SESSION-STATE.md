@@ -148,6 +148,37 @@ suite is now 56 checks, all green (`bash tests/run_tests.sh`).
 **Explicitly stopped here on the user's instruction** ("ramp this down")
 rather than continuing to expand scope.
 
+## Fifth wave: "full steam" — all 8 offline-safe FOCUS.md items shipped
+User asked to work through everything buildable without VM/dexter access,
+self-pacing usage (no live usage-% tool available, so paced by chunking +
+frequent commits instead). All landed, tested, committed, pushed:
+`fa31856`/`082db9e`/`7fde922`/`16c816b`/`ae639b6` (see git log for exact
+diffs) —
+1. `stt-feed.sh` routes through `crt-secretary.py` when `CRT_SECRETARY=1`
+   (default off).
+2. `crt-pager.py`/`crt-monologue.sh` now consume `~/.crt/display.conf`'s
+   safe margin.
+3. `crt-earcon.sh`'s `bait`/`curious`/`question`/`content` are continuous
+   glissando sweeps now, not stepped notes.
+4. `crt-idle-teaser.sh` teaser lines carry an ANSI color per register into
+   `thoughts.log`.
+5. `crt-tts.py` has `--mood`/`--pitch-semitones`/`--rate-mult`/
+   `--volume-mult`, applied via a sox post-process step (works for both
+   backends despite neither having a native pitch knob for this).
+6. Sideband state transitions wired: `crt-stt-solo.py` opt-in
+   (`CRT_SIDEBAND=1`) listening/thinking; `crt-tts.py`/`crt-earcon.sh`
+   always-on mute-duck (inert unless `crt-sideband.sh` is running).
+7. `crt-secretary.py` gained a `calibrate` playbook (single-shot pattern
+   render only, not the interactive game).
+8. Claude-fallthrough requests now log to `~/.crt/fallthrough.log`.
+
+Test suite grew from 76 to **126 checks**, still all green. `FOCUS.md`'s
+offline-safe section marked DONE — nothing left there for an unattended
+pass until a new batch gets registered. A recurring cron
+(`092c9b41`, every 3h, session-only/expires in 7 days) checks
+`BLOCKERS.md`'s crt section for anything you've cleared and reports back
+— it does not resolve/delete entries itself.
+
 ## Not done / explicitly out of scope this session
 - Nothing hardware-verified (no VM/mic/audio access this session at all —
   pure design + scaffolding).
