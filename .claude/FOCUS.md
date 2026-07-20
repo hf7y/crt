@@ -6,6 +6,24 @@ unattended batch run doesn't have. **"Now (offline-safe, no VM/dexter
 needed)" is what tonight's actual autonomous work should be**, until VM
 access is available again. See `../HANDOFF.md` for full state and access.
 
+## Cross-project ask: locate prior demucs work on dexter (2026-07-20)
+
+`wtul` (the CD-ripper project) needs Demucs for ROADMAP #5 (instrumental
+intro/outro detection) and Zach says he already tried installing/running
+Demucs on dexter once before, with leftover files somewhere on that
+machine. This project runs on dexter/crt-vm and is the thing already
+reaching dexter over the network (see `dexter-whisper-server.py`), so it's
+the natural place to leave this note for whoever/whatever next has hands
+or a session on dexter.
+%%ACTION next time there's a live session on dexter (not the isolated
+nightly-batch clone — this needs the real machine), look for prior Demucs
+install/model-download artifacts (check pip/conda envs, `~/.cache`,
+anywhere resembling a `demucs` venv or downloaded checkpoints). Report
+findings back — either the path to reuse, or confirmation there's nothing
+to reuse — to `wtul`'s `ROADMAP.md` #5 / `.claude/QUESTIONS.md` (the
+cross-project scheduler `BLOCKERS.md` has the `## wtul` heading if a
+quicker landing spot is wanted instead).
+
 ## Now (offline-safe, no VM/dexter needed) — registered 2026-07-20
 
 Every item here is buildable and testable with `tests/run_tests.sh` alone
