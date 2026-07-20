@@ -90,6 +90,26 @@ forward: narrate real work into this log in-character as it happens** (via
 `crt-think.sh` over SSH) rather than only reporting after the fact — it
 doubles as a durable append-only context record for later sessions.
 
+## Idle-bait / beeps / sidetone / philosophy design pass (2026-07-19)
+Design session, no VM access. Full detail in `.claude/SESSION-STATE.md`
+(read that first next session) and the new top-level docs it lists
+(`IDLE-BAIT.md`, `SIDETONE.md`, `PHILOSOPHY.md`, `RFP-GALLERY.md`,
+`RFP-PAYPHONE.md`, `cad/CAD-BACKLOG.md`). New scripts, all code-shaped and
+therefore fair game for an unattended nightly pass to extend/harden
+(but NOT to mark "verified" — none of this has touched real audio
+hardware yet, see the acceptance-bar note in `.claude/commands/
+nightly-batch.md`):
+- `bin/crt-earcon.sh`, `bin/crt-report.sh`, `bin/crt-idle-teaser.sh` — new,
+  untested by ear/against live traffic. Safe unattended work: dry-run them
+  (syntax, obvious logic bugs), NOT claiming they sound good or that the
+  teaser cadence feels right — those need a human on the handset.
+- `bin/crt-announce.sh` — bugfixed (stale TV device string). Low-risk to
+  re-verify against `crt-tts.py`'s current `DEXTER_DEVICES` if that file
+  changes again.
+- Two open questions logged in `.claude/QUESTIONS.md` need Chris, not a
+  guess: handset audio guest-vs-host routing (blocks sidetone), and
+  idle-bait quiet hours.
+
 ## Parking lot: deep end-state vision — see PARKING-LOT.md
 RF power-on-TV-when-handset-lifts, HDMI-to-RF multi-channel personas, hidden
 transcription (blinking cursor only), predictive-typing-then-overwrite

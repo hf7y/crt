@@ -20,6 +20,17 @@ switch_body_h      = 6.4;
 switch_mount_hole_spacing = 10;  // center-to-center of the two mounting screw holes
 switch_screw_d     = 2.2;        // clearance hole for M2 self-tap
 
+// --- IR blaster (persona/channel-switch signaling, see PHILOSOPHY.md #5) ---
+ir_led_d           = 5;    // standard 5mm IR LED
+ir_mount_w         = 20;
+ir_mount_h         = 12;
+
+// --- Earcon speaker (small dedicated driver for crt-earcon.sh beeps,
+// separate from the handset earpiece -- see IDLE-BAIT.md) ---
+earcon_speaker_d   = 28;   // typical small round speaker (e.g. 28mm mini driver)
+earcon_grille_hole_d = 2;
+earcon_grille_hole_spacing = 4;
+
 // --- General ---
 wall               = 3;
 clearance          = 0.3;  // fit clearance between mating printed parts

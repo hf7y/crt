@@ -13,8 +13,20 @@
 # Usage:
 #   crt-tts.py "text to speak"          # speak once
 #   echo "text" | crt-tts.py            # or via stdin
-#   CRT_TTS_DEV=plughw:1,0 crt-tts.py "ring the TV"   # override output device
-import sys, os, subprocess, shlex, tempfile
+#   crt-tts.py --device tv "ring the TV"        # route via dexter's native
+#   crt-tts.py --device handset "..."           # audio-out service (see below)
+#
+# ROUTING (2026-07-19, confirmed working via live human test): when --device
+# is "tv" or "handset", audio is POSTed to dexter-audio-server.py
+# (CRT_AUDIO_OUT_URL, default http://192.168.0.22:8992/play) which plays it
+# on dexter's Ryzen host directly to that named device via sounddevice/
+# PortAudio -- this is the actual fix for VirtualBox's one-audio-device-per-VM
+# limit (see AUDIO-ROUTING.md). Any other --device value (or none) plays
+# locally in the guest via aplay, as before.
+import sys, os, subprocess, shlex, tempfile, urllib.request
+
+DEXTER_URL = os.environ.get("CRT_AUDIO_OUT_URL", "http://192.168.0.22:8992/play")
+DEXTER_DEVICES = ("tv", "handset")
 
 CONF = os.path.expanduser(os.environ.get("CRT_TTS_CONF", "~/.crt/tts.conf"))
 
@@ -65,7 +77,25 @@ def pick_backend():
     return None
 
 
-def speak_piper(text):
+def play_wav(wav, device):
+    if device in DEXTER_DEVICES:
+        try:
+            with open(wav, "rb") as f:
+                data = f.read()
+            req = urllib.request.Request(
+                DEXTER_URL + "?device=" + device, data=data,
+                headers={"Content-Type": "audio/wav"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                resp.read()
+            return True
+        except Exception as e:
+            sys.stderr.write("[crt-tts] dexter audio-out failed: %s\n" % e)
+            return False
+    subprocess.run(["aplay", "-D", device or DEV, "-q", wav])
+    return True
+
+
+def speak_piper(text, device):
     fd, wav = tempfile.mkstemp(suffix=".wav")
     os.close(fd)
     try:
@@ -76,14 +106,13 @@ def speak_piper(text):
         if p.returncode != 0:
             sys.stderr.write("[crt-tts] piper failed: %s\n" % p.stderr[-400:])
             return False
-        subprocess.run(["aplay", "-D", DEV, "-q", wav])
-        return True
+        return play_wav(wav, device)
     finally:
         try: os.unlink(wav)
         except OSError: pass
 
 
-def speak_espeak(text):
+def speak_espeak(text, device):
     binname = "espeak-ng" if have("espeak-ng") else "espeak"
     fd, wav = tempfile.mkstemp(suffix=".wav")
     os.close(fd)
@@ -95,17 +124,13 @@ def speak_espeak(text):
         if p.returncode != 0:
             sys.stderr.write("[crt-tts] %s failed: %s\n" % (binname, p.stderr[-400:]))
             return False
-        subprocess.run(["aplay", "-D", DEV, "-q", wav])
-        return True
+        return play_wav(wav, device)
     finally:
         try: os.unlink(wav)
         except OSError: pass
 
 
 def speak(text, device=None):
-    global DEV
-    if device:
-        DEV = device
     text = text.strip()
     if not text:
         return False
@@ -119,8 +144,8 @@ def speak(text, device=None):
             ".onnx in ~/.crt/voices/\n")
         return False
     if backend == "piper":
-        return speak_piper(text)
-    return speak_espeak(text)
+        return speak_piper(text, device)
+    return speak_espeak(text, device)
 
 
 def main():

@@ -6,10 +6,10 @@
 # enforced by a lockfile timestamp, so this can be called freely from job
 # completion hooks etc. without risking a barrage.
 #
-# STATUS: NOT hardware-verified. CRT_TV_AUDIO_DEV is a guess (see
-# AUDIO-ROUTING.md for why TV vs headset separation is likely a
-# Windows-host-side problem, not solvable purely inside the VM) -- confirm
-# the real device name once the VM is reachable (`aplay -L`).
+# STATUS: routes through dexter-audio-server.py (see crt-tts.py, confirmed
+# working via live human test 2026-07-19) -- the old plughw guess this used
+# to pass is dead code from before that bridge existed, see AUDIO-ROUTING.md
+# for the history of why a same-VM device name could never have worked.
 #
 # Usage: crt-announce.sh "the batch job needs your input"
 set -euo pipefail
@@ -17,7 +17,7 @@ BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 LOCK="${CRT_ANNOUNCE_LOCK:-$HOME/.crt/announce.lastrun}"
 MIN_GAP="${CRT_ANNOUNCE_MIN_GAP:-900}"   # 15 minutes
-TV_DEV="${CRT_TV_AUDIO_DEV:-plughw:1,0}"  # guess; verify with `aplay -L` on the VM
+TV_DEV="${CRT_TV_AUDIO_DEV:-tv}"          # dexter-audio-server.py device name
 
 msg="${*:-}"
 if [ -z "$msg" ]; then

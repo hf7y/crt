@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# Watches ~/reports/crt/LATEST.md (crt-report.sh, or eventually the
+# nightly batch) and .claude/QUESTIONS.md for new entries, and turns each
+# new one into exactly one first-person teaser line on screen (via
+# crt-think.sh -> crt-monologue.sh) plus, for genuine judgment calls only,
+# one earcon -- see IDLE-BAIT.md for the full design and why this is
+# deliberately NOT a repeating notification.
+#
+# Deliberately a separate watcher rather than baked into crt-monologue.sh
+# itself -- see PHILOSOPHY.md's open thread on whether always-on narration
+# already competes for the same scarce attention idle-bait needs; keeping
+# this additive and optional means that tension can be resolved later
+# without touching the base monologue.
+#
+# STATUS: NOT hardware-verified -- polling loop and hashing logic are
+# correct as designed but never run against live report/question traffic.
+#
+# Usage: crt-idle-teaser.sh   (run as its own tmux pane/background loop)
+set -uo pipefail
+BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+REPORTS_DIR="${CRT_REPORTS_DIR:-$HOME/reports/crt}"
+REPO_DIR="${CRT_REPO_DIR:-$HOME/crt}"
+QUESTIONS="${CRT_QUESTIONS_FILE:-$REPO_DIR/.claude/QUESTIONS.md}"
+SEEN="${CRT_IDLE_SEEN:-$HOME/.crt/idle-bait.seen}"
+POLL_SECS="${CRT_IDLE_POLL:-30}"
+ANNOUNCE_LOCK="${CRT_ANNOUNCE_LOCK:-$HOME/.crt/announce.lastrun}"
+ANNOUNCE_MIN_GAP="${CRT_ANNOUNCE_MIN_GAP:-900}"
+
+mkdir -p "$(dirname "$SEEN")"
+touch "$SEEN"
+
+already_seen() {
+  grep -qxF "$1" "$SEEN" 2>/dev/null
+}
+
+mark_seen() {
+  echo "$1" >> "$SEEN"
+}
+
+can_chime() {
+  local now last elapsed
+  now=$(date +%s)
+  last=0
+  [ -f "$ANNOUNCE_LOCK" ] && last=$(cat "$ANNOUNCE_LOCK" 2>/dev/null || echo 0)
+  elapsed=$(( now - last ))
+  [ "$elapsed" -ge "$ANNOUNCE_MIN_GAP" ]
+}
+
+chime() {
+  # $1 = bait|question -- shares crt-announce.sh's lockfile so a chime and
+  # a TV announcement can never stack (IDLE-BAIT.md's single-rate-limit rule).
+  can_chime || return 0
+  date +%s > "$ANNOUNCE_LOCK"
+  "$BIN_DIR/crt-earcon.sh" "$1" >/dev/null 2>&1 || true
+}
+
+teaser_for_line() {
+  # $1 = the raw report/question line. Turn it into a short curious
+  # first-person hook rather than echoing the line verbatim -- verbatim
+  # status text is exactly the "nag" framing IDLE-BAIT.md is against.
+  local line="$1"
+  case "$line" in
+    *BLOCKER*|*blocker*)
+      echo "hit a snag on something. kind of a funny one. ask me what's up?" ;;
+    *QUESTION*|*question*|*'> (answer'*)
+      echo "i've got a real question for you, whenever you pick up." ;;
+    *)
+      echo "found something while you were gone. wanna hear?" ;;
+  esac
+}
+
+process_new_lines() {
+  local file="$1" kind="$2"  # kind: report | question
+  [ -f "$file" ] || return 0
+  while IFS= read -r line; do
+    case "$line" in
+      "- "*) ;;   # only bullet lines are real entries, same convention QUESTIONS.md/reports use
+      *) continue ;;
+    esac
+    local h
+    h="$(printf '%s' "$line" | sha1sum | cut -d' ' -f1)"
+    already_seen "$h" && continue
+    mark_seen "$h"
+
+    teaser="$(teaser_for_line "$line")"
+    "$BIN_DIR/crt-think.sh" "$teaser"
+
+    if [ "$kind" = "question" ]; then
+      chime question
+    else
+      case "$line" in
+        *BLOCKER*|*blocker*) chime bait ;;
+        *) : ;;  # plain informational notes get NO audio, see IDLE-BAIT.md
+      esac
+    fi
+  done < "$file"
+}
+
+echo "[crt-idle-teaser] watching $REPORTS_DIR/LATEST.md + $QUESTIONS (poll ${POLL_SECS}s)" >&2
+
+while true; do
+  process_new_lines "$REPORTS_DIR/LATEST.md" report
+  process_new_lines "$QUESTIONS" question
+  sleep "$POLL_SECS"
+done

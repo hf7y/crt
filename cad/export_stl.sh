@@ -5,7 +5,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mkdir -p "$DIR/stl"
 
-for part in phone_saddle hook_lever switch_mount cradle wall_hook; do
+for part in phone_saddle hook_lever switch_mount cradle wall_hook ir_blaster_mount earcon_grille; do
   echo "==> $part.stl"
   openscad -o "$DIR/stl/$part.stl" "$DIR/$part.scad"
 done
