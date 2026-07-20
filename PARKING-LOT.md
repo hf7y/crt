@@ -66,3 +66,21 @@ Two separate installation ideas, distinct from the personal-secretary crt:
 - **Intel Compute Stick is next**, once a DAC arrives (needed since the
   stick has no analog audio in — see README's bare-metal notes). Until the
   DAC shows up, the stick work is blocked/waiting, not actively pursued.
+
+## Scheduler integration (2026-07-19, user)
+Look into hooking crt itself into the scheduler ecosystem beyond just being
+a registered nightly-batch participant (already done, see
+`schedule/crt.conf` in the scheduler repo) — e.g. the phone/secretary
+interface (SECRETARY.md) as an actual delivery surface for scheduler
+reports/questions (spoken/printed morning reports, ring for an open
+QUESTIONS.md item), not just crt's own code getting nightly attention.
+Needs a concrete design pass, not scoped yet.
+
+## Code consolidation across dexter / the VM / mandark (2026-07-19, user)
+Project code is currently scattered across multiple machines (dexter's
+native Ryzen work e.g. `bin/dexter-whisper-server.py`, the Windows VM guest
+side, and mandark as the batch host). Consolidate into one place (this repo
+is presumably the target, since it's what's git-managed and scheduler-
+registered) so there's a single source of truth instead of code living
+wherever it happened to be written. Needs an inventory pass first: what
+exists on each machine, what's already mirrored here vs. only local.
