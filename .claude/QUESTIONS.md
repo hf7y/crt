@@ -14,5 +14,15 @@ something from this file.
   rules out software sidetone (needs near-zero latency — see
   `SIDETONE.md`). Settle by checking `aplay -L` on the guest and tracing
   the earpiece cable once the VM is reachable.
-  > (answer inline here)
+  > [2026-07-20T17:03 zach] The handset is only reachable via dexter. Continue developing this as
+  > two separate systems. The vm side that handles the interface and
+  > specific assistant logic I'm looking for from the short term build is
+  > separate from what dexter host-side controls: audio i/o, stt parsing.
+  > This will allow for dexter host-side solutions to be moved into
+  > the other crt ideas brewing (payphone simulator). When we go to bare
+  > metal, these will both run on one machine together. But we'll
+  > develop them as conceptually separate. This means the assistant side
+  > needs a way to pass requests to dexter. How about a layer that does
+  > different analog sounding bells (FM synthesis perhaps), passing 
+  > data requests from the vm to dexter for sonification?
 
