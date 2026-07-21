@@ -54,6 +54,36 @@ pointers below for depth on any one piece.
   *not* pull from directly (no git link VM→mandark — files are copied over
   SSH by hand/script when deploying).
 
+## Access pathways: mandark ↔ dexter ↔ crt-vm
+
+Full chain, mandark to VM: `ssh dexter.local` (key auth, Windows) is the
+host hop; the VM sits behind dexter's NAT at `ssh -p 2222 zach@dexter.local`
+(also key auth). There is **no git link VM→mandark** — files move by
+scp/ssh pipe by hand or script (see `scp`/`sftp` caveat above; use the
+base64-pipe trick for binaries). `bin/crt-sync-vm-reports.sh` already
+walks this exact path nightly-job-side to pull VM reports back to mandark
+— see `VM-JOBS.md` for that job's status (written, not yet wired into
+`schedule/crt.conf`).
+
+**svc-vaporwave (planned, not yet done):** a service account needs SSH
+into crt-vm for automated (non-interactive, non-Zach) access — e.g. a
+future scheduler-driven pull job. Decided 2026-07-21: give it a
+**dedicated restricted identity on crt-vm**, not Zach's key/account.
+Plan, not yet executed (no VM access this session):
+1. On crt-vm: `sudo adduser --disabled-password svc-vaporwave`.
+2. Generate a fresh keypair for it (on mandark or wherever the caller
+   runs from) — don't reuse Zach's key.
+3. Install the pubkey in `/home/svc-vaporwave/.ssh/authorized_keys` on
+   crt-vm, prefixed with a forced command / restricted options
+   (`command="...",no-port-forwarding,no-X11-forwarding,no-agent-forwarding`)
+   scoped to only what the job needs (e.g. just running
+   `crt-sync-vm-reports`-side pull scripts or reading `~/reports/crt/`) —
+   not a general shell.
+4. No sudo for svc-vaporwave.
+Open item: exact forced-command scope depends on what the nightly job
+actually needs to read/run — decide once that job's shape is finalized
+(see the report-merging open item in `VM-JOBS.md`).
+
 ## What's actually running right now (2026-07-20 night, current)
 
 On `crt-vm`, tmux session `claude`, launched by `bin/crt-console.sh` on
