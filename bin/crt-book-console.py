@@ -113,6 +113,42 @@ def render_scan_result(row, width, height):
     return [bg.wrap_color(l, bg.COLOR_QUESTION) if l.strip() else l for l in lines]
 
 
+def render_answer_result(title, row, width, height):
+    """Pure function: shown on the book window itself right after a
+    spoken answer gets graded. Found live 2026-07-21: grading already
+    worked end to end (crt-book-answer-listen.py hears the answer,
+    grades it, announces it), but the announcement only ever landed in
+    ~/.crt/thoughts.log (the `mono` window) -- invisible to anyone
+    actually watching `book`, which never reacted to a graded answer at
+    all and just sat on the question forever. Same phrasing register as
+    crt-book-answer-listen.py's format_result_line(), rendered as a full
+    screen instead of a log line -- `correct_content is None` covers an
+    ungradeable fallback question (nothing to grade, neutral ack)."""
+    lines = [" " * width for _ in range(height)]
+    lines[0] = bg.center_text("BOOK GAME", width)
+    if row.get("correct_content") is None:
+        block = [bg.center_text(f"logged your answer for {title}.", width)]
+        color = bg.COLOR_QUESTION
+    elif row["correct_content"]:
+        block = [
+            bg.center_text("correct!", width),
+            bg.center_text(f"{title}: {row['expected']}", width),
+        ]
+        color = bg.COLOR_CORRECT
+    else:
+        block = [
+            bg.center_text("nope.", width),
+            bg.center_text(f"it was {row['expected']} -- {title}", width),
+        ]
+        color = bg.COLOR_WRONG
+    start = max(1, (height - len(block)) // 2)
+    for i, l in enumerate(block):
+        r = start + i
+        if 0 <= r < height:
+            lines[r] = l
+    return [bg.wrap_color(l, color) if l.strip() else l for l in lines]
+
+
 def render_scan_error(isbn, width, height):
     """Pure function: shown when a scan's ISBN lookup fails (unknown
     ISBN, network error -- see ScanLookupFailed). Clipped register
@@ -225,6 +261,37 @@ STDIN_DEAD = object()  # sentinel: see stdin_reader()
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
 
 
+def parse_training_row(line):
+    """Pure function: one book-game-training.jsonl line (see
+    crt-book-game.py's log_training_row) -> the parsed dict, or None if
+    the line is malformed/not a dict/missing 'isbn' -- tolerant, since a
+    torn write (crash mid-append) shouldn't crash this reader."""
+    try:
+        row = json.loads(line)
+    except ValueError:
+        return None
+    if not isinstance(row, dict) or "isbn" not in row:
+        return None
+    return row
+
+
+def open_training_tail(path):
+    """Opens book-game-training.jsonl positioned at end-of-file for a
+    non-blocking per-tick readline() in main()'s own loop -- deliberately
+    NOT tail_new_lines()'s generator shape (that one sleeps internally
+    on an empty poll), since main() already ticks via SCANNER_LOG's own
+    tail_new_lines and a second internally-sleeping generator would
+    compound the poll interval every iteration for no benefit; a plain
+    readline() against a regular file returns '' immediately with
+    nothing new, no blocking involved."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "a"):
+        pass
+    f = open(path, "r")
+    f.seek(0, os.SEEK_END)
+    return f
+
+
 def warn_stdin_dead():
     """Surfaces the otherwise-invisible stdin_reader death (see its own
     docstring) on ~/.crt/thoughts.log -- the same channel crt-monologue.sh
@@ -283,23 +350,48 @@ def main():
     stdin_q = queue.Queue()
     threading.Thread(target=stdin_reader, args=(stdin_q,), daemon=True).start()
 
+    training_tail = open_training_tail(bg.TRAINING_LOG)
+    pending_isbn = None  # isbn of the question currently on screen, if any
+
     draw(render_idle_screen(book_count(), width, height))
     last_scan_at = 0.0
     showing_idle = True
 
     def show_scan(isbn):
-        nonlocal last_scan_at, showing_idle
+        nonlocal last_scan_at, showing_idle, pending_isbn
         try:
             row = handle_scan(conn, isbn)
         except ScanLookupFailed:
             draw(render_scan_error(isbn, width, height))
+            pending_isbn = None
         else:
             draw(render_scan_result(row, width, height))
+            pending_isbn = isbn
         last_scan_at = time.time()
         showing_idle = False
 
+    def check_training_log():
+        # Non-blocking: readline() on a regular file returns '' the
+        # instant there's nothing new, never blocks. Drains everything
+        # currently available each tick, same "don't starve" shape as
+        # the stdin queue above.
+        nonlocal last_scan_at, pending_isbn
+        while True:
+            line = training_tail.readline()
+            if not line:
+                break
+            row = parse_training_row(line)
+            if row is None or row["isbn"] != pending_isbn:
+                continue
+            title_row = bg.get_book(conn, row["isbn"])
+            title = title_row["title"] if title_row else row["isbn"]
+            draw(render_answer_result(title, row, width, height))
+            last_scan_at = time.time()
+            pending_isbn = None  # only react once per active question
+
     stdin_alive = True
     for line in tail_new_lines(SCANNER_LOG):
+        check_training_log()
         # Drain any stdin-sourced scans first, non-blocking -- stdin is
         # the primary path in practice now (see file header), scanner.log
         # is the fallback, so neither should starve the other.

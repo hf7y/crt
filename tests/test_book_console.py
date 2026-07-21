@@ -243,5 +243,51 @@ class TestWarnStdinDead(unittest.TestCase):
         bc.warn_stdin_dead()  # must not raise
 
 
+class TestParseTrainingRow(unittest.TestCase):
+    def test_parses_valid_row(self):
+        line = json.dumps({"isbn": "123", "expected": "yes", "heard": "yes",
+                            "correct_content": True, "correct_stt": True})
+        row = bc.parse_training_row(line)
+        self.assertEqual(row["isbn"], "123")
+
+    def test_rejects_malformed_json(self):
+        self.assertIsNone(bc.parse_training_row("not json"))
+
+    def test_rejects_json_without_isbn(self):
+        self.assertIsNone(bc.parse_training_row(json.dumps({"foo": "bar"})))
+
+    def test_rejects_non_dict_json(self):
+        self.assertIsNone(bc.parse_training_row(json.dumps([1, 2, 3])))
+
+
+class TestRenderAnswerResult(unittest.TestCase):
+    def test_correct_shows_correct_register(self):
+        row = {"correct_content": True, "correct_stt": True, "expected": "fiction", "heard": "fiction"}
+        lines = bc.render_answer_result("A Tale of Two Cities", row, 40, 15)
+        joined = "\n".join(lines)
+        self.assertIn("correct!", joined)
+        self.assertIn(bg.COLOR_CORRECT, joined)
+
+    def test_wrong_shows_wrong_register(self):
+        row = {"correct_content": False, "correct_stt": False, "expected": "fiction", "heard": "nonfiction"}
+        lines = bc.render_answer_result("A Tale of Two Cities", row, 40, 15)
+        joined = "\n".join(lines)
+        self.assertIn("nope.", joined)
+        self.assertIn("fiction", joined)
+        self.assertIn(bg.COLOR_WRONG, joined)
+
+    def test_ungradeable_shows_neutral_ack(self):
+        row = {"correct_content": None, "correct_stt": False, "expected": None, "heard": "sure"}
+        lines = bc.render_answer_result("A Tale of Two Cities", row, 40, 15)
+        joined = "\n".join(lines)
+        self.assertIn("logged your answer", joined)
+        self.assertIn(bg.COLOR_QUESTION, joined)
+
+    def test_dimensions(self):
+        row = {"correct_content": True, "correct_stt": True, "expected": "fiction", "heard": "fiction"}
+        lines = bc.render_answer_result("Title", row, 40, 15)
+        self.assertEqual(len(lines), 15)
+
+
 if __name__ == "__main__":
     unittest.main()
