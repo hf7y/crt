@@ -42,20 +42,28 @@ LCC label per book via the existing Phomemo/`catprint` channel or a
 dedicated label printer (open question, see BOOK-GAME.md).
 
 **Offline-safe slice: DONE, 2026-07-21.** `bin/crt-book-game.py` +
-`tests/test_book_game.py` (20 cases, all green in `tests/run_tests.sh`,
+`tests/test_book_game.py` (40 cases, all green in `tests/run_tests.sh`,
 plus a live smoke-test against the real Open Library API). Covers ISBN
 lookup, question templates + Claude-batch prompt/parse (pure functions,
 no live `claude -p` shell-out wired yet), grading/logging, SQLite
-registry, best-effort LCC. Full detail in `../BOOK-GAME.md`'s Roadmap
-step 1. Standalone CLI only — not yet wired into `crt-console.sh`/
+registry, best-effort LCC, screen layout/centering, ASCII art, CRT-safe
+color palette, non-API idle-bait quotes (`bin/crt-book-idle-bait.py` +
+`tests/test_book_idle_bait.py`), and `parse_scan_line()` bridging
+`bin/crt-scanner-feed.py`'s `[scan] <isbn>` delivery convention
+(SCANNER.md) to this CLI's `--isbn`/`--scan-line` args. Full detail in
+`../BOOK-GAME.md`'s Roadmap step 1 and `../BOOK-GAME-STYLE.md`.
+Standalone CLI only — not yet wired into `crt-console.sh`/
 `crt-secretary.py`, per the "standalone first, merge later" direction.
 
-Do NOT attempt next: live scanner/HID passthrough, wiring into the console
-layout, or live mic verification — all genuinely need a hands-on crt-vm
-session (see BOOK-GAME.md's roadmap step 2), same hardware-acceptance-bar
-rule as everything else in this file. Also still open (not hardware,
-just not built this pass): the actual live Claude Code shell-out for the
-batch question-generation path.
+**Scanner hardware bridge is no longer a blocker** — `SCANNER.md`
+(built by a separate hands-on crt-vm/dexter session, 2026-07-21) has the
+dexter→crt-vm scanner forward live and systemd-persistent. Remaining
+hands-on work (BOOK-GAME.md roadmap step 2): wire a live session to call
+`parse_scan_line()` + `crt-book-game.py --isbn` on each incoming scan,
+run against the real mic, and eyeball `BOOK-GAME-STYLE.md`'s
+screen/color/art choices on the actual tube. Also still open (not
+hardware, just not built this pass): the live `claude -p` shell-out for
+batch question generation.
 
 ## Cross-project ask: locate prior demucs work on dexter (2026-07-20)
 
