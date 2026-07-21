@@ -254,6 +254,37 @@ def handle_morning_report(text):
     return spoken
 
 
+# --- Playbook: book_game_stats -------------------------------------------
+# Book Game's actual end-goal is STT training data (.claude/FOCUS.md's
+# 2026-07-21 statement) -- this surfaces that progress on request
+# ("how's the book game going", "trivia stats") the same locally-answered
+# way `status`/`morning_report` already work, via
+# bin/crt-book-game-stats.py's pure summarizer (zero Claude calls).
+BOOK_GAME_STATS_TRIGGERS = (
+    "book game stats", "how's the book game", "hows the book game",
+    "trivia stats", "how's the training data", "hows the training data",
+)
+BOOK_GAME_STATS_BIN = os.environ.get(
+    "CRT_BOOK_GAME_STATS_BIN", os.path.join(BIN_DIR, "crt-book-game-stats.py"))
+
+
+def match_book_game_stats(text):
+    return _matches_any(text, BOOK_GAME_STATS_TRIGGERS)
+
+
+def handle_book_game_stats(text):
+    if not os.path.exists(BOOK_GAME_STATS_BIN):
+        speak("I don't have book game stats installed.")
+        return "I don't have book game stats installed."
+    r = sh(["python3", BOOK_GAME_STATS_BIN, "screen"])
+    lines = [ln for ln in (r.stdout or "").splitlines() if ln.strip()]
+    spoken = " ".join(lines) if lines else "No book game data yet."
+    speak(spoken)
+    full = sh(["python3", BOOK_GAME_STATS_BIN, "print-all"])
+    print_full(full.stdout or "")
+    return spoken
+
+
 # Ordered: first match wins. See SUPERVISOR.md for what belongs here vs.
 # what should stay a Claude call.
 PLAYBOOKS = (
@@ -262,6 +293,7 @@ PLAYBOOKS = (
     ("calibrate", match_calibrate, handle_calibrate),
     ("what_time", match_what_time, handle_what_time),
     ("morning_report", match_morning_report, handle_morning_report),
+    ("book_game_stats", match_book_game_stats, handle_book_game_stats),
 )
 
 

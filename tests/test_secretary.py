@@ -146,6 +146,43 @@ class TestMorningReportPlaybook(unittest.TestCase):
         self.assertEqual(len(calls), 2)
 
 
+class TestBookGameStatsPlaybook(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.spoken = []
+        self.printed = []
+        self.sec.speak = lambda text, device="handset": self.spoken.append(text)
+        self.sec.print_full = lambda text: self.printed.append(text)
+
+    def test_missing_tool_speaks_and_does_not_crash(self):
+        self.sec.BOOK_GAME_STATS_BIN = "/nonexistent/stats.py"
+        self.sec.handle_book_game_stats("book game stats")
+        self.assertIn("don't have", self.spoken[0].lower())
+        self.assertEqual(self.printed, [])
+
+    def test_speaks_screen_output_and_prints_full(self):
+        self.sec.BOOK_GAME_STATS_BIN = __file__
+        calls = []
+
+        def fake_sh(cmd, **kw):
+            calls.append(cmd)
+            if cmd[-1] == "screen":
+                return _FakeResult("Book Game: 3 book(s) scanned\n1 answer(s) graded, STT accuracy 100%\n")
+            return _FakeResult("full report body here")
+
+        self.sec.sh = fake_sh
+        self.sec.handle_book_game_stats("how's the book game")
+        self.assertIn("3 book(s) scanned", self.spoken[0])
+        self.assertEqual(self.printed, ["full report body here"])
+        self.assertEqual(len(calls), 2)
+
+    def test_matches_trigger_variants(self):
+        for phrase in ("book game stats", "how's the book game", "trivia stats",
+                       "how's the training data"):
+            name, _ = self.sec.find_playbook(phrase)
+            self.assertEqual(name, "book_game_stats", phrase)
+
+
 class TestCalibratePlaybook(unittest.TestCase):
     def setUp(self):
         self.sec = load_secretary()

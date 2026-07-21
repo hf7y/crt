@@ -129,6 +129,24 @@ until a human watches a real scan render correctly.
 Original context/writeup (dexter dead-end root cause) kept in
 `../SCANNER.md`'s "2026-07-21 late session" section for history.
 
+### Book Game training-data stats, DONE 2026-07-21
+
+The end-goal (see this section's opening statement) is STT training
+data — until now that data just sat in `~/.crt/book-game-training.jsonl`
+with no way to see progress without reading the raw file by hand. New
+`bin/crt-book-game-stats.py` (zero Claude calls, pure local reads of
+`books.db` + the training log) surfaces book count, question-source
+mix, and — given top billing over trivia correctness, since it's the
+actual point — **STT accuracy**: how often what was heard matched what
+was expected, plus every logged mismatch (the literal training
+artifact). `screen`/`print-all` modes match
+`crt-present-morning-report.py`'s existing convention. Also wired into
+`crt-secretary.py` as a new `book_game_stats` playbook ("how's the book
+game going", "trivia stats") so it's reachable by voice the same
+locally-answered way `status`/`morning_report` already are. 14 + 3 new
+tests (`tests/test_book_game_stats.py`, `TestBookGameStatsPlaybook`),
+full suite green.
+
 **Next offline-safe batch pickup (registered 2026-07-21, not yet
 built): real webscrape quotes + kawaii ASCII art.** Idle-bait quotes
 currently only use Open Library's `first_sentence` field (rarely
