@@ -242,6 +242,40 @@ today (`CRT_STT_SINK` still defaults to `claude`, not `secretary`), so
 this has never been watched against a real Claude round-trip on the
 actual screen.
 
+## Relationship to scheduler and aedile — status check (2026-07-21)
+
+Clarifying a framing that's been stated informally but wasn't written down
+anywhere: "crt will eventually be a main platform of interfacing with
+scheduler, and also aedile." Checked what actually exists today —
+
+- **scheduler**: real but unapplied. crt is registered in scheduler's Tier
+  2 nightly batch via `~/Documents/Project Archive/scheduler/schedule/crt.conf`
+  (pointed at a local bare git remote), but the classifier still blocks
+  writing the `BATCH_JOB_NAME`+`claude -p` line that would actually turn it
+  on — see HANDOFF.md's "Autonomous overnight batch" section. Separately,
+  `VM-JOBS.md`'s "Wiring the pull into the scheduler" section is about
+  hooking crt's VM-side jobs into scheduler's shared infra
+  (`morning-report.sh`) — a second, distinct integration point from the
+  Tier 2 batch registration above.
+- **aedile**: currently zero — no mention of "aedile" anywhere in crt's
+  docs or code (`grep -rn aedile *.md .claude/*.md` returns nothing). The
+  "interfacing with aedile" idea has no design or code yet; it's an
+  intention stated outside crt's own files, not something crt has started
+  building toward.
+- Scheduler itself now runs a chunk of overnight batch work (aedile's,
+  vkv-inventory's) under a separate service account, `svc-vaporwave`
+  (`~/Documents/Project Archive/scheduler`'s `.scheduler/FOCUS.md`), on its
+  own crontab outside scheduler's normal `schedule/*.conf` dispatch, and
+  drops dated markdown status reports in `/srv/vaporwave-reports/<project>/`
+  (group-readable by zach). If crt's own Tier 2 batch is ever turned on, it
+  would presumably follow the same disposable-clone + report pattern
+  rather than the older worktree approach — worth deciding explicitly when
+  that happens, not assuming it inherits the pattern by default.
+
+Bottom line: don't treat "crt interfaces with aedile" as a load-bearing
+design assumption anywhere yet — it's a stated future direction with no
+current plumbing.
+
 ## IR blaster mount (cad/CAD-BACKLOG.md)
 Parked 2026-07-21 — **updated same day**: the IR blaster itself is still
 wanted (it's now load-bearing for the "Channel-confirmation loop" idea
