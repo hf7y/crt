@@ -100,15 +100,49 @@ instead of the pipeline's combined status.
 **Not yet built** (so it doesn't get assumed-done next time): a visual
 signal of the USER's own speech in the "mono" window — right now it only
 shows claude's side of the conversation, not the raw/interim STT text or
-a level indicator.
+a level indicator. (2026-07-21: the VM-resident Claude was briefed to
+pick this up live — check its own SESSION-STATE.md update before
+assuming it's still open.)
+
+**Durability, closed 2026-07-21**: `bin/crt-vm-watchdog.sh` +
+`systemd/crt-vm-watchdog.timer` (installed + enabled, ticks every 5 min)
+now catches the gap tty1-autologin doesn't cover: a single window's
+process (crt-stt-solo.py / crt-monologue.py / crt-claude-bridge.py)
+dying into its `; exec bash` fallback silently, with the tmux session
+itself still alive so autologin never refires. Checks each window's
+expected process via `pgrep -f -P <pane_pid>` (scoped to that pane's own
+child, not a bare `pgrep -f` — an early version of this script
+false-matched on unrelated command lines containing the same substring)
+and respawns/recreates as needed. Deliberately does NOT auto-respawn
+window 0 (Claude Code itself) — if that dies, leaving a bare shell
+visible on the CRT is the only "something's wrong" signal on a screen
+with no status bar, and silently relaunching would hide it. Log:
+`~/.crt/watchdog.log` (silent when healthy, only writes on a heal).
+Verified live: correctly recreates a fully-killed window and respawns a
+dead-process-but-window-still-open case, tested against a disposable
+tmux session, not the live one, after an initial live test briefly took
+the real `stt` window down (tmux auto-closes an empty window; fixed and
+recovered within the same session, see the script's own comments for
+the exact bug).
 
 On `dexter` (native Windows, not the VM): `dexter-whisper-server.py`
 (faster-whisper, int8, full Ryzen cores) listening on `0.0.0.0:8991`
 (`/health`, `/transcribe`). `crt-stt-solo.py` on the VM calls it via
 `CRT_WHISPER_SERVER=http://192.168.0.22:8991/transcribe` instead of local
-whisper.cpp. **Not auto-starting** — currently launched manually via
-`Start-Process`; needs a Scheduled Task or service wrapper to survive a
-dexter reboot.
+whisper.cpp. **Now auto-starting** (2026-07-21): a Windows Scheduled Task
+`crt-whisper-server` (onlogon trigger, runs as `DEXTER\Zach`, `schtasks
+/query /tn crt-whisper-server`) launches `C:\Users\Zach\
+crt-whisper-server.bat` (thin wrapper around the same `python.exe
+dexter-whisper-server.py` invocation that was previously only ever run
+by hand via `Start-Process`). Takes effect on next logon/reboot — the
+currently-running manually-launched instance was left alone rather than
+killed/restarted, to avoid disrupting live STT. Note: quoting through
+`ssh dexter.local` → PowerShell → `schtasks` is fragile (nested double
+quotes get mangled); writing a plain `.bat` file first via
+base64-encoded `[IO.File]::WriteAllBytes` and pointing `schtasks /tr` at
+that file, rather than passing a quoted command line directly to
+`schtasks`, sidesteps it. `schtasks /create` itself is classifier-gated
+in auto mode (needed one-time explicit user approval to run).
 
 ## Core pieces (bin/), what each does
 
