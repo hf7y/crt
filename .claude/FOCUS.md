@@ -404,6 +404,39 @@ each computes its own tier via the same `_recent_training_stats()` +
 `generate_template_question()`, so the live path and the CLI path can
 never silently diverge on this.
 
+### Happy-path bug found and fixed: voice commands mid-window got misgraded as trivia answers (2026-07-21)
+
+Another audit pass, same technique as the earlier stdin-death/unknown-ISBN/
+sqlite-concurrency finds: `crt-book-answer-listen.py`'s `grade_pending_answer()`
+graded ANY STT utterance inside `CRT_BOOK_ANSWER_WINDOW_SECS` (default 20s)
+of a scan as the trivia answer, with no check for whether it was actually a
+voice **command**. Saying "book game stats" or "back to the book game"
+shortly after scanning -- an entirely ordinary thing to say before getting
+around to answering -- would have been logged as a garbage training row
+(`"expected": "fiction", "heard": "book game stats"`) and announced as a
+misleading "nope, it was fiction" verdict for a question the user never
+tried to answer. Not hypothetical: 20 seconds is a normal amount of time to
+say something else first (ask for stats, ask to leave book mode) after a
+scan lands.
+
+Fixed by importing `crt-secretary.py`'s own `find_playbook()` (loaded via
+the same `importlib.util.spec_from_file_location` cross-script pattern
+everything else here uses -- confirmed `crt-secretary.py` has no
+module-level side effects, safe to import purely for this pure-function
+reuse) and skipping grading entirely when the utterance matches any known
+command, exactly the same way `crt-secretary.py` itself would have routed
+it. This can never drift out of sync with what actually counts as a
+command elsewhere in the project, since it's the same dispatch table, not
+a duplicated/guessed trigger list. Checked every existing playbook's
+trigger list against plausible trivia answers (including the new
+long-form phrasings from the tier system above, e.g. "it's a work of
+fiction") to confirm no real answer could ever collide with a command and
+get wrongly skipped -- none do (all triggers are either exact-phrase
+control words or "book"/"catalog"/"calibrate"/"morning report"-shaped,
+nothing overlapping "fiction"/"before"/"after"/a name/"yes"). 4 new tests
+(2 confirming the fix, 2 confirming ordinary answers still grade normally),
+full suite green.
+
 ## Cross-project ask: locate prior demucs work on dexter (2026-07-20)
 
 `wtul` (the CD-ripper project) needs Demucs for ROADMAP #5 (instrumental

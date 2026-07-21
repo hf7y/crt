@@ -46,6 +46,11 @@ _spec = importlib.util.spec_from_file_location("crt_book_game", os.path.join(BIN
 bg = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bg)
 
+_secretary_spec = importlib.util.spec_from_file_location(
+    "crt_secretary_for_book_answer", os.path.join(BIN_DIR, "crt-secretary.py"))
+secretary = importlib.util.module_from_spec(_secretary_spec)
+_secretary_spec.loader.exec_module(secretary)
+
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
 ANSWER_WINDOW_SECS = float(os.environ.get("CRT_BOOK_ANSWER_WINDOW_SECS", "20"))
@@ -114,7 +119,23 @@ def grade_pending_answer(conn, spoken_text, window_secs=ANSWER_WINDOW_SECS, now=
     crt-book-game.py's own grade_answer/log_training_row -- no new
     grading logic). Returns the grade dict (plus the book's title, for
     format_result_line() below) or None if nothing was pending (caller
-    should leave the utterance alone -- it wasn't a trivia answer)."""
+    should leave the utterance alone -- it wasn't a trivia answer).
+
+    HAPPY-PATH BUG FIXED 2026-07-21: previously graded ANY utterance
+    inside the answer window as the trivia answer, with no check for
+    whether it was actually a voice COMMAND instead -- e.g. asking "book
+    game stats" or "back to the book game" within CRT_BOOK_ANSWER_WINDOW_SECS
+    of a scan (a completely ordinary thing to say right after scanning,
+    before answering) would get logged as a wrong/garbage training row
+    ("expected": "fiction", "heard": "book game stats") AND announced as
+    a misleading "nope, it was fiction" result for a question the user
+    never actually tried to answer. Now skips grading (returns None,
+    same as "nothing pending") for any utterance crt-secretary.py's own
+    playbook dispatcher would recognize as a command -- reuses
+    find_playbook() so this can never drift out of sync with what
+    actually counts as a command elsewhere in the project."""
+    if secretary.find_playbook(spoken_text)[0] is not None:
+        return None
     pending = get_pending_question(conn, window_secs, now=now)
     if pending is None:
         return None

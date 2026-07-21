@@ -127,6 +127,42 @@ class TestGradePendingAnswer(unittest.TestCase):
             grade = al.grade_pending_answer(conn, "fiction", window_secs=20, now=now)
             self.assertEqual(grade["title"], "Dune")
 
+    def test_voice_command_within_window_is_not_graded_as_an_answer(self):
+        # Happy-path bug fixed 2026-07-21: saying something recognizable
+        # as a crt-secretary.py command (e.g. asking for stats) shortly
+        # after a scan must NOT get logged as a garbage training row or
+        # announced as a wrong-answer verdict for a question the user
+        # never actually tried to answer.
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+            self._register(conn, "2026-07-21T12:00:00")
+            log_path = os.path.join(d, "training.jsonl")
+            al.bg.TRAINING_LOG = log_path
+            now = al._parse_iso_utc("2026-07-21T12:00:05")
+            grade = al.grade_pending_answer(conn, "book game stats", window_secs=20, now=now)
+            self.assertIsNone(grade)
+            self.assertFalse(os.path.exists(log_path))
+
+    def test_return_to_book_game_command_is_not_graded_as_an_answer(self):
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+            self._register(conn, "2026-07-21T12:00:00")
+            now = al._parse_iso_utc("2026-07-21T12:00:05")
+            grade = al.grade_pending_answer(conn, "back to the book game", window_secs=20, now=now)
+            self.assertIsNone(grade)
+
+    def test_ordinary_answer_that_is_not_a_command_still_grades(self):
+        # Guards against an overzealous fix: a real long-form trivia
+        # answer (see crt-book-game.py's tier system) must not accidentally
+        # collide with a playbook trigger and get skipped.
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+            self._register(conn, "2026-07-21T12:00:00")
+            al.bg.TRAINING_LOG = os.path.join(d, "training.jsonl")
+            now = al._parse_iso_utc("2026-07-21T12:00:05")
+            grade = al.grade_pending_answer(conn, "fiction", window_secs=20, now=now)
+            self.assertIsNotNone(grade)
+
 
 class TestFormatResultLine(unittest.TestCase):
     def test_correct_answer_uses_correct_register(self):
