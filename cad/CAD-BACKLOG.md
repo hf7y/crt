@@ -8,12 +8,25 @@ before printing anything.
 
 ## Existing (hookswitch assembly, in progress per HANDOFF.md)
 - `phone_saddle.scad`, `hook_lever.scad`, `switch_mount.scad`,
-  `cradle.scad` — the see-saw hookswitch. **Blocked on measuring the real
-  handset barrel + microswitch** (`params.scad` has generic placeholders,
-  explicitly flagged there) — physical, needs Chris's hands, not
-  advanceable remotely. **2026-07-20**: caliper on hand (a specific one
-  linked in `BLOCKERS.md`), measurements not taken yet — closer than
-  before, still blocked on the actual numbers.
+  `cradle.scad` — the see-saw hookswitch. **2026-07-20: real caliper
+  measurements taken and plugged into `params.scad`** (handset neck
+  32.8mm, switch body 12.9x5.7x6.2mm, hole pitch 6.0mm, lever ext 4.1mm).
+  Unblocked for a first real render/print attempt. Still open: (1)
+  `switch_screw_d` (2.2mm) wasn't calipered — it's a guess, check against
+  actual switch pins before drilling; (2) `switch_mount_h` (currently 14,
+  in `switch_mount.scad`) still needs physical tuning so the lever's rear
+  boss fully depresses the plunger at rest — geometry now uses real
+  numbers but the height stack (base + switch body 6.2 + lever ext 4.1)
+  hasn't been checked against the assembled lever/pivot yet; (3) openscad
+  still not installed in this environment — nothing here has been
+  render-checked, only hand-verified. Run `./export_stl.sh` and eyeball
+  before printing.
+- A Gemini-suggested alternate script (hanging wall-cradle instead of the
+  see-saw lever) was considered this session and **not adopted** — Chris
+  chose to keep the existing lever mechanism and feed it the real
+  measurements instead. Note if revisiting: that script's mounting-pin
+  translate math didn't line up with its own switch pocket (~3mm off),
+  so it'd need a fix before use anyway.
 - `wall_hook.scad` — simpler "just hang it up" alternative, reserved hole
   for a hanging switch. Same measurement dependency.
 
