@@ -71,15 +71,20 @@ buildable; captured here so the direction survives, not started yet.
    (`parse_media_command`) is pure and tested; a pluggable `Backend`
    (`FakeBackend` for tests, `VlcBackend` sketched but never run against
    a real `cvlc`/media library) dispatches play/pause/resume/next/stop.
-   Wired into `crt-secretary.py` as a `media` playbook. **Known conflict,
-   flagged not resolved**: `crt-stt-solo.py`'s own voice-control `CONTROL`
-   dict already claims "next" → a Down-arrow keystroke sent straight into
-   the tmux pane in `CRT_STT_SINK=secretary` mode, before this playbook
-   ever sees the utterance — the exact cross-persona ambiguity
-   `PERSONA-CHANNEL.md`'s channel-switch idea exists to resolve (does
-   "next" mean "navigate the terminal" or "skip the song," depending on
-   active mode). Needs a human decision, not a unilateral trigger-word
-   rename.
+   Wired into `crt-secretary.py` as a `media` playbook. **Conflict
+   narrowed and pragmatically mitigated, 2026-07-21**: re-examined
+   exactly which words collide — `crt-stt-solo.py`'s `is_control` check
+   only ever fires for a single-word, no-space utterance, so the actual
+   collision was narrower than first flagged: only bare "next" (not
+   "pause"/"resume"/"stop", not any multi-word phrasing like "next
+   song"). Dropped bare "next" from `crt-media-player.py`'s triggers —
+   "skip" (never claimed by `CONTROL`) and the multi-word phrasings
+   remain fully reachable. This is a one-line, easily reversible
+   mitigation of the CONCRETE bug (a word that could never route here),
+   **not** an answer to the broader cross-persona question
+   `PERSONA-CHANNEL.md`'s channel-switch idea exists to resolve (should
+   "next" ever mean "skip the song" depending on active mode/persona) —
+   that design decision is still genuinely open for Zach.
 
 Everything else (MIDI knobs, TV announcements, pager, etc.) is in service
 of these two jobs and the general secretary loop, not separate features.

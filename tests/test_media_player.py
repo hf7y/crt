@@ -32,8 +32,16 @@ class TestParseMediaCommand(unittest.TestCase):
     def test_control_words(self):
         self.assertEqual(mp.parse_media_command("pause"), {"action": "pause", "query": None})
         self.assertEqual(mp.parse_media_command("resume"), {"action": "resume", "query": None})
-        self.assertEqual(mp.parse_media_command("next"), {"action": "next", "query": None})
+        self.assertEqual(mp.parse_media_command("skip"), {"action": "next", "query": None})
         self.assertEqual(mp.parse_media_command("stop"), {"action": "stop", "query": None})
+
+    def test_bare_next_deliberately_not_a_trigger(self):
+        # 2026-07-21: bare "next" is claimed by crt-stt-solo.py's own
+        # CONTROL dict (-> Down arrow) for single-word utterances -- this
+        # playbook would never even see it in CRT_STT_SINK=secretary mode,
+        # so it's deliberately NOT registered here; "skip"/"next song"/
+        # "next track" are the reachable equivalents instead.
+        self.assertIsNone(mp.parse_media_command("next"))
 
     def test_next_phrasing_does_not_get_captured_as_a_play_query(self):
         # "play the next one" must resolve to next, not play(query="the next one").
@@ -65,7 +73,7 @@ class TestHandleMediaCommandWithFakeBackend(unittest.TestCase):
         self.assertEqual(self.backend.calls, [("resume", None)])
 
     def test_next_dispatches(self):
-        mp.handle_media_command("next", self.backend)
+        mp.handle_media_command("skip", self.backend)
         self.assertEqual(self.backend.calls, [("next", None)])
 
     def test_stop_dispatches(self):

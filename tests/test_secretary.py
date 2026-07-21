@@ -294,7 +294,10 @@ class TestMediaPlaybook(unittest.TestCase):
         self.assertEqual(name, "media")
 
     def test_matches_control_words(self):
-        for phrase in ("pause", "resume", "next", "stop"):
+        # Bare "next" deliberately excluded -- see crt-media-player.py's
+        # header: it's claimed by crt-stt-solo.py's own CONTROL dict for
+        # single-word utterances, "skip" is the reachable equivalent.
+        for phrase in ("pause", "resume", "skip", "stop"):
             name, _ = self.sec.find_playbook(phrase)
             self.assertEqual(name, "media", phrase)
 
