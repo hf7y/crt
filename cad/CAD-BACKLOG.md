@@ -40,22 +40,25 @@ print done and confirmed fine — Ender 3 SD path is not a blocker anymore.
 
 ## New this session (speculative, design-stage only)
 - `ir_blaster_mount.scad` — bracket to aim an IR LED at the TV. **Parked
-  2026-07-21** (see `PARKING-LOT.md`) — Chris flagged it may not be
-  necessary. LED still sourced (https://www.amazon.com/dp/B099ZJ6555) if
-  revisited, but TV sensor position was never measured either way.
-- `earcon_grille.scad` — speaker grille for a dedicated beep-speaker on
-  the CRT chassis itself (see `IDLE-BAIT.md`/`SIDETONE.md`), separate
-  from the handset earpiece — the console gets its own non-verbal voice
-  independent of anything routed through the phone. No speaker bought.
+  2026-07-21** (see `PARKING-LOT.md`) — the blaster itself is now
+  load-bearing again (drives the channel-confirmation loop below), but
+  Chris is not building the physical case/mount right now. LED still
+  sourced (https://www.amazon.com/dp/B099ZJ6555); TV sensor position
+  still not measured either way.
+- `earcon_grille.scad` — **abandoned 2026-07-21** — Chris: the TV has
+  built-in sound, a dedicated beep-speaker on the CRT chassis isn't
+  necessary. No speaker was ever bought, so nothing physical to undo;
+  file can stay as dead reference or be deleted, Chris's call.
 
 ## Named but not yet stubbed (mechanism decided, part status noted)
-- **Persona-channel indicator** — mechanism decided in `PERSONA-CHANNEL.md`
-  (2026-07-19): a real detented rotary switch Chris turns by hand, control
-  and indicator are the same object, no servo/LED display to desync.
-  **Switch sourced 2026-07-20**: https://www.amazon.com/dp/B088W8WMTB —
-  still not stubbed pending real dimensions once it arrives (shaft/
-  bushing) — the CAD work is a faceplate/knob skin around that part, same
-  measure-first rule as the hookswitch.
+- ~~Persona-channel indicator (rotary switch)~~ — **abandoned 2026-07-21**,
+  see `PERSONA-CHANNEL.md`'s superseded note. Chris: use the CRT's actual
+  TV channels instead of a separate switch — IR blaster emits the channel
+  code to reinforce the active persona, TV's built-in speaker beeps a
+  confirmation tone, handset mic picks it up to confirm the channel
+  matched. Full idea in `PARKING-LOT.md`'s "Channel-confirmation loop."
+  No faceplate/knob CAD needed; the previously-sourced switch
+  (https://www.amazon.com/dp/B088W8WMTB) is no longer needed for this.
 - **HDMI-to-RF multi-channel modulator housing** (`PARKING-LOT.md`'s
   multi-persona TV-channel idea) — **the modulator itself is already
   owned** (2026-07-20, supports daisy-chain multi-channel) — this is no
