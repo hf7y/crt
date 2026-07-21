@@ -63,6 +63,17 @@ speculate = importlib.util.module_from_spec(_spec_spec)
 _spec_spec.loader.exec_module(speculate)
 
 SPECULATE_ENABLED = os.environ.get("CRT_SECRETARY_SPECULATE", "0") == "1"
+
+# PARKING-LOT.md's second "primary product surface" job: voice-driven
+# media playback. Loaded the same importlib way as the other bin/
+# scripts this file reuses -- see crt-media-player.py's own header for
+# why it's a pluggable Backend (FakeBackend for tests, VlcBackend
+# untested-live) rather than a finished VLC/mpv integration.
+_media_spec = importlib.util.spec_from_file_location(
+    "crt_media_player", os.path.join(BIN_DIR, "crt-media-player.py"))
+media_player = importlib.util.module_from_spec(_media_spec)
+_media_spec.loader.exec_module(media_player)
+MEDIA_BACKEND = media_player.VlcBackend()
 SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
 PANE = os.environ.get("CRT_TMUX_PANE", "0")
 REPORTS_DIR = os.path.expanduser(os.environ.get("CRT_REPORTS_DIR", "~/reports/crt"))
@@ -296,6 +307,24 @@ def handle_book_game_stats(text):
     return spoken
 
 
+# --- Playbook: media --------------------------------------------------
+# PARKING-LOT.md's second "primary product surface" job: "play the
+# thing", "next", "pause" via handset voice. match_media() delegates the
+# actual parsing to crt-media-player.py's parse_media_command() (its own
+# pure function) instead of a separate trigger tuple here, so the two
+# files can't drift on what counts as a media command.
+def match_media(text):
+    return media_player.parse_media_command(text) is not None
+
+
+def handle_media(text):
+    spoken = media_player.handle_media_command(text, MEDIA_BACKEND)
+    if spoken is None:
+        return None
+    speak(spoken)
+    return spoken
+
+
 # Ordered: first match wins. See SUPERVISOR.md for what belongs here vs.
 # what should stay a Claude call.
 PLAYBOOKS = (
@@ -305,6 +334,7 @@ PLAYBOOKS = (
     ("what_time", match_what_time, handle_what_time),
     ("morning_report", match_morning_report, handle_morning_report),
     ("book_game_stats", match_book_game_stats, handle_book_game_stats),
+    ("media", match_media, handle_media),
 )
 
 

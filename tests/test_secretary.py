@@ -282,6 +282,32 @@ class TestAnswersMatch(unittest.TestCase):
         self.assertFalse(self.sec._answers_match(None, "anything"))
 
 
+class TestMediaPlaybook(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.spoken = []
+        self.sec.speak = lambda text, device="handset": self.spoken.append(text)
+        self.sec.MEDIA_BACKEND = self.sec.media_player.FakeBackend()
+
+    def test_matches_play_command(self):
+        name, _ = self.sec.find_playbook("play some jazz")
+        self.assertEqual(name, "media")
+
+    def test_matches_control_words(self):
+        for phrase in ("pause", "resume", "next", "stop"):
+            name, _ = self.sec.find_playbook(phrase)
+            self.assertEqual(name, "media", phrase)
+
+    def test_play_dispatches_to_backend_and_speaks(self):
+        self.sec.handle_media("play some jazz")
+        self.assertEqual(self.sec.MEDIA_BACKEND.calls, [("play", "some jazz")])
+        self.assertIn("jazz", self.spoken[0])
+
+    def test_non_media_text_does_not_match(self):
+        name, _ = self.sec.find_playbook("what time is it")
+        self.assertNotEqual(name, "media")
+
+
 class TestSpeculativeFiller(unittest.TestCase):
     def setUp(self):
         self.sec = load_secretary()

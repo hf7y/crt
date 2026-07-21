@@ -67,6 +67,19 @@ buildable; captured here so the direction survives, not started yet.
 1. **Morning reports** — spoken/printed summary on request or schedule.
 2. **Play media** — voice-driven local media playback (VLC/ffmpeg-class
    tooling), i.e. "play the thing", "next", "pause" via handset voice.
+   **v1 built, 2026-07-21**: `bin/crt-media-player.py` — command parsing
+   (`parse_media_command`) is pure and tested; a pluggable `Backend`
+   (`FakeBackend` for tests, `VlcBackend` sketched but never run against
+   a real `cvlc`/media library) dispatches play/pause/resume/next/stop.
+   Wired into `crt-secretary.py` as a `media` playbook. **Known conflict,
+   flagged not resolved**: `crt-stt-solo.py`'s own voice-control `CONTROL`
+   dict already claims "next" → a Down-arrow keystroke sent straight into
+   the tmux pane in `CRT_STT_SINK=secretary` mode, before this playbook
+   ever sees the utterance — the exact cross-persona ambiguity
+   `PERSONA-CHANNEL.md`'s channel-switch idea exists to resolve (does
+   "next" mean "navigate the terminal" or "skip the song," depending on
+   active mode). Needs a human decision, not a unilateral trigger-word
+   rename.
 
 Everything else (MIDI knobs, TV announcements, pager, etc.) is in service
 of these two jobs and the general secretary loop, not separate features.
