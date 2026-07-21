@@ -98,52 +98,36 @@ cached once per book) and 3 kawaii ASCII art entries. Full detail in
 `../BOOK-GAME-STYLE.md`'s "Idle-bait: two registers" section. 12 more
 tests, full suite green.
 
-### NEXT (2026-07-21 late session): stop routing scans through dexter -- read stdin directly
+### Stdin-scan pivot: DONE 2026-07-21 (was "NEXT (late session)")
 
-**CONFIRMED LIVE, 2026-07-21 (hands-on agent, crt-vm)** -- this is the
-active blocker, not a hypothetical. Selected the `book` window as active
-(step 2 below, done manually) and watched a real scan happen: barcode
-digits land on screen fine (raw USB-keyboard keystrokes into the focused
-pane, confirmed working), but nothing happens after -- `crt-book-console.py`
-only tails `scanner.log`, never reads its own stdin, so the keystrokes just
-echo over the drawn screen and get silently dropped. No question ever
-renders. **Step 1 below (stdin reading) is the whole fix and is the next
-thing this account should build** -- it's the only piece keeping the
-book-game funnel from actually working end to end on real hardware.
+Both steps of the hands-on agent's confirmed-live plan are now built:
+1. **`bin/crt-book-console.py` reads its own stdin.** A background thread
+   (`stdin_reader`) iterates `sys.stdin` (terminal cooked mode already
+   buffers a scan's fast keystrokes until Enter, same as a human typing)
+   and pushes lines onto a queue the main loop drains non-blockingly
+   alongside the existing `scanner.log` tail — `parse_stdin_scan_line()`
+   validates ISBN shape (no tab-prefix to strip, unlike `scanner.log`'s
+   format), then reuses `handle_scan()` unchanged. Stdin is the primary
+   path in practice now; `scanner.log` stays wired as a fallback in case
+   the dexter bridge is ever fixed.
+2. **`bin/crt-console.sh` makes `book` the boot-default window** instead
+   of `claude` (window 0) — the manual `tmux select-window` the hands-on
+   agent did live now survives a respawn/reboot. `claude` stays one
+   `prefix+0` away.
 
-Spent a long stretch this session chasing the dexter-side capture path
-(`bin/dexter-scanner-forward.ps1`) and hit a real dead end -- full
-writeup in `../SCANNER.md`'s "2026-07-21 late session" section, don't
-re-derive it, read that first. Short version: the scanner's keystrokes
-reliably reach crt-vm's focused tmux window every time (proven, several
-times), but nothing on the dexter/Windows side (RawInput capture, a
-low-level-hook suppression attempt, disabling VirtualBox's keyboard
-auto-capture) ever actually caught a real scan, across three different
-process-launch mechanisms, for reasons not fully isolated (likely
-Windows session/window-station scoping that's hard to debug blind over
-SSH).
+**Verified**: a real subprocess smoke test (bare ISBN piped to stdin,
+real Open Library fetch) rendered the correct question screen end to
+end. `dexter-scanner-forward.ps1` + the scanner NAT port-forward +
+`crt-scanner-feed.py`'s systemd service are now "nice to have, not
+load-bearing" for book-scanning, exactly as planned. 4 new tests
+(`tests/test_book_console.py`), full suite green. **Still needs an
+actual physical scan on the real tube** to fully close this out — this
+session already got burned once by an unverified "confirmed working"
+claim on the dexter-side path, so treat this as offline-verified only
+until a human watches a real scan render correctly.
 
-**Decided plan, not yet implemented:**
-1. `bin/crt-book-console.py`: read scan input directly off its own
-   stdin (it's the foreground program in the `book` tmux window) in
-   addition to tailing `scanner.log` -- detect an ISBN-shaped line the
-   same way `parse_scanner_log_line()` already does, feed it through the
-   same `handle_scan()` path.
-2. **DONE manually on the live VM session, 2026-07-21 (hands-on agent)
-   -- `tmux select-window -t claude:book`, not yet made durable.** Still
-   needs the actual code change: `bin/crt-console.sh` should make `book`
-   the default selected window on boot instead of window 0 (`claude`),
-   so this survives the next respawn/reboot instead of relying on a
-   manual select. `claude` stays one `prefix+0` away, and voice/STT
-   already covers claude-facing interaction.
-3. This makes `dexter-scanner-forward.ps1` + the scanner NAT
-   port-forward + `crt-scanner-feed.py`'s systemd service "nice to have,
-   not load-bearing" for the book-scanning feature -- leave them in
-   place but don't treat them as something the feature depends on.
-4. Verify with an actual live scan before marking this done -- this
-   session already got burned once by an unverified "confirmed working"
-   claim on the dexter-side path (a hung process silently looked
-   healthy for hours). Don't repeat that here.
+Original context/writeup (dexter dead-end root cause) kept in
+`../SCANNER.md`'s "2026-07-21 late session" section for history.
 
 **Next offline-safe batch pickup (registered 2026-07-21, not yet
 built): real webscrape quotes + kawaii ASCII art.** Idle-bait quotes

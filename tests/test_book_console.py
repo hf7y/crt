@@ -31,6 +31,20 @@ class TestParseScannerLogLine(unittest.TestCase):
         self.assertIsNone(bc.parse_scanner_log_line("2026-07-21T12:00:00\tnot an isbn"))
 
 
+class TestParseStdinScanLine(unittest.TestCase):
+    def test_parses_bare_isbn_line(self):
+        self.assertEqual(bc.parse_stdin_scan_line("9780141439518\n"), "9780141439518")
+
+    def test_rejects_non_isbn_text(self):
+        self.assertIsNone(bc.parse_stdin_scan_line("hello there\n"))
+
+    def test_rejects_empty_line(self):
+        self.assertIsNone(bc.parse_stdin_scan_line("\n"))
+
+    def test_strips_whitespace(self):
+        self.assertEqual(bc.parse_stdin_scan_line("  9780141439518  \n"), "9780141439518")
+
+
 class _StubRng:
     """Deterministic stand-in for random.Random -- fixes .random()'s
     return so tests can force render_idle_screen's caption-branch choice

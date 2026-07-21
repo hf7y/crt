@@ -1,27 +1,30 @@
 #!/usr/bin/env python3
 # Book Game's own tmux window -- wired into crt-console.sh alongside
-# mono/bridge/stt. Tails ~/.crt/scanner.log (crt-scanner-feed.py already
-# writes every scan there unfiltered, SCANNER.md's "log first" pattern)
-# for new ISBN-shaped lines, looks each one up/registers it via
-# bin/crt-book-game.py's existing functions, and renders the centered
-# question screen (BOOK-GAME-STYLE.md) directly to this window's pane.
+# mono/bridge/stt. Reads scans from TWO sources and treats either as a
+# real scan event: (1) ~/.crt/scanner.log (crt-scanner-feed.py's
+# dexter-bridge path, SCANNER.md), and (2) this window's OWN STDIN --
+# added 2026-07-21 after the hands-on agent confirmed LIVE on crt-vm that
+# the scanner's raw USB-keyboard keystrokes land directly in whichever
+# tmux window has focus (SCANNER.md's "2026-07-21 late session" finding),
+# and that this window never read them, so a real scan on the `book`
+# window silently did nothing. Stdin is now the PRIMARY path in practice
+# (works with zero dexter/network dependency); scanner.log stays wired in
+# case the dexter bridge is ever fixed later -- see .claude/FOCUS.md's
+# "NEXT" entry for the full writeup of why this pivot happened.
 #
 # Deliberately DISPLAY-ONLY for this pass, same "standalone first, merge
 # later" caution as BOOK-GAME.md's own roadmap: it shows the question,
-# it does not grade a spoken answer (that still needs
-# `crt-book-game.py --answer` run by hand, or a future secretary-
-# playbook/window-0 wiring -- BOOK-GAME.md roadmap step 3, not this
-# pass). This window's whole job is "the scan happened, here's what to
-# ask" -- grading stays out of scope here.
+# it does not grade a spoken answer directly (that's
+# bin/crt-book-answer-listen.py's job, watching ~/.crt/stt.log
+# separately, or `crt-book-game.py --answer` run by hand).
 #
-# STATUS: NOT hardware-verified. Tailing/parsing/rendering are pure
-# functions covered by tests/test_book_console.py against a fixture
-# scanner.log; the live tail-follow loop and the real 40x15 terminal
-# have never been checked by eye (same caveat as every other window in
-# crt-console.sh).
+# STATUS: NOT hardware-verified past the hands-on agent's live
+# confirmation that the GAP existed -- this fix itself (stdin reading)
+# has not yet been watched working against a real scan. Tailing/parsing/
+# rendering are pure functions covered by tests/test_book_console.py.
 #
 # Usage: crt-book-console.py   (run as its own tmux window, see
-#   crt-console.sh's `book` window)
+#   crt-console.sh's `book` window, now also the boot-default window)
 # Env:
 #   CRT_SCANNER_LOG (default ~/.crt/scanner.log)
 #   CRT_BOOK_CONSOLE_IDLE_SECS (default 20) -- how long a scan result
@@ -29,8 +32,10 @@
 import importlib.util
 import json
 import os
+import queue
 import random
 import sys
+import threading
 import time
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -53,6 +58,17 @@ def parse_scanner_log_line(line):
         return None
     _, text = line.split("\t", 1)
     text = text.strip()
+    return text if bg.is_isbn_like(text) else None
+
+
+def parse_stdin_scan_line(line):
+    """Pure function: a scan landing directly in this window's own stdin
+    is bare digits + Enter -- the terminal's line-discipline (cooked
+    mode) buffers the scanner's fast keystrokes and delivers them as one
+    line on Enter, the same way a human pressing Enter would, no special
+    handling needed on this end. No tab prefix to strip (unlike
+    scanner.log's shape) -- just validate it's ISBN-shaped."""
+    text = line.strip()
     return text if bg.is_isbn_like(text) else None
 
 
@@ -149,6 +165,17 @@ def tail_new_lines(path):
                 yield None
 
 
+def stdin_reader(q):
+    """Runs in a background thread: sys.stdin iteration blocks line by
+    line (terminal cooked mode already buffers a scan's fast keystrokes
+    until Enter, so this sees one complete line per scan, same as a
+    human typing) -- pushes each raw line onto `q` for the main loop to
+    drain non-blockingly, so a blocked stdin read can never stall the
+    scanner.log tail or the idle-screen timeout tick."""
+    for line in sys.stdin:
+        q.put(line)
+
+
 def main():
     conn = bg.get_db()
     width, height = bg.detect_screen_size()
@@ -156,18 +183,37 @@ def main():
     def book_count():
         return conn.execute("SELECT COUNT(*) FROM books").fetchone()[0]
 
+    stdin_q = queue.Queue()
+    threading.Thread(target=stdin_reader, args=(stdin_q,), daemon=True).start()
+
     draw(render_idle_screen(book_count(), width, height))
     last_scan_at = 0.0
     showing_idle = True
 
+    def show_scan(isbn):
+        nonlocal last_scan_at, showing_idle
+        row = handle_scan(conn, isbn)
+        draw(render_scan_result(row, width, height))
+        last_scan_at = time.time()
+        showing_idle = False
+
     for line in tail_new_lines(SCANNER_LOG):
+        # Drain any stdin-sourced scans first, non-blocking -- stdin is
+        # the primary path in practice now (see file header), scanner.log
+        # is the fallback, so neither should starve the other.
+        while True:
+            try:
+                stdin_line = stdin_q.get_nowait()
+            except queue.Empty:
+                break
+            isbn = parse_stdin_scan_line(stdin_line)
+            if isbn is not None:
+                show_scan(isbn)
+
         if line is not None:
             isbn = parse_scanner_log_line(line)
             if isbn is not None:
-                row = handle_scan(conn, isbn)
-                draw(render_scan_result(row, width, height))
-                last_scan_at = time.time()
-                showing_idle = False
+                show_scan(isbn)
 
         if not showing_idle and time.time() - last_scan_at >= IDLE_SECS:
             draw(render_idle_screen(book_count(), width, height))

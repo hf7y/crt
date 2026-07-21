@@ -206,16 +206,19 @@ then-print pattern `crt-print.sh` already uses for reports.
    `crt-secretary.py`, and per "standalone first, merge later" below,
    shouldn't be built at the same time as hardware integration).
 2. **Next (needs a live crt-vm session, hands-on):** scanner delivery
-   itself is DONE (see Blockers — `SCANNER.md`'s dexter-bridge, live and
-   systemd-persistent as of 2026-07-21). What's left here: have the live
-   crt-vm session call `parse_scan_line()` on each `[scan] <isbn>` line
-   and shell out to `crt-book-game.py --isbn`, run the loop against the
-   real mic pipeline, human-verify the grading feels fair (this is a
-   game — false "you got it wrong" from bad STT is the failure mode to
-   watch for specifically, hence the exact-ish-not-fuzzy grading choice
-   needing a real ear on it early), and put a human eye on
-   `BOOK-GAME-STYLE.md`'s screen/color/art choices against the actual
-   tube.
+   is DONE via TWO paths now — `SCANNER.md`'s dexter-bridge (network,
+   `[scan] <isbn>` into tmux) and, as of 2026-07-21, direct stdin
+   reading in `crt-book-console.py` (the actual working path in
+   practice, per the hands-on agent's live finding that raw scan
+   keystrokes reach whichever window has focus regardless — see
+   `.claude/FOCUS.md`'s "Stdin-scan pivot" entry). Grading is also
+   automatic now (`crt-book-answer-listen.py`, watches `~/.crt/stt.log`).
+   What's still needed: run the whole loop against a REAL physical scan
+   and a real spoken answer (offline-verified only so far), human-verify
+   the grading feels fair (false "you got it wrong" from bad STT is the
+   failure mode to watch for, hence exact-ish-not-fuzzy grading), and put
+   a human eye on `BOOK-GAME-STYLE.md`'s screen/color/art choices against
+   the actual tube.
 3. **Console placement: a new tmux window, DONE 2026-07-21.**
    `bin/crt-book-console.py` is wired into `crt-console.sh` as window
    `book` — tails `~/.crt/scanner.log` (already written unfiltered by

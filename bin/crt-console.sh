@@ -126,6 +126,15 @@ tmux new-window -d -t "$SESSION" -n bookanswer -c "$BIN_DIR" "python3 ./crt-book
 # Reclaim the bottom row: no tmux status bar on such a small screen.
 tmux set-option -t "$SESSION" status off
 
-tmux select-window -t "${SESSION}:0"
-tmux select-pane -t "${SESSION}:0.0"
+# `book` is the default selected window on boot, NOT window 0 (`claude`)
+# -- confirmed live 2026-07-21 (hands-on agent, crt-vm) that a physical
+# scan's raw keystrokes land in WHICHEVER window has focus, regardless of
+# which one "should" have them (SCANNER.md's "2026-07-21 late session"
+# finding), and crt-book-console.py now reads its own stdin for exactly
+# this reason. Making `book` the boot default is the code-level half of
+# that fix (a manual `tmux select-window` was done live but didn't
+# survive a respawn/reboot) -- `claude` stays one `prefix+0` away, and
+# voice/STT already covers claude-facing interaction without needing
+# window 0's focus.
+tmux select-window -t "${SESSION}:book"
 exec tmux attach -t "$SESSION"
