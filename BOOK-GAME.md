@@ -197,8 +197,18 @@ then-print pattern `crt-print.sh` already uses for reports.
 3. **Then:** decide standalone-vs-integrated placement in the console
    (new tmux window? a secretary playbook? both?) once the standalone
    version is proven fun and correct.
-4. **Stretch:** label printer integration once the printer question
-   (below) is answered.
+4. **Stretch, now demoted:** label printer integration. **Resolved
+   2026-07-21, Zach: skip it for v1.** The Phomemo M02 itself is known
+   to work (already the report-printing channel, `bin/catprint`), but
+   it's Bluetooth — likely the same class of VM-passthrough problem as
+   the scanner's USB issue and the MIDI controller's USB issue, unverified
+   either way. Rather than spend a hands-on session confirming/fixing a
+   third passthrough path, **just display the computed LCC number on the
+   CRT** for now (short text, fits this project's existing "CRT = short
+   status only" convention from `SECRETARY.md`) instead of printing a
+   label. Revisit physical labels once Bluetooth-through-VM is either
+   confirmed working or solved the same way the scanner/STT bridge was
+   (a dexter-side network relay) — not blocking anything above it.
 
 ## Blockers / open questions for a human
 
@@ -252,12 +262,15 @@ then-print pattern `crt-print.sh` already uses for reports.
   doesn't know what to do"). Not being built now — parked alongside that
   existing long-term item, flagging here so it isn't lost and isn't
   conflated with the book game's own scope.
-- **Which printer for LCC labels, and can it even do label-sized
-  output:** does the existing Phomemo M02 (`bin/catprint`, currently used
-  for report printing) support a small enough label format for a book
-  spine, or does this need a second, dedicated label printer? Needs a
-  human decision once the core game works — not blocking anything above
-  it.
+- **Label printing — resolved 2026-07-21, Zach: skip for v1.** Printer
+  identity is settled (Phomemo M02, known-working, already the
+  `bin/catprint` report channel) but it connects via Bluetooth, and
+  Bluetooth-through-VM is unverified and likely hits the same class of
+  passthrough problem as the scanner's USB path and the MIDI
+  controller's USB path. Rather than debug a third passthrough route,
+  v1 displays the computed LCC number on the CRT instead of printing a
+  label (see Roadmap step 4, demoted from stretch-goal-now to
+  later-revisit). Not blocking anything above it.
 - **Book-metadata API choice:** Open Library's ISBN API needs no key and
   is fully offline-buildable-against (mockable); Google Books' has richer
   data but usage limits. Recommend starting with Open Library only,
