@@ -20,12 +20,16 @@
 # books.db + training.jsonl fixtures.
 #
 # Usage:
-#   crt-book-game-stats.py screen      # CRT-width one-liner summary
-#   crt-book-game-stats.py print-all   # full text for the printer
+#   crt-book-game-stats.py screen          # CRT-width one-liner summary
+#   crt-book-game-stats.py print-all       # full text for the printer
+#   crt-book-game-stats.py export-fixups   # candidate bin/stt-fixups.json
+#                                            entries generated from
+#                                            repeated STT mismatches
 import importlib.util
 import json
 import os
 import sys
+from collections import Counter
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location("crt_book_game", os.path.join(BIN_DIR, "crt-book-game.py"))
@@ -138,6 +142,39 @@ def render_full_report(book_stats, training_stats):
     return "\n".join(lines) + "\n"
 
 
+def generate_candidate_fixups(mismatches, min_repeats=2):
+    """Pure function: turns the Book Game's logged (expected, heard) STT
+    mismatches into candidate bin/stt-fixups.json entries -- the exact
+    shape that file already uses (heard-fragment key -> {intent, type,
+    confidence, note}, see STT-MECHANISM.md's garble taxonomy), so a
+    human can review and literally copy accepted ones straight in. Only
+    surfaces a (heard, expected) pair once it's recurred at least
+    `min_repeats` times -- a single mismatch could just be one-off noise;
+    stt-fixups.json's own convention is "append as patterns are
+    confirmed," and repetition is the cheapest local signal that a
+    mishear is a real, consistent pattern rather than a fluke. Always
+    `confidence: candidate`, never `confirmed` -- this script has no way
+    to actually verify a fixup live, only a human calibration session can
+    do that (same bar the real file's existing entries were held to)."""
+    pair_counts = Counter()
+    for m in mismatches:
+        heard = (m.get("heard") or "").strip().lower()
+        expected = (m.get("expected") or "").strip().lower()
+        if heard and expected and heard != expected:
+            pair_counts[(heard, expected)] += 1
+    candidates = {}
+    for (heard, expected), count in pair_counts.items():
+        if count >= min_repeats:
+            candidates[heard] = {
+                "intent": expected,
+                "type": "book-game-observed",
+                "confidence": "candidate",
+                "note": f"seen {count}x as a Book Game trivia-answer mismatch -- "
+                        f"needs human confirmation before treating as confirmed",
+            }
+    return candidates
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "screen"
     conn = bg.get_db()
@@ -149,8 +186,11 @@ def main():
             print(line)
     elif mode == "print-all":
         print(render_full_report(book_stats, training_stats), end="")
+    elif mode == "export-fixups":
+        candidates = generate_candidate_fixups(training_stats["mismatches"])
+        print(json.dumps(candidates, indent=2, sort_keys=True))
     else:
-        sys.stderr.write("usage: crt-book-game-stats.py [screen|print-all]\n")
+        sys.stderr.write("usage: crt-book-game-stats.py [screen|print-all|export-fixups]\n")
         sys.exit(2)
 
 

@@ -157,6 +157,20 @@ locally-answered way `status`/`morning_report` already are. 14 + 3 new
 tests (`tests/test_book_game_stats.py`, `TestBookGameStatsPlaybook`),
 full suite green.
 
+**Training data made actionable, 2026-07-21**: displaying mismatches
+wasn't enough — `crt-book-game-stats.py export-fixups` now converts
+repeated (expected, heard) mismatches into candidate
+`bin/stt-fixups.json` entries, the exact shape that file already uses
+(`STT-MECHANISM.md`'s garble taxonomy), always marked `confidence:
+candidate` (never `confirmed` — matches that file's own bar, only a
+human calibration session earns `confirmed`). Only surfaces a pair once
+it's recurred at least twice (tunable), since a one-off mismatch could
+just be noise. This is the actual "improve STT inference over time"
+loop CLAUDE.md names as this console's top priority, closed end to end:
+scan → question → spoken answer → logged mismatch → candidate fixup a
+human can review and copy straight into the real file. 5 more tests,
+24 total, full suite green.
+
 **Next offline-safe batch pickup (registered 2026-07-21, not yet
 built): real webscrape quotes + kawaii ASCII art.** Idle-bait quotes
 currently only use Open Library's `first_sentence` field (rarely

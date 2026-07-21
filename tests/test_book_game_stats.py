@@ -121,6 +121,46 @@ class TestRenderScreenSummary(unittest.TestCase):
         self.assertTrue(all(len(l) <= 20 for l in lines))
 
 
+class TestGenerateCandidateFixups(unittest.TestCase):
+    def test_single_occurrence_not_surfaced(self):
+        mismatches = [{"heard": "friction", "expected": "fiction"}]
+        self.assertEqual(st.generate_candidate_fixups(mismatches), {})
+
+    def test_repeated_pair_surfaced_as_candidate(self):
+        mismatches = [
+            {"heard": "friction", "expected": "fiction"},
+            {"heard": "friction", "expected": "fiction"},
+        ]
+        candidates = st.generate_candidate_fixups(mismatches)
+        self.assertIn("friction", candidates)
+        self.assertEqual(candidates["friction"]["intent"], "fiction")
+        self.assertEqual(candidates["friction"]["confidence"], "candidate")
+
+    def test_min_repeats_is_tunable(self):
+        mismatches = [{"heard": "x", "expected": "y"}]
+        self.assertEqual(st.generate_candidate_fixups(mismatches, min_repeats=1), {"x": {
+            "intent": "y", "type": "book-game-observed", "confidence": "candidate",
+            "note": st.generate_candidate_fixups(mismatches, min_repeats=1)["x"]["note"],
+        }})
+
+    def test_ignores_missing_or_identical_fields(self):
+        mismatches = [
+            {"heard": "", "expected": "fiction"},
+            {"heard": "fiction", "expected": ""},
+            {"heard": "same", "expected": "same"},
+        ]
+        self.assertEqual(st.generate_candidate_fixups(mismatches, min_repeats=1), {})
+
+    def test_case_insensitive_grouping(self):
+        mismatches = [
+            {"heard": "Friction", "expected": "Fiction"},
+            {"heard": "friction", "expected": "fiction"},
+        ]
+        candidates = st.generate_candidate_fixups(mismatches)
+        self.assertIn("friction", candidates)
+        self.assertEqual(len(candidates), 1)
+
+
 class TestRenderFullReport(unittest.TestCase):
     def test_includes_mismatches(self):
         book_stats = {"total": 1, "template_questions": 1, "claude_questions": 0}
