@@ -80,8 +80,20 @@ tmux new-window -d -t "$SESSION" -n bridge -c "$BIN_DIR" "./crt-claude-bridge.py
 # see AUDIO-DEBUG.md Approach B for why single-reader avoids that design's
 # whole class of staleness bugs. Its own meter/flash HUD writes to this
 # window's pane (not visible unless you switch to it), same as before.
+#
+# CRT_STT_SINK=secretary (2026-07-21, Zach's direct call): every utterance
+# used to be typed straight into the live Claude pane (SINK=claude) --
+# real cost/attention problem per FOCUS.md's original STT-gate note, and
+# not what the Book Game needs (that funnel already reads ~/.crt/stt.log
+# directly in crt-book-answer-listen.py, unconditionally, so it never
+# depended on this sink value). secretary mode routes non-control
+# utterances through crt-secretary.py's playbook dispatcher instead,
+# escalating to Claude only on fallthrough (crt-secretary.py's own
+# design intent, "call out to API when unsure"). Control keystrokes
+# (yes/no/enter/etc) still go straight to tmux either way -- see
+# crt-stt-solo.py's own SINK branch for the exact split.
 tmux new-window -d -t "$SESSION" -n stt -c "$BIN_DIR" \
-  "CRT_STT_SINK=claude CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 python3 ./crt-stt-solo.py; exec bash"
+  "CRT_STT_SINK=secretary CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 python3 ./crt-stt-solo.py; exec bash"
 
 if [ -n "${CRT_HOOK_DEVICE:-}" ]; then
   tmux new-window -d -t "$SESSION" -n hook -c "$BIN_DIR" "./hookswitch-listen.sh; exec bash"
