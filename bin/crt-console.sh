@@ -9,11 +9,17 @@ set -euo pipefail
 # `exec tmux attach` below fails, the login shell exits, and getty respawns in
 # a tight loop until systemd's start-limit kills tty1 (black screen). Make the
 # script self-sufficient instead of depending on shell rc files.
-export PATH="$HOME/.local/bin:$PATH"
-
 SESSION="${CRT_TMUX_SESSION:-claude}"
 PROJECT_DIR="${CRT_PROJECT_DIR:-$HOME}"
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# BIN_DIR ahead of ~/.local/bin: this repo's bin/claude shadows the real
+# binary to reset leftover terminal mouse-tracking state before every
+# launch (see that file's header -- a suspected segfault trigger after a
+# Bun/Ink TUI crash). Applies to every `claude` invocation any shell
+# forked from this one makes, including a manual re-launch typed after a
+# crash drops to the `; exec bash` fallback below.
+export PATH="$BIN_DIR:$HOME/.local/bin:$PATH"
 
 # CRT_MODE=stt  -> standalone speech-to-text only, no Claude Code. A single
 # process (crt-stt-solo.py) is the SOLE mic reader -- metering + VAD + whisper

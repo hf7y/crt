@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Thin wrapper that shadows the real `claude` binary (~/.local/bin/claude)
+# via PATH ordering -- crt-console.sh and systemd/bash_profile.append both
+# put this repo's bin/ ahead of ~/.local/bin, so any invocation of `claude`
+# in a crt-managed shell (the scripted console launch, and any manual
+# re-launch typed after a crash) goes through here first.
+#
+# Why: a crashed Bun/Ink TUI (see HANDOFF.md's 2026-07-21 segfault
+# investigation) enables terminal mouse-tracking on startup but, since it
+# dies via segfault rather than a normal exit, never gets to run the
+# matching disable sequence. The terminal keeps encoding every mouse move
+# as raw escape-sequence bytes and feeding them to whatever reads next --
+# including the very next `claude` launch, the instant it starts reading
+# raw input for its own TUI. A backlog/flood of that garbage hitting a
+# fresh process's input parser is a credible segfault trigger in its own
+# right, and was directly observed once already (see HANDOFF.md: a plain
+# ssh window filled with `<35;68;14M...` after a crash). Clearing mouse
+# tracking before every launch costs nothing when nothing's wedged, and
+# may be the actual fix when something is -- cheaper than only pinning to
+# an older Claude Code build and hoping the crash doesn't recur there too.
+#
+# Hardcodes the real binary's path rather than relying on PATH order for
+# the exec target, so this can never recurse into itself even if PATH
+# ends up misconfigured.
+printf '\e[?1000l\e[?1003l\e[?1006l\e[?1015l\e[?1002l' > /dev/tty 2>/dev/null || true
+exec "$HOME/.local/bin/claude" "$@"

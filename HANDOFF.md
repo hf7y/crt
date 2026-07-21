@@ -141,6 +141,53 @@ discarding every utterance before whisper ever ran, no error output
 anywhere. Fixed by checking `sox`'s own exit status via `PIPESTATUS`
 instead of the pipeline's combined status.
 
+**Bun segfault on `claude` launch, investigated 2026-07-21 (mandark
+session, remote via SSH — not yet deployed to crt-vm, see below)**:
+`claude` started segfaulting in Bun's native code on launch (`panic(main
+thread): Segmentation fault`, "Bun has crashed. This indicates a bug in
+Bun, not your code."). Findings, in order:
+- The VM had self-updated to Claude Code v2.1.216; that build segfaulted
+  on full interactive launch (not on `--version`) while v2.1.215 (still
+  on disk at `~/.local/share/claude/versions/`) launched clean.
+  `autoUpdates` is already `false` in `~/.claude.json`, so it won't
+  silently re-flip.
+- Pinning the `~/.local/bin/claude` symlink back to 2.1.215 stopped the
+  *first* crash, but the crash recurred later against 2.1.215 too (one
+  run lasted ~128s before segfaulting) — so the version wasn't the real
+  root cause, just correlated with the first occurrence.
+- Direct evidence pointing at the real trigger: after one crash, a plain
+  SSH window filled with raw escape-sequence garbage
+  (`35;68;14M35;69;14M...` — SGR mouse-motion reports). Bun/Ink's TUI
+  enables terminal mouse-tracking on startup; dying via segfault instead
+  of a normal exit means it never runs the matching disable sequence.
+  The terminal then keeps encoding every mouse move as raw bytes fed to
+  whatever reads next — plausibly including the *next* `claude` launch,
+  the instant it starts reading raw input, as a flood of malformed input
+  hitting a fresh process's parser. This is a real class of Bun/Ink bug
+  (crash skips cleanup handlers), not something fixable by picking a
+  build.
+- **Fix written, NOT yet deployed to crt-vm** (holding for another
+  agent's in-flight push to land first, then a single combined
+  `crt-sync-vm.sh push`): `bin/claude`, a thin wrapper that resets mouse
+  tracking (`\e[?1000l\e[?1003l\e[?1006l\e[?1015l\e[?1002l`) before every
+  launch, then execs the real binary by hardcoded path (never recurses).
+  Shadows the real `claude` via PATH order — wired into both
+  `crt-console.sh` (the scripted boot launch, and anything forked from
+  that shell, including a manual re-launch typed after the `; exec bash`
+  crash fallback) and `systemd/bash_profile.append` (unconditionally, so
+  a fresh independent SSH login gets it too, not just shells descended
+  from the tmux console). Once deployed, existing live `~/.bash_profile`
+  on crt-vm still needs the *new* `bash_profile.append` block re-applied
+  (it was appended once at install time; editing the repo's copy alone
+  doesn't retroactively patch what's already in `~/.bash_profile`) —
+  re-run the relevant part of `install.sh`'s append step, or hand-patch.
+- **Not fully confirmed** — the mouse-tracking theory is well-supported
+  by the observed garbage but the wrapper hasn't been tested against a
+  real repeat crash yet (couldn't deploy this session). If crashes
+  continue after this is live, the theory is wrong or incomplete; look
+  elsewhere (a genuine Bun/Ink bug independent of mouse mode, VM resource
+  pressure, etc.) rather than assuming the fix just needs tuning.
+
 **Not yet built** (so it doesn't get assumed-done next time): a visual
 signal of the USER's own speech in the "mono" window — right now it only
 shows claude's side of the conversation, not the raw/interim STT text or

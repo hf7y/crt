@@ -1,6 +1,17 @@
 # --- crt autoboot: appended by install.sh ---
-# Only fire on the physical console login (tty1), not over SSH or in
-# other terminal sessions, so this doesn't hijack every shell.
+# Unconditional (unlike the tty1-gated console launch below): put this
+# repo's bin/ ahead of PATH in every login shell, including a fresh SSH
+# session, so `bin/claude` shadows the real binary and resets leftover
+# terminal mouse-tracking state before every launch -- see that file's
+# header for why (a suspected trigger for the segfault-after-crash loop
+# investigated 2026-07-21, see HANDOFF.md). Safe even outside the tty1
+# console: it's a passthrough wrapper, not a behavior change to claude
+# itself.
+export PATH="$CRT_PROJECT_DIR/bin:$PATH"
+
+# Only fire the actual console launch on the physical console login
+# (tty1), not over SSH or in other terminal sessions, so that doesn't
+# hijack every shell.
 if [ "$(tty)" = "/dev/tty1" ] && [ -z "${CRT_STARTED:-}" ]; then
   export CRT_STARTED=1
   exec "$CRT_PROJECT_DIR/bin/crt-console.sh"
