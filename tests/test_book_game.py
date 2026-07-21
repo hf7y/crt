@@ -40,6 +40,48 @@ class TestMetadataLookup(unittest.TestCase):
         self.assertEqual(book["authors"], ["Unknown"])
         self.assertIsNone(book["year"])
 
+    def test_fetch_parses_real_edition_endpoint_author_shape(self):
+        # Confirmed live 2026-07-21 (branch investigation into "trivia
+        # always asks the year question"): the real ISBN/edition endpoint
+        # uses "author" (singular), a plain list of "Last, First,
+        # dates." strings -- NOT "author_names"/"authors", which the
+        # code checked exclusively before this fix, so authors always
+        # came back ["Unknown"] and the author-name question could never
+        # fire.
+        book = bg.fetch_book_metadata("9780451524935",
+                                       fetcher=lambda url: {"author": ["Orwell, George, 1903-1950."]})
+        self.assertEqual(book["authors"], ["George Orwell"])
+
+    def test_fetch_handles_authors_dict_shape_with_no_name(self):
+        # Also confirmed live: some editions give "authors": [{"key":
+        # "/authors/OL...A"}] -- a bare reference with NO embedded name
+        # at all. Resolving that needs a second API call, deliberately
+        # not added here (real latency/reliability tradeoff) -- falls
+        # back to Unknown, a known documented limitation, not silently
+        # claimed as fixed.
+        book = bg.fetch_book_metadata("9780061120084",
+                                       fetcher=lambda url: {"authors": [{"key": "/authors/OL498120A"}]})
+        self.assertEqual(book["authors"], ["Unknown"])
+
+    def test_fetch_handles_author_without_comma(self):
+        book = bg.fetch_book_metadata("1",
+                                       fetcher=lambda url: {"author": ["Cher"]})
+        self.assertEqual(book["authors"], ["Cher"])
+
+
+class TestCleanAuthorName(unittest.TestCase):
+    def test_last_first_dates_format(self):
+        self.assertEqual(bg._clean_author_name("Orwell, George, 1903-1950."), "George Orwell")
+
+    def test_last_first_no_dates(self):
+        self.assertEqual(bg._clean_author_name("Coelho, Paulo."), "Paulo Coelho")
+
+    def test_no_comma_returned_unchanged(self):
+        self.assertEqual(bg._clean_author_name("Cher"), "Cher")
+
+    def test_last_only_no_first(self):
+        self.assertEqual(bg._clean_author_name("Madonna,"), "Madonna")
+
 
 class TestQuestionGeneration(unittest.TestCase):
     def setUp(self):
