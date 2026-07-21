@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Book Game -- see ../BOOK-GAME.md for full vision/roadmap. This is the
 # offline-safe slice registered in .claude/FOCUS.md 2026-07-21: ISBN
-# lookup, question generation (template + pluggable batched-Claude
+# lookup, question generation (template + pluggable batched-Claude/Gemini
 # source), grading/logging, SQLite registry, naive LCC heuristic. Built
 # standalone (own CLI), NOT wired into crt-console.sh/crt-secretary.py --
 # per BOOK-GAME.md's "standalone first, merge later" direction.
@@ -19,7 +19,15 @@
 #   CRT_BOOKS_DB (default ~/.crt/books.db)
 #   CRT_BOOK_GAME_TRAINING_LOG (default ~/.crt/book-game-training.jsonl)
 #   CRT_BOOK_GAME_CLAUDE_RATE (default 0.5) -- fraction of fresh scans that
-#     get a Claude-authored question instead of a template one
+#     get an AI-authored question instead of a template one. Actually
+#     routed through Gemini (2026-07-21, cheap-tier stand-in -- see
+#     call_gemini_batch()), since the live `claude -p` batch call still
+#     isn't wired; falls back to template if no Gemini key is configured.
+#   CRT_GEMINI_API_KEY / ~/.crt/gemini.key -- Gemini API key (install.sh
+#     writes the file, chmod 600, from CRT_GEMINI_API_KEY at install time;
+#     never committed to the repo). Neither set -> AI slot always falls
+#     back to template.
+#   CRT_GEMINI_MODEL (default gemini-2.5-flash)
 import argparse
 import hashlib
 import json
@@ -38,6 +46,12 @@ DB_PATH = os.path.expanduser(os.environ.get("CRT_BOOKS_DB", "~/.crt/books.db"))
 TRAINING_LOG = os.path.expanduser(
     os.environ.get("CRT_BOOK_GAME_TRAINING_LOG", "~/.crt/book-game-training.jsonl"))
 CLAUDE_RATE = float(os.environ.get("CRT_BOOK_GAME_CLAUDE_RATE", "0.5"))
+GEMINI_KEY_PATH = os.path.expanduser(os.environ.get("CRT_GEMINI_KEY_PATH", "~/.crt/gemini.key"))
+GEMINI_MODEL = os.environ.get("CRT_GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/"
+    "{model}:generateContent?key={key}"
+)
 
 OPEN_LIBRARY_URL = "https://openlibrary.org/isbn/{isbn}.json"
 
@@ -319,6 +333,59 @@ def parse_claude_batch_response(response_json, isbn):
             continue
         questions.append({"text": e.get("text", ""), "options": opts, "correct": e.get("correct")})
     return questions
+
+
+def _load_gemini_key():
+    """Env var wins (lets a caller override per-invocation/testing); falls
+    back to the file install.sh writes at setup time (CRT_GEMINI_API_KEY ->
+    ~/.crt/gemini.key, chmod 600, never committed to the repo). Returns None
+    if neither is present -- callers treat that as "no cheap-tier source
+    configured", not an error."""
+    env_key = os.environ.get("CRT_GEMINI_API_KEY")
+    if env_key:
+        return env_key.strip()
+    try:
+        with open(GEMINI_KEY_PATH) as f:
+            key = f.read().strip()
+            return key or None
+    except OSError:
+        return None
+
+
+def call_gemini_batch(prompt_payload, api_key=None, poster=None):
+    """Sends build_claude_batch_prompt()'s payload to Gemini and returns
+    parsed JSON in the same {"<isbn>": [...]} shape parse_claude_batch_
+    response() already expects -- this is the cheap-tier stand-in for the
+    not-yet-wired live `claude -p` batch call (see .claude/FOCUS.md).
+    `poster` is injectable for tests: callable(url, body_bytes) -> raw
+    response bytes, default does a real HTTPS POST. Raises on any failure
+    (missing key, network, malformed response) -- caller (main()) decides
+    whether to fall back to the template path, same contract as
+    fetch_book_metadata()."""
+    api_key = api_key or _load_gemini_key()
+    if not api_key:
+        raise RuntimeError("no Gemini API key configured (CRT_GEMINI_API_KEY / ~/.crt/gemini.key)")
+
+    prompt_text = prompt_payload["instructions"] + "\n\n" + json.dumps(prompt_payload["books"])
+    body = json.dumps({
+        "contents": [{"parts": [{"text": prompt_text}]}],
+        "generationConfig": {"response_mime_type": "application/json"},
+    }).encode("utf-8")
+    url = GEMINI_URL.format(model=GEMINI_MODEL, key=api_key)
+
+    if poster is not None:
+        raw = poster(url, body)
+    else:
+        req = urllib.request.Request(
+            url, data=body, method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            raw = resp.read()
+
+    envelope = json.loads(raw)
+    text = envelope["candidates"][0]["content"]["parts"][0]["text"]
+    return json.loads(text)
 
 
 # ---------------------------------------------------------------------------
@@ -944,13 +1011,30 @@ def main():
             print(f"Couldn't look up ISBN {isbn}: {e}")
             return
         source = pick_question_source()
-        # Live Claude-batch calls need a real crt-vm session (see
-        # BOOK-GAME.md); this standalone CLI always uses the template
-        # path so a fresh scan never blocks on network/API access, but
-        # still records which source *would* have been used.
         total_rounds, stt_accuracy = _recent_training_stats()
         tier = pick_response_tier(total_rounds, stt_accuracy)
-        question = generate_template_question(book, tier=tier)
+        question = None
+        if source == "claude":
+            # Live `claude -p` batch calls still need a real crt-vm session
+            # (see BOOK-GAME.md) -- Gemini is the cheap-tier stand-in for
+            # this slot instead (2026-07-21), reusing the same batch prompt/
+            # parse contract. Falls back to template on any failure (no
+            # key configured, network hiccup, malformed reply) so a fresh
+            # scan never blocks -- same degrade-cleanly rule as the Open
+            # Library lookup above.
+            try:
+                prompt = build_claude_batch_prompt([book])
+                response_json = call_gemini_batch(prompt)
+                questions = parse_claude_batch_response(response_json, isbn)
+                if questions:
+                    question = questions[0]
+                    source = "gemini"
+            except Exception as e:
+                print(f"[crt-book-game] Gemini question generation failed, "
+                      f"falling back to template: {e}", file=sys.stderr)
+        if question is None:
+            question = generate_template_question(book, tier=tier)
+            source = "template"
         quote = scrape_quote(book["title"])
         row = register_book(conn, book, questions=[question], question_source=source, quote=quote)
         print(f"Scanned: {row['title']} ({row['lcc'] or 'LCC unknown, best effort'})")

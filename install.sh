@@ -68,6 +68,30 @@ else
   echo "    already wired, skipping"
 fi
 
+echo "==> Gemini API key (bin/crt-book-game.py's cheap-tier question source)"
+if [ -z "${CRT_GEMINI_API_KEY:-}" ] && [ -t 0 ]; then
+  # Interactive terminal, no env var pre-set -- prompt instead of requiring
+  # the caller to know the CRT_GEMINI_API_KEY incantation. `read -s` hides
+  # the paste (no echo), matching how the crt-vm password prompt is
+  # handled elsewhere in this project. Skips cleanly (no prompt hang) when
+  # install.sh is run non-interactively (piped, cron, another script),
+  # since `-t 0` is false there.
+  read -r -s -p "    Paste Gemini API key (from AI Studio), or press Enter to skip: " CRT_GEMINI_API_KEY
+  echo ""
+fi
+if [ -n "${CRT_GEMINI_API_KEY:-}" ]; then
+  mkdir -p "$HOME/.crt"
+  umask 077
+  printf '%s' "$CRT_GEMINI_API_KEY" > "$HOME/.crt/gemini.key"
+  chmod 600 "$HOME/.crt/gemini.key"
+  umask 022
+  echo "    Installed to ~/.crt/gemini.key"
+else
+  echo "    Skipped -- bin/crt-book-game.py falls back to template questions without it."
+  echo "    Re-run later with CRT_GEMINI_API_KEY=... ./install.sh to add it, or drop the"
+  echo "    key straight into ~/.crt/gemini.key by hand (chmod 600)."
+fi
+
 echo ""
 echo "==> Done. Reboot to test full autoboot flow: sudo reboot"
 echo "    Manual test without reboot: bash $PROJECT_DIR/bin/crt-console.sh"
