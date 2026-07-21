@@ -150,21 +150,25 @@ then-print pattern `crt-print.sh` already uses for reports.
 
 ## Blockers / open questions for a human
 
-- **Barcode scanner almost certainly won't reach the VM via direct USB
-  passthrough (2026-07-21, Zach).** Same class of problem as the MIDI
-  controller's `VBoxManage usbattach` trouble below, but Zach's read is
-  it's the known dexter→VM USB passthrough issue specifically, not just
-  a one-off stuck-service state — expect it to fail the same way. The
-  scanner will need to go over **the same path STT audio already uses**
-  (dexter-side capture → network/HTTP bridge into the guest, like
-  `dexter-whisper-server.py` for audio) rather than raw USB passthrough.
-  Concretely: a small listener on dexter reads the scanner's HID/serial
-  output natively and posts scanned ISBNs to `crt-book-game.py` on the
-  VM over the network, mirroring `CRT_WHISPER_SERVER`'s shape. This is
-  now the assumed integration path for the hands-on phase, not
-  `VBoxManage usbattach` — the USB-passthrough item below is kept for
-  the MIDI case specifically, since it may still be worth clearing for
-  that controller even though the scanner won't use the same route.
+- **Barcode scanner confirmed NOT reaching the VM via direct USB
+  passthrough — checked live 2026-07-21, reproduced.** Identified the
+  scanner on dexter's host USB list (`0145:0012`, "Unknown" manufacturer,
+  confirmed by unplug/replug diff) and ran
+  `VBoxManage controlvm crt-vm usbattach <uuid>` directly. The command
+  returned **no error** (unlike the MIDI controller's explicit "busy
+  with a previous request"), but: `VBoxManage list usbhost` afterward
+  still showed the device `Current State: Busy`, never `Captured`: and
+  `ls /dev/bus/usb/*/*` on the guest showed only the two root hubs, no
+  new device. So the attach silently no-ops — same underlying failure
+  class as the MIDI controller, just a quieter symptom. This is now a
+  verified finding, not an assumption: **the scanner needs to go over
+  the same path STT audio already uses** (dexter-side capture →
+  network/HTTP bridge into the guest, like `dexter-whisper-server.py`
+  for audio) rather than raw USB passthrough. Concretely: a small
+  listener on dexter reads the scanner's HID output natively and posts
+  scanned ISBNs to `crt-book-game.py` on the VM over the network,
+  mirroring `CRT_WHISPER_SERVER`'s shape. This is now the assumed
+  integration path for the hands-on phase.
 - **USB passthrough risk (MIDI controller, unconfirmed for anything
   else):** `HANDOFF.md`'s MIDI section documents `VBoxManage usbattach`
   failing ("busy with a previous request") for the Arturia MiniLab,
