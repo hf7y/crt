@@ -18,7 +18,7 @@
 #
 # Output: transcriptions scroll; a live "MIC [####|....] 12.3% TALK" meter is
 # redrawn on the bottom line (same widget as crt-meter.py). Ctrl-C to quit.
-import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request
+import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, json, re
 from collections import deque
 
 # SINK: where recognized text goes.
@@ -187,6 +187,63 @@ HALLU = set("you thankyou thanks thankyouforwatching bye music musicplaying "
             "cricketschirping silence blankaudio sound soundeffects applause "
             "inaudible foreignspeech speaking".split())
 
+# STT gate (FOCUS.md "Now (core STT)" / STT gate, 2026-07-20, Zach): without
+# this, every utterance that clears VAD becomes a live Claude Code turn --
+# including room chatter never addressed to the console. Opt-in, default
+# off -- not hardware-verified against real room noise yet (see
+# nightly-batch.md's acceptance-bar note); the raw always-escalate path
+# below is unchanged when this is off. Only gates the free-text ->
+# Claude-turn path, not single-word CONTROL keystrokes (see emit()) --
+# those answer a prompt already on screen mid-interaction and shouldn't
+# need the wake word repeated.
+GATE       = os.environ.get("CRT_STT_GATE", "0") != "0"
+WAKE_WORD  = os.environ.get("CRT_WAKE_WORD", "claude").lower()
+GATE_LOG   = os.environ.get("CRT_STT_GATE_LOG", os.path.expanduser("~/.crt/thoughts.log"))
+FIXUPS_PATH = os.environ.get("CRT_STT_FIXUPS",
+                              os.path.join(os.path.dirname(os.path.abspath(__file__)), "stt-fixups.json"))
+
+
+def load_fixups(path):
+    """stt-fixups.json: {lowercased misheard fragment: {"intent": ..., ...}}.
+    Ignores keys starting with "_" (the file's own "_comment" doc key) and
+    tolerates a missing/malformed file -- the gate degrades to exact-word
+    matching only, it doesn't fail closed or crash the whole engine."""
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return {k: v for k, v in data.items() if not k.startswith("_")}
+
+
+FIXUPS = load_fixups(FIXUPS_PATH)
+
+
+def _contains_phrase(words, phrase):
+    """Whole-word containment check: `phrase` (space-separated) must appear
+    as a contiguous run of whole words in `words`, not as a bare substring
+    -- else a fixup fragment like "slide" would false-positive inside an
+    unrelated word like "landslide"."""
+    phrase_words = phrase.split()
+    n = len(phrase_words)
+    return any(words[i:i + n] == phrase_words for i in range(len(words) - n + 1))
+
+
+def addressed_to_console(text, wake_word=WAKE_WORD, fixups=FIXUPS):
+    """True if `text` was actually addressed to the console: the wake word
+    appears as a whole word, or a stt-fixups.json fragment whose learned
+    intent IS the wake word appears (e.g. "slide" -> confirmed mishear of
+    "claude", see stt-fixups.json) -- makes that fixup entry load-bearing
+    for the gate, not just a documentation note for a human reader.
+    Whisper output rarely carries reliable punctuation, but a stray comma
+    ("hey claude, run the tests") shouldn't defeat the match -- tokenize on
+    word characters only rather than plain str.split()."""
+    words = re.findall(r"[a-z0-9']+", text.lower())
+    if wake_word in words:
+        return True
+    return any(info.get("intent") == wake_word and _contains_phrase(words, fragment)
+                for fragment, info in fixups.items())
+
 
 def read_exact(f, n):
     b = bytearray()
@@ -332,7 +389,18 @@ def emit(text, peak=1.0):
     except OSError:
         pass
     if SINK == "claude":
-        label = "(key %s)" % CONTROL[key] if (" " not in text and key in CONTROL) else "->"
+        is_control = " " not in text and key in CONTROL
+        if GATE and not is_control and not addressed_to_console(text):
+            if STT_DEBUG_PERSIST:
+                print("%s  (gated, no wake word) %s" % (ts, text))
+            try:
+                os.makedirs(os.path.dirname(GATE_LOG), exist_ok=True)
+                with open(GATE_LOG, "a") as f:
+                    f.write("%s  [stt-gate] dropped (no wake word): %s\n" % (ts, text))
+            except OSError:
+                pass
+            return
+        label = "(key %s)" % CONTROL[key] if is_control else "->"
         if STT_DEBUG_PERSIST:
             print("%s  %s %s" % (ts, label, text))
         send_to_claude(text, key)

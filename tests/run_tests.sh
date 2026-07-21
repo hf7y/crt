@@ -33,6 +33,12 @@ echo "== stt-feed.sh CRT_SECRETARY opt-in gate =="
 bash "$DIR/test_stt_feed_secretary_flag.sh" || fail=1
 echo
 
+echo "== stt-feed.sh CRT_STT_GATE opt-in gate =="
+if [ -f "$DIR/test_stt_feed_gate_flag.sh" ]; then
+  bash "$DIR/test_stt_feed_gate_flag.sh" || fail=1
+fi
+echo
+
 echo "== crt-pager.py =="
 python3 "$DIR/test_pager.py" || fail=1
 echo
@@ -40,6 +46,12 @@ echo
 echo "== crt-predict.py =="
 if [ -f "$DIR/test_predict.py" ]; then
   python3 "$DIR/test_predict.py" || fail=1
+fi
+echo
+
+echo "== crt-stt-solo.py STT gate =="
+if [ -f "$DIR/test_stt_gate.py" ]; then
+  python3 "$DIR/test_stt_gate.py" || fail=1
 fi
 echo
 
