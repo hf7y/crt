@@ -18,6 +18,10 @@ pointers below for depth on any one piece.
 - `PARKING-LOT.md` — the deep end-state vision (RF power-on, hidden
   transcription, predictive-text feel, morning-reports + media-playback as
   the two core jobs). Not built, captured so it isn't lost.
+- `SCANNER.md` — USB 1D barcode scanner on dexter, forwarded to crt-vm's
+  tmux pane (new 2026-07-21). Guest-side listener confirmed working live;
+  dexter-side RawInput capture script written but not yet load-tested
+  against a real scan — see that doc's open items before assuming it's live.
 
 ## Where it runs
 
