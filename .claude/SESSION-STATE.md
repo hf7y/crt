@@ -1,6 +1,57 @@
 # Session state (read this first, before STT-MECHANISM.md)
 
-Last updated: 2026-07-19 night, still no live VM/mic access all session —
+Last updated: 2026-07-20 night — first session this project had real
+dexter+crt-vm network access. Live blocker-clearing pass, not design work.
+See `HANDOFF.md`'s "What's actually running right now" section for the
+current accurate live layout (it's kept in sync with reality now, not this
+file's older waves below).
+
+## Sixth wave (2026-07-20): live access, real bugs found and fixed on hardware
+- **VM deploy gap closed**: the VM's `~/crt` (no git, plain deploy target)
+  was ~a day behind this repo; nothing from waves 1-5 had ever been
+  deployed. New `bin/crt-sync-vm.sh` (status/pull/push, sha256 diff +
+  tar-over-ssh, no rsync on either box) replaces manual diffing. Policy:
+  safe to overwrite the VM, never dexter; always `pull` VM-only work first.
+  Recovered 4 files that only ever existed on the VM (`stt-fixups.json` —
+  real confirmed STT mis-hear mappings — plus 3 prototype scripts) before
+  the first push.
+- **VM hardware-check timer**: installed and *actually verified* (not just
+  written) — ran the real offline test suite against real ALSA/tmux on
+  crt-vm (126+ checks, all green), confirmed earcons/TTS/sideband all exit
+  0 on real hardware. Reworked to a plain script
+  (`bin/crt-vm-hardware-check.sh`), not a `claude -p` call — Zach's
+  question ("can't this be done without claude?") was right, every check
+  is mechanical.
+- **OctoPrint confirmed reachable** at `192.168.0.43` (HTTP 302, alive).
+- **Real STT pipeline bug found and fixed live**: `stt-feed.sh` was
+  silently discarding every utterance after capture (pipefail + arecord's
+  expected SIGPIPE on VAD cutoff made the whole pipeline register as
+  "failed" even though sox succeeded) — see `HANDOFF.md` for the full
+  mechanism. This was likely broken for a while; nobody could tell because
+  it failed silently with no error output anywhere.
+- **A real regression found and permanently fixed**: the previous
+  session's hand-assembled live layout (single-reader `crt-stt-solo.py` +
+  `crt-claude-bridge.py` + `crt-monologue.py` pretty-print dialogue pane,
+  window 1) worked great for an evening, was never wired into
+  `bin/crt-console.sh`, and got silently clobbered by a routine VM reboot.
+  Now wired directly into `crt-console.sh`'s own code (not just
+  documented) so a future respawn can't lose it again. **Still open**: a
+  visual signal of the USER's own speech in window 1 (currently only shows
+  claude's replies) — flagged, not built.
+- **`bin/crt-levels.sh` missing exec bit** (never worked, unrelated to any
+  reboot) — fixed.
+- Full VM power-cycle (`VBoxManage controlvm crt-vm poweroff` + `startvm
+  --type gui`) was needed at one point — a guest-level `reboot` alone
+  doesn't re-establish VirtualBox's audio/USB device bindings, since those
+  attach at VM power-on, not guest boot. Worth remembering for the MIDI
+  blocker too (`VBoxManage usbattach` "busy with a previous request").
+
+Older waves below are historical record from prior sessions, kept for
+context — not all still accurate against current `HANDOFF.md`.
+
+---
+
+Previously last updated: 2026-07-19 night, still no live VM/mic access all session —
 no new STT transcriptions came in, so no new error-pattern learning this
 session; see `STT-MECHANISM.md` + `~/.crt/stt.log` for that work, still
 the standing top priority per `CLAUDE.md`. First commit of this session's

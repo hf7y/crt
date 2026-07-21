@@ -54,19 +54,53 @@ pointers below for depth on any one piece.
   *not* pull from directly (no git link VM→mandark — files are copied over
   SSH by hand/script when deploying).
 
-## What's actually running right now (2026-07-19 evening)
+## What's actually running right now (2026-07-20 night, current)
 
-On `crt-vm`, tmux session `claude` (tty1-autologin-attached — **never**
-`tmux kill-session` this, only kill/replace specific windows/panes):
-- **window 0** (`bash`) — the original full-screen `claude` pane, untouched.
-- **window 1** (`stt`, currently active/visible on the CRT) — split into two
-  panes:
-  - top pane: `bin/crt-monologue.sh` — tails `~/.crt/thoughts.log` on screen,
-    word-wrapped, first-person ("i'm a crt, i have a handset...").
-  - bottom pane (3 lines): `bin/crt-stt-speakback.sh` running
-    `crt-stt-solo.py` — the live mic meter, with the raw STT transcription
-    **flashing** over it when someone talks (not routed to Claude — this is
-    debug/secretary-prototype mode, not the original stt-feed.sh pipeline).
+On `crt-vm`, tmux session `claude`, launched by `bin/crt-console.sh` on
+tty1 autologin (**never** `tmux kill-session` this casually — it's safe
+(autologin respawns everything correctly), but it's a real interruption;
+prefer `tmux respawn-pane`/`respawn-window` for a targeted fix):
+- **window 0** (`claude`) — full-screen Claude Code pane. Voice is typed
+  straight into this window's input by window "stt" below.
+- **window 1** (`mono`, visible, prefix+1) — `bin/crt-monologue.py`:
+  claude's own DIALOGUE replies (not its thinking), pretty-printed,
+  ephemeral (fades/drops old lines). Fed by window "bridge" below, not by
+  window "mono" itself.
+- **window "bridge"** (background) — `bin/crt-claude-bridge.py`: tails
+  claude's own JSONL session transcript, extracts assistant text replies,
+  appends them to `~/.crt/thoughts.log`, which window "mono" renders.
+- **window "stt"** (background) — `bin/crt-stt-solo.py`
+  (`CRT_STT_SINK=claude`): the SOLE mic reader (metering + VAD + whisper +
+  typing into window 0), replacing the older `stt-feed.sh` +
+  `crt-levels.sh` dsnoop-meter pair (see AUDIO-DEBUG.md Approach B for
+  why single-reader avoids that pair's staleness bugs). Its own meter/HUD
+  writes to this window's own pane, not visible unless you switch to it.
+
+**Incident, for the record** (2026-07-20): this exact layout was first
+hand-assembled in extra tmux windows during a 2026-07-19 live session and
+ran well for a full evening — but was never wired into `crt-console.sh`
+itself. A routine VM reboot the next night respawned autologin ->
+`crt-console.sh` -> the OLD default (`stt-feed.sh` + a separate meter
+split), and the better setup was gone with no record beyond
+`ps aux` archaeology. It's now wired directly into `crt-console.sh`'s
+code (see that file's own comments) rather than only described here,
+specifically so a future respawn can't silently regress it again — a doc
+is easy to skip, code that runs on every boot isn't.
+
+**Also found and fixed the same night**: `stt-feed.sh` (still used for
+`CRT_SECRETARY`/stdout debug modes, just no longer the default boot path)
+had a real bug where `set -o pipefail` + `arecord`'s expected SIGPIPE
+(when `sox` closes the pipe at a VAD cutoff) made the whole
+`arecord | sox` pipeline register as "failed" on literally every
+utterance, even though `sox` itself always succeeded — silently
+discarding every utterance before whisper ever ran, no error output
+anywhere. Fixed by checking `sox`'s own exit status via `PIPESTATUS`
+instead of the pipeline's combined status.
+
+**Not yet built** (so it doesn't get assumed-done next time): a visual
+signal of the USER's own speech in the "mono" window — right now it only
+shows claude's side of the conversation, not the raw/interim STT text or
+a level indicator.
 
 On `dexter` (native Windows, not the VM): `dexter-whisper-server.py`
 (faster-whisper, int8, full Ryzen cores) listening on `0.0.0.0:8991`

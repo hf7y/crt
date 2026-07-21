@@ -32,18 +32,22 @@ failure cadence can be characterized.
 Test: run alongside the normal console; force staleness (let it idle, or toggle
 the VBox audio controller) and confirm it recovers within a few seconds.
 
-## Approach B — single-reader console (eliminate dsnoop) `[code]`
-`bin/crt-stt-solo.py` extended with `CRT_STT_SINK=claude` + `bin/crt-console-solo.sh`
+## Approach B — single-reader console (eliminate dsnoop) `[promoted, now the default]`
+`bin/crt-stt-solo.py` extended with `CRT_STT_SINK=claude`, wired into `bin/crt-console.sh`
 
 Root-cause structural fix: the staleness class that comes from *multiple readers*
 (meter + stt-feed both on dsnoop) simply cannot happen if exactly **one** process
 ever touches the mic. `crt-stt-solo.py` already is that one process for STT-only;
-extending it to also type into the Claude tmux pane (and mirror the meter to a
-side pane via a fifo) makes it a drop-in replacement for the whole
-stt-feed + dsnoop-meter stack. `bin/crt-console-solo.sh` wires it up.
+extending it to also type into the Claude tmux pane makes it a drop-in
+replacement for the whole stt-feed + dsnoop-meter stack.
 
-Test: boot with `CRT_CONSOLE=solo` (or run `bin/crt-console-solo.sh`); confirm
-voice still types into Claude and the meter still shows, with no dsnoop in play.
+**Verified live 2026-07-19/20** (real handset session on crt-vm) and, as of
+2026-07-20, promoted into `bin/crt-console.sh` itself as the actual boot
+default (see that file's own comments, and `HANDOFF.md`'s "what's running"
+section) — `bin/crt-console-solo.sh` is no longer the only way to get this,
+it's just a thinner standalone variant of the same idea. `stt-feed.sh` +
+`crt-levels.sh` still exist (used by `CRT_SECRETARY`/stdout debug modes) but
+are no longer what boots by default.
 
 ## Approach C — proactive keep-alive heartbeat `[code]`
 Built into Approach A's watchdog as `CRT_WD_KEEPALIVE=1`
