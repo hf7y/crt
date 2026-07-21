@@ -106,17 +106,66 @@ def render_scan_result(row, width, height):
     return [bg.wrap_color(l, bg.COLOR_QUESTION) if l.strip() else l for l in lines]
 
 
+def render_scan_error(isbn, width, height):
+    """Pure function: shown when a scan's ISBN lookup fails (unknown
+    ISBN, network error -- see ScanLookupFailed). Clipped register
+    (COLOR_WRONG, EXPRESSIVE-TONE.md) -- a real miss, not the warm/
+    curious register a normal question gets, but still short and
+    matter-of-fact per CLAUDE.md's terse-persona rule, not an alarming
+    error dump. Same 3-line vertical-center shape render_question_screen
+    uses, so the game's rhythm doesn't visually jolt on a miss."""
+    lines = [" " * width for _ in range(height)]
+    lines[0] = bg.center_text("BOOK GAME", width)
+    block = [
+        bg.center_text("couldn't find that book.", width),
+        bg.center_text(f"(isbn {isbn})", width),
+        bg.center_text("try another one!", width),
+    ]
+    start = max(1, (height - len(block)) // 2)
+    for i, l in enumerate(block):
+        row = start + i
+        if 0 <= row < height:
+            lines[row] = l
+    return [bg.wrap_color(l, bg.COLOR_WRONG) if l.strip() else l for l in lines]
+
+
+class ScanLookupFailed(Exception):
+    """Raised by handle_scan() when fetch_book_metadata() itself failed
+    (unknown ISBN -- a real 404 from Open Library, confirmed live against
+    the real API -- or a network/timeout error). Deliberately a distinct
+    exception type, not a bare re-raise of whatever urllib threw, so
+    main() can catch exactly this and only this without accidentally
+    swallowing a real bug elsewhere in handle_scan (e.g. a sqlite error)."""
+    pass
+
+
 def handle_scan(conn, isbn, fetcher=None, quote_fetcher=None):
     """Looks up/registers `isbn` if new, returns the registry row either
     way (register_book's own cache-on-insert semantics mean a re-scan
     never re-queries or re-generates a question, and never re-scrapes a
     quote). `quote_fetcher` is separate from `fetcher` since the Wikiquote
     scrape hits a different API shape than the Open Library lookup --
-    tests inject each independently."""
+    tests inject each independently.
+
+    Raises ScanLookupFailed (not whatever urllib raised) if the ISBN
+    lookup itself fails -- confirmed live that Open Library 404s on an
+    unrecognized ISBN (not a hypothetical: this is the EXPECTED outcome
+    for a huge fraction of real scans, since the whole point of this
+    feature is inviting someone to scan "any book nearby," and plenty of
+    real barcodes -- out-of-print books, non-ISBN products, magazines,
+    a network hiccup -- will never resolve. Previously uncaught here,
+    which would have crashed the whole `book` window (now the
+    boot-default tmux window) on the very first scan that didn't
+    perfectly match Open Library's catalog -- the same failure class as
+    the earlier missing-`random`-import crash, just guaranteed to
+    recur constantly instead of being a one-off bug."""
     existing = bg.get_book(conn, isbn)
     if existing is not None:
         return existing
-    book = bg.fetch_book_metadata(isbn, fetcher=fetcher)
+    try:
+        book = bg.fetch_book_metadata(isbn, fetcher=fetcher)
+    except Exception as e:
+        raise ScanLookupFailed(str(e)) from e
     source = bg.pick_question_source()
     question = bg.generate_template_question(book)
     quote = bg.scrape_quote(book["title"], fetcher=quote_fetcher)
@@ -192,8 +241,12 @@ def main():
 
     def show_scan(isbn):
         nonlocal last_scan_at, showing_idle
-        row = handle_scan(conn, isbn)
-        draw(render_scan_result(row, width, height))
+        try:
+            row = handle_scan(conn, isbn)
+        except ScanLookupFailed:
+            draw(render_scan_error(isbn, width, height))
+        else:
+            draw(render_scan_result(row, width, height))
         last_scan_at = time.time()
         showing_idle = False
 

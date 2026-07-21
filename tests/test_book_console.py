@@ -124,6 +124,41 @@ class TestHandleScan(unittest.TestCase):
             row2 = bc.handle_scan(conn, "123", fetcher=boom, quote_fetcher=boom)
             self.assertEqual(row1["title"], row2["title"])
 
+    def test_unknown_isbn_raises_scan_lookup_failed_not_raw_error(self):
+        # Confirmed live: Open Library 404s on an unrecognized ISBN --
+        # this must surface as ScanLookupFailed, not urllib's own
+        # exception type, so main()'s except clause can catch exactly
+        # this without swallowing unrelated bugs.
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+
+            def not_found(url):
+                raise OSError("HTTP Error 404: Not Found")
+
+            with self.assertRaises(bc.ScanLookupFailed):
+                bc.handle_scan(conn, "0000000000", fetcher=not_found)
+
+    def test_network_error_also_raises_scan_lookup_failed(self):
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+
+            def timeout(url):
+                raise TimeoutError("timed out")
+
+            with self.assertRaises(bc.ScanLookupFailed):
+                bc.handle_scan(conn, "123", fetcher=timeout)
+
+
+class TestRenderScanError(unittest.TestCase):
+    def test_dimensions_and_isbn_shown(self):
+        lines = bc.render_scan_error("0000000000", 40, 15)
+        self.assertEqual(len(lines), 15)
+        self.assertTrue(any("0000000000" in l for l in lines))
+
+    def test_colored_wrong_register(self):
+        lines = bc.render_scan_error("123", 40, 15)
+        self.assertTrue(any(l.startswith(bg.COLOR_WRONG) for l in lines if l.strip()))
+
 
 if __name__ == "__main__":
     unittest.main()

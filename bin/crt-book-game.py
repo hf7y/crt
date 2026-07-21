@@ -718,7 +718,16 @@ def main():
     conn = get_db()
     existing = get_book(conn, isbn)
     if existing is None:
-        book = fetch_book_metadata(isbn)
+        try:
+            book = fetch_book_metadata(isbn)
+        except Exception as e:
+            # Confirmed live: Open Library 404s on any ISBN it doesn't
+            # recognize, and this is the EXPECTED outcome for a real
+            # fraction of scans (out-of-print books, non-ISBN products,
+            # a network hiccup) -- not a hypothetical edge case, so this
+            # CLI must degrade to a clear message, never a raw traceback.
+            print(f"Couldn't look up ISBN {isbn}: {e}")
+            return
         source = pick_question_source()
         # Live Claude-batch calls need a real crt-vm session (see
         # BOOK-GAME.md); this standalone CLI always uses the template

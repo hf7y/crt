@@ -184,6 +184,26 @@ separate passes, before they'd ever surface live. All 3 scenarios passed
 on first write, confirming the pieces built independently across today's
 passes do actually compose correctly.
 
+**Real crash bug found and fixed, 2026-07-21 — CONFIRMED LIVE, not
+theoretical.** `fetch_book_metadata()` raises on any ISBN Open Library
+doesn't recognize (confirmed live: a real `curl` against
+`openlibrary.org/isbn/0000000000.json` returns a genuine `404`) or on a
+network failure — and until this fix, **nothing caught it anywhere**.
+Since the whole point of this feature is inviting someone to scan "any
+book nearby," this was guaranteed to crash the `book` window (now the
+boot-default tmux window) on a large fraction of real scans — out-of-
+print books, non-ISBN barcodes, a network hiccup — not a rare edge case.
+Same failure class as the earlier missing-`random`-import crash, just
+certain to recur constantly instead of being a one-off. Fixed:
+`crt-book-console.py`'s `handle_scan()` now raises a distinct
+`ScanLookupFailed` (not a bare re-raise) that `main()` catches and shows
+via a new `render_scan_error()` screen ("couldn't find that book, try
+another!", clipped/`COLOR_WRONG` register) instead of crashing;
+`crt-book-game.py`'s CLI degrades to a clear message instead of a raw
+traceback. **Verified live against the real Open Library API** (not just
+mocked): both the console window and the CLI handled ISBN `0000000000`
+cleanly, no crash, no traceback. 6 new tests, full suite green.
+
 **Next offline-safe batch pickup (registered 2026-07-21, not yet
 built): real webscrape quotes + kawaii ASCII art.** Idle-bait quotes
 currently only use Open Library's `first_sentence` field (rarely
