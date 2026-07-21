@@ -194,29 +194,35 @@ Original plan, kept below for reference (now implemented as described):
   human has run `secretary` mode live and confirmed playbooks actually
   fire correctly against real (not synthetic) transcriptions.
 
-## Speculative/optimistic response (PARKING-LOT's own earlier idea, still unbuilt)
+## Speculative/optimistic response — BUILT (v1), 2026-07-21
 
 The "bot starts typing a cheap local guess, then overwrites with the real
-answer" idea (see "Interface philosophy" above) is still just a sentence,
-not a design. Distinct from `crt-predict.py` (which predicts what was
-*said*, i.e. the STT text, already built) — this predicts the *response*,
-before Claude/the local router has one. Sketch for whoever picks this up:
-- A cheap categorizer (keyword rules, same weight class as
-  `crt-secretary.py`'s `_matches_any` triggers) buckets an utterance into
-  a handful of registers ("looking that up...", "checking reports...",
-  "let me think...") and shows that filler line immediately via
-  `crt-think.sh`, in the warm/curious register (`EXPRESSIVE-TONE.md`).
-- No true in-place overwrite needed: `crt-monologue.py` already only
-  shows the most recent few lines and fades old ones, so the filler line
-  can just be a normal appended line that naturally scrolls/fades once
-  the real answer is appended after it — simpler than rewriting
-  `thoughts.log` in place, and fits the existing ephemeral-display model.
-- Only worth building once `crt-secretary.py` is actually in the live
-  loop (the item above) — a speculative filler for a locally-instant
-  playbook answer is pointless; this only earns its keep once real
-  Claude latency (the `wait_for_claude_reply` round-trip) is common in
-  the live path, which today it isn't (nothing types into Claude except
-  by hand/test).
+answer" idea (see "Interface philosophy" above), distinct from
+`crt-predict.py` (which predicts what was *said*) — this predicts
+nothing about the response's content, just acknowledges instantly while
+the real one is on its way.
+
+**v1 shipped**: `bin/crt-speculate.py`'s `pick_filler_line()` — a random
+warm/curious-register filler ("let me think on that...", "one sec,
+working on it...", etc.), not yet the per-category buckets the original
+sketch floated ("looking that up..." vs. "checking reports..." — a real
+simplification, not a broken promise: variety alone already avoids the
+single-canned-phrase problem, category-specific fillers are a fine
+follow-up, not a requirement). Wired into `crt-secretary.py`'s
+Claude-escalation branch (`handle()`, right before `send_to_claude`/
+`wait_for_claude_reply`'s real round-trip) via `show_filler_line()`,
+which shells to `crt-think.sh` — no true in-place overwrite needed,
+`crt-monologue.sh` already only shows the most recent few lines, so the
+filler naturally scrolls/fades once the real answer lands after it.
+Opt-in (`CRT_SECRETARY_SPECULATE`, default off) — never fires for a
+locally-answered playbook, only the genuinely-slow Claude path. 8 new
+tests (`tests/test_speculate.py` + `TestSpeculativeFiller` in
+`test_secretary.py`), full suite green.
+
+**Not yet live-verified**: nothing types into Claude except by hand/test
+today (`CRT_STT_SINK` still defaults to `claude`, not `secretary`), so
+this has never been watched against a real Claude round-trip on the
+actual screen.
 
 ## IR blaster mount (cad/CAD-BACKLOG.md)
 Parked 2026-07-21 — **updated same day**: the IR blaster itself is still

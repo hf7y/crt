@@ -282,6 +282,53 @@ class TestAnswersMatch(unittest.TestCase):
         self.assertFalse(self.sec._answers_match(None, "anything"))
 
 
+class TestSpeculativeFiller(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.sec.FALLTHROUGH_LOG = os.path.join(tempfile.mkdtemp(), "fallthrough.log")
+        self.sec.capture_pane = lambda: ""
+        self.sec.send_to_claude = lambda text: None
+        self.sec.wait_for_claude_reply = lambda before: ""
+        self.sec.route_claude_reply = lambda reply: None
+
+    def test_disabled_by_default_no_filler_call(self):
+        self.assertFalse(self.sec.SPECULATE_ENABLED)
+        calls = []
+        self.sec.show_filler_line = lambda: calls.append(True)
+        self.sec.handle("refactor the audio pipeline please")
+        self.assertEqual(calls, [])
+
+    def test_enabled_calls_filler_before_claude(self):
+        self.sec.SPECULATE_ENABLED = True
+        order = []
+        self.sec.show_filler_line = lambda: order.append("filler")
+        self.sec.send_to_claude = lambda text: order.append("claude")
+        self.sec.handle("refactor the audio pipeline please")
+        self.assertEqual(order, ["filler", "claude"])
+
+    def test_matched_playbook_never_shows_filler(self):
+        self.sec.SPECULATE_ENABLED = True
+        self.sec.speak = lambda text, device="handset": None
+        calls = []
+        self.sec.show_filler_line = lambda: calls.append(True)
+        self.sec.handle("what time is it")
+        self.assertEqual(calls, [])
+
+    def test_show_filler_line_calls_crt_think_with_a_pool_line(self):
+        calls = []
+        self.sec.sh = lambda cmd, **kw: calls.append(cmd)
+        self.sec.show_filler_line()
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(calls[0][0].endswith("crt-think.sh"))
+        self.assertIn(calls[0][1], self.sec.speculate.FILLER_LINES)
+
+    def test_show_filler_line_never_raises_on_broken_sh(self):
+        def boom(cmd, **kw):
+            raise OSError("no such file")
+        self.sec.sh = boom
+        self.sec.show_filler_line()  # must not raise
+
+
 class TestConfidenceRouting(unittest.TestCase):
     def setUp(self):
         self.sec = load_secretary()

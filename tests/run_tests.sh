@@ -91,6 +91,12 @@ if [ -f "$DIR/test_book_game_stats.py" ]; then
 fi
 echo
 
+echo "== crt-speculate.py =="
+if [ -f "$DIR/test_speculate.py" ]; then
+  python3 -m unittest discover -s "$DIR" -p "test_speculate.py" -v 2>&1 | tail -5 || fail=1
+fi
+echo
+
 echo "== crt-secretary.py playbooks =="
 if [ -f "$DIR/test_secretary.py" ] && [ "${CRT_SKIP_SECRETARY_TESTS:-0}" = "0" ]; then
   python3 "$DIR/test_secretary.py" || fail=1

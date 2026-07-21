@@ -52,6 +52,17 @@ _conf_spec.loader.exec_module(stt_confidence)
 # call purely to confirm the local answer -- see confidence_route().
 CONFIDENCE_ENABLED = os.environ.get("CRT_SECRETARY_CONFIDENCE", "0") == "1"
 _CONFIDENCE_STATE_LOCK = threading.Lock()
+
+# PARKING-LOT.md's speculative/optimistic-response filler, loaded the
+# same importlib way. Opt-in, default OFF, same "never change live
+# default behavior without hands-on verification" rule -- see handle()'s
+# Claude-escalation branch below for where this fires.
+_spec_spec = importlib.util.spec_from_file_location(
+    "crt_speculate", os.path.join(BIN_DIR, "crt-speculate.py"))
+speculate = importlib.util.module_from_spec(_spec_spec)
+_spec_spec.loader.exec_module(speculate)
+
+SPECULATE_ENABLED = os.environ.get("CRT_SECRETARY_SPECULATE", "0") == "1"
 SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
 PANE = os.environ.get("CRT_TMUX_PANE", "0")
 REPORTS_DIR = os.path.expanduser(os.environ.get("CRT_REPORTS_DIR", "~/reports/crt"))
@@ -433,6 +444,21 @@ def confidence_route(text, action):
     return local_answer
 
 
+def show_filler_line():
+    """PARKING-LOT.md's speculative/optimistic-response idea: an instant,
+    content-free acknowledgment shown via crt-think.sh (crt-monologue.sh
+    already tails and displays that log) the moment a request is about to
+    sit through wait_for_claude_reply's real round-trip (up to
+    CLAUDE_MAX_WAIT seconds) -- gives an immediate "it's alive" feel
+    instead of the screen going silent during the wait. Best-effort: a
+    broken crt-think.sh call must never block the real Claude routing
+    that follows it."""
+    try:
+        sh([os.path.join(BIN_DIR, "crt-think.sh"), speculate.pick_filler_line()])
+    except OSError:
+        pass
+
+
 def handle(text):
     _, action = find_playbook(text)
     if action:
@@ -440,6 +466,8 @@ def handle(text):
         return
 
     log_fallthrough(text)
+    if SPECULATE_ENABLED:
+        show_filler_line()
     before = capture_pane()
     send_to_claude(text)
     reply = wait_for_claude_reply(before)
