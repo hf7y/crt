@@ -29,6 +29,10 @@
 # Env:
 #   CRT_BOOKS_DB (default ~/.crt/books.db, same as crt-book-game.py)
 #   CRT_STT_LOG (default ~/.crt/stt.log, same as crt-stt-solo.py)
+#   CRT_THOUGHT_LOG (default ~/.crt/thoughts.log) -- where the graded
+#     result announcement is appended (crt-monologue.sh already tails
+#     this and shows it on screen, same channel crt-book-idle-bait.py
+#     and crt-idle-teaser.sh already write to)
 #   CRT_BOOK_ANSWER_WINDOW_SECS (default 20) -- how long after a scan an
 #     utterance still counts as "the answer to that question"
 import calendar
@@ -43,6 +47,7 @@ bg = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bg)
 
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
+THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
 ANSWER_WINDOW_SECS = float(os.environ.get("CRT_BOOK_ANSWER_WINDOW_SECS", "20"))
 POLL_SECS = float(os.environ.get("CRT_BOOK_ANSWER_LISTEN_POLL_SECS", "0.5"))
 
@@ -107,16 +112,33 @@ def grade_pending_answer(conn, spoken_text, window_secs=ANSWER_WINDOW_SECS, now=
     """The whole close-the-loop step: if there's a pending question, grade
     `spoken_text` against it and log the training row (reusing
     crt-book-game.py's own grade_answer/log_training_row -- no new
-    grading logic). Returns the grade dict, or None if nothing was
-    pending (caller should leave the utterance alone -- it wasn't a
-    trivia answer)."""
+    grading logic). Returns the grade dict (plus the book's title, for
+    format_result_line() below) or None if nothing was pending (caller
+    should leave the utterance alone -- it wasn't a trivia answer)."""
     pending = get_pending_question(conn, window_secs, now=now)
     if pending is None:
         return None
     q = pending["question"]
     grade = bg.grade_answer(expected=q.get("correct"), heard=spoken_text, correct_option=q.get("correct"))
     bg.log_training_row(pending["isbn"], grade)
+    grade["title"] = pending["title"]
     return grade
+
+
+def format_result_line(grade):
+    """Pure function: the actual game-show-host announcement, in the
+    register BOOK-GAME-STYLE.md's personality section calls for --
+    content/settled ('got it') for a right answer, clipped ('nope, it
+    was X') for wrong, never gloating or sad-trombone either way (this
+    is a game, wrong answers are half the fun). `correct_content is None`
+    (an ungradeable fallback question, e.g. 'have you read this before')
+    gets a neutral acknowledgment instead of a right/wrong verdict --
+    there was nothing to grade."""
+    if grade["correct_content"] is None:
+        return bg.wrap_color(f"  logged your answer for {grade['title']}.", bg.COLOR_QUESTION)
+    if grade["correct_content"]:
+        return bg.wrap_color(f"  got it! {grade['title']}: {grade['expected']}.", bg.COLOR_CORRECT)
+    return bg.wrap_color(f"  nope, it was {grade['expected']} -- {grade['title']}.", bg.COLOR_WRONG)
 
 
 def tail_new_lines(path):
@@ -138,6 +160,18 @@ def tail_new_lines(path):
                 yield None
 
 
+def announce(line):
+    """Appends the formatted result line to thoughts.log (best-effort --
+    a broken log write must never crash grading, same convention as
+    crt-secretary.py's log_fallthrough)."""
+    try:
+        os.makedirs(os.path.dirname(THOUGHT_LOG), exist_ok=True)
+        with open(THOUGHT_LOG, "a") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass
+
+
 def main():
     conn = bg.get_db()
     for line in tail_new_lines(STT_LOG):
@@ -150,6 +184,7 @@ def main():
         if grade is not None:
             print(f"[book-answer] heard={grade['heard']!r} "
                   f"correct_content={grade['correct_content']} correct_stt={grade['correct_stt']}")
+            announce(format_result_line(grade))
 
 
 if __name__ == "__main__":

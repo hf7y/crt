@@ -118,6 +118,57 @@ class TestGradePendingAnswer(unittest.TestCase):
                 rows = [json.loads(l) for l in f if l.strip()]
             self.assertEqual(len(rows), 1)
 
+    def test_grade_includes_book_title(self):
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+            self._register(conn, "2026-07-21T12:00:00")
+            al.bg.TRAINING_LOG = os.path.join(d, "training.jsonl")
+            now = al._parse_iso_utc("2026-07-21T12:00:05")
+            grade = al.grade_pending_answer(conn, "fiction", window_secs=20, now=now)
+            self.assertEqual(grade["title"], "Dune")
+
+
+class TestFormatResultLine(unittest.TestCase):
+    def test_correct_answer_uses_correct_register(self):
+        grade = {"title": "Dune", "expected": "fiction", "heard": "fiction",
+                  "correct_content": True, "correct_stt": True}
+        line = al.format_result_line(grade)
+        self.assertTrue(line.startswith(bg.COLOR_CORRECT))
+        self.assertIn("got it", line)
+        self.assertIn("Dune", line)
+
+    def test_wrong_answer_uses_wrong_register(self):
+        grade = {"title": "Dune", "expected": "fiction", "heard": "nonfiction",
+                  "correct_content": False, "correct_stt": True}
+        line = al.format_result_line(grade)
+        self.assertTrue(line.startswith(bg.COLOR_WRONG))
+        self.assertIn("nope", line)
+        self.assertIn("fiction", line)
+
+    def test_ungradeable_answer_uses_neutral_register(self):
+        grade = {"title": "Dune", "expected": None, "heard": "yes",
+                  "correct_content": None, "correct_stt": True}
+        line = al.format_result_line(grade)
+        self.assertTrue(line.startswith(bg.COLOR_QUESTION))
+        self.assertIn("logged", line)
+
+
+class TestAnnounce(unittest.TestCase):
+    def test_writes_to_thought_log(self):
+        with tempfile.TemporaryDirectory() as d:
+            log_path = os.path.join(d, "thoughts.log")
+            al.THOUGHT_LOG = log_path
+            al.announce("  got it! Dune: fiction.")
+            with open(log_path) as f:
+                content = f.read()
+            self.assertIn("got it! Dune", content)
+
+    def test_broken_path_does_not_raise(self):
+        blocker = os.path.join(tempfile.mkdtemp(), "not_a_dir")
+        open(blocker, "w").close()
+        al.THOUGHT_LOG = os.path.join(blocker, "thoughts.log")
+        al.announce("this should not crash")  # no exception
+
 
 if __name__ == "__main__":
     unittest.main()

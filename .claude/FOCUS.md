@@ -81,11 +81,21 @@ next recognized utterance against whatever book was scanned within
 `CRT_BOOK_ANSWER_WINDOW_SECS` (default 20s), reusing
 `grade_answer()`/`log_training_row()` unchanged — "pending question" is
 derived from `books.db`'s own `first_scanned` column, not new shared
-state. 13 new tests (`tests/test_book_answer_listen.py`), full suite
-green. Built as its own file rather than editing `crt-book-console.py`/
+state. Built as its own file rather than editing `crt-book-console.py`/
 `crt-book-game.py` directly, since both were mid-live-debug elsewhere the
 same session (missing `random` import, `quote`-column migration) —
 avoided colliding with that work.
+
+**Result announcement added, 2026-07-21**: grading used to only print
+debug text to the `bookanswer` pane. `format_result_line()` now composes
+an actual game-show-host announcement in `BOOK-GAME-STYLE.md`'s register
+(content/settled "got it!" for correct, clipped "nope, it was X" for
+wrong, neutral "logged your answer" for ungradeable fallback questions,
+never gloating or sad either way) and appends it to `~/.crt/thoughts.log`
+— same channel `crt-monologue.sh` already tails, so a graded answer now
+actually shows up on screen instead of only in a background pane's debug
+log. 6 more tests, 19 total (`tests/test_book_answer_listen.py`), full
+suite green.
 
 **Idle-bait rebuilt around the actual end-goal, 2026-07-21 (see above)**:
 `bin/crt-book-idle-bait.py` and `crt-book-console.py`'s idle screen now
