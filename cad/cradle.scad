@@ -7,6 +7,12 @@ cradle_w = lever_width + wall*4;
 cradle_l = lever_length + 10;
 cradle_h = 22;
 
+// switch_mount's base-plate footprint (must match switch_mount.scad)
+switch_mount_w = switch_body_w + wall*2;
+switch_mount_d = switch_body_d + wall*2;
+socket_lip_h   = 3;      // height of the retaining rim, grips the base plate edge
+socket_fit     = 0.3;    // interference: socket opening is footprint minus this
+
 module cradle() {
   difference() {
     union() {
@@ -27,15 +33,15 @@ module cradle() {
         cylinder(d = pivot_pin_d + clearance, h = cradle_w + 2);
   }
 
-  // switch_mount sits here — printed separately, screwed to the base at
-  // this offset. Position tuned so it's directly under hook_lever's rear
+  // socket that switch_mount.scad's base plate press-fits into (no
+  // screws). Position tuned so it's directly under hook_lever's rear
   // boss (at x = -pivot_offset + 8 in lever-local coords, pivot at x=0).
-  %translate([-pivot_offset + 8 - (switch_body_w/2 + wall), -( switch_body_d/2 + wall), wall])
-    switch_mount_ghost();
-}
-
-module switch_mount_ghost() {
-  cube([switch_body_w + wall*2, switch_body_d + wall*2, 1]);
+  translate([-pivot_offset + 8 - switch_mount_w/2, -switch_mount_d/2, wall])
+    difference() {
+      cube([switch_mount_w, switch_mount_d, socket_lip_h]);
+      translate([socket_fit/2, socket_fit/2, -0.1])
+        cube([switch_mount_w - socket_fit, switch_mount_d - socket_fit, socket_lip_h + 0.2]);
+    }
 }
 
 cradle();

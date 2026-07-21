@@ -9,9 +9,12 @@ module phone_saddle() {
     union() {
       // cradle trough, slightly more than half-pipe so the handset seats
       // positively and doesn't roll out
+      // h is handset_rest_len + a hair so its end caps don't land exactly
+      // flush/coplanar with the base cube's ends (that coincidence is what
+      // was tripping CGAL's manifold check)
       translate([0, 0, handset_barrel_d/2])
         rotate([0, 90, 0])
-          cylinder(d = handset_barrel_d + wall*2, h = handset_rest_len, center = true);
+          cylinder(d = handset_barrel_d + wall*2, h = handset_rest_len + 0.02, center = true);
 
       // flat base so it sits flush on the lever boss
       translate([-handset_rest_len/2, -(handset_barrel_d/2 + wall), 0])
