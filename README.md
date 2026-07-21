@@ -131,6 +131,24 @@ VM or bare metal, same scripts either way. A low-power stick (Celeron,
 specific console: no hypervisor overhead to spare on weak hardware, no
 audio-passthrough or graphics-controller quirks to fight.
 
+**Confirmed target (2026-07-21): Debian 13.6, amd64.** `install.sh`'s
+package list (`build-essential cmake git tmux sox alsa-utils curl
+openscad evtest`) is all present in Debian 13's repos under those exact
+names — nothing to substitute. If the actual stick's CPU turns out to be
+more capable than a Celeron (amd64 covers a wide range), test `base.en`
+before defaulting to `tiny.en` below; the tradeoff is real either way,
+this isn't a hard requirement, just the safe assumption for the weakest
+hardware this doc originally targeted.
+
+**Barcode scanner needs no forwarding at all on a single-box deployment**
+(2026-07-21, see `SCANNER.md`'s "compute-stick prep" section) — the whole
+`dexter-scanner-forward.ps1` / NAT-forward / `crt-scanner-feed.py`-HTTP
+bridge exists only because the VM path splits the scanner (on Windows)
+from the console (in the guest). Bare metal has one machine: plug the
+USB scanner directly into the stick, and `crt-book-console.py`'s stdin
+path (already the primary scan path, `install.sh` wires nothing extra
+for it) picks it up with zero network hop.
+
 Differences from the VM path:
 
 - **Whisper model**: `base.en` is too heavy for a Celeron in real time.

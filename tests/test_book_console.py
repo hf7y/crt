@@ -46,6 +46,23 @@ class TestParseStdinScanLine(unittest.TestCase):
         self.assertEqual(bc.parse_stdin_scan_line("  9780141439518  \n"), "9780141439518")
 
 
+class TestFormatScanLogLine(unittest.TestCase):
+    # 2026-07-21, bare-metal/compute-stick prep: stdin-sourced scans now
+    # get folded into scanner.log too, since nothing else writes that
+    # audit trail once crt-scanner-feed.py's network listener isn't
+    # assumed to be running. format_scan_log_line() must produce exactly
+    # what parse_scanner_log_line() reads back, or the round-trip breaks.
+    def test_round_trips_through_parse_scanner_log_line(self):
+        line = bc.format_scan_log_line("9780141439518", timestamp="2026-07-21T12:00:00")
+        self.assertEqual(line, "2026-07-21T12:00:00\t9780141439518\n")
+        self.assertEqual(bc.parse_scanner_log_line(line), "9780141439518")
+
+    def test_defaults_to_current_time_when_no_timestamp_given(self):
+        line = bc.format_scan_log_line("9780141439518")
+        self.assertTrue(line.startswith("20"))  # a real ISO year, not empty/None
+        self.assertIn("\t9780141439518\n", line)
+
+
 class _StubRng:
     """Deterministic stand-in for random.Random -- fixes .random()'s
     return so tests can force render_idle_screen's caption-branch choice

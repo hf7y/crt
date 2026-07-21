@@ -176,3 +176,30 @@ already has a wake-word gate (`STT-GATE.md`) to prevent. Since nothing
 still depends on it (`crt-book-console.py` tails `scanner.log` directly,
 per the pivot above), removed outright rather than left dormant --
 `crt-scanner-feed.py` is now log-only. See `tests/test_scanner_feed.py`.
+
+## 2026-07-21, later still: `bin/dexter-scanner-forward.ps1` retired (compute-stick prep)
+
+The whole dexter->crt-vm scanner bridge described in "Pieces" #1/#2 above
+(`dexter-scanner-forward.ps1`, its Windows Task Scheduler entry, the
+`crt-vm` NAT port-forward) exists for exactly one reason: the scanner is
+physically plugged into `dexter` (Windows), a DIFFERENT machine than the
+console (`crt-vm`, a guest on that same host). On the Intel Compute
+Stick target (README's "Bare-metal deployment" section, Debian 13.6
+amd64), there is only ONE machine -- the scanner plugs directly into the
+stick's own USB port, and (per this doc's own "2026-07-21 late session"
+finding, already proven live) types like a real keyboard into whatever
+tmux window has focus. `bin/crt-book-console.py`'s stdin-reading path
+(the primary scan path already, see that file's header) picks it up with
+zero forwarding, zero network hop, zero second machine involved.
+
+`bin/dexter-scanner-forward.ps1` is removed from the repo (still in git
+history, `git log -- bin/dexter-scanner-forward.ps1`, if `crt-vm`-behind-
+dexter is ever a live target again). `crt-scanner-feed.py`'s HTTP
+listener is left in place (still useful if a scanner is ever on a
+different machine than the console again) but is NOT part of the
+compute-stick install path -- nothing in `install.sh` starts it. The
+`scanner.log` audit trail that listener used to be the only writer of is
+now also written directly by `crt-book-console.py`'s stdin path itself
+(`format_scan_log_line()`), so the log stays complete with or without
+that listener running -- see `tests/test_book_console.py`'s
+`TestFormatScanLogLine`.

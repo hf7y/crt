@@ -29,6 +29,8 @@
 #   CRT_SCANNER_LOG (default ~/.crt/scanner.log)
 #   CRT_BOOK_CONSOLE_IDLE_SECS (default 20) -- how long a scan result
 #     stays on screen before falling back to the idle shelf display
+import collections
+import datetime
 import importlib.util
 import json
 import os
@@ -71,6 +73,17 @@ def parse_stdin_scan_line(line):
     scanner.log's shape) -- just validate it's ISBN-shaped."""
     text = line.strip()
     return text if bg.is_isbn_like(text) else None
+
+
+def format_scan_log_line(isbn, timestamp=None):
+    """Pure function: the exact 'ISO_TIMESTAMP\\tTEXT' shape
+    parse_scanner_log_line() expects. Used to fold stdin-sourced scans
+    into scanner.log too (2026-07-21, bare-metal/compute-stick prep --
+    crt-scanner-feed.py's network listener is no longer assumed to be
+    running, so nothing else writes this audit trail on that
+    deployment)."""
+    ts = timestamp or datetime.datetime.now().isoformat(timespec="seconds")
+    return "%s\t%s\n" % (ts, isbn)
 
 
 def _place_text(text, width, align):
@@ -471,6 +484,25 @@ def main():
             draw(render_scan_result(pending_row, width, height, show_waiting_hint=True))
             hint_shown = True
 
+    # Tracks scanner.log lines THIS process just wrote for a stdin-sourced
+    # scan (see log_stdin_scan below) -- small bound since only ever a
+    # couple writes are in flight before tail_new_lines catches up. Without
+    # this, the write would come back around through tail_new_lines(
+    # SCANNER_LOG) next iteration and get processed a SECOND time as if it
+    # were an independent scan (double handle_scan() call, double
+    # quote-scrape/Gemini-question-generation cost, wrong idle timing).
+    self_written_lines = collections.deque(maxlen=8)
+
+    def log_stdin_scan(isbn):
+        line = format_scan_log_line(isbn)
+        try:
+            os.makedirs(os.path.dirname(SCANNER_LOG), exist_ok=True)
+            with open(SCANNER_LOG, "a") as f:
+                f.write(line)
+            self_written_lines.append(line)
+        except OSError:
+            pass
+
     stdin_alive = True
     for line in tail_new_lines(SCANNER_LOG):
         check_training_log()
@@ -489,6 +521,7 @@ def main():
                 break
             isbn = parse_stdin_scan_line(stdin_line)
             if isbn is not None:
+                log_stdin_scan(isbn)
                 show_scan(isbn)
             elif showing_idle:
                 # A non-ISBN-shaped line (bad scan, stray keystrokes, a
@@ -502,9 +535,12 @@ def main():
                 draw(render_idle_screen(book_count(), width, height))
 
         if line is not None:
-            isbn = parse_scanner_log_line(line)
-            if isbn is not None:
-                show_scan(isbn)
+            if line in self_written_lines:
+                self_written_lines.remove(line)
+            else:
+                isbn = parse_scanner_log_line(line)
+                if isbn is not None:
+                    show_scan(isbn)
 
         if not showing_idle and time.time() - last_scan_at >= IDLE_SECS:
             draw(render_idle_screen(book_count(), width, height))
