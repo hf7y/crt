@@ -99,10 +99,17 @@ def render_idle_screen(book_count, width, height, rng=None):
 def render_scan_result(row, width, height):
     """Pure function: the question screen for a freshly-scanned or
     already-registered book, colored in the warm/curious register
-    (posing a question) per BOOK-GAME-STYLE.md."""
+    (posing a question) per BOOK-GAME-STYLE.md. Title includes the
+    best-effort LCC call number in parens when known -- BOOK-GAME.md's
+    resolved v1 decision was "just display the computed LCC number on
+    the CRT" instead of printing a physical label (Bluetooth-through-VM
+    risk, demoted), but that decision was never actually wired into this
+    screen until now; `crt-book-game.py`'s own CLI has printed it to
+    stdout all along, this was the real console gap."""
     questions = json.loads(row["questions_json"] or "[]")
     question = questions[0] if questions else {"text": "(no question on file)", "options": []}
-    lines = bg.render_question_screen(row["title"], question, width, height)
+    title = f"{row['title']} ({row['lcc']})" if row.get("lcc") else row["title"]
+    lines = bg.render_question_screen(title, question, width, height)
     return [bg.wrap_color(l, bg.COLOR_QUESTION) if l.strip() else l for l in lines]
 
 

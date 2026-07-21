@@ -255,6 +255,16 @@ then-print pattern `crt-print.sh` already uses for reports.
    label. Revisit physical labels once Bluetooth-through-VM is either
    confirmed working or solved the same way the scanner/STT bridge was
    (a dexter-side network relay) — not blocking anything above it.
+   **Actually wired into the screen, 2026-07-21** (this decision was
+   resolved back on the original vision day but never implemented until
+   now — a real gap between decision and shipped feature):
+   `crt-book-console.py`'s `render_scan_result()` now shows
+   `Title (LCC)` in the question screen's title line when an LCC was
+   computed, falling back to the plain title when it wasn't (in
+   practice, often — Open Library's ISBN endpoint rarely includes
+   `subjects`, that's mainly on the Works endpoint, so `compute_lcc`
+   frequently has nothing to work with; confirmed live against a real
+   scan). 2 new tests, full suite green.
 
 ## Blockers / open questions for a human
 

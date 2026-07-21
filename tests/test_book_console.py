@@ -93,6 +93,22 @@ class TestRenderScanResult(unittest.TestCase):
         lines = bc.render_scan_result(row, 40, 15)
         self.assertTrue(any("no question on file" in l for l in lines))
 
+    def test_shows_lcc_in_title_when_known(self):
+        # BOOK-GAME.md's resolved v1 decision ("just display the LCC on
+        # the CRT" instead of printing a label) was never actually wired
+        # into this screen until now -- this is the real console gap.
+        row = {"title": "Dune", "lcc": "PS/PR", "questions_json": json.dumps(
+            [{"text": "Fiction or nonfiction?", "options": ["fiction", "nonfiction"], "correct": "fiction"}])}
+        lines = bc.render_scan_result(row, 40, 15)
+        self.assertTrue(any("Dune (PS/PR)" in l for l in lines))
+
+    def test_no_lcc_shows_plain_title(self):
+        row = {"title": "Dune", "lcc": None, "questions_json": json.dumps(
+            [{"text": "Fiction or nonfiction?", "options": ["fiction", "nonfiction"], "correct": "fiction"}])}
+        lines = bc.render_scan_result(row, 40, 15)
+        self.assertTrue(any("Dune" in l for l in lines))
+        self.assertFalse(any("(" in l and "Dune" in l for l in lines))
+
 
 class TestHandleScan(unittest.TestCase):
     def test_fresh_scan_registers_book(self):
