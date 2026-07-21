@@ -235,7 +235,7 @@ class ScanLookupFailed(Exception):
     pass
 
 
-def handle_scan(conn, isbn, fetcher=None, quote_fetcher=None):
+def handle_scan(conn, isbn, fetcher=None, quote_fetcher=None, training_log_path=None):
     """Looks up/registers `isbn` if new, returns the registry row either
     way (register_book's own cache-on-insert semantics mean a re-scan
     never re-queries or re-generates a question, and never re-scrapes a
@@ -254,7 +254,14 @@ def handle_scan(conn, isbn, fetcher=None, quote_fetcher=None):
     boot-default tmux window) on the very first scan that didn't
     perfectly match Open Library's catalog -- the same failure class as
     the earlier missing-`random`-import crash, just guaranteed to
-    recur constantly instead of being a one-off bug."""
+    recur constantly instead of being a one-off bug.
+
+    `training_log_path` is injectable (default None -> bg.TRAINING_LOG,
+    the real file) purely so tests can point the tier-decision read
+    (see pick_response_tier()) at an isolated temp path instead of
+    silently reading whatever's really in ~/.crt/book-game-training.jsonl
+    on the machine running the suite -- same test-hermeticity class as
+    the earlier ~/.crt/thoughts.log pollution fix."""
     existing = bg.get_book(conn, isbn)
     if existing is not None:
         return existing
@@ -263,7 +270,9 @@ def handle_scan(conn, isbn, fetcher=None, quote_fetcher=None):
     except Exception as e:
         raise ScanLookupFailed(str(e)) from e
     source = bg.pick_question_source()
-    question = bg.generate_template_question(book)
+    total_rounds, stt_accuracy = bg._recent_training_stats(training_log_path)
+    tier = bg.pick_response_tier(total_rounds, stt_accuracy)
+    question = bg.generate_template_question(book, tier=tier)
     quote = bg.scrape_quote(book["title"], fetcher=quote_fetcher)
     return bg.register_book(conn, book, questions=[question], question_source=source, quote=quote)
 

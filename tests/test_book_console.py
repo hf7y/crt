@@ -161,12 +161,20 @@ def _strip_ansi(text):
 
 
 class TestHandleScan(unittest.TestCase):
+    # Every call below passes an isolated training_log_path -- handle_scan
+    # now reads the training log (via bg._recent_training_stats()) to pick
+    # a response tier, and its default points at the REAL
+    # ~/.crt/book-game-training.jsonl. Same test-hermeticity class as the
+    # earlier ~/.crt/thoughts.log pollution fix: a test must never
+    # silently read (or, worse, be affected by) real state on the machine
+    # running the suite.
     def test_fresh_scan_registers_book(self):
         with tempfile.TemporaryDirectory() as d:
             conn = bg.get_db(os.path.join(d, "books.db"))
             fetcher = lambda url: {"title": "Test Book", "author_names": ["A B"], "publish_date": "1999"}
             quote_fetcher = lambda url: {"query": {"search": []}}  # no Wikiquote page -- scrape_quote returns None
-            row = bc.handle_scan(conn, "123", fetcher=fetcher, quote_fetcher=quote_fetcher)
+            row = bc.handle_scan(conn, "123", fetcher=fetcher, quote_fetcher=quote_fetcher,
+                                  training_log_path=os.path.join(d, "training.jsonl"))
             self.assertEqual(row["title"], "Test Book")
 
     def test_fresh_scan_caches_scraped_quote(self):
@@ -178,7 +186,8 @@ class TestHandleScan(unittest.TestCase):
                           "content": "* A quote long enough to pass the length filter here.\n** Ch. 1"}}}]}]}}}
             def quote_fetcher(url):
                 return calls["search"] if "list=search" in url else calls["revisions"]
-            row = bc.handle_scan(conn, "123", fetcher=fetcher, quote_fetcher=quote_fetcher)
+            row = bc.handle_scan(conn, "123", fetcher=fetcher, quote_fetcher=quote_fetcher,
+                                  training_log_path=os.path.join(d, "training.jsonl"))
             self.assertIn("A quote long enough", row["quote"])
 
     def test_rescan_reuses_cached_row_no_refetch_no_rescrape(self):
@@ -186,9 +195,11 @@ class TestHandleScan(unittest.TestCase):
             conn = bg.get_db(os.path.join(d, "books.db"))
             fetcher = lambda url: {"title": "Test Book"}
             quote_fetcher = lambda url: {"query": {"search": []}}
-            row1 = bc.handle_scan(conn, "123", fetcher=fetcher, quote_fetcher=quote_fetcher)
+            log_path = os.path.join(d, "training.jsonl")
+            row1 = bc.handle_scan(conn, "123", fetcher=fetcher, quote_fetcher=quote_fetcher,
+                                   training_log_path=log_path)
             boom = lambda url: (_ for _ in ()).throw(AssertionError("should not refetch"))
-            row2 = bc.handle_scan(conn, "123", fetcher=boom, quote_fetcher=boom)
+            row2 = bc.handle_scan(conn, "123", fetcher=boom, quote_fetcher=boom, training_log_path=log_path)
             self.assertEqual(row1["title"], row2["title"])
 
     def test_unknown_isbn_raises_scan_lookup_failed_not_raw_error(self):
@@ -214,6 +225,33 @@ class TestHandleScan(unittest.TestCase):
 
             with self.assertRaises(bc.ScanLookupFailed):
                 bc.handle_scan(conn, "123", fetcher=timeout)
+
+    def test_high_accuracy_history_produces_long_form_question(self):
+        # Wiring check for pick_response_tier()/generate_template_question(
+        # tier=...): a training log showing plenty of accurate rounds
+        # should make a fresh scan's question use long-form phrasing.
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+            log_path = os.path.join(d, "training.jsonl")
+            with open(log_path, "w") as f:
+                for _ in range(10):
+                    f.write(json.dumps({"correct_stt": True}) + "\n")
+            fetcher = lambda url: {"title": "Test Book", "publish_date": "1999"}
+            quote_fetcher = lambda url: {"query": {"search": []}}
+            row = bc.handle_scan(conn, "123", fetcher=fetcher, quote_fetcher=quote_fetcher,
+                                  training_log_path=log_path)
+            question = json.loads(row["questions_json"])[0]
+            self.assertGreater(len(question["options"][0].split()), 1)
+
+    def test_no_history_produces_short_form_question(self):
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+            fetcher = lambda url: {"title": "Test Book", "publish_date": "1999"}
+            quote_fetcher = lambda url: {"query": {"search": []}}
+            row = bc.handle_scan(conn, "123", fetcher=fetcher, quote_fetcher=quote_fetcher,
+                                  training_log_path=os.path.join(d, "training.jsonl"))
+            question = json.loads(row["questions_json"])[0]
+            self.assertIn(question["options"][0], ("before", "after"))
 
 
 class TestRenderScanError(unittest.TestCase):

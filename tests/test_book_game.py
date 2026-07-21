@@ -119,6 +119,65 @@ class TestQuestionGeneration(unittest.TestCase):
     def test_parse_batch_response_missing_isbn(self):
         self.assertEqual(bg.parse_claude_batch_response({}, "nope"), [])
 
+    def test_long_tier_options_are_full_phrases_not_single_words(self):
+        q = bg.generate_template_question(self.book, rng=self.rng, tier="long")
+        self.assertEqual(len(q["options"]), 2)
+        for opt in q["options"]:
+            self.assertGreater(len(opt.split()), 1, f"{opt!r} should be a full phrase")
+        self.assertIn(q["correct"], q["options"])
+
+    def test_long_tier_fallback_question_is_full_phrase(self):
+        bare = {"title": "Mystery Book", "authors": ["Unknown"], "year": None, "subjects": []}
+        q = bg.generate_template_question(bare, rng=self.rng, tier="long")
+        self.assertEqual(q["options"], ["yes, I have read it", "no, I haven't read it"])
+
+    def test_short_tier_is_the_default(self):
+        # Same seed, same book -- tier="short" (the implicit default) must
+        # reproduce the pre-tier-system single-word options exactly, so
+        # this feature can never silently change existing behavior.
+        rng_a, rng_b = random.Random(7), random.Random(7)
+        q_default = bg.generate_template_question(self.book, rng=rng_a)
+        q_explicit_short = bg.generate_template_question(self.book, rng=rng_b, tier="short")
+        self.assertEqual(q_default, q_explicit_short)
+
+
+class TestResponseTier(unittest.TestCase):
+    def test_below_min_samples_always_short(self):
+        self.assertEqual(bg.pick_response_tier(total_rounds=3, stt_accuracy=0.99), "short")
+
+    def test_no_data_yet_is_short(self):
+        self.assertEqual(bg.pick_response_tier(total_rounds=0, stt_accuracy=None), "short")
+
+    def test_enough_samples_but_low_accuracy_stays_short(self):
+        self.assertEqual(bg.pick_response_tier(total_rounds=20, stt_accuracy=0.4), "short")
+
+    def test_enough_samples_and_high_accuracy_goes_long(self):
+        self.assertEqual(bg.pick_response_tier(total_rounds=20, stt_accuracy=0.9), "long")
+
+    def test_thresholds_are_configurable(self):
+        self.assertEqual(
+            bg.pick_response_tier(total_rounds=5, stt_accuracy=0.5, min_samples=5, threshold=0.5),
+            "long",
+        )
+        self.assertEqual(
+            bg.pick_response_tier(total_rounds=4, stt_accuracy=0.99, min_samples=5, threshold=0.5),
+            "short",
+        )
+
+    def test_recent_training_stats_missing_log_is_zero_none(self):
+        self.assertEqual(bg._recent_training_stats("/nonexistent/training.jsonl"), (0, None))
+
+    def test_recent_training_stats_computes_accuracy(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "training.jsonl")
+            with open(path, "w") as f:
+                f.write(json.dumps({"correct_stt": True}) + "\n")
+                f.write(json.dumps({"correct_stt": True}) + "\n")
+                f.write(json.dumps({"correct_stt": False}) + "\n")
+            total, acc = bg._recent_training_stats(path)
+            self.assertEqual(total, 3)
+            self.assertAlmostEqual(acc, 2 / 3)
+
 
 class TestGrading(unittest.TestCase):
     def test_exact_match_both_correct(self):

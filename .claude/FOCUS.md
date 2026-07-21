@@ -357,12 +357,52 @@ book-game answer accuracy improves the moment this runs. It DOES matter
 immediately if a genuine wake-word mishear variant ever repeats. 10 new tests,
 `tests/test_stt_training_merge.py`, full suite green (100+ tests).
 
-**Still open, explicitly deferred (not started this pass)**: "gradually move
-towards longer canned trivia responses" as STT accuracy improves — needs an
-accuracy-triggered tier system in `generate_template_question()`, deliberately
-not rushed into an ill-designed shape. Also: color/width/idle-movement hard
-rules from the same message are documented in `BOOK-GAME-STYLE.md`, not
-duplicated here.
+Color/width/idle-movement hard rules from the same message are documented in
+`BOOK-GAME-STYLE.md`, not duplicated here.
+
+### Gradual move to longer canned trivia responses, DONE 2026-07-21
+
+Closed the last open item from that message: `generate_template_question()`
+now takes a `tier` param (`"short"`, the default/unchanged behavior, or
+`"long"`). Each existing template's options get rephrased into a full
+canned sentence carrying the same choice instead of a single word --
+`"before"/"after"` becomes `"it was published before {year}"/"...after
+{year}"`, a bare first name becomes `"the author's first name is
+{name}"`, `"fiction"/"nonfiction"` becomes `"it's a work of
+fiction"/"...nonfiction"`, the no-facts fallback becomes `"yes, I have
+read it"/"no, I haven't read it"`. Same 2-option/exact-match grading
+mechanics throughout, no rendering changes needed --
+`render_question_screen()` already truncates the joined options line to
+`MAX_CONTENT_WIDTH` (30), so this is purely more spoken content per
+round, not a new render risk.
+
+New pure function `pick_response_tier(total_rounds, stt_accuracy,
+min_samples=8, threshold=0.7)` makes the gradual part real: stays
+`"short"` until at least `CRT_BOOK_GAME_LONGFORM_MIN_SAMPLES` (default 8)
+graded rounds exist AND measured `stt_accuracy` over those rounds is at
+least `CRT_BOOK_GAME_LONGFORM_ACCURACY_THRESHOLD` (default 0.7) --
+matches Zach's own framing exactly ("as you notice more success... move
+towards longer responses"), never flips to long-form while the room/mic
+setup is still struggling with one-word answers, and never flips off a
+lucky short streak right after a fresh install. A new local helper
+`_recent_training_stats()` reads `book-game-training.jsonl` directly for
+this -- deliberately NOT importing `crt-book-game-stats.py` back into
+this file (that module already imports this one via
+`importlib.util.spec_from_file_location`, which execs a fresh copy;
+importing the other way would recurse forever), so the count-and-average
+is duplicated in miniature rather than restructuring either file's
+import pattern. Wired into the CLI (`crt-book-game.py --isbn ...`) as the
+tier decision for every fresh scan. 13 new tests across
+`TestQuestionGeneration`/new `TestResponseTier` in
+`tests/test_book_game.py`, full suite green.
+
+Wired into BOTH question-generation call sites: the standalone CLI
+(`crt-book-game.py --isbn ...`) and `crt-book-console.py`'s
+`handle_scan()` (the live `book` tmux window's real scan path) --
+each computes its own tier via the same `_recent_training_stats()` +
+`pick_response_tier()` pair before calling
+`generate_template_question()`, so the live path and the CLI path can
+never silently diverge on this.
 
 ## Cross-project ask: locate prior demucs work on dexter (2026-07-20)
 

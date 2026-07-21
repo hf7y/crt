@@ -124,10 +124,78 @@ def _http_get_json(url):
 # Question generation: template + pluggable batched-Claude source
 # ---------------------------------------------------------------------------
 
-def generate_template_question(book, rng=None):
+LONGFORM_MIN_SAMPLES = int(os.environ.get("CRT_BOOK_GAME_LONGFORM_MIN_SAMPLES", "8"))
+LONGFORM_ACCURACY_THRESHOLD = float(os.environ.get("CRT_BOOK_GAME_LONGFORM_ACCURACY_THRESHOLD", "0.7"))
+
+
+def pick_response_tier(total_rounds, stt_accuracy, min_samples=None, threshold=None):
+    """Pure function: gradually move from short (single-word) template
+    answers to longer canned-phrase ones as measured STT accuracy on the
+    easy case improves (2026-07-21, Zach's direct ask: "as you notice
+    more success with the one-line responses, move towards longer canned
+    trivia responses to get better training data"). A longer spoken
+    answer is strictly more valuable training data (more phonetic content
+    per utterance), but only worth asking for once the room/mic setup is
+    already handling one-word answers reliably -- flipping to sentences
+    while even "before"/"after" is getting mangled would just produce
+    noisier data, not better data.
+
+    Needs BOTH a minimum sample size (a lucky 2/2 streak right after
+    install shouldn't flip the tier) and an accuracy floor over that
+    window -- `stt_accuracy` is expected to come from
+    crt-book-game-stats.py's summarize_training()["stt_accuracy"], None
+    when there's no data yet (always "short" in that case, same as
+    below-min-samples)."""
+    min_samples = LONGFORM_MIN_SAMPLES if min_samples is None else min_samples
+    threshold = LONGFORM_ACCURACY_THRESHOLD if threshold is None else threshold
+    if total_rounds < min_samples or stt_accuracy is None:
+        return "short"
+    return "long" if stt_accuracy >= threshold else "short"
+
+
+def _recent_training_stats(log_path=None):
+    """Minimal local reader for the tier decision above -- deliberately
+    NOT importing crt-book-game-stats.py from here: that module already
+    imports THIS one via importlib.util.spec_from_file_location, which
+    execs a full fresh copy of the target module. Importing back the
+    other way would recurse forever (each fresh bg copy would import a
+    fresh stats copy which imports a fresh bg copy...). Duplicating this
+    one small count-and-average is cheaper than restructuring either
+    file's import pattern for it."""
+    log_path = log_path or TRAINING_LOG
+    total = 0
+    stt_correct = 0
+    if not os.path.exists(log_path):
+        return 0, None
+    with open(log_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            total += 1
+            if row.get("correct_stt") is True:
+                stt_correct += 1
+    return total, (stt_correct / total if total else None)
+
+
+def generate_template_question(book, rng=None, tier="short"):
     """Deterministic 2-option question from a book-facts dict. Picks
-    among a few templates based on what facts are available."""
+    among a few templates based on what facts are available.
+
+    `tier` ("short"/"long", see pick_response_tier()): "short" keeps the
+    original single-word options (before/after, a first name,
+    fiction/nonfiction); "long" rephrases each into a full canned
+    sentence carrying the same choice ("it was published before
+    {year}" instead of just "before") -- same 2-option/exact-match
+    grading mechanics (render_question_screen already truncates the
+    joined options line to MAX_CONTENT_WIDTH, so longer phrasing needs
+    no new rendering support), just more spoken content per round."""
     rng = rng or random
+    long_form = tier == "long"
     candidates = []
 
     if book.get("year"):
@@ -136,20 +204,33 @@ def generate_template_question(book, rng=None):
         before = threshold + 10 if year >= threshold + 5 else threshold
         correct = "before" if year < before else "after"
         wrong = "after" if correct == "before" else "before"
+        if long_form:
+            phrasing = {
+                "before": f"it was published before {before}",
+                "after": f"it was published after {before}",
+            }
+            correct_opt, wrong_opt = phrasing[correct], phrasing[wrong]
+        else:
+            correct_opt, wrong_opt = correct, wrong
         candidates.append({
             "text": f"Was \"{book['title']}\" published before or after {before}?",
-            "options": [correct, wrong] if rng.random() < 0.5 else [wrong, correct],
-            "correct": correct,
+            "options": [correct_opt, wrong_opt] if rng.random() < 0.5 else [wrong_opt, correct_opt],
+            "correct": correct_opt,
         })
 
     authors = book.get("authors") or []
     if authors and authors[0] != "Unknown":
         first_name = authors[0].split()[0]
         decoy = _decoy_first_name(first_name, rng)
+        if long_form:
+            correct_opt = f"the author's first name is {first_name}"
+            wrong_opt = f"the author's first name is {decoy}"
+        else:
+            correct_opt, wrong_opt = first_name, decoy
         candidates.append({
             "text": f"Is the author's first name {first_name} or {decoy}?",
-            "options": [first_name, decoy] if rng.random() < 0.5 else [decoy, first_name],
-            "correct": first_name,
+            "options": [correct_opt, wrong_opt] if rng.random() < 0.5 else [wrong_opt, correct_opt],
+            "correct": correct_opt,
         })
 
     subjects = [s.lower() for s in (book.get("subjects") or [])]
@@ -157,17 +238,26 @@ def generate_template_question(book, rng=None):
         is_fiction = any("fiction" in s for s in subjects)
         correct = "fiction" if is_fiction else "nonfiction"
         wrong = "nonfiction" if is_fiction else "fiction"
+        if long_form:
+            correct_opt = f"it's a work of {correct}"
+            wrong_opt = f"it's a work of {wrong}"
+        else:
+            correct_opt, wrong_opt = correct, wrong
         candidates.append({
             "text": f"Is \"{book['title']}\" fiction or nonfiction?",
-            "options": [correct, wrong] if rng.random() < 0.5 else [wrong, correct],
-            "correct": correct,
+            "options": [correct_opt, wrong_opt] if rng.random() < 0.5 else [wrong_opt, correct_opt],
+            "correct": correct_opt,
         })
 
     if not candidates:
         # Always-available fallback so the game never has zero questions.
+        if long_form:
+            options = ["yes, I have read it", "no, I haven't read it"]
+        else:
+            options = ["yes", "no"]
         candidates.append({
             "text": f"Have you read \"{book['title']}\" before, yes or no?",
-            "options": ["yes", "no"],
+            "options": options,
             "correct": None,  # ungradeable content-wise, still a valid STT prompt
         })
 
@@ -858,7 +948,9 @@ def main():
         # BOOK-GAME.md); this standalone CLI always uses the template
         # path so a fresh scan never blocks on network/API access, but
         # still records which source *would* have been used.
-        question = generate_template_question(book)
+        total_rounds, stt_accuracy = _recent_training_stats()
+        tier = pick_response_tier(total_rounds, stt_accuracy)
+        question = generate_template_question(book, tier=tier)
         quote = scrape_quote(book["title"])
         row = register_book(conn, book, questions=[question], question_source=source, quote=quote)
         print(f"Scanned: {row['title']} ({row['lcc'] or 'LCC unknown, best effort'})")
