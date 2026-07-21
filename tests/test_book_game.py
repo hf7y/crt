@@ -253,6 +253,14 @@ class TestScanLineParsing(unittest.TestCase):
     def test_strips_whitespace(self):
         self.assertEqual(bg.parse_scan_line("  [scan] 9780141439518  \n"), "9780141439518")
 
+    def test_is_isbn_like_accepts_bare_isbn(self):
+        self.assertTrue(bg.is_isbn_like("9780141439518"))
+        self.assertTrue(bg.is_isbn_like("123456789X"))
+
+    def test_is_isbn_like_rejects_garbage(self):
+        self.assertFalse(bg.is_isbn_like("not an isbn"))
+        self.assertFalse(bg.is_isbn_like(""))
+
 
 if __name__ == "__main__":
     unittest.main()

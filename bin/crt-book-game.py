@@ -531,14 +531,23 @@ def pick_idle_quote(conn, rng=None):
 # ---------------------------------------------------------------------------
 
 SCAN_PREFIX = "[scan] "
+ISBN_RE = re.compile(r"\d{9}[\dXx]|\d{13}")
+
+
+def is_isbn_like(text):
+    """Pure function: does `text` look like a bare ISBN-10/13 (optional
+    trailing check-digit 'X')? Shared by parse_scan_line (tmux-delivered,
+    prefixed) and crt-book-console.py (tails ~/.crt/scanner.log directly,
+    unprefixed) so the two entry points can't drift on what counts as a
+    valid scan."""
+    return bool(re.fullmatch(ISBN_RE, text.strip()))
 
 
 def parse_scan_line(line):
     """Pure function: strips crt-scanner-feed.py's '[scan] ' delivery
     prefix (SCANNER.md) and returns the bare ISBN, or None if the line
-    isn't a scan line or doesn't look like an ISBN (10 or 13 digits,
-    optional trailing check-digit 'X'). Kept here rather than in
-    crt-scanner-feed.py itself since that script is a generic deliver-
+    isn't a scan line or doesn't look like an ISBN. Kept here rather than
+    in crt-scanner-feed.py itself since that script is a generic deliver-
     anything-into-tmux listener and shouldn't need to know book-game
     specifics -- the hands-on wiring step (BOOK-GAME.md roadmap step 3)
     is expected to call this before shelling out to --isbn."""
@@ -546,9 +555,7 @@ def parse_scan_line(line):
     if not line.startswith(SCAN_PREFIX):
         return None
     candidate = line[len(SCAN_PREFIX):].strip()
-    if re.fullmatch(r"\d{9}[\dXx]|\d{13}", candidate):
-        return candidate.upper()
-    return None
+    return candidate.upper() if is_isbn_like(candidate) else None
 
 
 # ---------------------------------------------------------------------------

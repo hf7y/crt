@@ -216,9 +216,23 @@ then-print pattern `crt-print.sh` already uses for reports.
    needing a real ear on it early), and put a human eye on
    `BOOK-GAME-STYLE.md`'s screen/color/art choices against the actual
    tube.
-3. **Then:** decide standalone-vs-integrated placement in the console
-   (new tmux window? a secretary playbook? both?) once the standalone
-   version is proven fun and correct.
+3. **Console placement: a new tmux window, DONE 2026-07-21.**
+   `bin/crt-book-console.py` is wired into `crt-console.sh` as window
+   `book` — tails `~/.crt/scanner.log` (already written unfiltered by
+   `crt-scanner-feed.py`), looks up/registers each new ISBN-shaped line,
+   and renders the centered question screen. **Deliberately
+   display-only**: it shows the question, it does NOT grade a spoken
+   answer yet — that's still `crt-book-game.py --answer` run by hand, or
+   a future secretary-playbook wiring (a real "both" answer to this
+   step's original either/or, picked because display-first is the safer
+   half to ship before wiring live grading into window 0's Claude Code
+   pane). Unconditional in `crt-console.sh` (not gated behind an env var
+   like the `hook` window), since the scanner bridge itself is a
+   standing systemd service now, not optional hardware. 10 new tests
+   (`tests/test_book_console.py`), one real live-fetch smoke test against
+   a fixture `scanner.log` (confirmed the whole idle→scan→question→
+   idle-again cycle end to end). **Not yet eye-verified on the real
+   tube** — same caveat as `BOOK-GAME-STYLE.md`'s own Status section.
 4. **Stretch, now demoted:** label printer integration. **Resolved
    2026-07-21, Zach: skip it for v1.** The Phomemo M02 itself is known
    to work (already the report-printing channel, `bin/catprint`), but

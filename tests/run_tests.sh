@@ -67,6 +67,12 @@ if [ -f "$DIR/test_book_idle_bait.py" ]; then
 fi
 echo
 
+echo "== crt-book-console.py =="
+if [ -f "$DIR/test_book_console.py" ]; then
+  python3 -m unittest discover -s "$DIR" -p "test_book_console.py" -v 2>&1 | tail -5 || fail=1
+fi
+echo
+
 echo "== crt-secretary.py playbooks =="
 if [ -f "$DIR/test_secretary.py" ] && [ "${CRT_SKIP_SECRETARY_TESTS:-0}" = "0" ]; then
   python3 "$DIR/test_secretary.py" || fail=1

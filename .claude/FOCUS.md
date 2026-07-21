@@ -52,18 +52,23 @@ color palette, non-API idle-bait quotes (`bin/crt-book-idle-bait.py` +
 `bin/crt-scanner-feed.py`'s `[scan] <isbn>` delivery convention
 (SCANNER.md) to this CLI's `--isbn`/`--scan-line` args. Full detail in
 `../BOOK-GAME.md`'s Roadmap step 1 and `../BOOK-GAME-STYLE.md`.
-Standalone CLI only — not yet wired into `crt-console.sh`/
-`crt-secretary.py`, per the "standalone first, merge later" direction.
+**Now wired into `crt-console.sh` as its own tmux window (`book`),
+2026-07-21** — `bin/crt-book-console.py` tails `~/.crt/scanner.log` and
+renders the question screen for each new scan, display-only (grading
+still needs `--answer` by hand or future secretary wiring). 10 more
+tests (`tests/test_book_console.py`), full suite green. Not yet wired
+into `crt-secretary.py`'s playbook dispatcher — that's still a separate,
+not-yet-built step.
 
 **Scanner hardware bridge is no longer a blocker** — `SCANNER.md`
 (built by a separate hands-on crt-vm/dexter session, 2026-07-21) has the
-dexter→crt-vm scanner forward live and systemd-persistent. Remaining
-hands-on work (BOOK-GAME.md roadmap step 2): wire a live session to call
-`parse_scan_line()` + `crt-book-game.py --isbn` on each incoming scan,
-run against the real mic, and eyeball `BOOK-GAME-STYLE.md`'s
-screen/color/art choices on the actual tube. Also still open (not
-hardware, just not built this pass): the live `claude -p` shell-out for
-batch question generation.
+dexter→crt-vm scanner forward live and systemd-persistent, and the new
+`book` tmux window above already consumes it directly. Remaining
+hands-on work (BOOK-GAME.md roadmap step 2): run against the real mic,
+and eyeball `BOOK-GAME-STYLE.md`'s screen/color/art choices on the
+actual tube. Also still open (not hardware, just not built this pass):
+the live `claude -p` shell-out for batch question generation, and
+grading wired into a live session instead of the manual CLI.
 
 ## Cross-project ask: locate prior demucs work on dexter (2026-07-20)
 
