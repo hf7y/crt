@@ -171,16 +171,20 @@ then-print pattern `crt-print.sh` already uses for reports.
   root-caused to a stuck VBoxSVC host-proxy state, not yet cleared. Fix
   is a VBoxSVC restart on dexter (needs a human's direct OK, live VM
   depends on it) or a full dexter reboot — not attempted from here.
-- **The VM's current boot-time tmux layout may not survive a reboot
-  reliably (2026-07-21, Zach)** — separate from the already-documented
-  2026-07-20 incident where a reboot silently regressed the STT
-  layout back to an old default (since fixed by wiring the good layout
-  into `crt-console.sh` itself, see `HANDOFF.md`). Zach flags that as of
-  now, **the tmux pane carrying the audio meter doesn't spawn on
-  reboot at all**, and whether STT still works without it is unconfirmed
-  — this needs a live reboot-and-check on `crt-vm` before the book game's
-  hands-on phase starts, since the game depends on the same mic/STT
-  pipeline. Don't assume the 2026-07-20 fix fully covers this; verify.
+- **Reboot survival of the STT/meter pane — checked live 2026-07-21,
+  did NOT reproduce.** Zach flagged a concern that the tmux pane carrying
+  the audio meter might not spawn on reboot at all. Checked directly on
+  `crt-vm` after this morning's 04:25 boot: `tmux list-windows -t claude`
+  shows all 4 windows present (`bash`/claude, `mono`, `bridge-`, `stt`);
+  `tmux capture-pane -t claude:stt -p` shows the meter live (`MIC
+  [.|..] 0.8%`); `ps aux` confirms `crt-stt-solo.py` (pid 1118) running
+  since 04:25, wired to `CRT_STT_SINK=claude`/`CRT_TMUX_PANE=0.0` as
+  expected. So on this boot, the pipeline the book game depends on is
+  intact — the 2026-07-20 fix (wiring the good layout directly into
+  `crt-console.sh`) appears to be holding. Not proof it's fixed for
+  every reboot (single data point), but no reproduction of the specific
+  failure mode Zach was worried about. Re-check after any future reboot
+  before assuming this is settled either way.
 - **Long-term direction, explicitly parked (2026-07-21, Zach):** the real
   fix for reboot fragility isn't just "make the layout survive a reboot"
   — it's booting the VM into an **auto mode that lets Claude keep making
