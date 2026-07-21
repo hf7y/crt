@@ -1,3 +1,10 @@
+**Unrelated side task in progress, not STT work**: an Intel Compute Stick
+(STK1AW32SC) migration — flashing/preseeding a USB installer for Debian.
+Full details, current status, and next steps in
+`COMPUTE-STICK-MIGRATION.md` (project root). If a diagnostic/install boot
+was mid-flight when this session ended, that doc says exactly where to
+pick up.
+
 # Session state (read this first, before STT-MECHANISM.md)
 
 Last updated: 2026-07-20 night — first session this project had real
