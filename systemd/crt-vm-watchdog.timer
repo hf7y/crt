@@ -1,0 +1,14 @@
+# See crt-vm-watchdog.service for install steps. Frequent (5 min) since this
+# is a cheap check-and-heal pass, not a full hardware/audio-quality run --
+# the point is catching a silently-dead STT/bridge/mono process quickly, not
+# once a day like crt-vm-hardware-check.timer.
+[Unit]
+Description=Periodic heal pass for crt's live tmux pipeline
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=false
+
+[Install]
+WantedBy=timers.target
