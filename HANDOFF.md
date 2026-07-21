@@ -181,12 +181,37 @@ Bun, not your code."). Findings, in order:
   (it was appended once at install time; editing the repo's copy alone
   doesn't retroactively patch what's already in `~/.bash_profile`) —
   re-run the relevant part of `install.sh`'s append step, or hand-patch.
-- **Not fully confirmed** — the mouse-tracking theory is well-supported
-  by the observed garbage but the wrapper hasn't been tested against a
-  real repeat crash yet (couldn't deploy this session). If crashes
-  continue after this is live, the theory is wrong or incomplete; look
-  elsewhere (a genuine Bun/Ink bug independent of mouse mode, VM resource
-  pressure, etc.) rather than assuming the fix just needs tuning.
+- **UPDATE, same session, later**: deployed and confirmed. Full merged
+  repo pushed to crt-vm, `~/.bash_profile` re-patched live (the repo-only
+  edit didn't retroactively apply), session killed and let autologin
+  respawn it clean. `claude` (v2.1.216, the build that segfaulted
+  earlier) launched successfully with no crash, `PATHCHECK: $PATH`
+  confirmed `~/crt/bin` first. Hasn't been running long enough to call
+  the theory fully proven (no repeat crash *yet* isn't the same as
+  *can't* recur), but this is real evidence, not just a plausible story.
+
+**Scanner-to-book-game pipeline: dexter-side capture is a dead end,
+pivoting to stdin-in-the-guest (2026-07-21, same session)** — full
+writeup in `SCANNER.md`'s "2026-07-21 late session" section and
+`.claude/FOCUS.md`'s Book Game "NEXT" block, don't re-derive here. Spent
+a long stretch trying to get `dexter-scanner-forward.ps1` (Windows-side
+RawInput capture + a low-level-hook keystroke-suppression layer, added
+by another agent working in parallel this session) to actually intercept
+real scans before they leak into whatever has focus on crt-vm's console.
+Never got it working across three different process-launch mechanisms;
+also found and fixed a real bug along the way (`Environment.TickCount64`
+doesn't compile against this dexter's PowerShell 5.1, and the resulting
+`Add-Type` error dump was silently hanging the process while every
+health check reported it as fine). Declared a dead end rather than keep
+debugging Windows session/window-station internals blind over SSH.
+**Decided pivot, not yet implemented**: since the scanner's raw
+keystrokes reliably reach crt-vm's focused tmux window every time
+(proven repeatedly), have `crt-book-console.py` read scans directly off
+its own stdin instead of relying on the dexter round-trip, and make
+`book` the default tmux window instead of `claude` so that's where scans
+land. Next session should implement and *actually verify live* before
+marking done — this exact area already produced one false "confirmed
+working" claim this session from a hung-but-healthy-looking process.
 
 **Not yet built** (so it doesn't get assumed-done next time): a visual
 signal of the USER's own speech in the "mono" window — right now it only

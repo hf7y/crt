@@ -84,3 +84,82 @@ nothing could reach IN to the guest before this for a new port).
   VID/PID with `Get-PnpDevice -PresentOnly | Where Class -eq HIDClass` on
   dexter and update `-DeviceMatch` (default baked into
   `dexter-scanner-forward.ps1` and the Scheduled Task).
+
+## 2026-07-21 late session: the dexter-side capture path is a dead end
+
+Everything above in "Pieces" #1 describes the *intent* of
+`dexter-scanner-forward.ps1`; several of the "confirmed working" claims
+turned out to be false positives from earlier in the day (the process
+looked alive and error-free but was actually hung on an `Add-Type`
+compile error -- `Environment.TickCount64` doesn't exist in this
+dexter's Windows PowerShell 5.1 Add-Type target -- filling a
+`Start-Process`-redirected pipe nobody was draining; fixed by switching
+to `Environment.TickCount`, see that commit). After fixing the actual
+bug and testing again with real scans, live end to end, multiple times:
+
+- **The raw scanner keystrokes reliably reach crt-vm's currently-focused
+  tmux window every time** (confirmed repeatedly -- ISBNs landing as
+  literal typed text in the live `claude` pane, once even triggering a
+  real web-search tool call on the ISBN, burning an API turn on garbage).
+  This part of the architecture works, just not through the intended path.
+- **The dexter-side capture/suppression NEVER once saw a real scan**,
+  across several different launch mechanisms tried:
+  - `Start-Process` over an interactive SSH command -- processes
+    launched this way get killed when the SSH session/job closes, even
+    detached-looking ones (Windows job-object containment tied to the
+    console session). Looked "running" in `Get-CimInstance` checks made
+    *within* the same SSH invocation, but were gone by the next
+    independent check.
+  - Windows Task Scheduler (`LogonType: Interactive`, the account
+    logged in) -- process persisted correctly this time, but a live
+    `-DebugAll` scan test still logged **zero** raw-input events, not
+    even from real keyboard activity, suggesting it may not actually be
+    attached to the interactive window station (`WinSta0\Default`) the
+    physical scanner's HID events arrive on -- unconfirmed, investigation
+    stopped here.
+  - Also tried disabling VirtualBox's own keyboard auto-capture
+    (`VBoxManage setextradata crt-vm GUI/AutoCaptureKeyboard false`,
+    still set) on the theory that VBox grabs input at a level below
+    normal Windows RawInput/hooks when its guest window has focus. Did
+    not fix it either (or didn't apply without an already-open capture
+    being released -- not isolated which).
+  - **Declared a dead end 2026-07-21** rather than continue burning time
+    on Windows session/window-station internals neither of us can fully
+    see into from here.
+
+### The actual plan going forward (not yet implemented)
+
+Stop trying to intercept/suppress on the Windows side. The keystrokes
+**reliably** reach the guest's focused tmux window regardless -- use
+that instead of fighting it:
+
+1. Change `bin/crt-book-console.py` to read scan input **directly off
+   its own stdin** (it's the foreground program in the `book` tmux
+   window, so raw typed/scanned lines land there directly, no
+   dexter-side forwarder or HTTP hop needed at all) -- detect an
+   ISBN-shaped line the same way `parse_scanner_log_line()` already does
+   for `scanner.log`, and feed it through the same `handle_scan()` path.
+   Keep the `scanner.log`-tailing behavior too (harmless, and still
+   useful if the dexter forwarder ever does get fixed later) -- add
+   stdin as a second input source, not a replacement.
+2. Make the `book` window crt-console.sh's **default selected window**
+   on boot (instead of window 0/`claude`) -- since a physical scan's
+   keystrokes go wherever tmux's active window is, and this appliance's
+   more common physical interaction is probably "pick up scanner, scan
+   book" rather than "type at claude directly" (voice/STT already covers
+   the claude-facing interaction; the keyboard-wedge scanner was never
+   going to reach claude usefully anyway, only ever as page-of-numbers
+   garbage). `claude` stays one `prefix+0` away.
+3. This drops `bin/dexter-scanner-forward.ps1`, the NAT port-forward,
+   and `bin/crt-scanner-feed.py`'s systemd service down to "nice to have,
+   not load-bearing" -- leave them in place (harmless, and the
+   TickCount64 fix + suppression logic may be worth revisiting once
+   there's time to actually attach a debugger/interactive session to
+   dexter directly, rather than fighting it blind over SSH), but the
+   book-scanning feature's correctness should not depend on them working.
+4. **Not yet implemented** -- decided and written up 2026-07-21 to leave
+   a clean handoff, but out of time this session. Next session: implement
+   `crt-book-console.py`'s stdin-reading, flip the default window, test
+   with a real scan, update this doc's status once actually verified
+   (not just "should work" -- this doc has already been burned once today
+   by an unverified "confirmed working" claim, see above).
