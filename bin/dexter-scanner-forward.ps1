@@ -6,18 +6,42 @@
 # The scanner (VID_0145&PID_0012, confirmed via
 # `Get-PnpDevice -PresentOnly | Where Class -eq HIDClass` on dexter,
 # 2026-07-21) enumerates as a generic "HID Keyboard Device" -- normal
-# keyboard-wedge emulation, not a distinct serial/HID-report device. That
-# means it types into whatever window has focus like a real keyboard --
-# confirmed 2026-07-21 when a real scan landed as literal keystrokes in
-# crt-vm's tmux pane because the VirtualBox GUI window happened to have
-# focus on dexter's desktop at the time. That's not a reliable delivery
-# path (depends on what's focused), so this script uses the Win32
-# RawInput API (RegisterRawInputDevices + WM_INPUT via an IMessageFilter,
+# keyboard-wedge emulation, not a distinct serial/HID-report device (no
+# COM-port/CDC config option in this scanner's manual either, checked
+# 2026-07-21 -- ruling that out as an easier fix). That means it types
+# into whatever window has focus like a real keyboard -- confirmed
+# 2026-07-21 when a real scan landed as literal keystrokes in crt-vm's
+# tmux pane because the VirtualBox GUI window happened to have focus on
+# dexter's desktop. This script uses the Win32 RawInput API
+# (RegisterRawInputDevices + WM_INPUT via an IMessageFilter,
 # RIDEV_INPUTSINK) to read keystrokes from ALL keyboards system-wide
 # regardless of focus, then filters by device handle to the scanner's own
 # HID device path -- a human typing at the real keyboard is never
-# captured or forwarded, only this one VID/PID, and it works with no
-# window ever needing focus.
+# captured or forwarded, only this one VID/PID.
+#
+# SUPPRESSION (added 2026-07-21, second live bug): RawInput only OBSERVES
+# input, it never blocks it -- the scanner's keystrokes were STILL
+# reaching whatever had focus (crt-vm's VirtualBox window, which IS the
+# CRT display, so "just don't focus it" isn't an option here) in
+# parallel with being forwarded over HTTP. That's not cosmetic for this
+# app specifically: window 0 of the tmux session is a LIVE Claude Code
+# agent, so an unsuppressed scan could type a raw ISBN straight into a
+# real prompt (burning an API turn on garbage) or blindly confirm/dismiss
+# whatever permission prompt happened to be on screen. Fixed with a
+# WH_KEYBOARD_LL low-level keyboard hook (SetWindowsHookEx), which CAN
+# block propagation (return a nonzero value instead of calling
+# CallNextHookEx) -- unlike RawInput. The low-level hook API doesn't
+# expose which physical device sent an event, so this can't filter by
+# VID/PID the way the RawInput path does; instead it distinguishes by
+# TIMING -- a barcode scanner emits characters far faster than any human
+# can type (SCAN_KEY_INTERVAL_MS below), so keys arriving faster than
+# that threshold are assumed to be the scanner and are swallowed (both
+# from reaching whatever's focused AND from the OS's normal input queue
+# entirely), while normal-speed human typing is untouched and passed
+# through immediately. STATUS: NOT tested against the real device yet --
+# the timing threshold is a first guess (SCANNER.md's own acceptance bar
+# applies: needs a live human to confirm it doesn't eat real fast-typing,
+# and that it reliably catches every real scan).
 #
 # Everything (raw-input capture, the message filter, and the HTTP POST)
 # lives in one Add-Type C# block below rather than split across C#
@@ -49,11 +73,28 @@
 #                 just ones matching -DeviceMatch. Use this to confirm
 #                 capture is working at all before debugging the device
 #                 filter.
+#   -ScanKeyIntervalMs  Max ms between keydowns to count as scanner-speed
+#                 (default 30 -- a real barcode scanner's keyboard-wedge
+#                 output is typically well under 10ms/char; humans rarely
+#                 sustain under ~60ms even typing fast). Tune UP if real
+#                 scans are still leaking through as keystrokes; tune DOWN
+#                 if fast human typing starts getting eaten.
+#   -BurstGapTimeoutMs  How long a gap ends a detected burst (default 300)
+#                 -- keeps the LAST key of a scan (often Enter) suppressed
+#                 even if its own inter-key gap ticks slightly over
+#                 -ScanKeyIntervalMs.
+#   -NoSuppress   Disable the keystroke-suppression hook entirely, falling
+#                 back to RawInput-only (old behavior, keystrokes still
+#                 leak to whatever has focus) -- for comparing behavior
+#                 while tuning the timing thresholds above.
 
 param(
     [string]$CrtVmUrl = "http://127.0.0.1:8993/scan",
     [string]$DeviceMatch = "VID_0145&PID_0012",
-    [switch]$DebugAll
+    [switch]$DebugAll,
+    [int]$ScanKeyIntervalMs = 30,
+    [int]$BurstGapTimeoutMs = 300,
+    [switch]$NoSuppress
 )
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -96,6 +137,18 @@ namespace CrtScanner
         public uint ExtraInformation;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    struct KBDLLHOOKSTRUCT
+    {
+        public uint vkCode;
+        public uint scanCode;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
     static class Native
     {
         public const int RIDEV_INPUTSINK = 0x00000100;
@@ -103,6 +156,10 @@ namespace CrtScanner
         public const int WM_INPUT = 0x00FF;
         public const uint RID_INPUT = 0x10000003;
         public const uint RIDI_DEVICENAME = 0x20000007;
+
+        public const int WH_KEYBOARD_LL = 13;
+        public const int WM_KEYDOWN = 0x0100;
+        public const int WM_SYSKEYDOWN = 0x0104;
 
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool RegisterRawInputDevices(RAWINPUTDEVICE[] pRawInputDevices, uint uiNumDevices, uint cbSize);
@@ -112,6 +169,83 @@ namespace CrtScanner
 
         [DllImport("user32.dll")]
         public static extern uint GetRawInputDeviceInfo(IntPtr hDevice, uint uiCommand, StringBuilder pData, ref uint pcbSize);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        public static extern IntPtr GetModuleHandle(string lpModuleName);
+    }
+
+    // Swallows scanner-speed keystrokes system-wide before they reach
+    // whatever window has focus -- see the file header for why RawInput
+    // alone (read-only, can't block) isn't enough. Timing-based, not
+    // device-identity-based: WH_KEYBOARD_LL doesn't expose which
+    // physical device sent an event, unlike RawInput's device handle.
+    // KNOWN LIMITATION (untested live, flag don't lose): the very FIRST
+    // character of a scan burst can still leak through -- there's no way
+    // to know a burst is starting until a second fast keystroke confirms
+    // it, so that one key's inter-key gap looks like ordinary typing at
+    // the time it arrives. Every character after that, including the
+    // terminating Enter, is suppressed. If even that first stray
+    // character turns out to matter in practice, the fix is a small
+    // fixed lookback buffer (hold each keydown a few ms before releasing
+    // it, retroactively swallow if the next one arrives fast) --
+    // deliberately not built now since it adds real input latency for a
+    // problem that may turn out not to matter once tested live.
+    public static class KeySuppressor
+    {
+        public static int ScanKeyIntervalMs = 30;
+        public static int BurstGapTimeoutMs = 300;
+        public static bool Enabled = true;
+
+        private static IntPtr hookId = IntPtr.Zero;
+        private static LowLevelKeyboardProc proc = HookCallback; // keep alive -- GC'd delegates crash native callbacks
+        private static long lastTickMs = 0;
+        private static bool burstActive = false;
+
+        public static void Install()
+        {
+            if (!Enabled) return;
+            IntPtr hMod = Native.GetModuleHandle(null);
+            hookId = Native.SetWindowsHookEx(Native.WH_KEYBOARD_LL, proc, hMod, 0);
+            if (hookId == IntPtr.Zero)
+                Console.WriteLine("[dexter-scanner] SetWindowsHookEx FAILED: " + Marshal.GetLastWin32Error());
+            else
+                Console.WriteLine("[dexter-scanner] keystroke suppression active (>=" + ScanKeyIntervalMs + "ms/char treated as human, faster treated as scanner and swallowed)");
+        }
+
+        public static void Uninstall()
+        {
+            if (hookId != IntPtr.Zero) Native.UnhookWindowsHookEx(hookId);
+        }
+
+        private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0 && ((int)wParam == Native.WM_KEYDOWN || (int)wParam == Native.WM_SYSKEYDOWN))
+            {
+                long now = Environment.TickCount64;
+                long dt = lastTickMs == 0 ? long.MaxValue : now - lastTickMs;
+                lastTickMs = now;
+
+                bool looksLikeScanner = dt < ScanKeyIntervalMs;
+                if (looksLikeScanner) burstActive = true;
+                else if (dt > BurstGapTimeoutMs) burstActive = false;
+
+                if (looksLikeScanner || burstActive)
+                {
+                    return (IntPtr)1; // swallow: block propagation, no CallNextHookEx
+                }
+            }
+            return Native.CallNextHookEx(hookId, nCode, wParam, lParam);
+        }
     }
 
     public class ScannerCapture : Form, IMessageFilter
@@ -129,7 +263,8 @@ namespace CrtScanner
             WindowState = FormWindowState.Minimized;
             ShowInTaskbar = false;
             Opacity = 0;
-            Load += (s, e) => RegisterDevice();
+            Load += (s, e) => { RegisterDevice(); KeySuppressor.Install(); };
+            FormClosed += (s, e) => KeySuppressor.Uninstall();
         }
 
         private void RegisterDevice()
@@ -258,6 +393,10 @@ namespace CrtScanner
     }
 }
 "@
+
+[CrtScanner.KeySuppressor]::ScanKeyIntervalMs = $ScanKeyIntervalMs
+[CrtScanner.KeySuppressor]::BurstGapTimeoutMs = $BurstGapTimeoutMs
+[CrtScanner.KeySuppressor]::Enabled = -not $NoSuppress
 
 $form = New-Object CrtScanner.ScannerCapture
 $form.DeviceMatch = $DeviceMatch
