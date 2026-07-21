@@ -28,6 +28,7 @@ import random
 import re
 import shutil
 import sqlite3
+import sys
 import textwrap
 import time
 import urllib.parse
@@ -217,8 +218,24 @@ def grade_answer(expected, heard, correct_option):
 
 
 def log_training_row(isbn, grade, log_path=None, timestamp=None):
+    """Writes one graded round to book-game-training.jsonl -- this IS the
+    actual STT training data this whole subsystem exists to produce
+    (.claude/FOCUS.md's 2026-07-21 end-goal), not an incidental log.
+    Still best-effort on the write itself (os.makedirs/open can fail --
+    disk full, permission issue): unlike every OTHER logging call in this
+    project (crt-secretary.py's log_fallthrough, crt-book-answer-
+    listen.py's announce), this one previously had NO try/except at all,
+    so a single failed write would crash whichever caller invoked it --
+    crt-book-answer-listen.py's main() loop (silently killing grading
+    for the rest of that process's life, the exact same invisible-
+    failure shape as this session's last three bug fixes) or this file's
+    own CLI. Prints a visible warning to stderr on failure (both known
+    callers run in a foreground tmux pane by default, unlike the fully-
+    backgrounded stdin_reader thread those other fixes had to solve for)
+    -- still returns the computed row either way, since the grade data
+    itself is valid even if persisting it failed, and callers like
+    format_result_line() only need the dict, not a successful write."""
     log_path = log_path or TRAINING_LOG
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
     row = {
         "ts": timestamp or _now_iso(),
         "isbn": isbn,
@@ -227,8 +244,14 @@ def log_training_row(isbn, grade, log_path=None, timestamp=None):
         "correct_content": grade["correct_content"],
         "correct_stt": grade["correct_stt"],
     }
-    with open(log_path, "a") as f:
-        f.write(json.dumps(row) + "\n")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a") as f:
+            f.write(json.dumps(row) + "\n")
+    except OSError as e:
+        print(f"[crt-book-game] WARNING: failed to write training row to "
+              f"{log_path}: {e} -- this round's STT training data was lost.",
+              file=sys.stderr)
     return row
 
 

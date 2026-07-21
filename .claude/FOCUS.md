@@ -241,6 +241,23 @@ silent. **Verified live**: piped an immediately-closed stdin into the
 real script — the warning appeared in `thoughts.log` exactly as
 designed. 4 new tests, full suite green.
 
+**Fourth real bug, same audit, 2026-07-21**: `log_training_row()` — the
+function that writes the actual STT training data, the entire point of
+this subsystem — had **zero error handling** around its file write,
+unlike every other logging call in this project
+(`crt-secretary.py`'s `log_fallthrough`, `crt-book-answer-listen.py`'s
+`announce`, both already best-effort). A failed write (disk full,
+permission issue) would crash whichever caller invoked it —
+`crt-book-answer-listen.py`'s `main()` loop, silently killing grading
+for the rest of that process's life, same invisible-failure shape as
+bugs 2 and 3 above. Fixed: wrapped in `try/except OSError`, prints a
+visible warning to stderr (both known callers run in a foreground tmux
+pane by default, so this is actually seen, unlike the fully-backgrounded
+`stdin_reader` case bug 3 had to solve differently for), still returns
+the computed row either way since the grade data itself is valid even
+if persisting it failed. **Verified live** with a real broken-path call.
+1 new test, full suite green.
+
 **Next offline-safe batch pickup (registered 2026-07-21, not yet
 built): real webscrape quotes + kawaii ASCII art.** Idle-bait quotes
 currently only use Open Library's `first_sentence` field (rarely

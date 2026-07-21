@@ -107,6 +107,22 @@ class TestGrading(unittest.TestCase):
             self.assertEqual(row["isbn"], "123")
             self.assertFalse(row["correct_stt"])
 
+    def test_log_training_row_broken_path_does_not_crash(self):
+        # Previously had NO try/except at all -- a failed write here
+        # would crash whichever caller invoked it (crt-book-answer-
+        # listen.py's main() loop, silently killing grading for the rest
+        # of that process's life; or this file's own CLI).
+        blocker = os.path.join(tempfile.mkdtemp(), "not_a_dir")
+        open(blocker, "w").close()
+        broken_path = os.path.join(blocker, "training.jsonl")
+        g = bg.grade_answer(expected="fiction", heard="friction", correct_option="fiction")
+        row = bg.log_training_row("123", g, log_path=broken_path, timestamp="2026-07-21T00:00:00")
+        # The row is still returned even though persisting it failed --
+        # callers like crt-book-answer-listen.py's format_result_line()
+        # only need the dict, not a successful write.
+        self.assertEqual(row["isbn"], "123")
+        self.assertFalse(row["correct_stt"])
+
 
 class TestLCC(unittest.TestCase):
     def test_fiction_maps_to_ps_pr(self):
