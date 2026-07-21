@@ -69,11 +69,23 @@ color palette, non-API idle-bait quotes (`bin/crt-book-idle-bait.py` +
 `../BOOK-GAME.md`'s Roadmap step 1 and `../BOOK-GAME-STYLE.md`.
 **Now wired into `crt-console.sh` as its own tmux window (`book`),
 2026-07-21** — `bin/crt-book-console.py` tails `~/.crt/scanner.log` and
-renders the question screen for each new scan, display-only (grading
-still needs `--answer` by hand or future secretary wiring). 10 more
-tests (`tests/test_book_console.py`), full suite green. Not yet wired
-into `crt-secretary.py`'s playbook dispatcher — that's still a separate,
+renders the question screen for each new scan. 10 more tests
+(`tests/test_book_console.py`), full suite green. Not yet wired into
+`crt-secretary.py`'s playbook dispatcher — that's still a separate,
 not-yet-built step.
+
+**Spoken-answer grading now automatic, 2026-07-21** (closes the last
+manual-only link in the funnel): new `bookanswer` tmux window,
+`bin/crt-book-answer-listen.py`, watches `~/.crt/stt.log` and grades the
+next recognized utterance against whatever book was scanned within
+`CRT_BOOK_ANSWER_WINDOW_SECS` (default 20s), reusing
+`grade_answer()`/`log_training_row()` unchanged — "pending question" is
+derived from `books.db`'s own `first_scanned` column, not new shared
+state. 13 new tests (`tests/test_book_answer_listen.py`), full suite
+green. Built as its own file rather than editing `crt-book-console.py`/
+`crt-book-game.py` directly, since both were mid-live-debug elsewhere the
+same session (missing `random` import, `quote`-column migration) —
+avoided colliding with that work.
 
 **Idle-bait rebuilt around the actual end-goal, 2026-07-21 (see above)**:
 `bin/crt-book-idle-bait.py` and `crt-book-console.py`'s idle screen now

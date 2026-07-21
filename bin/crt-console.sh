@@ -107,6 +107,17 @@ tmux new-window -d -t "$SESSION" -n book -c "$BIN_DIR" "python3 ./crt-book-conso
 # design (reads books.db/fallback pool only, no live cost at idle time).
 tmux new-window -d -t "$SESSION" -n bookidle -c "$BIN_DIR" "python3 ./crt-book-idle-bait.py; exec bash"
 
+# Background: closes the Book Game funnel's last link (idle-bait -> scan
+# -> question -> SPOKEN ANSWER -> STT training log, .claude/FOCUS.md's
+# 2026-07-21 end-goal). Watches ~/.crt/stt.log (crt-stt-solo.py already
+# writes every recognized utterance there, addressed-to-Claude or not)
+# for the next utterance after a scan and grades it automatically -- see
+# crt-book-answer-listen.py's own header. Prints its own result lines to
+# this window's pane (not user-facing chrome, just a debug trail); no
+# separate display needed since the question itself is already on the
+# `book` window.
+tmux new-window -d -t "$SESSION" -n bookanswer -c "$BIN_DIR" "python3 ./crt-book-answer-listen.py; exec bash"
+
 # NOT YET BUILT (flagged explicitly so it doesn't get assumed-done next time):
 # a visual signal of the USER's speech (not claude's replies) in the monologue
 # window -- e.g. the raw/interim STT text, or just a level indicator. Right now
