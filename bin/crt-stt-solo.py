@@ -27,9 +27,23 @@ from collections import deque
 #                       exactly like stt-feed.sh, but from this SINGLE-reader
 #                       engine (no dsnoop, no second reader) -- Approach B in
 #                       AUDIO-DEBUG.md. Use via bin/crt-console-solo.sh.
+#   secretary        -- fire-and-forget to crt-secretary.py (PARKING-LOT.md's
+#                       "Local-first STT routing" plan, 2026-07-21) instead of
+#                       typing straight into Claude's pane. Control keystrokes
+#                       (yes/no/enter/etc, see CONTROL below) still go straight
+#                       to tmux -- those are meta-interactions with whatever's
+#                       on screen, not routable utterances. Non-blocking
+#                       (Popen, not run) so the capture loop never stalls on
+#                       crt-secretary.py's own Claude-escalation wait (up to
+#                       CRT_SECRETARY_MAX_WAIT seconds). Deliberately NOT the
+#                       default -- needs a live human to confirm playbooks
+#                       actually fire correctly against real (not synthetic)
+#                       transcriptions before it replaces `claude` as the
+#                       boot default in crt-console.sh.
 SINK    = os.environ.get("CRT_STT_SINK", "stdout")
 SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
 PANE    = os.environ.get("CRT_TMUX_PANE", "0")
+BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Single-word control utterances -> keystrokes (kept in sync with stt-feed.sh).
 CONTROL = {
@@ -53,6 +67,19 @@ def send_to_claude(text, key):
         return
     subprocess.run(["tmux", "send-keys", "-t", target, "-l", text])
     subprocess.run(["tmux", "send-keys", "-t", target, "Enter"])
+
+
+def send_to_secretary(text):
+    """Fire-and-forget: hands the utterance to crt-secretary.py's local-
+    playbook-first router (SECRETARY.md) instead of typing straight into
+    Claude's pane -- PARKING-LOT.md's 'Local-first STT routing' plan.
+    Popen, not run/check_call -- must never block this capture loop on
+    crt-secretary.py's own Claude-escalation wait (up to
+    CRT_SECRETARY_MAX_WAIT seconds for an unmatched request)."""
+    subprocess.Popen(
+        ["python3", os.path.join(BIN_DIR, "crt-secretary.py"), text],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
 
 RATE   = 16000
 CHUNK  = int(RATE * 0.1)                 # 100 ms analysis window
@@ -388,7 +415,7 @@ def emit(text, peak=1.0):
             f.write("%s  %s\n" % (ts, text))
     except OSError:
         pass
-    if SINK == "claude":
+    if SINK in ("claude", "secretary"):
         is_control = " " not in text and key in CONTROL
         if GATE and not is_control and not addressed_to_console(text):
             if STT_DEBUG_PERSIST:
@@ -403,15 +430,24 @@ def emit(text, peak=1.0):
         label = "(key %s)" % CONTROL[key] if is_control else "->"
         if STT_DEBUG_PERSIST:
             print("%s  %s %s" % (ts, label, text))
-        send_to_claude(text, key)
+        # Control keystrokes are meta-interactions with whatever's already
+        # on screen (confirm a prompt, jog scroll position, etc) -- those
+        # always go straight to tmux even in secretary mode, never through
+        # the playbook router, same as the claude sink always did.
+        if SINK == "secretary" and not is_control:
+            send_to_secretary(text)
+        else:
+            send_to_claude(text, key)
     elif STT_DEBUG_PERSIST:
         print("%s  %s" % (ts, text))
 
 
 def main():
-    # claude sink: don't start feeding keystrokes until the target session is up
-    # (it may still be launching `claude`), else the first utterances are lost.
-    if SINK == "claude":
+    # claude/secretary sinks: don't start feeding keystrokes/utterances until
+    # the target session is up (it may still be launching `claude`), else
+    # the first utterances are lost. secretary mode still needs window 0
+    # for control keystrokes (see send_to_claude/CONTROL above).
+    if SINK in ("claude", "secretary"):
         while subprocess.run(["tmux", "has-session", "-t", SESSION],
                              stderr=subprocess.DEVNULL).returncode != 0:
             time.sleep(1)

@@ -155,20 +155,27 @@ Deprioritized twice now (2026-07-19 "abandon midi, pick it up later"; parked
 again 2026-07-20 to keep this session's live-access time on blockers that
 actually cleared) — not on the critical path for the core voice console.
 
-## Local-first STT routing: the actual shape (2026-07-21)
+## Local-first STT routing: the actual shape (2026-07-21) — BUILT
 
 Three previously-separate threads turn out to be one architecture, now
 that `crt-secretary.py`'s confidence wiring exists (`STT-CONFIDENCE.md`):
 `CRT_STT_GATE` decides *whether* an utterance is addressed to the console
 at all, `crt-secretary.py`'s playbooks decide whether it can be answered
 *without* Claude, and `crt-stt-confidence.py` decides how much to *trust*
-a playbook's answer without checking it against Claude every time. Right
-now these three pieces are built but not chained — `bin/crt-stt-solo.py`'s
-live `SINK=claude` path types straight into Claude's tmux pane, bypassing
-`crt-secretary.py` entirely (`handle()` only ever runs today via manual
-invocation/tests). That's `FOCUS.md`'s "long-term (core STT)" item, not
-attempted this pass — captured here concretely rather than left as a
-vague "bigger rewrite someday":
+a playbook's answer without checking it against Claude every time.
+
+**Chained, 2026-07-21**: `CRT_STT_SINK=secretary` (parallel to the
+existing `claude`/`stdout` modes) now routes each gated utterance to
+`send_to_secretary()` — a fire-and-forget `Popen` of `crt-secretary.py
+<text>`, never blocking the capture loop on a Claude round-trip. Control
+keystrokes (yes/no/enter/etc.) still go straight to tmux unchanged, same
+as the `claude` sink always did. `SINK` still defaults to `claude` —
+this is opt-in, not the new boot default, until a human has run
+`secretary` mode live and confirmed playbooks actually fire correctly
+against real (not synthetic) transcriptions. 5 new tests
+(`tests/test_stt_secretary_sink.py`), full suite green.
+
+Original plan, kept below for reference (now implemented as described):
 
 - Add `CRT_STT_SINK=secretary` to `crt-stt-solo.py`, parallel to the
   existing `claude`/`stdout` modes: same wake-word gate check as today,

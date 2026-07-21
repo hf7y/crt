@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+# Offline tests for crt-stt-solo.py's CRT_STT_SINK=secretary routing
+# (PARKING-LOT.md's "Local-first STT routing" plan, 2026-07-21) -- no
+# mic/tmux/live crt-secretary.py needed; send_to_claude/send_to_secretary
+# are monkeypatched to record calls instead of touching tmux/Popen.
+import importlib.util
+import os
+import tempfile
+import unittest
+
+BIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin")
+
+
+def load_stt_solo():
+    spec = importlib.util.spec_from_file_location("crt_stt_solo", os.path.join(BIN_DIR, "crt-stt-solo.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class TestSecretarySinkRouting(unittest.TestCase):
+    def setUp(self):
+        self.stt = load_stt_solo()
+        self.tmpdir = tempfile.mkdtemp()
+        self.stt.STT_LOG = os.path.join(self.tmpdir, "stt.log")
+        self.stt.SINK = "secretary"
+        self.stt.GATE = False
+        self.claude_calls = []
+        self.secretary_calls = []
+        self.stt.send_to_claude = lambda text, key: self.claude_calls.append((text, key))
+        self.stt.send_to_secretary = lambda text: self.secretary_calls.append(text)
+
+    def test_ordinary_utterance_routes_to_secretary_not_claude(self):
+        self.stt.emit("what time is it")
+        self.assertEqual(self.secretary_calls, ["what time is it"])
+        self.assertEqual(self.claude_calls, [])
+
+    def test_control_keyword_still_goes_straight_to_tmux(self):
+        self.stt.emit("yes")
+        self.assertEqual(self.claude_calls, [("yes", "yes")])
+        self.assertEqual(self.secretary_calls, [])
+
+    def test_gate_still_applies_in_secretary_mode(self):
+        self.stt.GATE = True
+        self.stt.emit("just some ambient room chatter")
+        self.assertEqual(self.secretary_calls, [])
+        self.assertEqual(self.claude_calls, [])
+
+    def test_wake_word_passes_gate_and_routes_to_secretary(self):
+        self.stt.GATE = True
+        self.stt.emit("claude what time is it")
+        self.assertEqual(self.secretary_calls, ["claude what time is it"])
+
+    def test_claude_sink_unaffected_default_behavior(self):
+        self.stt.SINK = "claude"
+        self.stt.emit("what time is it")
+        self.assertEqual(self.claude_calls, [("what time is it", "whattimeisit")])
+        self.assertEqual(self.secretary_calls, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -55,6 +55,12 @@ if [ -f "$DIR/test_stt_gate.py" ]; then
 fi
 echo
 
+echo "== crt-stt-solo.py secretary sink =="
+if [ -f "$DIR/test_stt_secretary_sink.py" ]; then
+  python3 -m unittest discover -s "$DIR" -p "test_stt_secretary_sink.py" -v 2>&1 | tail -5 || fail=1
+fi
+echo
+
 echo "== crt-book-game.py =="
 if [ -f "$DIR/test_book_game.py" ]; then
   python3 -m unittest discover -s "$DIR" -p "test_book_game.py" -v 2>&1 | tail -5 || fail=1
