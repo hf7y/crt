@@ -19,21 +19,34 @@ nothing could reach IN to the guest before this for a new port).
    PowerShell). Confirmed the scanner is a generic HID-keyboard-emulation
    device, `HID\VID_0145&PID_0012` (checked via `Get-PnpDevice -PresentOnly
    | Where Class -eq HIDClass`, 2026-07-21) -- it types like a real
-   keyboard wherever focus happens to be, which is useless/unsafe to rely
-   on. Instead this script uses the Win32 RawInput API
-   (`RegisterRawInputDevices` + `RIDEV_INPUTSINK`) to read raw keyboard
-   input system-wide and filters by device handle to just this VID/PID, so
-   a human typing at dexter's real keyboard is never captured. Assembles
-   characters into a line, and on Enter (end of barcode) POSTs
-   `{"text": "..."}` to crt-vm.
-   - **STATUS: written but NOT yet load-tested against a real scan** --
-     RawInput device filtering is the standard technique but hasn't been
-     exercised on this exact PowerShell/Windows combo. Run with
-     `-DebugAll` first to confirm raw input reaches the window at all
-     before suspecting the VID/PID filter if scans don't arrive.
-   - Not yet wired to autostart (no Task Scheduler entry) -- run manually
-     for now: `powershell -ExecutionPolicy Bypass -File
-     dexter-scanner-forward.ps1`.
+   keyboard wherever focus happens to be (confirmed the hard way: an early
+   real scan landed as literal keystrokes in crt-vm's tmux pane because the
+   VirtualBox GUI window happened to have focus on dexter's desktop --
+   not a reliable path). Instead this script uses the Win32 RawInput API
+   (`RegisterRawInputDevices` + `RIDEV_INPUTSINK` via an `IMessageFilter`)
+   to read raw keyboard input system-wide and filters by device handle to
+   just this VID/PID, so a human typing at dexter's real keyboard is never
+   captured. Assembles characters into a line, and on Enter (end of
+   barcode) POSTs `{"text": "..."}` to crt-vm.
+   - Everything (raw-input interop, the message filter, the HTTP POST)
+     lives in a single `Add-Type` C# block. An earlier version split the
+     message filter into a PowerShell `class` deriving from a type loaded
+     via `Add-Type` in the same script -- PowerShell parses the whole
+     script, including class definitions, before any statement (including
+     the `Add-Type` call) runs, so the base type wasn't resolvable yet and
+     every such class failed to parse. Doing it all in C# sidesteps that.
+   - **STATUS: load-tested and confirmed working live, 2026-07-21.**
+   - Installed to autostart via Windows Task Scheduler, task
+     `CrtScannerForward`, trigger "at logon" (`Register-ScheduledTask`,
+     confirmed `State: Ready`). Runs
+     `powershell -ExecutionPolicy Bypass -NoProfile -File
+     C:\Users\Zach\dexter-scanner-forward.ps1`. Note the deployed copy
+     lives flat in `C:\Users\Zach\` (dexter has no `crt\` subdirectory
+     structure like crt-vm does -- `dexter-audio-server.py` and
+     `dexter-whisper-server.py` are deployed the same flat way) -- keep
+     that copy in sync by hand when this script changes in the repo, `scp`
+     doesn't work against dexter's OpenSSH (see HANDOFF.md), redeploy via
+     base64-over-ssh instead.
 2. **NAT port forward on dexter** (VirtualBox), `scanner,tcp,,8993,,8993`
    -- added live via `VBoxManage controlvm crt-vm natpf1
    "scanner,tcp,,8993,,8993"` 2026-07-21, confirmed present in
@@ -48,24 +61,26 @@ nothing could reach IN to the guest before this for a new port).
    `~/.crt/scanner.log` (mirrors `~/.crt/stt.log`'s "log first, judge
    later" pattern), then delivers into the tmux pane via `tmux send-keys`
    prefixed `[scan] ` so it reads distinctly from spoken/typed text.
-   - **Confirmed working live 2026-07-21**: started via
-     `nohup python3 bin/crt-scanner-feed.py &` on crt-vm, `/health`
-     returns `{"ok":true}`, a synthetic POST from dexter through the NAT
-     forward landed in `~/.crt/scanner.log` end to end.
-   - Started ad hoc for that test, not yet installed as a persistent
-     service -- `systemd/crt-scanner-feed.service` is written and ready
-     (same manual-install pattern as `crt-vm-watchdog.service`) but not
-     yet `systemctl enable`'d, so it will NOT survive the next VM reboot
-     until that's done.
+   - **Confirmed working live 2026-07-21**, both via synthetic POST
+     end-to-end and a real scan through `dexter-scanner-forward.ps1`.
+   - Installed as a persistent `systemd` service on crt-vm:
+     `systemctl enable --now crt-scanner-feed.service`, confirmed
+     `enabled`/`active`. Survives reboot.
+   - **Port-conflict gotcha hit and fixed during install**: an earlier ad
+     hoc `nohup python3 bin/crt-scanner-feed.py &` (from initial testing)
+     was still holding port 8993 when the systemd unit was enabled, so the
+     systemd-managed process crash-looped on `OSError: [Errno 98] Address
+     already in use` while `systemctl status` still showed "active
+     (auto-restart)" -- looked superficially fine at a glance. Always
+     check `ss -ltnp | grep 8993` (which PID actually holds the port)
+     when standing up the persistent service after any ad hoc test run,
+     not just `systemctl is-active`.
 
 ## Open items / next steps
-- Load-test `dexter-scanner-forward.ps1` against a real scan (only a
-  synthetic curl-equivalent POST has been verified so far, exercising the
-  guest-side listener but not the actual RawInput capture path on dexter).
-- Install `systemd/crt-scanner-feed.service` on crt-vm so the listener
-  survives reboots.
-- Set up Task Scheduler ("At log on") for `dexter-scanner-forward.ps1` on
-  dexter so it doesn't need a manual foreground launch each session.
 - No de-dup/rate-limit on repeated scans of the same barcode yet (e.g. a
   scan left in the beam re-triggering) -- add if that turns out to be a
   real nuisance in practice, not preemptively.
+- If the scanner is ever swapped for different hardware, re-check its
+  VID/PID with `Get-PnpDevice -PresentOnly | Where Class -eq HIDClass` on
+  dexter and update `-DeviceMatch` (default baked into
+  `dexter-scanner-forward.ps1` and the Scheduled Task).

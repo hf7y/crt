@@ -7,40 +7,48 @@
 # `Get-PnpDevice -PresentOnly | Where Class -eq HIDClass` on dexter,
 # 2026-07-21) enumerates as a generic "HID Keyboard Device" -- normal
 # keyboard-wedge emulation, not a distinct serial/HID-report device. That
-# means it types into whatever window has focus like a real keyboard,
-# which would be useless/dangerous if left to hit the desktop or an
-# arbitrary window. Instead of relying on focus, this uses the Win32
-# RawInput API (RegisterRawInputDevices + WM_INPUT on a hidden
-# message-only window, RIDEV_INPUTSINK) to read keystrokes from ALL
-# keyboards system-wide regardless of focus, then filters by device
-# handle to the scanner's own HID device path -- so a human typing at the
-# real keyboard is never captured or forwarded, only this one VID/PID.
+# means it types into whatever window has focus like a real keyboard --
+# confirmed 2026-07-21 when a real scan landed as literal keystrokes in
+# crt-vm's tmux pane because the VirtualBox GUI window happened to have
+# focus on dexter's desktop at the time. That's not a reliable delivery
+# path (depends on what's focused), so this script uses the Win32
+# RawInput API (RegisterRawInputDevices + WM_INPUT via an IMessageFilter,
+# RIDEV_INPUTSINK) to read keystrokes from ALL keyboards system-wide
+# regardless of focus, then filters by device handle to the scanner's own
+# HID device path -- a human typing at the real keyboard is never
+# captured or forwarded, only this one VID/PID, and it works with no
+# window ever needing focus.
+#
+# Everything (raw-input capture, the message filter, and the HTTP POST)
+# lives in one Add-Type C# block below rather than split across C#
+# interop + PowerShell classes -- an earlier version tried `class Foo :
+# <Add-Type'd type>` in the same script and PowerShell couldn't resolve
+# the base type (PS parses the whole script, including class
+# definitions, before any statement -- including the Add-Type call --
+# actually runs, so a class can't derive from a type Add-Type hasn't
+# loaded yet). Doing it all in C# sidesteps that entirely.
 #
 # Assembles keystrokes into a line (scanners send characters then Enter
 # for each barcode) and POSTs each completed line to crt-vm's
 # crt-scanner-feed.py listener over the NAT port-forward set up for this
-# (see bin/../HANDOFF.md and the `natpf1 scanner` rule added on dexter,
-# host port 8993 -> guest port 8993).
-#
-# STATUS: written 2026-07-21, NOT yet load-tested against a real scan --
-# RawInput device-handle filtering is the standard technique for this but
-# has not been exercised on this specific dexter/PowerShell combo. If scans
-# aren't arriving, first check with -DebugAll to see whether ANY raw input
-# reaches the window at all before suspecting the VID/PID filter.
+# (see SCANNER.md and HANDOFF.md -- `natpf1 scanner` rule added on
+# dexter, host port 8993 -> guest port 8993).
 #
 # Run on dexter (persistent, foreground or via Task Scheduler "At log on"):
 #   powershell -ExecutionPolicy Bypass -File dexter-scanner-forward.ps1
 #
 # Params:
-#   -CrtVmUrl   Where to POST decoded scans (default http://127.0.0.1:8993/scan
-#               -- the NAT port-forward makes crt-vm reachable via dexter's
-#               own loopback, same trick the ssh port-forward already relies on).
-#   -DeviceMatch  Substring to match against the raw-input device's HID path.
-#               Default matches the scanner's known VID/PID from 2026-07-21;
-#               override if the scanner is ever swapped for different hardware.
-#   -DebugAll   Log every raw-input keystroke seen (any device), not just
-#               ones matching -DeviceMatch. Use this to confirm capture is
-#               working at all before debugging the device filter.
+#   -CrtVmUrl     Where to POST decoded scans (default
+#                 http://127.0.0.1:8993/scan -- the NAT port-forward makes
+#                 crt-vm reachable via dexter's own loopback, same trick
+#                 the ssh port-forward already relies on).
+#   -DeviceMatch  Substring to match against the raw-input device's HID
+#                 path. Default matches the scanner's known VID/PID from
+#                 2026-07-21; override if the scanner is ever swapped.
+#   -DebugAll     Print every raw-input keystroke seen (any device), not
+#                 just ones matching -DeviceMatch. Use this to confirm
+#                 capture is working at all before debugging the device
+#                 filter.
 
 param(
     [string]$CrtVmUrl = "http://127.0.0.1:8993/scan",
@@ -48,201 +56,212 @@ param(
     [switch]$DebugAll
 )
 
-Add-Type -Namespace CrtScanner -Name RawInput -MemberDefinition @"
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -ReferencedAssemblies System.Windows.Forms -TypeDefinition @"
 using System;
+using System.Collections.Generic;
+using System.Net;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Windows.Forms;
 
-[StructLayout(LayoutKind.Sequential)]
-public struct RAWINPUTDEVICE {
-    public ushort usUsagePage;
-    public ushort usUsage;
-    public uint dwFlags;
-    public IntPtr hwndTarget;
+namespace CrtScanner
+{
+    [StructLayout(LayoutKind.Sequential)]
+    struct RAWINPUTDEVICE
+    {
+        public ushort usUsagePage;
+        public ushort usUsage;
+        public uint dwFlags;
+        public IntPtr hwndTarget;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct RAWINPUTHEADER
+    {
+        public uint dwType;
+        public uint dwSize;
+        public IntPtr hDevice;
+        public IntPtr wParam;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct RAWKEYBOARD
+    {
+        public ushort MakeCode;
+        public ushort Flags;
+        public ushort Reserved;
+        public ushort VKey;
+        public uint Message;
+        public uint ExtraInformation;
+    }
+
+    static class Native
+    {
+        public const int RIDEV_INPUTSINK = 0x00000100;
+        public const int RIM_TYPEKEYBOARD = 1;
+        public const int WM_INPUT = 0x00FF;
+        public const uint RID_INPUT = 0x10000003;
+        public const uint RIDI_DEVICENAME = 0x20000007;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool RegisterRawInputDevices(RAWINPUTDEVICE[] pRawInputDevices, uint uiNumDevices, uint cbSize);
+
+        [DllImport("user32.dll")]
+        public static extern uint GetRawInputData(IntPtr hRawInput, uint uiCommand, IntPtr pData, ref uint pcbSize, uint cbSizeHeader);
+
+        [DllImport("user32.dll")]
+        public static extern uint GetRawInputDeviceInfo(IntPtr hDevice, uint uiCommand, StringBuilder pData, ref uint pcbSize);
+    }
+
+    public class ScannerCapture : Form, IMessageFilter
+    {
+        public string DeviceMatch = "";
+        public bool DebugAll = false;
+        public string PostUrl = "";
+
+        private StringBuilder lineBuf = new StringBuilder();
+        private bool shiftDown = false;
+        private Dictionary<IntPtr, string> nameCache = new Dictionary<IntPtr, string>();
+
+        public ScannerCapture()
+        {
+            WindowState = FormWindowState.Minimized;
+            ShowInTaskbar = false;
+            Opacity = 0;
+            Load += (s, e) => RegisterDevice();
+        }
+
+        private void RegisterDevice()
+        {
+            var rid = new RAWINPUTDEVICE
+            {
+                usUsagePage = 0x01,
+                usUsage = 0x06,
+                dwFlags = Native.RIDEV_INPUTSINK,
+                hwndTarget = this.Handle
+            };
+            var devices = new RAWINPUTDEVICE[] { rid };
+            bool ok = Native.RegisterRawInputDevices(devices, 1, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)));
+            if (!ok)
+            {
+                Console.WriteLine("[dexter-scanner] RegisterRawInputDevices FAILED: " + Marshal.GetLastWin32Error());
+            }
+            else
+            {
+                Console.WriteLine("[dexter-scanner] listening for raw HID input matching '" + DeviceMatch + "', forwarding to " + PostUrl);
+            }
+            Application.AddMessageFilter(this);
+        }
+
+        private string GetDeviceName(IntPtr hDevice)
+        {
+            string cached;
+            if (nameCache.TryGetValue(hDevice, out cached)) return cached;
+            uint size = 0;
+            Native.GetRawInputDeviceInfo(hDevice, Native.RIDI_DEVICENAME, null, ref size);
+            var sb = new StringBuilder((int)size);
+            Native.GetRawInputDeviceInfo(hDevice, Native.RIDI_DEVICENAME, sb, ref size);
+            string name = sb.ToString();
+            nameCache[hDevice] = name;
+            return name;
+        }
+
+        private char? VKeyToChar(int vk, bool shift)
+        {
+            if (vk >= 0x30 && vk <= 0x39) return (char)vk;                     // 0-9
+            if (vk >= 0x41 && vk <= 0x5A)                                       // A-Z
+            {
+                char c = (char)vk;
+                return shift ? c : char.ToLower(c);
+            }
+            if (vk >= 0x60 && vk <= 0x69) return (char)(0x30 + (vk - 0x60));    // numpad 0-9
+            if (vk == 0xBD) return '-';
+            if (vk == 0xBE) return '.';
+            return null;
+        }
+
+        private void SendScan(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            try
+            {
+                using (var wc = new WebClient())
+                {
+                    wc.Headers[HttpRequestHeader.ContentType] = "application/json";
+                    string json = "{\"text\":\"" + text.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"}";
+                    wc.UploadString(PostUrl, "POST", json);
+                }
+                Console.WriteLine("[dexter-scanner] -> " + text);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[dexter-scanner] POST failed: " + ex.Message);
+            }
+        }
+
+        public bool PreFilterMessage(ref Message m)
+        {
+            if (m.Msg != Native.WM_INPUT) return false;
+
+            uint size = 0;
+            uint headerSize = (uint)Marshal.SizeOf(typeof(RAWINPUTHEADER));
+            Native.GetRawInputData(m.LParam, Native.RID_INPUT, IntPtr.Zero, ref size, headerSize);
+            if (size == 0) return false;
+
+            IntPtr buf = Marshal.AllocHGlobal((int)size);
+            try
+            {
+                Native.GetRawInputData(m.LParam, Native.RID_INPUT, buf, ref size, headerSize);
+                var header = (RAWINPUTHEADER)Marshal.PtrToStructure(buf, typeof(RAWINPUTHEADER));
+                if (header.dwType != Native.RIM_TYPEKEYBOARD) return false;
+
+                string devName = GetDeviceName(header.hDevice);
+                bool isScanner = devName.IndexOf(DeviceMatch, StringComparison.OrdinalIgnoreCase) >= 0;
+
+                IntPtr kbPtr = (IntPtr)((long)buf + headerSize);
+                var kb = (RAWKEYBOARD)Marshal.PtrToStructure(kbPtr, typeof(RAWKEYBOARD));
+
+                if (DebugAll)
+                {
+                    Console.WriteLine("[raw] dev=" + devName + " vk=" + kb.VKey + " msg=0x" + kb.Message.ToString("X"));
+                }
+
+                if (!isScanner) return false;
+
+                if (kb.Message == 0x0101) // WM_KEYUP
+                {
+                    if (kb.VKey == 0x10 || kb.VKey == 0xA0 || kb.VKey == 0xA1) shiftDown = false;
+                    return false;
+                }
+                if (kb.Message != 0x0100) return false; // not WM_KEYDOWN
+
+                if (kb.VKey == 0x10 || kb.VKey == 0xA0 || kb.VKey == 0xA1) { shiftDown = true; return false; }
+
+                if (kb.VKey == 0x0D) // Enter: end of barcode
+                {
+                    string line = lineBuf.ToString();
+                    lineBuf.Length = 0;
+                    SendScan(line);
+                    return false;
+                }
+
+                var ch = VKeyToChar(kb.VKey, shiftDown);
+                if (ch.HasValue) lineBuf.Append(ch.Value);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buf);
+            }
+            return false;
+        }
+    }
 }
-
-[StructLayout(LayoutKind.Sequential)]
-public struct RAWINPUTHEADER {
-    public uint dwType;
-    public uint dwSize;
-    public IntPtr hDevice;
-    public IntPtr wParam;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public struct RAWKEYBOARD {
-    public ushort MakeCode;
-    public ushort Flags;
-    public ushort Reserved;
-    public ushort VKey;
-    public uint Message;
-    public uint ExtraInformation;
-}
-
-public const int RIDEV_INPUTSINK = 0x00000100;
-public const int RIM_TYPEKEYBOARD = 1;
-public const int WM_INPUT = 0x00FF;
-public const int RID_INPUT = 0x10000003;
-public const int RIDI_DEVICENAME = 0x20000007;
-
-[DllImport("user32.dll", SetLastError = true)]
-public static extern bool RegisterRawInputDevices(RAWINPUTDEVICE[] pRawInputDevices, uint uiNumDevices, uint cbSize);
-
-[DllImport("user32.dll")]
-public static extern uint GetRawInputData(IntPtr hRawInput, uint uiCommand, IntPtr pData, ref uint pcbSize, uint cbSizeHeader);
-
-[DllImport("user32.dll")]
-public static extern uint GetRawInputDeviceInfo(IntPtr hDevice, uint uiCommand, System.Text.StringBuilder pData, ref uint pcbSize);
 "@
 
-Add-Type -AssemblyName System.Windows.Forms
+$form = New-Object CrtScanner.ScannerCapture
+$form.DeviceMatch = $DeviceMatch
+$form.DebugAll = [bool]$DebugAll
+$form.PostUrl = $CrtVmUrl
 
-# Hidden message-only window so we get a WndProc to receive WM_INPUT
-# without a visible UI on dexter's desktop.
-$form = New-Object System.Windows.Forms.Form
-$form.WindowState = 'Minimized'
-$form.ShowInTaskbar = $false
-$form.Opacity = 0
-
-$rid = New-Object CrtScanner.RawInput+RAWINPUTDEVICE
-$rid.usUsagePage = 0x01   # Generic Desktop
-$rid.usUsage = 0x06       # Keyboard
-$rid.dwFlags = [CrtScanner.RawInput]::RIDEV_INPUTSINK
-$rid.hwndTarget = $form.Handle
-$devices = [CrtScanner.RawInput+RAWINPUTDEVICE[]]@($rid)
-$ok = [CrtScanner.RawInput]::RegisterRawInputDevices($devices, 1, [System.Runtime.InteropServices.Marshal]::SizeOf([type][CrtScanner.RawInput+RAWINPUTDEVICE]))
-if (-not $ok) {
-    Write-Error "RegisterRawInputDevices failed"
-    exit 1
-}
-
-$script:lineBuf = New-Object System.Text.StringBuilder
-$deviceNameCache = @{}
-
-function Get-DeviceName([IntPtr]$hDevice) {
-    if ($deviceNameCache.ContainsKey($hDevice)) { return $deviceNameCache[$hDevice] }
-    $size = 0
-    [void][CrtScanner.RawInput]::GetRawInputDeviceInfo($hDevice, [CrtScanner.RawInput]::RIDI_DEVICENAME, $null, [ref]$size)
-    $sb = New-Object System.Text.StringBuilder $size
-    [void][CrtScanner.RawInput]::GetRawInputDeviceInfo($hDevice, [CrtScanner.RawInput]::RIDI_DEVICENAME, $sb, [ref]$size)
-    $name = $sb.ToString()
-    $deviceNameCache[$hDevice] = $name
-    return $name
-}
-
-function Send-Scan([string]$text) {
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-    try {
-        $bodyJson = (@{ text = $text } | ConvertTo-Json -Compress)
-        Invoke-RestMethod -Uri $CrtVmUrl -Method Post -ContentType "application/json" -Body $bodyJson -TimeoutSec 5 | Out-Null
-        Write-Host "[dexter-scanner] -> $text"
-    } catch {
-        Write-Warning "[dexter-scanner] POST failed: $_"
-    }
-}
-
-# VK -> char map for the digits/letters a 1D barcode scanner actually
-# emits (numeric barcodes are the overwhelming common case; letters
-# included for Code128/alphanumeric labels).
-function VKey-ToChar([int]$vk, [bool]$shift) {
-    if ($vk -ge 0x30 -and $vk -le 0x39) { return [char]$vk }         # 0-9
-    if ($vk -ge 0x41 -and $vk -le 0x5A) {                            # A-Z
-        $c = [char]$vk
-        if (-not $shift) { return [char]::ToLower($c) }
-        return $c
-    }
-    if ($vk -ge 0x60 -and $vk -le 0x69) { return [char](0x30 + ($vk - 0x60)) }  # numpad 0-9
-    if ($vk -eq 0xBD) { return '-' }
-    if ($vk -eq 0xBE) { return '.' }
-    return $null
-}
-
-$script:shiftDown = $false
-
-$timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = 15
-
-# Subclass the hidden form to intercept WM_INPUT (0x00FF) via WndProc.
-$formType = $form.GetType()
-$wndProcField = [System.Windows.Forms.Control].GetMethod("WndProc", [System.Reflection.BindingFlags]"NonPublic,Instance")
-
-# Simpler than a full subclass: use a native window hook via
-# System.Windows.Forms.NativeWindow so we don't have to derive a custom
-# Form class in this single-file script.
-Add-Type -Namespace CrtScanner -Name Hook -MemberDefinition @"
-"@ -PassThru | Out-Null
-
-class ScannerWindow : System.Windows.Forms.NativeWindow {
-    [scriptblock]$OnInput
-    [void] WndProc([ref]$m) {}
-}
-
-# PowerShell classes can't easily override WndProc with the message struct
-# by reference across this boundary reliably in all PS versions, so instead
-# poll GetRawInputBuffer-free approach: register a message filter via
-# Application.AddMessageFilter, which DOES let us inspect WM_INPUT without
-# subclassing.
-Add-Type -AssemblyName System.Windows.Forms
-
-class RawInputFilter : System.Windows.Forms.IMessageFilter {
-    [scriptblock]$Handler
-    [bool] PreFilterMessage([ref][System.Windows.Forms.Message]$m) {
-        if ($this.Handler) { & $this.Handler $m.Value }
-        return $false
-    }
-}
-
-$filter = [RawInputFilter]::new()
-$filter.Handler = {
-    param($msg)
-    if ($msg.Msg -ne [CrtScanner.RawInput]::WM_INPUT) { return }
-
-    $size = 0
-    [void][CrtScanner.RawInput]::GetRawInputData($msg.LParam, [CrtScanner.RawInput]::RID_INPUT, [IntPtr]::Zero, [ref]$size, [uint32][System.Runtime.InteropServices.Marshal]::SizeOf([type][CrtScanner.RawInput+RAWINPUTHEADER]))
-    if ($size -eq 0) { return }
-    $buf = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($size)
-    try {
-        [void][CrtScanner.RawInput]::GetRawInputData($msg.LParam, [CrtScanner.RawInput]::RID_INPUT, $buf, [ref]$size, [uint32][System.Runtime.InteropServices.Marshal]::SizeOf([type][CrtScanner.RawInput+RAWINPUTHEADER]))
-        $header = [System.Runtime.InteropServices.Marshal]::PtrToStructure($buf, [type][CrtScanner.RawInput+RAWINPUTHEADER])
-        if ($header.dwType -ne [CrtScanner.RawInput]::RIM_TYPEKEYBOARD) { return }
-
-        $devName = Get-DeviceName $header.hDevice
-        $isScanner = $devName -like "*$DeviceMatch*"
-
-        $kbOffset = [System.Runtime.InteropServices.Marshal]::SizeOf([type][CrtScanner.RawInput+RAWINPUTHEADER])
-        $kbPtr = [IntPtr]::Add($buf, $kbOffset)
-        $kb = [System.Runtime.InteropServices.Marshal]::PtrToStructure($kbPtr, [type][CrtScanner.RawInput+RAWKEYBOARD])
-
-        if ($DebugAll) {
-            Write-Host "[raw] dev=$devName vk=$($kb.VKey) msg=$($kb.Message)"
-        }
-
-        if (-not $isScanner) { return }
-
-        # WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101
-        if ($kb.Message -eq 0x0101) {
-            if ($kb.VKey -eq 0x10 -or $kb.VKey -eq 0xA0 -or $kb.VKey -eq 0xA1) { $script:shiftDown = $false }
-            return
-        }
-        if ($kb.Message -ne 0x0100) { return }
-
-        if ($kb.VKey -eq 0x10 -or $kb.VKey -eq 0xA0 -or $kb.VKey -eq 0xA1) { $script:shiftDown = $true; return }
-
-        if ($kb.VKey -eq 0x0D) {  # Enter: end of barcode
-            $line = $script:lineBuf.ToString()
-            $script:lineBuf.Clear() | Out-Null
-            Send-Scan $line
-            return
-        }
-
-        $ch = VKey-ToChar $kb.VKey $script:shiftDown
-        if ($ch) { [void]$script:lineBuf.Append($ch) }
-    } finally {
-        [System.Runtime.InteropServices.Marshal]::FreeHGlobal($buf)
-    }
-}
-
-[System.Windows.Forms.Application]::AddMessageFilter($filter)
-
-Write-Host "[dexter-scanner] listening for raw HID input matching '$DeviceMatch', forwarding to $CrtVmUrl"
-Write-Host "[dexter-scanner] Ctrl+C to stop"
-[System.Windows.Forms.Application]::Run()
+[System.Windows.Forms.Application]::Run($form)
