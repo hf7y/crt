@@ -277,30 +277,68 @@ def compute_lcc(subjects):
 # ---------------------------------------------------------------------------
 
 def get_db(db_path=None):
+    """Opens books.db. WAL mode + an explicit busy_timeout matter here
+    specifically because this is no longer a single-process database:
+    crt-book-console.py, crt-book-answer-listen.py, crt-book-idle-bait.py,
+    crt-book-game-stats.py (including via crt-secretary.py's
+    book_game_stats playbook), and this CLI can all open the same file
+    concurrently now (a real architecture change across today's passes,
+    not a hypothetical). Default rollback-journal mode blocks ANY reader
+    while a writer holds the lock and vice versa; WAL lets readers
+    proceed concurrently with a single writer, which is exactly this
+    project's actual access pattern (frequent short reads for
+    display/stats, occasional short writes on a scan/grade). `timeout`
+    (already the sqlite3 module's own busy-retry window, not a new
+    mechanism) is bumped from the 5s default to 10s as extra headroom
+    -- WAL should make contention rare, this is a safety margin, not
+    the primary fix."""
     db_path = db_path or DB_PATH
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS books (
-            isbn TEXT PRIMARY KEY,
-            title TEXT,
-            authors TEXT,
-            year INTEGER,
-            subjects TEXT,
-            raw_json TEXT,
-            questions_json TEXT,
-            question_source TEXT,
-            lcc TEXT,
-            quote TEXT,
-            label_printed INTEGER DEFAULT 0,
-            first_scanned TEXT
-        )
-    """)
-    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(books)")}
-    if "quote" not in existing_cols:
-        conn.execute("ALTER TABLE books ADD COLUMN quote TEXT")
-    conn.commit()
+    conn = sqlite3.connect(db_path, timeout=10.0)
+    conn.execute("PRAGMA journal_mode=WAL")
+    _init_schema(conn)
     return conn
+
+
+def _init_schema(conn, retries=5):
+    """CREATE TABLE/ALTER TABLE can still transiently collide even under
+    WAL mode when several fresh connections race to initialize the SAME
+    brand-new database file at once (confirmed by a real, if narrow,
+    flaky 'database is locked' error under
+    tests/test_book_game.py::TestConcurrentAccess's 10-thread stress
+    test -- WAL fixes ongoing read/write contention, it doesn't make
+    concurrent schema-creation atomic across connections). This is a
+    fresh-install-only edge case in practice (the file exists after the
+    very first scan ever), but the honest fix is a short retry with
+    backoff on that specific, well-understood transient condition, not
+    silently hoping it doesn't happen."""
+    for attempt in range(retries):
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS books (
+                    isbn TEXT PRIMARY KEY,
+                    title TEXT,
+                    authors TEXT,
+                    year INTEGER,
+                    subjects TEXT,
+                    raw_json TEXT,
+                    questions_json TEXT,
+                    question_source TEXT,
+                    lcc TEXT,
+                    quote TEXT,
+                    label_printed INTEGER DEFAULT 0,
+                    first_scanned TEXT
+                )
+            """)
+            existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(books)")}
+            if "quote" not in existing_cols:
+                conn.execute("ALTER TABLE books ADD COLUMN quote TEXT")
+            conn.commit()
+            return
+        except sqlite3.OperationalError:
+            if attempt == retries - 1:
+                raise
+            time.sleep(0.1 * (attempt + 1))
 
 
 def register_book(conn, book, questions=None, question_source=None, timestamp=None, quote=None):

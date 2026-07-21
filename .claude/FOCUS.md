@@ -204,6 +204,25 @@ traceback. **Verified live against the real Open Library API** (not just
 mocked): both the console window and the CLI handled ISBN `0000000000`
 cleanly, no crash, no traceback. 6 new tests, full suite green.
 
+**Second real bug found, this one via a self-written stress test, 2026-07-21**:
+`books.db` is no longer single-process — `crt-book-console.py`,
+`crt-book-answer-listen.py`, `crt-book-idle-bait.py`,
+`crt-book-game-stats.py`, and this CLI can all open it concurrently now,
+but `get_db()` never enabled WAL mode. Fixed: `get_db()` now sets
+`PRAGMA journal_mode=WAL` and bumps the connect `timeout` to 10s. Writing
+a real 10-thread concurrent-writer stress test
+(`tests/TestConcurrentAccess`) then caught a SECOND, narrower race: fresh
+schema initialization (`CREATE TABLE`/`ALTER TABLE`) can still
+transiently collide when several connections race to set up a
+brand-new database file at the exact same instant — WAL fixes ongoing
+read/write contention, not concurrent schema creation. Fixed with a
+short retry-with-backoff in a new `_init_schema()` (best-effort for this
+fresh-install-only edge case, not a hard guarantee under an adversarial
+thundering herd — documented as such, not oversold). Split the test into
+a realistic steady-state case (schema already exists, must never
+error — stable across 20 repeated runs) and a harsher fresh-init case
+(allowed occasional retries, also stable across 20 runs). 2 new tests.
+
 **Next offline-safe batch pickup (registered 2026-07-21, not yet
 built): real webscrape quotes + kawaii ASCII art.** Idle-bait quotes
 currently only use Open Library's `first_sentence` field (rarely

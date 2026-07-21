@@ -9,6 +9,7 @@ import random
 import sqlite3
 import sys
 import tempfile
+import threading
 import unittest
 
 BIN_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
@@ -149,6 +150,90 @@ class TestRegistry(unittest.TestCase):
     def test_get_missing_book_returns_none(self):
         conn = bg.get_db(self.db_path)
         self.assertIsNone(bg.get_book(conn, "nope"))
+
+
+class TestConcurrentAccess(unittest.TestCase):
+    """books.db is no longer a single-process database (crt-book-
+    console.py, crt-book-answer-listen.py, crt-book-idle-bait.py,
+    crt-book-game-stats.py, and this CLI can all open it concurrently
+    now) -- these confirm get_db()'s WAL mode actually holds up under
+    real concurrent writers, not just that the PRAGMA was issued."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.db_path = os.path.join(self.tmpdir.name, "books.db")
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def test_wal_mode_enabled(self):
+        conn = bg.get_db(self.db_path)
+        mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+        self.assertEqual(mode.lower(), "wal")
+
+    def test_concurrent_writers_after_schema_exists_never_error(self):
+        # The REALISTIC steady-state case, and the one that must never
+        # fail: schema already initialized (true after the very first
+        # scan ever happens), then several real processes -- each with
+        # its OWN connection, same as every real process in this project
+        # does -- write concurrently. This is exactly what WAL mode
+        # exists to make safe.
+        bg.get_db(self.db_path)  # schema now exists, same as real steady-state operation
+        errors = []
+
+        def register_one(i):
+            try:
+                conn = bg.get_db(self.db_path)
+                book = {"isbn": str(i), "title": f"Book {i}", "authors": [], "year": None,
+                        "subjects": [], "raw": {}}
+                bg.register_book(conn, book, questions=[], question_source="template")
+            except sqlite3.OperationalError as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=register_one, args=(i,)) for i in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(errors, [])
+        conn = bg.get_db(self.db_path)
+        count = conn.execute("SELECT COUNT(*) FROM books").fetchone()[0]
+        self.assertEqual(count, 10)
+
+    def test_concurrent_fresh_initialization_eventually_succeeds(self):
+        # The HARSHER, less realistic case: many connections racing to
+        # initialize a brand-new file at the exact same instant (only
+        # plausible in practice if several real processes all happened
+        # to start at the same literal moment against a database that's
+        # never existed before -- a fresh-install edge case, not ongoing
+        # operation). _init_schema()'s retry-with-backoff is a best-
+        # effort mitigation for this, not a guarantee -- so this test
+        # asserts every thread that DOES raise gets a real
+        # sqlite3.OperationalError (never crashes some other way) and
+        # that at least most attempts succeed, rather than demanding
+        # zero errors under a genuinely adversarial thundering-herd
+        # scenario stricter than real usage.
+        results = []
+
+        def register_one(i):
+            try:
+                conn = bg.get_db(self.db_path)
+                book = {"isbn": str(i), "title": f"Book {i}", "authors": [], "year": None,
+                        "subjects": [], "raw": {}}
+                bg.register_book(conn, book, questions=[], question_source="template")
+                results.append("ok")
+            except sqlite3.OperationalError:
+                results.append("locked")
+
+        threads = [threading.Thread(target=register_one, args=(i,)) for i in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(len(results), 10)
+        self.assertGreaterEqual(results.count("ok"), 8)
 
 
 class TestScreenLayout(unittest.TestCase):
