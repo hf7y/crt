@@ -92,8 +92,18 @@ tmux new-window -d -t "$SESSION" -n bridge -c "$BIN_DIR" "./crt-claude-bridge.py
 # design intent, "call out to API when unsure"). Control keystrokes
 # (yes/no/enter/etc) still go straight to tmux either way -- see
 # crt-stt-solo.py's own SINK branch for the exact split.
+#
+# CRT_STT_GATE=1 (2026-07-21, same call, found live): SINK=secretary alone
+# wasn't enough -- casual room conversation almost never matches one of
+# secretary's playbooks, so it was still escalating to Claude on
+# fallthrough nearly every time, functionally unchanged from SINK=claude.
+# The wake-word gate (built 2026-07-20, never turned on) drops anything
+# that doesn't contain "claude" (or a confirmed stt-fixups.json mishear of
+# it, e.g. "slide") before it reaches secretary/Claude at all -- dropped
+# lines get logged to thoughts.log, not silently discarded. Control
+# keystrokes bypass the gate entirely (see addressed_to_console's callers).
 tmux new-window -d -t "$SESSION" -n stt -c "$BIN_DIR" \
-  "CRT_STT_SINK=secretary CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 python3 ./crt-stt-solo.py; exec bash"
+  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 python3 ./crt-stt-solo.py; exec bash"
 
 if [ -n "${CRT_HOOK_DEVICE:-}" ]; then
   tmux new-window -d -t "$SESSION" -n hook -c "$BIN_DIR" "./hookswitch-listen.sh; exec bash"
