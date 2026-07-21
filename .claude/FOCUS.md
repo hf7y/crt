@@ -94,25 +94,56 @@ budget). If only some of these fit in one pass, do them in the order
 listed — earlier items unblock/inform later ones (2 and 7 are related;
 6 depends on nothing else here).
 
-## Now (core STT, blocked on VM)
+## Now (core STT)
 
-- **Reliability of detection ("stops detecting" / stale capture)** is the top
-  problem. See **`AUDIO-DEBUG.md`** — it enumerates several parallel approaches,
-  now partly implemented (all opt-in, none disturbs the working pipeline):
-  - A `bin/crt-capture-watchdog.sh` — detects a flatlined capture, re-asserts
-    mixer, kills stale readers, optionally bounces the stt window. `[needs VM test]`
-  - B `bin/crt-console-solo.sh` + `crt-stt-solo.py CRT_STT_SINK=claude` —
-    single-reader console (no dsnoop) so a second reader can't starve capture.
-  - C keep-alive (built into the watchdog, `CRT_WD_KEEPALIVE=1`).
-  - D `bin/crt-audio-doctor.sh` — `check` / `monitor` liveness telemetry to find
-    what the staleness correlates with.
-  Next: run A/B/D on `crt-vm`, capture a `~/.crt/liveness.csv`, decide the fix.
-  **All of this needs a live crt-vm session — not actionable by an
-  unattended batch run right now.**
-- The standalone STT view (`bin/crt-stt.sh`) — verify it runs and is useful for
-  watching/tuning transcription, decoupled from Claude. **Also needs the VM.**
+- **2026-07-20: Approach B (single-reader `crt-stt-solo.py`) is now live and
+  promoted into `bin/crt-console.sh`'s actual boot default** — see
+  `AUDIO-DEBUG.md` and `HANDOFF.md`. The dsnoop-staleness class of bug (A/C/D
+  below) is now moot for the default boot path since there's only one reader;
+  those approaches stay documented in `AUDIO-DEBUG.md` in case `stt-feed.sh`'s
+  debug/secretary modes need them later, but aren't the active priority.
 - Ongoing calibration: `CRT_VAD_THRESHOLD`, Windows mic boost, normalization.
-  **Also needs the VM.**
+  **Needs the VM** — not urgent, current defaults are working.
+
+### STT gate — don't call Claude on room noise/ambient conversation (2026-07-20, Zach)
+
+Right now every utterance `crt-stt-solo.py`'s VAD cuts gets typed straight
+into the Claude pane — **every** clip that clears the VAD threshold and
+produces non-empty whisper text becomes a live Claude Code turn, including
+room chatter never meant for the console (`CLAUDE.md`'s whole premise is a
+noisy room). That's a real cost/privacy problem, not just noise: the console
+is currently "always listening AND always escalating."
+
+**Zach's direction (2026-07-20):** build a simple gate now; the long-term
+target is bigger than a gate:
+1. **Near-term (this item): a simple gate.** Before an utterance reaches
+   Claude, decide locally whether it's actually addressed to the console.
+   Candidates (pick one or layer them, this is a real design decision for
+   whoever picks this up, not a spec):
+   - **Wake word**: require "claude" (or another trigger word) to appear in
+     the utterance before typing it in; otherwise just log to `stt.log`/
+     `thoughts.log` and drop it. `bin/stt-fixups.json` already has a
+     confirmed mis-hear entry for this exact word ("slide" → "claude"),
+     which a wake-word gate makes load-bearing rather than cosmetic — get
+     the fixup lookup wired into whatever does the gating.
+   - Keyword/intent filter (per the very first FOCUS.md vision entry at the
+     top of this file, 2026-07-20 15:57: "language tree does its best to
+     navigate without API calls, calls out to API when unsure").
+   All of the *logic* here (string/keyword matching against a transcribed
+   utterance) is offline-testable — no VM needed to build and unit-test the
+   gate itself, only to verify it live against real room noise once written.
+2. **Long-term (do NOT build this now, just keep the shape in mind so the
+   near-term gate doesn't paint it into a corner)**: replace "gate then type
+   into Claude" with a real local text-handling service — non-AI, handles
+   known commands/patterns directly, and *escalates* to Claude only when it
+   doesn't know what to do. This is a bigger rewrite of the stt→claude
+   pipeline (`crt-stt-solo.py`'s `CRT_STT_SINK=claude` path), not a
+   follow-up to the gate — flagging so the near-term gate is built as a
+   clean layer that a future service can slot in front of, not a
+   Claude-specific hack.
+
+**Parked for the nightly batch** — this is Zach's explicit call ("we'll park
+that for the nightly runs"), not urgent for this session.
 
 ## Deferred (not in current focus — do not pull these into an STT session)
 
