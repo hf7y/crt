@@ -99,6 +99,14 @@ fi
 # hardware.
 tmux new-window -d -t "$SESSION" -n book -c "$BIN_DIR" "python3 ./crt-book-console.py; exec bash"
 
+# Background: Book Game idle-bait -- pops a cached book quote into
+# ~/.crt/thoughts.log (which window "mono" already renders, same as
+# claude's own dialogue via the "bridge" window above) after a quiet
+# spell. Written but never actually wired into a running window until
+# now -- see crt-book-idle-bait.py's own header for the non-API-call
+# design (reads books.db/fallback pool only, no live cost at idle time).
+tmux new-window -d -t "$SESSION" -n bookidle -c "$BIN_DIR" "python3 ./crt-book-idle-bait.py; exec bash"
+
 # NOT YET BUILT (flagged explicitly so it doesn't get assumed-done next time):
 # a visual signal of the USER's speech (not claude's replies) in the monologue
 # window -- e.g. the raw/interim STT text, or just a level indicator. Right now
