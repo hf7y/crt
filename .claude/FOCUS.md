@@ -16,6 +16,25 @@ read scheduler's own `.scheduler/FOCUS.md` (the "Vision", "Consolidation
 roadmap", and blockers-aggregation sections) to see whether the shape
 being parsed is still the right target.
 
+**Next offline-safe pickup, registered 2026-07-21 (interactive session,
+not yet built): Gemini-before-Claude fallthrough in `crt-secretary.py`.**
+Gemini is already wired as a cheap-tier source, but only inside
+`crt-book-game.py`'s trivia-question generation (`call_gemini_batch()`,
+committed `43bf894`) -- that path never touches `crt-secretary.py` at
+all. `crt-secretary.py`'s own fallthrough (an utterance that matches no
+PLAYBOOKS) still goes straight to live Claude Code every time. Zach's
+direct call (2026-07-21): leave this for a nightly batch pass rather
+than build it in the interactive session that scoped it. Shape to
+follow: on fallthrough, try a Gemini call first (reuse the
+`_load_gemini_key()`/`call_gemini_batch()`-style pattern already in
+`crt-book-game.py`, but this is free-form assistant-style text, not the
+structured question-JSON contract -- needs its own prompt/parse, not a
+literal reuse of those functions) and only escalate to real Claude Code
+if Gemini's answer is missing/low-confidence/fails outright. See
+`SECRETARY.md`/`STT-GATE.md` for the existing playbook-dispatch shape
+this slots into, and this session's commits `43bf894`/`4a5fb27` for the
+input-routing cleanup it follows on from.
+
 **Current focus: the core STT pipeline** (see "Now (core STT, blocked on
 VM)" below) — but every item there needs a live `crt-vm` session, which an
 unattended batch run doesn't have. See `../HANDOFF.md` for full state and
