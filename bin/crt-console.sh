@@ -149,6 +149,19 @@ tmux new-window -d -t "$SESSION" -n bookanswer -c "$BIN_DIR" "python3 ./crt-book
 # itself is a fresh short-lived process per utterance).
 tmux new-window -d -t "$SESSION" -n windowswitch -c "$BIN_DIR" "python3 ./crt-window-switcher.py; exec bash"
 
+# Background: "STT training in the background" (2026-07-21, Zach's direct
+# ask) -- periodically recomputes mishear candidates from the accumulated
+# Book Game training log (crt-book-game-stats.py's
+# generate_candidate_fixups()) and auto-merges new ones straight into the
+# live stt-fixups.json, tagged confidence:"auto", never touching an
+# existing (human-reviewed) entry -- see crt-stt-training-merge.py's own
+# header for the honest scope note: today's only consumer of
+# stt-fixups.json is the wake-word gate, so this doesn't change book-game
+# answer accuracy live, but it's the correct plumbing for whenever that
+# file gets a broader consumer, and it does matter immediately if a real
+# wake-word mishear variant ever repeats.
+tmux new-window -d -t "$SESSION" -n stttrain -c "$BIN_DIR" "python3 ./crt-stt-training-merge.py --loop; exec bash"
+
 # NOT YET BUILT (flagged explicitly so it doesn't get assumed-done next time):
 # a visual signal of the USER's speech (not claude's replies) in the monologue
 # window -- e.g. the raw/interim STT text, or just a level indicator. Right now

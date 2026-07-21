@@ -115,6 +115,18 @@ if [ -f "$DIR/test_book_catalog.py" ]; then
 fi
 echo
 
+echo "== crt-window-switcher.py =="
+if [ -f "$DIR/test_window_switcher.py" ]; then
+  python3 -m unittest discover -s "$DIR" -p "test_window_switcher.py" -v 2>&1 | tail -5 || fail=1
+fi
+echo
+
+echo "== crt-stt-training-merge.py =="
+if [ -f "$DIR/test_stt_training_merge.py" ]; then
+  python3 -m unittest discover -s "$DIR" -p "test_stt_training_merge.py" -v 2>&1 | tail -5 || fail=1
+fi
+echo
+
 echo "== crt-secretary.py playbooks =="
 if [ -f "$DIR/test_secretary.py" ] && [ "${CRT_SKIP_SECRETARY_TESTS:-0}" = "0" ]; then
   python3 "$DIR/test_secretary.py" || fail=1

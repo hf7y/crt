@@ -315,6 +315,55 @@ actual tube. Also still open (not hardware, just not built this pass):
 the live `claude -p` shell-out for batch question generation, and
 grading wired into a live session instead of the manual CLI.
 
+### Claude escalation now switches windows; STT training now merges unattended (2026-07-21)
+
+Two more of Zach's direct asks from the same message, both closed this pass:
+
+**How calls into Claude actually work, and why it was invisible on `book`**:
+`crt-secretary.py`'s `send_to_claude()`/`capture_pane()` operate on tmux
+window 0's pane directly (`tmux send-keys`/`capture-pane -t SESSION:PANE`),
+entirely independent of which window is currently *displayed* — so an
+escalation while someone was watching `book` (the boot-default window) was
+happening completely off-screen. Fixed with two pieces:
+`crt-secretary.py`'s `handle()` now calls `switch_tmux_window(CLAUDE_VIEW_WINDOW)`
+(default `mono`) the moment it escalates, and touches a small state file
+(`~/.crt/claude-window-active.state`) each time. New `bin/crt-window-switcher.py`
+is a separate long-running background process (new `windowswitch` tmux window)
+that watches that state file and switches focus back to `book` after
+`CRT_WINDOW_SWITCHER_IDLE_SECS` (default 30s) of no Claude activity — has to be
+a separate process because `crt-secretary.py` itself is a fresh short-lived
+process per utterance, it can't host its own idle timer. A new
+`return_to_book_game` playbook ("book game" / "back to the game" / etc.) gives
+the explicit-command half too. Watch the trigger-ordering: `"book game"` is a
+substring of the existing `"book game stats"` trigger, so `return_to_book_game`
+had to be placed AFTER `book_game_stats`/`book_catalog` in `PLAYBOOKS` or it
+would permanently shadow them — caught by a new collision test before shipping.
+13 new tests across `tests/test_secretary.py` + new `tests/test_window_switcher.py`.
+
+**STT training in the background**: `generate_candidate_fixups()`
+(`crt-book-game-stats.py`) previously only ever printed candidates for a human
+to copy-paste into `stt-fixups.json` by hand (`export-fixups` CLI mode). New
+`bin/crt-stt-training-merge.py` closes that loop — periodically recomputes
+candidates from the accumulated training log and merges new ones directly into
+the live `stt-fixups.json`, tagged a new third confidence tier `"auto"` (never
+touches or upgrades an existing entry). Wired into `crt-console.sh` as a new
+`stttrain` background window (`--loop` mode). **Honest scope note, read the
+script's own header before assuming this changes live behavior**:
+`stt-fixups.json` today has exactly one consumer — `crt-stt-solo.py`'s
+wake-word gate — and only entries whose `intent == "claude"` do anything there.
+A book-game-derived entry like `"friction" -> "fiction"` is real, correct
+plumbing for whenever that file gets a broader consumer, not a claim that
+book-game answer accuracy improves the moment this runs. It DOES matter
+immediately if a genuine wake-word mishear variant ever repeats. 10 new tests,
+`tests/test_stt_training_merge.py`, full suite green (100+ tests).
+
+**Still open, explicitly deferred (not started this pass)**: "gradually move
+towards longer canned trivia responses" as STT accuracy improves — needs an
+accuracy-triggered tier system in `generate_template_question()`, deliberately
+not rushed into an ill-designed shape. Also: color/width/idle-movement hard
+rules from the same message are documented in `BOOK-GAME-STYLE.md`, not
+duplicated here.
+
 ## Cross-project ask: locate prior demucs work on dexter (2026-07-20)
 
 `wtul` (the CD-ripper project) needs Demucs for ROADMAP #5 (instrumental
