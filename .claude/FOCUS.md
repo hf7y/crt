@@ -223,6 +223,24 @@ a realistic steady-state case (schema already exists, must never
 error — stable across 20 repeated runs) and a harsher fresh-init case
 (allowed occasional retries, also stable across 20 runs). 2 new tests.
 
+**Third real bug found via the same happy-path audit, 2026-07-21**:
+`crt-book-console.py`'s `stdin_reader()` background thread (the primary
+scan path now) had a silent-failure mode — if `sys.stdin` ever hit EOF
+(e.g. the tmux pane's stdin gets closed/reattached) or raised any read
+error, the thread just died. The main loop kept running and looked
+perfectly healthy (idle/quote screens still rotating normally), but
+scanning via stdin quietly stopped working forever for the rest of that
+process's life, with zero visible indication — the exact same class of
+invisible failure as the two bugs above, just in the input path instead
+of storage. Fixed: `stdin_reader()` now always pushes a `STDIN_DEAD`
+sentinel (via `try/except/finally`) when it exits for any reason;
+`main()`'s drain loop detects it and calls `warn_stdin_dead()`, which
+appends a clipped/`COLOR_WRONG` warning to `~/.crt/thoughts.log` (the
+same channel `crt-monologue.sh` tails) instead of the failure being
+silent. **Verified live**: piped an immediately-closed stdin into the
+real script — the warning appeared in `thoughts.log` exactly as
+designed. 4 new tests, full suite green.
+
 **Next offline-safe batch pickup (registered 2026-07-21, not yet
 built): real webscrape quotes + kawaii ASCII art.** Idle-bait quotes
 currently only use Open Library's `first_sentence` field (rarely

@@ -214,15 +214,56 @@ def tail_new_lines(path):
                 yield None
 
 
+STDIN_DEAD = object()  # sentinel: see stdin_reader()
+THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
+
+
+def warn_stdin_dead():
+    """Surfaces the otherwise-invisible stdin_reader death (see its own
+    docstring) on ~/.crt/thoughts.log -- the same channel crt-monologue.sh
+    already tails -- in the clipped/COLOR_WRONG register (a real problem,
+    not a game event). Best-effort: a broken log write must never crash
+    the main loop that's already dealing with a bigger problem."""
+    try:
+        os.makedirs(os.path.dirname(THOUGHT_LOG), exist_ok=True)
+        with open(THOUGHT_LOG, "a") as f:
+            f.write(bg.wrap_color(
+                "  stdin scan reader died -- scanning via keyboard/scanner "
+                "stopped working (scanner.log fallback still active). "
+                "restart the book window to recover.", bg.COLOR_WRONG) + "\n")
+    except OSError:
+        pass
+
+
 def stdin_reader(q):
     """Runs in a background thread: sys.stdin iteration blocks line by
     line (terminal cooked mode already buffers a scan's fast keystrokes
     until Enter, so this sees one complete line per scan, same as a
     human typing) -- pushes each raw line onto `q` for the main loop to
     drain non-blockingly, so a blocked stdin read can never stall the
-    scanner.log tail or the idle-screen timeout tick."""
-    for line in sys.stdin:
-        q.put(line)
+    scanner.log tail or the idle-screen timeout tick.
+
+    Without the try/finally below, this thread dying (stdin hits EOF --
+    e.g. the tmux pane's stdin gets closed/reattached -- or any other
+    read error) was a SILENT failure: the thread just ends, the main
+    loop keeps running and looks perfectly healthy (idle/quote screens
+    still rotate normally), but stdin-based scanning -- the primary scan
+    path now, per the file header -- quietly stops working forever for
+    the rest of this process's life, with zero visible indication.
+    Pushing STDIN_DEAD lets main() surface that instead of it being
+    invisible; it does not attempt to reopen/recover stdin, since once a
+    pipe's closed there's generally nothing meaningful to reopen it to."""
+    try:
+        for line in sys.stdin:
+            q.put(line)
+    except Exception:
+        # Suppressed, not re-raised -- a background reader thread dying
+        # loudly wouldn't help anyone; STDIN_DEAD + warn_stdin_dead() is
+        # the actual visibility mechanism, not a stderr traceback nobody
+        # watching this pane's scrollback would see.
+        pass
+    finally:
+        q.put(STDIN_DEAD)
 
 
 def main():
@@ -250,14 +291,19 @@ def main():
         last_scan_at = time.time()
         showing_idle = False
 
+    stdin_alive = True
     for line in tail_new_lines(SCANNER_LOG):
         # Drain any stdin-sourced scans first, non-blocking -- stdin is
         # the primary path in practice now (see file header), scanner.log
         # is the fallback, so neither should starve the other.
-        while True:
+        while stdin_alive:
             try:
                 stdin_line = stdin_q.get_nowait()
             except queue.Empty:
+                break
+            if stdin_line is STDIN_DEAD:
+                warn_stdin_dead()
+                stdin_alive = False
                 break
             isbn = parse_stdin_scan_line(stdin_line)
             if isbn is not None:

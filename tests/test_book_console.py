@@ -6,6 +6,7 @@
 import importlib.util
 import json
 import os
+import queue
 import tempfile
 import unittest
 
@@ -158,6 +159,72 @@ class TestRenderScanError(unittest.TestCase):
     def test_colored_wrong_register(self):
         lines = bc.render_scan_error("123", 40, 15)
         self.assertTrue(any(l.startswith(bg.COLOR_WRONG) for l in lines if l.strip()))
+
+
+class _FakeStdin:
+    """A fake sys.stdin: an iterable that yields a fixed set of lines
+    then stops (simulating EOF), or raises partway through (simulating
+    a read error) -- either way, stdin_reader() must still push
+    STDIN_DEAD so the failure isn't silent."""
+    def __init__(self, lines, raise_after=None):
+        self.lines = lines
+        self.raise_after = raise_after
+
+    def __iter__(self):
+        for i, line in enumerate(self.lines):
+            if self.raise_after is not None and i == self.raise_after:
+                raise OSError("simulated stdin read error")
+            yield line
+
+
+class TestStdinReaderDeathIsSurfaced(unittest.TestCase):
+    def setUp(self):
+        self.orig_stdin = bc.sys.stdin
+
+    def tearDown(self):
+        bc.sys.stdin = self.orig_stdin
+
+    def test_eof_pushes_sentinel_after_real_lines(self):
+        bc.sys.stdin = _FakeStdin(["9780141439518\n"])
+        q = queue.Queue()
+        bc.stdin_reader(q)  # runs to completion synchronously (fake stdin ends)
+        items = []
+        while True:
+            try:
+                items.append(q.get_nowait())
+            except queue.Empty:
+                break
+        self.assertEqual(items[0], "9780141439518\n")
+        self.assertIs(items[-1], bc.STDIN_DEAD)
+
+    def test_read_error_still_pushes_sentinel(self):
+        bc.sys.stdin = _FakeStdin(["one\n", "two\n"], raise_after=1)
+        q = queue.Queue()
+        bc.stdin_reader(q)
+        items = []
+        while True:
+            try:
+                items.append(q.get_nowait())
+            except queue.Empty:
+                break
+        self.assertIs(items[-1], bc.STDIN_DEAD)
+
+
+class TestWarnStdinDead(unittest.TestCase):
+    def test_writes_to_thought_log(self):
+        with tempfile.TemporaryDirectory() as d:
+            bc.THOUGHT_LOG = os.path.join(d, "thoughts.log")
+            bc.warn_stdin_dead()
+            with open(bc.THOUGHT_LOG) as f:
+                content = f.read()
+            self.assertIn("stdin scan reader died", content)
+            self.assertTrue(content.startswith(bg.COLOR_WRONG))
+
+    def test_broken_path_does_not_raise(self):
+        blocker = os.path.join(tempfile.mkdtemp(), "not_a_dir")
+        open(blocker, "w").close()
+        bc.THOUGHT_LOG = os.path.join(blocker, "thoughts.log")
+        bc.warn_stdin_dead()  # must not raise
 
 
 if __name__ == "__main__":
