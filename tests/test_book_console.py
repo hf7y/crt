@@ -64,15 +64,30 @@ class TestHandleScan(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             conn = bg.get_db(os.path.join(d, "books.db"))
             fetcher = lambda url: {"title": "Test Book", "author_names": ["A B"], "publish_date": "1999"}
-            row = bc.handle_scan(conn, "123", fetcher=fetcher)
+            quote_fetcher = lambda url: {"query": {"search": []}}  # no Wikiquote page -- scrape_quote returns None
+            row = bc.handle_scan(conn, "123", fetcher=fetcher, quote_fetcher=quote_fetcher)
             self.assertEqual(row["title"], "Test Book")
 
-    def test_rescan_reuses_cached_row(self):
+    def test_fresh_scan_caches_scraped_quote(self):
         with tempfile.TemporaryDirectory() as d:
             conn = bg.get_db(os.path.join(d, "books.db"))
             fetcher = lambda url: {"title": "Test Book"}
-            row1 = bc.handle_scan(conn, "123", fetcher=fetcher)
-            row2 = bc.handle_scan(conn, "123", fetcher=lambda url: (_ for _ in ()).throw(AssertionError("should not refetch")))
+            calls = {"search": {"query": {"search": [{"title": "Test Book"}]}},
+                      "revisions": {"query": {"pages": [{"revisions": [{"slots": {"main": {
+                          "content": "* A quote long enough to pass the length filter here.\n** Ch. 1"}}}]}]}}}
+            def quote_fetcher(url):
+                return calls["search"] if "list=search" in url else calls["revisions"]
+            row = bc.handle_scan(conn, "123", fetcher=fetcher, quote_fetcher=quote_fetcher)
+            self.assertIn("A quote long enough", row["quote"])
+
+    def test_rescan_reuses_cached_row_no_refetch_no_rescrape(self):
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+            fetcher = lambda url: {"title": "Test Book"}
+            quote_fetcher = lambda url: {"query": {"search": []}}
+            row1 = bc.handle_scan(conn, "123", fetcher=fetcher, quote_fetcher=quote_fetcher)
+            boom = lambda url: (_ for _ in ()).throw(AssertionError("should not refetch"))
+            row2 = bc.handle_scan(conn, "123", fetcher=boom, quote_fetcher=boom)
             self.assertEqual(row1["title"], row2["title"])
 
 

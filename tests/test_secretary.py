@@ -228,5 +228,70 @@ class TestFallthroughLogging(unittest.TestCase):
         self.assertEqual(called, ["this should still reach claude"])
 
 
+class TestAnswersMatch(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+
+    def test_substring_match_either_direction(self):
+        self.assertTrue(self.sec._answers_match("3 15 pm", "the time right now is 3 15 pm exactly"))
+        self.assertTrue(self.sec._answers_match("all green tests passed", "all green"))
+
+    def test_no_match(self):
+        self.assertFalse(self.sec._answers_match("all green tests passed", "it's 3:15 PM"))
+
+    def test_empty_inputs_never_match(self):
+        self.assertFalse(self.sec._answers_match("", "anything"))
+        self.assertFalse(self.sec._answers_match("anything", ""))
+        self.assertFalse(self.sec._answers_match(None, "anything"))
+
+
+class TestConfidenceRouting(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.tmpdir = tempfile.mkdtemp()
+        self.sec.stt_confidence.STATE_PATH = os.path.join(self.tmpdir, "stt-confidence.json")
+
+    def test_disabled_by_default_runs_action_only(self):
+        self.assertFalse(self.sec.CONFIDENCE_ENABLED)
+        calls = []
+        action = lambda text: (calls.append(text), "answer")[1]
+        result = self.sec.confidence_route("what time is it", action)
+        self.assertEqual(result, "answer")
+        self.assertEqual(calls, ["what time is it"])
+        # No background confirmation should have touched state at all.
+        self.assertEqual(self.sec.stt_confidence.load_state(), {})
+
+    def test_enabled_spawns_background_thread(self):
+        self.sec.CONFIDENCE_ENABLED = True
+        self.sec.stt_confidence.should_call_claude = lambda text, state, rng: False
+        action = lambda text: "the local answer"
+        # should_call_claude=False means the thread returns immediately
+        # without touching tmux -- safe to run for real in a test.
+        result = self.sec.confidence_route("what time is it", action)
+        self.assertEqual(result, "the local answer")
+
+    def test_confirm_in_background_records_hit_on_match(self):
+        self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
+        self.sec.capture_pane = lambda: "before"
+        self.sec.send_to_claude = lambda text: None
+        self.sec.wait_for_claude_reply = lambda before: "It's 3:15 PM exactly"
+        self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
+        state = self.sec.stt_confidence.load_state()
+        key = self.sec.stt_confidence.normalize_key("what time is it")
+        self.assertEqual(state[key]["confirmed_hits"], 1)
+        self.assertEqual(state[key]["claude_hits"], 1)
+
+    def test_confirm_in_background_no_hit_on_mismatch(self):
+        self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
+        self.sec.capture_pane = lambda: "before"
+        self.sec.send_to_claude = lambda text: None
+        self.sec.wait_for_claude_reply = lambda before: "completely unrelated reply"
+        self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
+        state = self.sec.stt_confidence.load_state()
+        key = self.sec.stt_confidence.normalize_key("what time is it")
+        self.assertEqual(state[key]["confirmed_hits"], 0)
+        self.assertEqual(state[key]["claude_hits"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

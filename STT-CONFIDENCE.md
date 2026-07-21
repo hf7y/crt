@@ -100,14 +100,43 @@ only ever decides whether to TRY the local playbook first (never fully
 skip Claude) — Claude stays the safety net. A more aggressive wiring
 skips Claude entirely below the floor probability. Start conservative.
 
+## Wired in, 2026-07-21 — steps 1-2 done
+
+Picked **option 3** (Claude retroactively confirms) — it's the only one
+that needs nothing new from the user. `crt-secretary.py` now has:
+- Every playbook handler returns its spoken/summary text (previously
+  side-effect-only), giving `confidence_route()` something to compare
+  against.
+- `confidence_route(text, action)` — runs the matched playbook exactly as
+  before (never delayed, never skipped), then, only when
+  `CRT_SECRETARY_CONFIDENCE=1` (default OFF, same convention as
+  `CRT_SECRETARY`), kicks off `_confirm_in_background()` in a daemon
+  thread so the live Claude round-trip (up to `CLAUDE_MAX_WAIT` seconds)
+  never blocks the caller — the user already has their answer by the
+  time this even starts.
+- `_confirm_in_background()` — per `should_call_claude`'s decaying
+  probability, sometimes fires a real (but silent — never spoken/shown)
+  Claude call for the same utterance, compares it against the local
+  playbook's answer via `_answers_match()` (loose substring-either-way
+  match, explicitly a first draft, not real semantic equivalence), and
+  records `confirmed_hits`/`claude_hits` accordingly.
+- **This wiring alone saves ZERO Claude calls** — with the flag on, a
+  matched playbook still runs Claude in the background at the same rate
+  `should_call_claude` would have called it anyway; it only starts
+  *tracking* confirmation data. That's intentional per the doc above:
+  skip-Claude-below-the-floor is a separate, later, more aggressive step
+  once real `~/.crt/stt-confidence.json` history exists to justify it.
+- Tests: `tests/test_secretary.py`'s `TestAnswersMatch`/
+  `TestConfidenceRouting` (9 new cases), default-off path verified to be
+  byte-identical to the pre-wiring behavior.
+
 ## Pick up next
 
-1. Decide the confirmation signal (option 3 above is the most honest,
-   least user-visible — start there if in doubt).
-2. Wire `record_confirmed`/`record_claude_call` into `crt-secretary.py`'s
-   actual routing, gated by a new opt-in flag (same convention as
-   `CRT_SECRETARY`, default off) — do NOT change the live default behavior
-   until this has real traffic behind it.
-3. Once there's a few days of real `~/.crt/stt-confidence.json` history,
-   revisit `DECAY_RATE`/`FLOOR_P` against how this room's vocabulary
-   actually repeats (or doesn't).
+1. ~~Decide the confirmation signal~~ **DONE above.**
+2. ~~Wire into `crt-secretary.py`~~ **DONE above.**
+3. Turn `CRT_SECRETARY_CONFIDENCE=1` on for a live session and let real
+   traffic accumulate in `~/.crt/stt-confidence.json` — needs a human on
+   `crt-vm`, not buildable further from an unattended pass.
+4. Once there's a few days of real history, revisit `DECAY_RATE`/
+   `FLOOR_P` against how this room's vocabulary actually repeats (or
+   doesn't), and design the actual skip-Claude-below-floor step.

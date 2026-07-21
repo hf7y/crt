@@ -83,17 +83,21 @@ def render_scan_result(row, width, height):
     return [bg.wrap_color(l, bg.COLOR_QUESTION) if l.strip() else l for l in lines]
 
 
-def handle_scan(conn, isbn, fetcher=None):
+def handle_scan(conn, isbn, fetcher=None, quote_fetcher=None):
     """Looks up/registers `isbn` if new, returns the registry row either
     way (register_book's own cache-on-insert semantics mean a re-scan
-    never re-queries or re-generates a question)."""
+    never re-queries or re-generates a question, and never re-scrapes a
+    quote). `quote_fetcher` is separate from `fetcher` since the Wikiquote
+    scrape hits a different API shape than the Open Library lookup --
+    tests inject each independently."""
     existing = bg.get_book(conn, isbn)
     if existing is not None:
         return existing
     book = bg.fetch_book_metadata(isbn, fetcher=fetcher)
     source = bg.pick_question_source()
     question = bg.generate_template_question(book)
-    return bg.register_book(conn, book, questions=[question], question_source=source)
+    quote = bg.scrape_quote(book["title"], fetcher=quote_fetcher)
+    return bg.register_book(conn, book, questions=[question], question_source=source, quote=quote)
 
 
 def draw(lines):
@@ -116,6 +120,15 @@ def tail_new_lines(path):
     # the open() would silently skip whatever was written in that gap
     # (hit exactly this in manual testing: a fast writer can create the
     # file with its first line already in it before this loop notices).
+    # mkdir first: on a freshly-imaged VM ~/.crt/ may not exist yet even
+    # though crt-scanner-feed.py itself always mkdir's before writing --
+    # if THIS process is the first thing to touch ~/.crt/ (e.g. started
+    # before any scan has ever landed), open(path, "a") alone raises
+    # FileNotFoundError. Hit live 2026-07-21: the window showed nothing
+    # but a blinking cursor because the traceback scrolled off a 15-row
+    # tmux pane before anyone could read it -- see main()'s crash-log
+    # wrapper below for the fix to THAT half of the problem too.
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a"):
         pass  # ensure it exists, without truncating/duplicating scanner.log's own writes
     with open(path, "r") as f:

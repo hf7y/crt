@@ -155,6 +155,62 @@ Deprioritized twice now (2026-07-19 "abandon midi, pick it up later"; parked
 again 2026-07-20 to keep this session's live-access time on blockers that
 actually cleared) — not on the critical path for the core voice console.
 
+## Local-first STT routing: the actual shape (2026-07-21)
+
+Three previously-separate threads turn out to be one architecture, now
+that `crt-secretary.py`'s confidence wiring exists (`STT-CONFIDENCE.md`):
+`CRT_STT_GATE` decides *whether* an utterance is addressed to the console
+at all, `crt-secretary.py`'s playbooks decide whether it can be answered
+*without* Claude, and `crt-stt-confidence.py` decides how much to *trust*
+a playbook's answer without checking it against Claude every time. Right
+now these three pieces are built but not chained — `bin/crt-stt-solo.py`'s
+live `SINK=claude` path types straight into Claude's tmux pane, bypassing
+`crt-secretary.py` entirely (`handle()` only ever runs today via manual
+invocation/tests). That's `FOCUS.md`'s "long-term (core STT)" item, not
+attempted this pass — captured here concretely rather than left as a
+vague "bigger rewrite someday":
+
+- Add `CRT_STT_SINK=secretary` to `crt-stt-solo.py`, parallel to the
+  existing `claude`/`stdout` modes: same wake-word gate check as today,
+  but instead of `send_to_claude(text, key)`, fire-and-forget (`Popen`,
+  not `run` — must never block the capture loop on a Claude round-trip)
+  a call to `crt-secretary.py <text>`. Control keystrokes (yes/no/enter/
+  etc.) still go straight to the tmux pane as today, unchanged — those
+  are meta-interactions with whatever's on screen, not routable
+  utterances.
+- This alone (without any Claude-skipping) makes the STT gate's
+  "escalate only when unsure" promise literally true for the first time
+  — most matched playbooks answer via TTS/print without ever touching
+  the Claude pane, and the confidence wiring above quietly builds
+  confirmation data on the ones that do escalate.
+- Deliberately NOT the default — `CRT_STT_SINK` stays `claude` until a
+  human has run `secretary` mode live and confirmed playbooks actually
+  fire correctly against real (not synthetic) transcriptions.
+
+## Speculative/optimistic response (PARKING-LOT's own earlier idea, still unbuilt)
+
+The "bot starts typing a cheap local guess, then overwrites with the real
+answer" idea (see "Interface philosophy" above) is still just a sentence,
+not a design. Distinct from `crt-predict.py` (which predicts what was
+*said*, i.e. the STT text, already built) — this predicts the *response*,
+before Claude/the local router has one. Sketch for whoever picks this up:
+- A cheap categorizer (keyword rules, same weight class as
+  `crt-secretary.py`'s `_matches_any` triggers) buckets an utterance into
+  a handful of registers ("looking that up...", "checking reports...",
+  "let me think...") and shows that filler line immediately via
+  `crt-think.sh`, in the warm/curious register (`EXPRESSIVE-TONE.md`).
+- No true in-place overwrite needed: `crt-monologue.py` already only
+  shows the most recent few lines and fades old ones, so the filler line
+  can just be a normal appended line that naturally scrolls/fades once
+  the real answer is appended after it — simpler than rewriting
+  `thoughts.log` in place, and fits the existing ephemeral-display model.
+- Only worth building once `crt-secretary.py` is actually in the live
+  loop (the item above) — a speculative filler for a locally-instant
+  playbook answer is pointless; this only earns its keep once real
+  Claude latency (the `wait_for_claude_reply` round-trip) is common in
+  the live path, which today it isn't (nothing types into Claude except
+  by hand/test).
+
 ## IR blaster mount (cad/CAD-BACKLOG.md)
 Parked 2026-07-21 — **updated same day**: the IR blaster itself is still
 wanted (it's now load-bearing for the "Channel-confirmation loop" idea

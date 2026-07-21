@@ -197,6 +197,12 @@ class TestColorAndArt(unittest.TestCase):
     def test_get_ascii_art_unknown_name(self):
         self.assertIsNone(bg.get_ascii_art("nonexistent"))
 
+    def test_kawaii_art_entries_exist_and_fit_width(self):
+        for name in ("kawaii_cat", "kawaii_owl", "kawaii_sleepy"):
+            art = bg.get_ascii_art(name)
+            self.assertIsNotNone(art)
+            self.assertLessEqual(max(len(l) for l in art.splitlines()), 40)
+
 
 class TestIdleQuotes(unittest.TestCase):
     def test_extract_quote_from_dict_form(self):
@@ -260,6 +266,74 @@ class TestScanLineParsing(unittest.TestCase):
     def test_is_isbn_like_rejects_garbage(self):
         self.assertFalse(bg.is_isbn_like("not an isbn"))
         self.assertFalse(bg.is_isbn_like(""))
+
+
+class TestScrapeQuote(unittest.TestCase):
+    def _fetcher(self, search_result, content):
+        def fetcher(url):
+            if "list=search" in url:
+                return {"query": {"search": search_result}}
+            return {"query": {"pages": [{"revisions": [{"slots": {"main": {"content": content}}}]}]}}
+        return fetcher
+
+    def test_extracts_top_level_quote_skips_attribution(self):
+        wikitext = (
+            "* This is a real quote long enough to pass the filter here.\n"
+            "** Ch. 1\n"
+            "* Another perfectly good quote also long enough to pass.\n"
+        )
+        candidates = bg.extract_quote_candidates(wikitext)
+        self.assertEqual(len(candidates), 2)
+        self.assertNotIn("Ch. 1", candidates)
+
+    def test_strips_wiki_markup(self):
+        wikitext = "* '''Bold''' and ''italic'' and a [[w:Link|display text]] here for real."
+        candidates = bg.extract_quote_candidates(wikitext)
+        self.assertEqual(candidates, ["Bold and italic and a display text here for real."])
+
+    def test_filters_short_fragments(self):
+        wikitext = "* too short\n* {{quote|template debris that should be skipped anyway}}\n"
+        candidates = bg.extract_quote_candidates(wikitext)
+        self.assertEqual(candidates, [])
+
+    def test_scrape_quote_happy_path(self):
+        fetcher = self._fetcher(
+            [{"title": "Moby-Dick"}],
+            "* Call me Ishmael, and this sentence is long enough to pass the filter.\n",
+        )
+        quote = bg.scrape_quote("Moby-Dick", fetcher=fetcher, rng=random.Random(1))
+        self.assertIn("Call me Ishmael", quote)
+
+    def test_scrape_quote_no_search_results(self):
+        fetcher = self._fetcher([], "")
+        self.assertIsNone(bg.scrape_quote("Nonexistent Book", fetcher=fetcher))
+
+    def test_scrape_quote_no_candidates_found(self):
+        fetcher = self._fetcher([{"title": "X"}], "no bullet lines here at all")
+        self.assertIsNone(bg.scrape_quote("X", fetcher=fetcher))
+
+    def test_scrape_quote_never_raises_on_network_error(self):
+        def boom(url):
+            raise OSError("network unreachable")
+        self.assertIsNone(bg.scrape_quote("X", fetcher=boom))
+
+    def test_truncate_quote_prefers_sentence_boundary(self):
+        text = "A" * 50 + ". " + "B" * 200
+        truncated = bg._truncate_quote(text, max_len=100)
+        self.assertTrue(truncated.endswith("."))
+        self.assertLessEqual(len(truncated), 100)
+
+
+class TestPickIdleQuotePrefersScraped(unittest.TestCase):
+    def test_cached_quote_column_wins_over_first_sentence(self):
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+            book = {"isbn": "1", "title": "Dune", "authors": ["H"], "year": 1965,
+                    "subjects": [], "raw": {"first_sentence": "fallback sentence"}}
+            bg.register_book(conn, book, questions=[], question_source="template",
+                              quote="the scraped quote wins")
+            title, quote = bg.pick_idle_quote(conn)
+            self.assertEqual(quote, "the scraped quote wins")
 
 
 if __name__ == "__main__":

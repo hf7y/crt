@@ -30,6 +30,7 @@ import shutil
 import sqlite3
 import textwrap
 import time
+import urllib.parse
 import urllib.request
 
 DB_PATH = os.path.expanduser(os.environ.get("CRT_BOOKS_DB", "~/.crt/books.db"))
@@ -290,6 +291,7 @@ def get_db(db_path=None):
             questions_json TEXT,
             question_source TEXT,
             lcc TEXT,
+            quote TEXT,
             label_printed INTEGER DEFAULT 0,
             first_scanned TEXT
         )
@@ -298,22 +300,26 @@ def get_db(db_path=None):
     return conn
 
 
-def register_book(conn, book, questions=None, question_source=None, timestamp=None):
+def register_book(conn, book, questions=None, question_source=None, timestamp=None, quote=None):
     """Insert if new (cache: never overwrites an existing row's questions
-    on re-scan), else return the existing row untouched."""
+    on re-scan), else return the existing row untouched. `quote` is
+    computed ONCE here at registration time (not re-fetched on re-scan,
+    same cache-once philosophy as questions/LCC) -- pass a pre-scraped
+    value in, or leave None to fall back to extract_quote()/the static
+    pool at read time (pick_idle_quote handles that fallback chain)."""
     existing = get_book(conn, book["isbn"])
     if existing is not None:
         return existing
     lcc = compute_lcc(book.get("subjects"))
     conn.execute(
         "INSERT INTO books (isbn, title, authors, year, subjects, raw_json, "
-        "questions_json, question_source, lcc, label_printed, first_scanned) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+        "questions_json, question_source, lcc, quote, label_printed, first_scanned) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
         (
             book["isbn"], book["title"], json.dumps(book.get("authors")),
             book.get("year"), json.dumps(book.get("subjects")),
             json.dumps(book.get("raw", {})), json.dumps(questions or []),
-            question_source, lcc, timestamp or _now_iso(),
+            question_source, lcc, quote, timestamp or _now_iso(),
         ),
     )
     conn.commit()
@@ -462,6 +468,26 @@ ASCII_ART = {
  |||  ||  ||||  |  ||||
  =====================
 """,
+    # Kawaii/kaomoji entries (2026-07-21, registered in FOCUS.md), matching
+    # the voice bin/crt-idle-bait.sh's existing "(=^-^=)" faces already
+    # use elsewhere in this project -- hand-authored, same "not machine-
+    # fetched" convention as the plain-line-art set above.
+    "kawaii_cat": r"""
+   (=^-w-^=)
+   /|   book|\
+    |________|
+   still purring over this one~
+""",
+    "kawaii_owl": r"""
+   (o=W=o)
+    <")_(">
+  librarian owl approves
+""",
+    "kawaii_sleepy": r"""
+   (-.-)zzZ
+    (")(")
+  page-turner needs a nap
+""",
 }
 
 
@@ -506,19 +532,104 @@ def extract_quote(raw_book_data):
     return None
 
 
+WIKIQUOTE_SEARCH_URL = (
+    "https://en.wikiquote.org/w/api.php?action=query&format=json"
+    "&list=search&srlimit=5&srsearch={query}"
+)
+WIKIQUOTE_CONTENT_URL = (
+    "https://en.wikiquote.org/w/api.php?action=query&format=json"
+    "&prop=revisions&rvprop=content&rvslots=main&formatversion=2&titles={title}"
+)
+QUOTE_LINE_RE = re.compile(r"^\*(?!\*)\s*(.+)$", re.MULTILINE)
+WIKI_LINK_RE = re.compile(r"\[\[(?:[^|\]]*\|)?([^\]]+)\]\]")
+WIKI_MARKUP_RE = re.compile(r"'{2,}")
+
+
+def _clean_wikitext(text):
+    text = WIKI_LINK_RE.sub(r"\1", text)
+    text = WIKI_MARKUP_RE.sub("", text)
+    return text.strip().strip('"').strip()
+
+
+def _truncate_quote(text, max_len=180):
+    if len(text) <= max_len:
+        return text
+    truncated = text[:max_len]
+    last_period = truncated.rfind(". ")
+    if last_period > 40:
+        return truncated[: last_period + 1]
+    return truncated.rstrip() + "..."
+
+
+def _wikiquote_search(query, fetcher):
+    data = fetcher(WIKIQUOTE_SEARCH_URL.format(query=urllib.parse.quote(query)))
+    return [r["title"] for r in data.get("query", {}).get("search", [])]
+
+
+def _wikiquote_page_content(title, fetcher):
+    data = fetcher(WIKIQUOTE_CONTENT_URL.format(title=urllib.parse.quote(title)))
+    pages = data.get("query", {}).get("pages", [])
+    if not pages:
+        return None
+    revisions = pages[0].get("revisions")
+    if not revisions:
+        return None
+    return revisions[0]["slots"]["main"]["content"]
+
+
+def extract_quote_candidates(wikitext):
+    """Pure function: pulls real quote lines out of Wikiquote wikitext.
+    Top-level '* text' lines are quotes; '** text' lines (note the
+    negative lookahead below) are attributions/sources, skipped. Strips
+    [[wiki|links]] and '''bold'''/''italic'' markup. Filters out anything
+    under 20 chars (section-header debris, stray fragments) -- best
+    effort, not a real wikitext parser."""
+    candidates = []
+    for m in QUOTE_LINE_RE.finditer(wikitext or ""):
+        line = _clean_wikitext(m.group(1))
+        if len(line) >= 20 and not line.startswith("{{") and not line.startswith("[[File"):
+            candidates.append(line)
+    return candidates
+
+
+def scrape_quote(title, fetcher=None, rng=None):
+    """Best-effort: search Wikiquote for `title`, pull one real quote line
+    from the page's own wikitext. NOT an AI call -- this is literal text
+    scraped from Wikiquote's CC BY-SA content, not a paraphrase. Returns
+    None on ANY failure (no page found, no quotes parsed, network error/
+    timeout) so callers always have a graceful fallback -- see
+    BOOK-GAME-STYLE.md's idle-bait fallback chain. `fetcher` is injectable
+    for tests (callable(url) -> parsed JSON dict), same pattern as
+    fetch_book_metadata."""
+    fetcher = fetcher or _http_get_json
+    rng = rng or random
+    try:
+        results = _wikiquote_search(title, fetcher)
+        if not results:
+            return None
+        wikitext = _wikiquote_page_content(results[0], fetcher)
+        candidates = extract_quote_candidates(wikitext)
+        if not candidates:
+            return None
+        return _truncate_quote(rng.choice(candidates))
+    except Exception:
+        return None
+
+
 def pick_idle_quote(conn, rng=None):
     """Picks one registered book at random and returns (title, quote) for
-    an idle-bait line -- quote is either that book's own cached
-    first_sentence or a deterministic (isbn-seeded, so it's stable across
-    calls for the same book) pick from FALLBACK_QUOTES. Returns None if
-    the registry is empty (nothing to bait with yet)."""
+    an idle-bait line. Fallback chain, in priority order: (1) a quote
+    scraped once at registration time and cached in the `quote` column,
+    (2) that book's own cached Open Library first_sentence, (3) a
+    deterministic (isbn-seeded, stable across calls for the same book)
+    pick from FALLBACK_QUOTES. Returns None if the registry is empty."""
     rng = rng or random
-    rows = conn.execute("SELECT isbn, title, raw_json FROM books").fetchall()
+    rows = conn.execute("SELECT isbn, title, quote, raw_json FROM books").fetchall()
     if not rows:
         return None
-    isbn, title, raw_json = rng.choice(rows)
-    raw = json.loads(raw_json or "{}")
-    quote = extract_quote(raw)
+    isbn, title, quote, raw_json = rng.choice(rows)
+    if not quote:
+        quote = extract_quote(json.loads(raw_json or "{}"))
     if not quote:
         idx = int(hashlib.sha256(isbn.encode()).hexdigest(), 16) % len(FALLBACK_QUOTES)
         quote = FALLBACK_QUOTES[idx]
@@ -587,7 +698,8 @@ def main():
         # path so a fresh scan never blocks on network/API access, but
         # still records which source *would* have been used.
         question = generate_template_question(book)
-        row = register_book(conn, book, questions=[question], question_source=source)
+        quote = scrape_quote(book["title"])
+        row = register_book(conn, book, questions=[question], question_source=source, quote=quote)
         print(f"Scanned: {row['title']} ({row['lcc'] or 'LCC unknown, best effort'})")
         questions = json.loads(row["questions_json"])
         if questions:

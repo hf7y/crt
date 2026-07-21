@@ -25,13 +25,33 @@
 #   CRT_TMUX_SESSION (default claude), CRT_TMUX_PANE (default 0)
 #   CRT_REPORTS_DIR (default ~/reports/crt), CRT_REPO_DIR (default ~/crt)
 import datetime
+import importlib.util
 import os
+import random
 import re
 import subprocess
 import sys
+import threading
 import time
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# STT-CONFIDENCE.md's decision function, loaded the same importlib way
+# tests/test_secretary.py already loads THIS file -- bin/ scripts here
+# aren't packaged, so this is the established pattern for one script
+# reusing another's functions.
+_conf_spec = importlib.util.spec_from_file_location(
+    "crt_stt_confidence", os.path.join(BIN_DIR, "crt-stt-confidence.py"))
+stt_confidence = importlib.util.module_from_spec(_conf_spec)
+_conf_spec.loader.exec_module(stt_confidence)
+
+# Opt-in, default OFF -- per STT-CONFIDENCE.md's "start conservative" note
+# and this project's own rule of never changing live default behavior
+# without hands-on verification. When on, a playbook match ALSO
+# (sometimes, per call_probability) triggers a silent background Claude
+# call purely to confirm the local answer -- see confidence_route().
+CONFIDENCE_ENABLED = os.environ.get("CRT_SECRETARY_CONFIDENCE", "0") == "1"
+_CONFIDENCE_STATE_LOCK = threading.Lock()
 SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
 PANE = os.environ.get("CRT_TMUX_PANE", "0")
 REPORTS_DIR = os.path.expanduser(os.environ.get("CRT_REPORTS_DIR", "~/reports/crt"))
@@ -116,6 +136,7 @@ def handle_status(text):
     speak(spoken)
     if full_text:
         print_full(full_text)
+    return spoken
 
 
 # --- Playbook: run_tests ------------------------------------------------
@@ -135,7 +156,7 @@ def match_run_tests(text):
 def handle_run_tests(text):
     if not os.path.exists(TEST_SUITE):
         speak("I don't see a test suite to run.")
-        return
+        return "I don't see a test suite to run."
     # CRT_SKIP_SECRETARY_TESTS=1: the suite itself runs test_secretary.py,
     # which calls this exact handler in its own tests -- without this, that
     # nested invocation would shell out to the suite again, unbounded.
@@ -143,9 +164,11 @@ def handle_run_tests(text):
     r = sh(["bash", TEST_SUITE], env=env)
     if r.returncode == 0:
         speak("All green. Every offline check passed.")
+        return "All green. Every offline check passed."
     else:
         speak("Something's failing in the test suite. Printing the details.")
         print_full((r.stdout or "") + "\n" + (r.stderr or ""))
+        return "Something's failing in the test suite."
 
 
 # --- Playbook: calibrate --------------------------------------------------
@@ -168,16 +191,18 @@ def match_calibrate(text):
 def handle_calibrate(text):
     if not os.path.exists(CALIBRATE_BIN):
         speak("I don't have the calibration tool installed.")
-        return
+        return "I don't have the calibration tool installed."
     r = sh(["python3", CALIBRATE_BIN, "show"])
     if not (r.stdout or "").strip():
         speak("Couldn't render the calibration pattern.")
-        return
+        return "Couldn't render the calibration pattern."
     # The pattern itself is CRT-screen content, not something to speak or
     # print -- write it straight to stdout, the same channel
     # crt-monologue.sh's tmux pane already displays.
     print(r.stdout, end="")
-    speak("Calibration pattern's up. Run the full game by hand if you want to adjust it.")
+    spoken = "Calibration pattern's up. Run the full game by hand if you want to adjust it."
+    speak(spoken)
+    return spoken
 
 
 # --- Playbook: what_time -------------------------------------------------
@@ -190,7 +215,9 @@ def match_what_time(text):
 
 
 def handle_what_time(text):
-    speak(datetime.datetime.now().strftime("It's %I:%M %p.").lstrip("0"))
+    spoken = datetime.datetime.now().strftime("It's %I:%M %p.").lstrip("0")
+    speak(spoken)
+    return spoken
 
 
 # --- Playbook: morning_report --------------------------------------------
@@ -213,16 +240,18 @@ def match_morning_report(text):
 def handle_morning_report(text):
     if not os.path.exists(MORNING_REPORT_BIN):
         speak("I don't have a morning report presenter installed.")
-        return
+        return "I don't have a morning report presenter installed."
     r = sh(["python3", MORNING_REPORT_BIN, "screen"])
     lines = [ln for ln in (r.stdout or "").splitlines() if ln.strip()]
     if not lines:
         speak("Nothing in the morning report right now.")
-        return
-    speak("%d project%s in this morning's report. Printing the full thing."
-          % (len(lines), "" if len(lines) == 1 else "s"))
+        return "Nothing in the morning report right now."
+    spoken = ("%d project%s in this morning's report. Printing the full thing."
+              % (len(lines), "" if len(lines) == 1 else "s"))
+    speak(spoken)
     full = sh(["python3", MORNING_REPORT_BIN, "print-all"])
     print_full(full.stdout or "")
+    return spoken
 
 
 # Ordered: first match wins. See SUPERVISOR.md for what belongs here vs.
@@ -314,10 +343,68 @@ def log_fallthrough(text):
         pass
 
 
+def _answers_match(local_answer, claude_reply):
+    """Best-effort, loose comparison between the secretary's own local
+    answer and what Claude said for the same utterance -- STT-CONFIDENCE.md
+    option 3's confirmation signal. Exact string equality would almost
+    never fire since Claude's phrasing differs from a playbook's canned
+    text even when they agree on the underlying fact; normalize + a
+    substring check either direction is a first draft, not real semantic
+    equivalence. This only ever grows tracking state -- it never changes
+    what the user is shown, since the user already got the fast local
+    answer before this comparison runs."""
+    if not local_answer or not claude_reply:
+        return False
+    a = stt_confidence.normalize_key(local_answer)
+    b = stt_confidence.normalize_key(claude_reply)
+    if not a or not b:
+        return False
+    return a in b or b in a
+
+
+def _confirm_in_background(text, local_answer):
+    """Runs in a background thread AFTER the local playbook has already
+    answered, so the user never waits on this. Per STT-CONFIDENCE.md's
+    "start conservative" direction: this NEVER skips the local playbook
+    (it already ran by the time this is called) and NEVER shows/speaks
+    Claude's confirmation reply to the user -- it only sometimes (per
+    call_probability, decaying as this utterance shape gets confirmed
+    more) fires a silent Claude call purely to grow confirmed_hits/
+    claude_hits state for next time. No Claude calls are actually SAVED
+    yet by this wiring alone -- that's the deliberate next step once
+    real confirmed/unconfirmed data exists (see STT-CONFIDENCE.md)."""
+    with _CONFIDENCE_STATE_LOCK:
+        state = stt_confidence.load_state()
+    if not stt_confidence.should_call_claude(text, state, random):
+        return
+    before = capture_pane()
+    send_to_claude(text)
+    reply = wait_for_claude_reply(before)
+    with _CONFIDENCE_STATE_LOCK:
+        state = stt_confidence.load_state()
+        stt_confidence.record_claude_call(text, state)
+        if _answers_match(local_answer, reply):
+            stt_confidence.record_confirmed(text, state)
+        stt_confidence.save_state(state)
+
+
+def confidence_route(text, action):
+    """Runs the matched playbook exactly as before (never skipped, never
+    delayed), then -- only when CRT_SECRETARY_CONFIDENCE=1 -- kicks off
+    the background confirmation pass above. Default off: with the flag
+    unset this is byte-for-byte the old action(text) behavior."""
+    local_answer = action(text)
+    if CONFIDENCE_ENABLED and local_answer:
+        threading.Thread(
+            target=_confirm_in_background, args=(text, local_answer), daemon=True
+        ).start()
+    return local_answer
+
+
 def handle(text):
     _, action = find_playbook(text)
     if action:
-        action(text)
+        confidence_route(text, action)
         return
 
     log_fallthrough(text)
