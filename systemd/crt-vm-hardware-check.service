@@ -1,9 +1,12 @@
-# NOT installed automatically by install.sh (2026-07-19) -- this runs an
-# unattended `claude -p` with real hardware access on crt-vm, which is a
-# meaningfully bigger trust step than anything install.sh does today.
-# See VM-JOBS.md for the full design and manual install steps. Deliberately
-# not silently wired in on the next `install.sh` run of an existing
-# checkout -- review this file and VM-JOBS.md's install steps first.
+# NOT installed automatically by install.sh -- see VM-JOBS.md for the
+# manual install steps. Reworked 2026-07-20: this used to shell out to an
+# unattended `claude -p /vm-hardware-check`, but every check it runs
+# (test suite, device presence, exit codes) is mechanical -- no judgment
+# call an LLM was actually needed for -- so it's now a plain script,
+# bin/crt-vm-hardware-check.sh. Cheaper, deterministic, no agent trust
+# surface on a box the household uses daily. If a future check genuinely
+# needs interpretation, that's a signal for the interactive tier, not a
+# reason to bring the agent back here.
 #
 # Manual install (on crt-vm):
 #   sed "s/@USER@/$USER/g; s#@PROJECT_DIR@#$HOME/crt#g" \
@@ -20,12 +23,8 @@ After=network-online.target
 Type=oneshot
 User=@USER@
 WorkingDirectory=@PROJECT_DIR@
-# acceptEdits (not bypassPermissions): this job should only ever read
-# hardware state and write reports/commits -- if it ever wants to do
-# something bigger than a file edit, that's a signal to stop and ask,
-# not a permission mode to relax further.
-ExecStart=/usr/bin/env claude -p /vm-hardware-check --permission-mode acceptEdits
+ExecStart=/usr/bin/env bash @PROJECT_DIR@/bin/crt-vm-hardware-check.sh
 # A hardware pass that hangs (e.g. on a stuck audio device) shouldn't run
 # forever and block the next scheduled tick -- kill it and let the report
 # note the timeout rather than wedging silently.
-TimeoutStartSec=1800
+TimeoutStartSec=600

@@ -16,14 +16,18 @@ to install, **not yet installed or run** (no VM access this session).
 1. **Tier 1/2 (mandark, existing)** — `nightly-batch.md` / bug-sweep,
    disposable clone, code-shaped work only, already registered and
    working via `schedule/crt.conf`.
-2. **VM-resident (new, this session)** — `.claude/commands/
-   vm-hardware-check.md` + `systemd/crt-vm-hardware-check.{service,timer}`.
-   Runs on crt-vm itself, once/day, with real hardware. Scope is
-   deliberately narrow: **verify, don't build** — run the offline test
-   suite for real, check device presence, exercise (not judge) the audio
-   scripts, report honestly. Not a general-purpose autonomous dev job;
-   trying to make it one would just re-invent Tier 1/2 with worse
-   isolation (no disposable clone, real hardware at stake).
+2. **VM-resident (new, this session)** — `bin/crt-vm-hardware-check.sh` +
+   `systemd/crt-vm-hardware-check.{service,timer}`. Runs on crt-vm itself,
+   once/day, with real hardware. Scope is deliberately narrow: **verify,
+   don't build** — run the offline test suite for real, check device
+   presence, exercise (not judge) the audio scripts, report honestly.
+   **Reworked 2026-07-20**: originally shelled out to `claude -p
+   /vm-hardware-check`, but every check here is mechanical (presence,
+   exit codes) — no judgment call actually needed an LLM, so it's a plain
+   bash script now. Cheaper, deterministic, and doesn't put an unattended
+   agent on hardware the household uses daily. If a future check needs
+   real interpretation, that belongs in the interactive tier, not back in
+   this script.
 3. **Interactive (this conversation, and future ones like it)** — design,
    judgment calls, anything needing a human's ear/eye/decision.
 
