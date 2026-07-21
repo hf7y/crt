@@ -171,6 +171,19 @@ scan → question → spoken answer → logged mismatch → candidate fixup a
 human can review and copy straight into the real file. 5 more tests,
 24 total, full suite green.
 
+**Full-funnel offline integration test added, 2026-07-21**:
+`tests/test_book_game_integration.py` runs `crt-book-game.py` →
+`crt-book-console.py` → `crt-book-answer-listen.py` →
+`crt-book-game-stats.py` together against one shared `books.db` +
+training log — real registration, real grading, real announcement
+rendering, real re-scan cache-hit check, and a repeated-mismatch →
+candidate-fixup check, all in one scenario. Distinct from every
+individual file's own unit tests (which each mock their neighbors) —
+this catches data-shape mismatches between files that grew across many
+separate passes, before they'd ever surface live. All 3 scenarios passed
+on first write, confirming the pieces built independently across today's
+passes do actually compose correctly.
+
 **Next offline-safe batch pickup (registered 2026-07-21, not yet
 built): real webscrape quotes + kawaii ASCII art.** Idle-bait quotes
 currently only use Open Library's `first_sentence` field (rarely
