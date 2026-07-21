@@ -1,25 +1,41 @@
 #!/usr/bin/env python3
-# Book Game idle-bait: pops a cached book quote into thoughts.log when
-# the room's been quiet a while -- see BOOK-GAME-STYLE.md's "Idle-bait
-# quotes" section. Mirrors bin/crt-idle-bait.sh's shape (poll, check
-# quiet-time, append a line) but reuses bin/crt-book-game.py's registry
-# and quote logic instead of a hardcoded LINES array, and matches
-# crt-idle-teaser.sh's ANSI color-per-register convention (EXPRESSIVE-
-# TONE.md) instead of plain text.
+# Book Game idle-bait: pops a line into thoughts.log when the room's been
+# quiet a while -- see BOOK-GAME-STYLE.md's "Idle-bait quotes" section.
+# Mirrors bin/crt-idle-bait.sh's shape (poll, check quiet-time, append a
+# line) but reuses bin/crt-book-game.py's registry/quote/entice logic
+# instead of a hardcoded LINES array, and matches crt-idle-teaser.sh's
+# ANSI color-per-register convention (EXPRESSIVE-TONE.md) instead of
+# plain text.
 #
-# NON-API BY DESIGN: pick_idle_quote() (crt-book-game.py) only ever reads
-# books.db (cached at scan time) or the small local FALLBACK_QUOTES pool
-# -- no network call, no Claude call, at idle-bait time. Every round's
-# quote cost was already paid once, at scan time, not here.
+# TWO REGISTERS, not one (2026-07-21 direction -- the actual point of
+# this feature is enticing a NEW scan, not just admiring old ones):
+#   - Enticement lines (bg.pick_entice_line): "come scan a book" nudges,
+#     always available even with an empty registry -- an empty books.db
+#     used to mean this script silently did nothing at all, a real gap
+#     for a fresh install with zero scans yet.
+#   - Quote lines (bg.pick_idle_quote): only once at least one book is
+#     registered, celebrating what's already been scanned.
+# Mixed via ENTICE_RATE so an established registry keeps getting pulled
+# toward new scans instead of only ever showing off old ones.
+#
+# NON-API BY DESIGN: neither path ever calls Claude or hits the network
+# at idle-bait time -- pick_idle_quote() only reads books.db (cached at
+# scan time) or the small local FALLBACK_QUOTES pool, and pick_entice_line
+# is pure static text.
 #
 # STATUS: NOT hardware-verified -- polling loop untested against a real
-# quiet room. pick_and_format_quote_line() is a pure function covered by
-# tests/test_book_game.py's TestIdleQuotes cases (via crt-book-game.py)
-# plus this file's own formatting test.
+# quiet room. pick_and_format_line() is a pure function covered by
+# tests/test_book_idle_bait.py.
 #
 # Usage: crt-book-idle-bait.py   (run as its own tmux pane/background loop)
+# Env:
+#   CRT_BOOK_ENTICE_RATE (default 0.4) -- fraction of idle-bait rounds
+#     that show an enticement line instead of a quote, when the registry
+#     is non-empty (always 1.0 when the registry IS empty -- nothing to
+#     quote yet).
 import importlib.util
 import os
+import random
 import time
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -31,16 +47,20 @@ THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoug
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 IDLE_SECS = int(os.environ.get("CRT_BOOK_IDLE_BAIT_SECS", "180"))
 POLL_SECS = int(os.environ.get("CRT_BOOK_IDLE_BAIT_POLL", "10"))
+ENTICE_RATE = float(os.environ.get("CRT_BOOK_ENTICE_RATE", "0.4"))
 
 
-def pick_and_format_quote_line(conn, rng=None):
-    """Pure-ish (only touches the given conn): returns a colored,
-    wistful/quiet-register idle-bait line, or None if the registry is
-    empty. Kept separate from the polling loop so it's directly
-    testable."""
+def pick_and_format_line(conn, rng=None):
+    """Pure-ish (only touches the given conn): returns a colored idle-
+    bait line -- an enticement nudge (warm/curious register, EXPRESSIVE-
+    TONE.md) or a quote about an already-scanned book (wistful/quiet
+    register), per the mixing rule in the file header. Never None: an
+    empty registry always gets an enticement line instead of silently
+    producing nothing."""
+    rng = rng or random
     picked = bg.pick_idle_quote(conn, rng=rng)
-    if picked is None:
-        return None
+    if picked is None or rng.random() < ENTICE_RATE:
+        return bg.wrap_color("  " + bg.pick_entice_line(rng=rng), bg.COLOR_QUESTION)
     title, quote = picked
     line = f'  ~ "{quote}" -- {title}'
     return bg.wrap_color(line, bg.COLOR_QUOTE)
@@ -53,9 +73,7 @@ def main():
         last = os.path.getmtime(STT_LOG) if os.path.exists(STT_LOG) else 0
         if time.time() - last < IDLE_SECS:
             continue
-        line = pick_and_format_quote_line(conn)
-        if line is None:
-            continue
+        line = pick_and_format_line(conn)
         os.makedirs(os.path.dirname(THOUGHT_LOG), exist_ok=True)
         with open(THOUGHT_LOG, "a") as f:
             f.write(line + "\n")

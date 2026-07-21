@@ -19,22 +19,38 @@ _ib_spec.loader.exec_module(ib)
 
 
 class TestIdleBaitFormatting(unittest.TestCase):
-    def test_empty_registry_returns_none(self):
+    def test_empty_registry_returns_enticement_not_none(self):
+        # 2026-07-21: an empty registry used to mean this silently
+        # produced nothing -- now it always shows a "come scan a book"
+        # nudge, since that's the actual point of this feature.
         with tempfile.TemporaryDirectory() as d:
             conn = bg.get_db(os.path.join(d, "books.db"))
-            self.assertIsNone(ib.pick_and_format_quote_line(conn))
+            line = ib.pick_and_format_line(conn, rng=random.Random(1))
+            self.assertIsNotNone(line)
+            self.assertTrue(line.startswith(bg.COLOR_QUESTION))
 
-    def test_line_includes_title_and_quote_colors(self):
+    def test_populated_registry_can_still_show_quote(self):
         with tempfile.TemporaryDirectory() as d:
             conn = bg.get_db(os.path.join(d, "books.db"))
             book = {"isbn": "1", "title": "Dune", "authors": ["H"], "year": 1965,
                     "subjects": [], "raw": {"first_sentence": "In the week before their departure..."}}
             bg.register_book(conn, book, questions=[], question_source="template")
-            line = ib.pick_and_format_quote_line(conn, rng=random.Random(1))
+            ib.ENTICE_RATE = 0.0  # force the quote branch for this assertion
+            line = ib.pick_and_format_line(conn, rng=random.Random(1))
             self.assertIn("Dune", line)
             self.assertIn("In the week before their departure...", line)
             self.assertTrue(line.startswith(bg.COLOR_QUOTE))
             self.assertTrue(line.endswith(bg.COLOR_RESET))
+
+    def test_populated_registry_can_still_show_enticement(self):
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+            book = {"isbn": "1", "title": "Dune", "authors": ["H"], "year": 1965,
+                    "subjects": [], "raw": {}}
+            bg.register_book(conn, book, questions=[], question_source="template")
+            ib.ENTICE_RATE = 1.0  # force the enticement branch for this assertion
+            line = ib.pick_and_format_line(conn, rng=random.Random(1))
+            self.assertTrue(line.startswith(bg.COLOR_QUESTION))
 
 
 if __name__ == "__main__":

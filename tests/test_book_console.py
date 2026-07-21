@@ -31,17 +31,37 @@ class TestParseScannerLogLine(unittest.TestCase):
         self.assertIsNone(bc.parse_scanner_log_line("2026-07-21T12:00:00\tnot an isbn"))
 
 
+class _StubRng:
+    """Deterministic stand-in for random.Random -- fixes .random()'s
+    return so tests can force render_idle_screen's caption-branch choice
+    instead of depending on luck-of-the-seed."""
+    def __init__(self, value):
+        self.value = value
+
+    def random(self):
+        return self.value
+
+    def choice(self, seq):
+        return seq[0]
+
+
 class TestRenderIdleScreen(unittest.TestCase):
     def test_dimensions(self):
-        lines = bc.render_idle_screen(3, 40, 15)
+        lines = bc.render_idle_screen(3, 40, 15, rng=_StubRng(0.9))
         self.assertEqual(len(lines), 15)
 
-    def test_mentions_book_count(self):
-        lines = bc.render_idle_screen(5, 40, 15)
+    def test_mentions_book_count_when_count_branch_wins(self):
+        lines = bc.render_idle_screen(5, 40, 15, rng=_StubRng(0.9))  # >=0.5 -> count branch
         self.assertTrue(any("5 book(s)" in l for l in lines))
 
+    def test_shows_enticement_when_entice_branch_wins(self):
+        lines = bc.render_idle_screen(5, 40, 15, rng=_StubRng(0.1))  # <0.5 -> entice branch
+        prefix = bg.ENTICE_LINES[0][:20]  # full line may exceed the 40-col caption width
+        self.assertTrue(any(prefix in l for l in lines))
+        self.assertFalse(any("book(s) registered" in l for l in lines))
+
     def test_colored_with_title_register(self):
-        lines = bc.render_idle_screen(0, 40, 15)
+        lines = bc.render_idle_screen(0, 40, 15, rng=_StubRng(0.9))
         self.assertTrue(all(l.startswith(bg.COLOR_TITLE) for l in lines))
 
 

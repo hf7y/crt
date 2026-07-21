@@ -31,6 +31,21 @@ access unblocks the STT section.
 
 ## Book Game — structured STT training-data game (2026-07-21, vision session)
 
+**End-goal statement (2026-07-21, Zach) — the whole point of this
+subsystem, keep every future piece pointed at this:** a voice-interactive
+scanner system that idle-baits someone into picking up a book and
+scanning it, then entices them to speak trivia into the mic that's used
+for training the voice (STT). Idle-bait → scan → question → spoken
+answer → STT training log is one continuous funnel, not four separate
+features — judge any future addition by whether it strengthens a step in
+that funnel. **Division of labor going forward**: this account (the
+unattended nightly-batch tier) develops continuously at a controlled
+pace; a separate hands-on agent watches this work, syncs it to crt-vm,
+does simple dexter/crt-vm-side tasks, and reports back on its own
+recurring loop (see the "2026-07-21 late session" pivot below for an
+example of exactly that kind of hands-on finding this account can't
+produce alone).
+
 Full vision, roadmap, and open questions: `../BOOK-GAME.md`. Direct instance
 of this file's own 2026-07-20 15:57 vision line ("games and idle bait are
 important ways of requesting specific sonic information in a structured
@@ -59,6 +74,17 @@ still needs `--answer` by hand or future secretary wiring). 10 more
 tests (`tests/test_book_console.py`), full suite green. Not yet wired
 into `crt-secretary.py`'s playbook dispatcher — that's still a separate,
 not-yet-built step.
+
+**Idle-bait rebuilt around the actual end-goal, 2026-07-21 (see above)**:
+`bin/crt-book-idle-bait.py` and `crt-book-console.py`'s idle screen now
+mix enticement lines (invite a NEW scan — `pick_entice_line()`,
+`ENTICE_LINES`) with quote lines (celebrate a book already scanned) —
+previously an empty `books.db` meant idle-bait silently did nothing at
+all, now it always shows an enticement line. Also added real per-book
+quotes via a Wikiquote webscrape (`scrape_quote()`, not an AI call,
+cached once per book) and 3 kawaii ASCII art entries. Full detail in
+`../BOOK-GAME-STYLE.md`'s "Idle-bait: two registers" section. 12 more
+tests, full suite green.
 
 ### NEXT (2026-07-21 late session): stop routing scans through dexter -- read stdin directly
 

@@ -204,6 +204,17 @@ class TestColorAndArt(unittest.TestCase):
             self.assertLessEqual(max(len(l) for l in art.splitlines()), 40)
 
 
+class TestEnticeLines(unittest.TestCase):
+    def test_pick_entice_line_returns_nonempty_string(self):
+        line = bg.pick_entice_line(rng=random.Random(1))
+        self.assertIsInstance(line, str)
+        self.assertGreater(len(line), 0)
+
+    def test_pick_entice_line_only_from_known_pool(self):
+        for seed in range(10):
+            self.assertIn(bg.pick_entice_line(rng=random.Random(seed)), bg.ENTICE_LINES)
+
+
 class TestIdleQuotes(unittest.TestCase):
     def test_extract_quote_from_dict_form(self):
         self.assertEqual(bg.extract_quote({"first_sentence": {"value": "It was a dark night."}}),

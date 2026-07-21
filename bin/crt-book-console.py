@@ -55,10 +55,14 @@ def parse_scanner_log_line(line):
     return text if bg.is_isbn_like(text) else None
 
 
-def render_idle_screen(book_count, width, height):
+def render_idle_screen(book_count, width, height, rng=None):
     """Pure function: the resting display -- shelf art + a book count,
     per BOOK-GAME-STYLE.md's suggested 'shelf as a periodic flourish'
-    use of the ASCII art library."""
+    use of the ASCII art library. Caption rotates between the plain
+    count and a random enticement line (bg.pick_entice_line) so the
+    resting screen actively invites a new scan rather than just sitting
+    static -- the actual point of this feature, 2026-07-21 direction."""
+    rng = rng or random
     lines = [" " * width for _ in range(height)]
     lines[0] = bg.center_text("BOOK GAME", width)
     art = bg.get_ascii_art("shelf") or ""
@@ -69,7 +73,9 @@ def render_idle_screen(book_count, width, height):
         if 0 <= row < height:
             lines[row] = bg.center_text(l, width)
     caption_row = min(height - 1, start + len(art_lines) + 1)
-    lines[caption_row] = bg.center_text(f"{book_count} book(s) registered -- scan one!", width)
+    caption = (bg.pick_entice_line(rng=rng) if rng.random() < 0.5
+               else f"{book_count} book(s) registered -- scan one!")
+    lines[caption_row] = bg.center_text(caption[:width], width)
     return [bg.wrap_color(l, bg.COLOR_TITLE) for l in lines]
 
 

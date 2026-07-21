@@ -517,6 +517,30 @@ FALLBACK_QUOTES = [
     "books are a uniquely portable magic.",
 ]
 
+# Enticement lines: distinct from the FALLBACK_QUOTES/scraped-quote path
+# above -- those celebrate a book ALREADY scanned, these actively invite
+# scanning a NEW one. This is the actual "idle-bait someone into picking
+# up a book" mechanism (2026-07-21 direction: the whole point of this
+# feature, not a side flourish) -- kaomoji voice matches
+# bin/crt-idle-bait.sh's existing "(=^-^=)"-style lines, same character.
+ENTICE_LINES = [
+    "(・∀・)  got a book nearby? scan it, let's see what it is",
+    "(=^-^=)  bored kitty here. bring a book, any book",
+    "( closed book ) -> ( scanner ) -> ( trivia ). try it?",
+    "\\(^o^)/  new book, new question -- scan one when you get a sec",
+    "(o.o)  ...is that a book on the shelf? scan it and find out",
+    "( ._.)  quiet in here. a barcode would liven things up",
+]
+
+
+def pick_entice_line(rng=None):
+    """Pure function: picks a random enticement line inviting a NEW scan.
+    Always non-empty (unlike pick_idle_quote, which needs a populated
+    registry) -- this is the line shown when there's nothing to celebrate
+    yet, or just to keep pulling for more scans alongside the quotes."""
+    rng = rng or random
+    return rng.choice(ENTICE_LINES)
+
 
 def extract_quote(raw_book_data):
     """Pure function: pull a first-sentence-shaped quote out of an Open

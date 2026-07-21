@@ -64,37 +64,63 @@ Centering the *question*, not the title or a menu chrome, matches
 `CLAUDE.md`'s "lead with the answer, no preamble" — the thing your eye
 should land on first is the thing you're being asked, not a header.
 
-## Idle-bait quotes (non-API, built this pass)
+## Idle-bait: two registers, not one (updated 2026-07-21 — this is the actual point)
 
-`bin/crt-book-idle-bait.py` pops a cached book quote into
-`~/.crt/thoughts.log` after a quiet stretch, same mechanism as
-`bin/crt-idle-bait.sh`'s cat jokes but sourced from the book registry
-instead of a hardcoded joke list:
+**The whole feature's purpose, stated plainly (2026-07-21 direction):**
+idle-bait exists to entice someone into picking up a book and scanning
+it — everything downstream (the question, the spoken answer, the STT
+training log) only happens once that scan occurs. A quote celebrating a
+book ALREADY scanned is a nice flourish, but it is not the mechanism that
+gets a NEW scan to happen. `bin/crt-book-idle-bait.py` and
+`bin/crt-book-console.py`'s idle screen both now mix two distinct lines,
+not just one:
 
-- `extract_quote()` pulls Open Library's `first_sentence` field out of
-  the **already-cached** raw response in `books.db` — no new network
-  call, since that data was fetched once at scan time.
-- If a book has no cached first sentence (most ISBN-endpoint lookups
-  don't), `pick_idle_quote()` falls back to a small local
-  `FALLBACK_QUOTES` pool, picked **deterministically per-ISBN**
-  (sha256-seeded index, not re-randomized every call) so the same book
-  always surfaces the same flavor line rather than feeling random.
-- **Deliberately not a Claude call.** Per direction, idle-bait quotes
-  are a zero-marginal-cost feature — every token this feature will ever
-  cost was already spent once, at scan time, fetching the metadata that
-  might contain a real quote. Matches this project's own "minimize/tune
-  live API usage" principle (`CLAUDE.md`, `BOOK-GAME.md`'s
-  question-generation section) applied to a place that doesn't strictly
-  need Claude at all.
-- Rendered in `COLOR_QUOTE` (dim magenta, wistful/quiet register) via
-  `wrap_color()`, same convention as `crt-idle-teaser.sh`'s
+- **Enticement lines** (`pick_entice_line()`, `ENTICE_LINES` — kaomoji,
+  same voice as `crt-idle-bait.sh`'s existing `(=^-^=)` jokes): actively
+  invite a new scan ("got a book nearby? scan it..."). Always available,
+  even with a completely empty registry — **fixed a real gap**: before
+  this pass, an empty `books.db` meant `pick_and_format_line()` (formerly
+  `pick_and_format_quote_line`) silently returned nothing at all, so a
+  fresh install had zero idle-bait until the first scan ever happened.
+  Now the empty-registry case always shows an enticement line.
+- **Quote lines** (`pick_idle_quote()`, unchanged from before): celebrate
+  a book already scanned — Open Library's cached `first_sentence`, a
+  freshly-scraped Wikiquote line (see below), or the static
+  `FALLBACK_QUOTES` pool as a last resort, in that priority order.
+- **Mixing rule**: `CRT_BOOK_ENTICE_RATE` (default 0.4 in the thoughts-log
+  idle-bait, a flat 0.5 in the `book` window's idle screen) — even once
+  books exist, idle-bait keeps pulling toward NEW scans instead of only
+  ever showing off old ones.
+- **Deliberately not a Claude call**, either register. Enticement lines
+  are static text; quote lines only ever read `books.db` (cached at scan
+  time) or the local fallback pool. Matches this project's "minimize/tune
+  live API usage" principle (`CLAUDE.md`) applied to a place that
+  doesn't need Claude at all.
+- Enticement lines render in `COLOR_QUESTION` (warm/curious — inviting,
+  not urgent); quote lines stay `COLOR_QUOTE` (dim magenta, wistful/
+  quiet) — same register-color convention as `crt-idle-teaser.sh`'s
   `color_for_line()`.
+
+### Real per-book quotes (webscrape, not AI, added 2026-07-21)
+
+`scrape_quote()` pulls an actual quote from Wikiquote's MediaWiki API at
+registration time (search → page wikitext → parse top-level `* text`
+bullet lines as quotes, `** text` as attributions to skip, strip
+`[[wiki|links]]`/`'''bold'''` markup) — literal scraped text, **not** an
+AI paraphrase, per explicit direction. Cached once in a new `quote`
+column in `books.db`, never re-scraped on a re-scan. Wrapped in a broad
+try/except so a slow/unreachable Wikiquote can never block or crash a
+scan — falls through to `first_sentence` then the static pool instead.
+`pick_idle_quote()`'s priority order is: cached scrape → `first_sentence`
+→ static pool.
 
 ## ASCII art library
 
 `ASCII_ART` in `crt-book-game.py` is a small hand-curated set (`book`,
-`cat_reading`, `bookworm`, `shelf`) in the same bare-line-art style as
-`crt-screensaver.py`'s existing `FRAMES` — the kind of unattributed
+`cat_reading`, `bookworm`, `shelf`, plus kawaii/kaomoji entries
+`kawaii_cat`/`kawaii_owl`/`kawaii_sleepy` added 2026-07-21) in the same
+bare-line-art style as `crt-screensaver.py`'s existing `FRAMES` — the
+kind of unattributed
 line-art that's been shared across ASCII-art collections for decades,
 not machine-scraped from a specific live URL. **Why not literally fetch
 from the internet at build or run time**: this project's offline-safe
