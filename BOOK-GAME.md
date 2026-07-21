@@ -178,13 +178,29 @@ then-print pattern `crt-print.sh` already uses for reports.
 
 ## Roadmap
 
-1. **Now (offline-safe, nightly-batch can start immediately):** ISBN
-   lookup client, deterministic question templates, the Claude-batch
-   question-source path (decision/cache/batch-prompt logic behind a
-   pluggable interface, stubbed Claude response in tests), grading/
-   logging, SQLite registry, naive LCC heuristic — each with `tests/`
-   coverage, each wired behind a CLI (`crt-book-game.py --isbn <n>` for
-   manual testing without hardware) before any hardware integration.
+1. **Now (offline-safe, nightly-batch can start immediately): DONE,
+   2026-07-21.** Built `bin/crt-book-game.py` + `tests/test_book_game.py`
+   (20 cases, all green, registered in `tests/run_tests.sh`): ISBN lookup
+   client (real Open Library call confirmed working — smoke-tested live
+   against `9780141439518`, not just mocked), deterministic question
+   templates (year/author-name/fiction-vs-nonfiction, with an
+   always-available fallback question so the game never comes up empty),
+   the Claude-batch prompt-building/response-parsing pair
+   (`build_claude_batch_prompt`/`parse_claude_batch_response`, pure
+   functions, no live Claude call wired yet — the CLI itself always uses
+   the template path today, only recording which source the coin flip
+   *would* have picked, since the actual `claude -p` invocation needs the
+   same hands-on wiring as `crt-secretary.py`'s Claude-routing path),
+   grading/logging (`grade_answer`/`log_training_row`, exact-ish per
+   direction below), SQLite registry (`get_db`/`register_book`/`get_book`,
+   cache-on-first-insert, confirmed a re-scan never overwrites), naive LCC
+   heuristic (`compute_lcc`, keyword table, explicitly best-effort).
+   `crt-book-game.py --isbn <n>` works standalone today for manual testing
+   without any hardware. **Not yet done, deliberately out of scope for
+   this pass:** the actual live Claude Code shell-out for the batch
+   question path (needs the same `claude -p` wiring pattern as
+   `crt-secretary.py`, and per "standalone first, merge later" below,
+   shouldn't be built at the same time as hardware integration).
 2. **Next (needs a live crt-vm session, hands-on):** wire the real
    scanner (plug in, confirm HID passthrough works exactly like a
    keyboard — should need zero new driver work per how these scanners

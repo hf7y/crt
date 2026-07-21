@@ -41,23 +41,21 @@ as labeled STT training data, register the book locally. Stretch: print an
 LCC label per book via the existing Phomemo/`catprint` channel or a
 dedicated label printer (open question, see BOOK-GAME.md).
 
-**Offline-safe, nightly-batch can pick this up now** — build
-`bin/crt-book-game.py` standalone (own CLI, not yet wired into
-`crt-console.sh`/`crt-secretary.py`), with `tests/` coverage, for:
-1. ISBN → metadata lookup (Open Library API first; mock the HTTP call in
-   tests).
-2. 2-option question generator from a book-facts dict.
-3. Grading + `~/.crt/book-game-training.jsonl` logging (exact-ish
-   normalize-then-compare, per Zach's direction 2026-07-21 — not fuzzy —
-   because every mismatch is deliberately kept as a training signal, not
-   smoothed over).
-4. `~/.crt/books.db` SQLite registry (schema in BOOK-GAME.md).
-5. LCC call-number best-effort computation as its own pure function.
+**Offline-safe slice: DONE, 2026-07-21.** `bin/crt-book-game.py` +
+`tests/test_book_game.py` (20 cases, all green in `tests/run_tests.sh`,
+plus a live smoke-test against the real Open Library API). Covers ISBN
+lookup, question templates + Claude-batch prompt/parse (pure functions,
+no live `claude -p` shell-out wired yet), grading/logging, SQLite
+registry, best-effort LCC. Full detail in `../BOOK-GAME.md`'s Roadmap
+step 1. Standalone CLI only — not yet wired into `crt-console.sh`/
+`crt-secretary.py`, per the "standalone first, merge later" direction.
 
-Do NOT attempt: live scanner/HID passthrough, wiring into the console
+Do NOT attempt next: live scanner/HID passthrough, wiring into the console
 layout, or live mic verification — all genuinely need a hands-on crt-vm
 session (see BOOK-GAME.md's roadmap step 2), same hardware-acceptance-bar
-rule as everything else in this file.
+rule as everything else in this file. Also still open (not hardware,
+just not built this pass): the actual live Claude Code shell-out for the
+batch question-generation path.
 
 ## Cross-project ask: locate prior demucs work on dexter (2026-07-20)
 
