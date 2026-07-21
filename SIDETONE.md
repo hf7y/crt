@@ -85,7 +85,21 @@ Explicitly ruled out above (latency). Noted only so a future session
 doesn't reinvent it and rediscover the same problem.
 
 ## Status
-Design only — nothing built. Next concrete step is the open question
-(guest-local vs. host-bridged handset audio), which determines whether
-option 1 or 2 is even on the table; option 1 is preferable regardless and
-should be decided before any more handset audio wiring happens.
+Design only — nothing built.
+
+**2026-07-21 (Chris): software sidetone, handled dexter-side.** Resolves
+the tension flagged earlier the same day: since the handset is only
+reachable via dexter (`.claude/QUESTIONS.md`, 2026-07-20), sidetone runs
+as a loop **local to dexter itself** — mic-in to earpiece-out entirely on
+the host, never crossing into the VM. This sidesteps the original
+objection to "routing through the dexter bridge" (option 3 above), which
+was about the VM round-trip specifically (`crt-vm` asking dexter over
+HTTP per phrase); a same-machine host-side loop has none of that latency
+since it never leaves dexter. Supersedes option 2 above (guest-local
+loopback) — not viable per the routing answer, so this is the new
+option 2, not option 1's passive-hardware tap. Next concrete step:
+design the dexter-side loop (equivalent to option 2's `sox`/`arecord|sox|
+aplay` pipe, but as a persistent process on dexter, wired into whatever
+already owns dexter's audio I/O for this project — see
+`dexter-audio-server.py`/`dexter-whisper-server.py`) — needs the same
+duck-around-TTS and volume-tuning treatment already described above.
