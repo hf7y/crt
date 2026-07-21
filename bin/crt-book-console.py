@@ -315,6 +315,16 @@ def main():
             isbn = parse_stdin_scan_line(stdin_line)
             if isbn is not None:
                 show_scan(isbn)
+            elif showing_idle:
+                # A non-ISBN-shaped line (bad scan, stray keystrokes, a
+                # library-card barcode, whatever) still gets echoed to the
+                # pane by the terminal's own cooked-mode echo -- draw()
+                # only runs on a recognized scan or the idle-timeout tick,
+                # so without this the stray text just sits there forever
+                # under the idle screen with no self-healing redraw. Only
+                # while idle: an unmatched line during an active question
+                # screen shouldn't interrupt it.
+                draw(render_idle_screen(book_count(), width, height))
 
         if line is not None:
             isbn = parse_scanner_log_line(line)
