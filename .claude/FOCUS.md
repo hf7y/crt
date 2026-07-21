@@ -258,6 +258,22 @@ the computed row either way since the grade data itself is valid even
 if persisting it failed. **Verified live** with a real broken-path call.
 1 new test, full suite green.
 
+**Fifth bug, found via a focused sweep of every `bin/crt-book-*.py`
+file's remaining unguarded file I/O, 2026-07-21**:
+`crt-book-idle-bait.py`'s `main()` had the exact same missing-try/except
+shape as bug 4, but in its own steady-state `while True` loop rather
+than a called function — the `thoughts.log` append sat directly inline
+with no error handling, so a single write failure would silently kill
+the whole background idle-bait loop forever. (Swept the other
+`crt-book-*.py` files' remaining `open()`/`os.makedirs()`/
+`sqlite3.connect()` call sites too — `tail_new_lines()` in both
+`crt-book-console.py` and `crt-book-answer-listen.py` are unguarded at
+startup, but that's a fail-fast-and-visible crash on launch, not a
+silent steady-state death, so left as-is; nothing else unguarded found.)
+Fixed by extracting the write into a new `append_thought_line()`
+wrapped in `try/except OSError`, same convention as bug 4's fix. 2 new
+tests, full suite green.
+
 **Next offline-safe batch pickup (registered 2026-07-21, not yet
 built): real webscrape quotes + kawaii ASCII art.** Idle-bait quotes
 currently only use Open Library's `first_sentence` field (rarely

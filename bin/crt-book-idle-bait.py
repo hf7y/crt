@@ -66,6 +66,23 @@ def pick_and_format_line(conn, rng=None):
     return bg.wrap_color(line, bg.COLOR_QUOTE)
 
 
+def append_thought_line(line):
+    """Best-effort append to thoughts.log -- a broken write must never
+    crash this loop (same convention as crt-secretary.py's
+    log_fallthrough and crt-book-answer-listen.py's announce()).
+    Previously this write sat directly in main()'s while-True loop with
+    NO try/except at all -- a single failure (disk full, permission
+    hiccup) would have silently killed this whole background idle-bait
+    loop forever, the same invisible-failure shape as the stdin-reader
+    and log_training_row bugs found in prior passes over this funnel."""
+    try:
+        os.makedirs(os.path.dirname(THOUGHT_LOG), exist_ok=True)
+        with open(THOUGHT_LOG, "a") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass
+
+
 def main():
     conn = bg.get_db()
     while True:
@@ -74,9 +91,7 @@ def main():
         if time.time() - last < IDLE_SECS:
             continue
         line = pick_and_format_line(conn)
-        os.makedirs(os.path.dirname(THOUGHT_LOG), exist_ok=True)
-        with open(THOUGHT_LOG, "a") as f:
-            f.write(line + "\n")
+        append_thought_line(line)
         time.sleep(IDLE_SECS)
 
 

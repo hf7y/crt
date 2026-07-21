@@ -53,5 +53,24 @@ class TestIdleBaitFormatting(unittest.TestCase):
             self.assertTrue(line.startswith(bg.COLOR_QUESTION))
 
 
+class TestAppendThoughtLine(unittest.TestCase):
+    def test_writes_to_thought_log(self):
+        with tempfile.TemporaryDirectory() as d:
+            ib.THOUGHT_LOG = os.path.join(d, "thoughts.log")
+            ib.append_thought_line("a test line")
+            with open(ib.THOUGHT_LOG) as f:
+                content = f.read()
+            self.assertIn("a test line", content)
+
+    def test_broken_path_does_not_raise(self):
+        # Previously main()'s while-True loop wrote directly with no
+        # try/except -- a single failure would have silently killed the
+        # whole background idle-bait loop forever.
+        blocker = os.path.join(tempfile.mkdtemp(), "not_a_dir")
+        open(blocker, "w").close()
+        ib.THOUGHT_LOG = os.path.join(blocker, "thoughts.log")
+        ib.append_thought_line("should not crash")  # must not raise
+
+
 if __name__ == "__main__":
     unittest.main()
