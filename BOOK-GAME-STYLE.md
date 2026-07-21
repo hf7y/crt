@@ -134,8 +134,19 @@ Each entry is sized to fit inside the 40-wide fallback screen (asserted
 in `tests/test_book_game.py`). Suggested use, once wired into a live
 session: `book` on a fresh scan, `cat_reading` while waiting on an
 answer, `bookworm` on a correct answer, `shelf` as a periodic "N books
-registered so far" flourish — none of that wiring is built yet
-(`BOOK-GAME.md` roadmap step 3, needs the standalone CLI proven first).
+registered so far" flourish.
+
+**`bookworm` wired in, 2026-07-21**: `crt-book-answer-listen.py`'s
+`format_result_line()` now appends the `bookworm` art to a correct-
+answer announcement — this exact pairing was named here when the art
+library was built, but nothing ever actually used any art besides
+`shelf` (in the idle screen) until now. `book`/`cat_reading` remain
+unwired — both would need a scan-in-progress/waiting state the current
+single-screen-per-event render model (`crt-book-console.py`) doesn't
+have yet (it renders one full screen per event: idle, question, or
+error — no intermediate "scanning..." or "waiting for your answer..."
+state to attach transitional art to). Real follow-up if that render
+model ever grows a waiting state, not attempted this pass.
 
 ## Colors: register-matched, and NOT primary colors
 

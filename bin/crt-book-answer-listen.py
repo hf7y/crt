@@ -133,11 +133,25 @@ def format_result_line(grade):
     is a game, wrong answers are half the fun). `correct_content is None`
     (an ungradeable fallback question, e.g. 'have you read this before')
     gets a neutral acknowledgment instead of a right/wrong verdict --
-    there was nothing to grade."""
+    there was nothing to grade.
+
+    A correct answer also appends the `bookworm` ASCII art --
+    BOOK-GAME-STYLE.md named this exact pairing ("bookworm on a correct
+    answer") back when the art library was built, but it was never
+    actually wired in anywhere until now (only `shelf` was, in the idle
+    screen). Embedded as literal newlines in the returned string:
+    thoughts.log's own tail-by-line reader (crt-monologue.py) treats
+    each physical line as its own independently-faded entry regardless,
+    so a multi-line block here just becomes a few closely-timed lines in
+    the scrollback -- no special handling needed downstream."""
     if grade["correct_content"] is None:
         return bg.wrap_color(f"  logged your answer for {grade['title']}.", bg.COLOR_QUESTION)
     if grade["correct_content"]:
-        return bg.wrap_color(f"  got it! {grade['title']}: {grade['expected']}.", bg.COLOR_CORRECT)
+        text = f"  got it! {grade['title']}: {grade['expected']}."
+        art = bg.get_ascii_art("bookworm") or ""
+        if art:
+            text += "\n" + art
+        return bg.wrap_color(text, bg.COLOR_CORRECT)
     return bg.wrap_color(f"  nope, it was {grade['expected']} -- {grade['title']}.", bg.COLOR_WRONG)
 
 

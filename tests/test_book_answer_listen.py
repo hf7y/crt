@@ -137,6 +137,22 @@ class TestFormatResultLine(unittest.TestCase):
         self.assertIn("got it", line)
         self.assertIn("Dune", line)
 
+    def test_correct_answer_includes_bookworm_art(self):
+        # BOOK-GAME-STYLE.md named "bookworm on a correct answer" back
+        # when the ASCII art library was built, but it was never
+        # actually wired in anywhere -- confirmed by grep that only
+        # "shelf" was used anywhere before this fix.
+        grade = {"title": "Dune", "expected": "fiction", "heard": "fiction",
+                  "correct_content": True, "correct_stt": True}
+        line = al.format_result_line(grade)
+        self.assertIn("nom nom nom", line)  # bookworm art's distinctive text
+
+    def test_wrong_answer_has_no_art(self):
+        grade = {"title": "Dune", "expected": "fiction", "heard": "nonfiction",
+                  "correct_content": False, "correct_stt": True}
+        line = al.format_result_line(grade)
+        self.assertNotIn("nom nom nom", line)
+
     def test_wrong_answer_uses_wrong_register(self):
         grade = {"title": "Dune", "expected": "fiction", "heard": "nonfiction",
                   "correct_content": False, "correct_stt": True}
