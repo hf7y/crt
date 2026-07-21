@@ -1,0 +1,5 @@
+{
+  "_comment": "Learned mis-hear -> intended mappings for this room/mic. Keys are lowercased whisper output fragments, values are best-guess intent. Append as patterns are confirmed; see STT-MECHANISM.md for the (a)/(b)/(c)/(d) garble taxonomy.",
+  "slide": {"intent": "claude", "type": "a-substitution", "confidence": "confirmed", "note": "wake word 'Claude' misheard whole-word, calibration-confirmed 2026-07-19"},
+  "read about": {"intent": "ring the bell", "type": "a-substitution", "confidence": "confirmed", "note": "3-word phrase misheard end-to-end, calibration-confirmed 2026-07-19"}
+}
