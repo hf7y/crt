@@ -60,6 +60,37 @@ tests (`tests/test_book_console.py`), full suite green. Not yet wired
 into `crt-secretary.py`'s playbook dispatcher — that's still a separate,
 not-yet-built step.
 
+**Next offline-safe batch pickup (registered 2026-07-21, not yet
+built): real webscrape quotes + kawaii ASCII art.** Idle-bait quotes
+currently only use Open Library's `first_sentence` field (rarely
+populated) plus a 5-entry static fallback pool (`bin/crt-book-idle-bait.py`,
+`BOOK-GAME-STYLE.md`) — Zach wants an actual per-book quote pulled by
+webscrape (explicitly NOT an AI/Claude call, just literal scraped text).
+Confirmed live from this account's sandbox: Wikiquote's MediaWiki API
+(`https://en.wikiquote.org/w/api.php?action=query&list=search&srsearch=<title>`
+then `...&prop=revisions&rvprop=content&rvslots=main&titles=<page>`) is
+reachable and its wikitext is straightforwardly parseable — top-level
+`* text` lines are real quotes, `** text` lines are attributions/sources
+to skip, `[[link|display]]`/`'''bold'''`/`''italic''` markup needs
+stripping. Build a `scrape_quote(title, fetcher=None)` pure-ish function
+in `crt-book-game.py` (injectable fetcher for tests, same pattern as
+`fetch_book_metadata`), called once at fresh-registration time (not at
+idle-bait read time, so idle-bait itself stays a pure local read) and
+cached into a new `quote` column in `books.db` — never re-scraped on a
+re-scan, same cache-once philosophy as questions/LCC. Wire the fallback
+chain as: cached scraped quote → `extract_quote()`'s `first_sentence` →
+the static pool, in that priority order. Wrap the whole scrape in a
+broad try/except (network flake, no Wikiquote page, empty parse all
+possible) so a slow/unreachable Wikiquote can never block or crash a
+scan — falls through to the existing chain instead. Also add 2-3
+kawaii/kaomoji-style entries to `ASCII_ART` (in the same voice as
+`crt-idle-bait.sh`'s existing `(=^-^=)`-style faces, not the current
+plain line-art `book`/`cat_reading`/`bookworm`/`shelf` set) — hand-authored,
+not scraped, per the ASCII-art library's existing "not machine-fetched"
+convention. Full offline-buildable and testable (mock the Wikiquote
+fetcher in tests, same as Open Library's), no hands-on crt-vm session
+needed for this piece.
+
 **Scanner hardware bridge is no longer a blocker** — `SCANNER.md`
 (built by a separate hands-on crt-vm/dexter session, 2026-07-21) has the
 dexter→crt-vm scanner forward live and systemd-persistent, and the new
