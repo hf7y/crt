@@ -134,3 +134,10 @@ Windows-only that would need re-solving on the eventual Linux target.
 Deprioritized twice now (2026-07-19 "abandon midi, pick it up later"; parked
 again 2026-07-20 to keep this session's live-access time on blockers that
 actually cleared) — not on the critical path for the core voice console.
+
+## IR blaster mount (cad/CAD-BACKLOG.md)
+Parked 2026-07-21 — Chris flagged it may not be necessary. LED is sourced
+(https://www.amazon.com/dp/B099ZJ6555) but TV sensor position was never
+measured, so the mount geometry never advanced past placeholder anyway.
+Revisit only if the TV-power-on-via-IR idea (or the persona/channel IR
+reinforcement in this file's HDMI-to-RF section) gets confirmed as wanted.
