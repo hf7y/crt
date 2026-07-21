@@ -9,17 +9,61 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_USER="$(whoami)"
 
+### ------------------------------------------------------------------------
+### CONFIG -- two equally-valid ways to fill these in:
+###   1. Edit the values below directly (e.g. CRT_WIFI_SSID="MyNetwork"),
+###      then just run ./install.sh with no env vars.
+###   2. Leave a line as-is (its ${VAR:-} falls back to blank) and either
+###      pass the env var on the command line (CRT_WIFI_SSID=... ./install.sh)
+###      or answer the interactive prompt this script shows for it later --
+###      prompts only fire when the value is still blank AND stdin is a
+###      real terminal (`[ -t 0 ]`), so a non-interactive run (piped, cron,
+###      another script) never hangs waiting on input.
+### Secrets (WiFi password, Gemini key, Claude credentials) are never
+### echoed back and never committed -- hand-edit this file locally if you
+### use option 1 for those, don't check the edited copy into git.
+### ------------------------------------------------------------------------
+CRT_HOSTNAME="${CRT_HOSTNAME:-crt-console}"
+CRT_WIFI_SSID="${CRT_WIFI_SSID:-}"
+CRT_WIFI_PSK="${CRT_WIFI_PSK:-}"
+CRT_WIFI_IFACE="${CRT_WIFI_IFACE:-wlan0}"
+CRT_GEMINI_API_KEY="${CRT_GEMINI_API_KEY:-}"
+CRT_CLAUDE_CREDENTIALS_PATH="${CRT_CLAUDE_CREDENTIALS_PATH:-}"
+### --- end CONFIG ---
+
+echo "==> Hostname + mDNS (crt-stick reachable as \$CRT_HOSTNAME.local)"
+# avahi-daemon answers "who is $CRT_HOSTNAME.local?" over multicast DNS --
+# no router config, no static IP reservation, no central DNS server. Same
+# mechanism that already makes dexter.local reachable. Only works for
+# other devices on the SAME LAN segment (multicast doesn't cross routers/
+# VLANs) -- crt-console.sh's boot-time IP flash (see that file) is the
+# fallback when it doesn't apply.
+sudo apt-get install -y avahi-daemon
+CURRENT_HOSTNAME="$(hostname)"
+if [ "$CURRENT_HOSTNAME" != "$CRT_HOSTNAME" ]; then
+  sudo hostnamectl set-hostname "$CRT_HOSTNAME"
+  echo "    hostname set: $CURRENT_HOSTNAME -> $CRT_HOSTNAME (reachable as $CRT_HOSTNAME.local)"
+else
+  echo "    already $CRT_HOSTNAME, skipping"
+fi
+
 echo "==> WiFi (optional -- set CRT_WIFI_SSID/CRT_WIFI_PSK/CRT_WIFI_IFACE)"
-# Runs FIRST, before apt-get update: on a compute-stick deployment with no
+if [ -z "$CRT_WIFI_SSID" ] && [ -t 0 ]; then
+  read -r -p "    WiFi SSID (or Enter to skip WiFi setup, e.g. already on ethernet): " CRT_WIFI_SSID
+fi
+if [ -n "$CRT_WIFI_SSID" ] && [ -z "$CRT_WIFI_PSK" ] && [ -t 0 ]; then
+  read -r -s -p "    WiFi password for '$CRT_WIFI_SSID': " CRT_WIFI_PSK
+  echo ""
+fi
+# Runs early (before apt-get update): on a compute-stick deployment with no
 # ethernet, this may be the only path to network at all, including for the
 # rest of this script. Two backends, whichever is actually present --
 # NOT hardware-verified against a real stick's wifi adapter yet, same
 # acceptance bar as everything else in this repo (see this file's own
 # convention of flagging untested paths rather than claiming they work).
-CRT_WIFI_IFACE="${CRT_WIFI_IFACE:-wlan0}"
-if [ -n "${CRT_WIFI_SSID:-}" ]; then
+if [ -n "$CRT_WIFI_SSID" ]; then
   if command -v nmcli >/dev/null 2>&1; then
-    sudo nmcli device wifi connect "$CRT_WIFI_SSID" password "${CRT_WIFI_PSK:-}" ifname "$CRT_WIFI_IFACE" \
+    sudo nmcli device wifi connect "$CRT_WIFI_SSID" password "$CRT_WIFI_PSK" ifname "$CRT_WIFI_IFACE" \
       && echo "    connected via NetworkManager ($CRT_WIFI_IFACE)" \
       || echo "    nmcli connect failed -- check SSID/password and that $CRT_WIFI_IFACE exists"
   elif command -v wpa_passphrase >/dev/null 2>&1; then
@@ -32,7 +76,7 @@ if [ -n "${CRT_WIFI_SSID:-}" ]; then
     {
       echo "ctrl_interface=/run/wpa_supplicant"
       echo "update_config=1"
-      wpa_passphrase "$CRT_WIFI_SSID" "${CRT_WIFI_PSK:-}" | grep -v '^#psk='
+      wpa_passphrase "$CRT_WIFI_SSID" "$CRT_WIFI_PSK" | grep -v '^#psk='
     } | sudo tee "$WPA_CONF" >/dev/null
     sudo chmod 600 "$WPA_CONF"
     if ! grep -q "iface $CRT_WIFI_IFACE" /etc/network/interfaces 2>/dev/null; then
@@ -52,7 +96,7 @@ fi
 
 echo "==> Installing packages"
 sudo apt-get update
-sudo apt-get install -y build-essential cmake git tmux sox alsa-utils curl openscad evtest
+sudo apt-get install -y build-essential cmake git tmux sox alsa-utils curl openscad evtest jq
 
 echo "==> Installing Claude Code CLI"
 if ! command -v claude >/dev/null 2>&1; then
@@ -63,16 +107,45 @@ else
   echo "    claude already installed, skipping"
 fi
 
-echo "==> Claude Code credentials (optional -- set CRT_CLAUDE_CREDENTIALS_PATH)"
+echo "==> Claude Code credentials (optional -- set CRT_CLAUDE_CREDENTIALS_PATH, or paste)"
 # claude's own OAuth login is interactive by default (visit a URL, paste a
 # code back -- text-only, no browser needed on THIS machine, but still a
 # one-time human step). Pre-seeding ~/.claude/.credentials.json skips that
 # entirely on first boot -- the same mechanism svc-vaporwave's own
 # nightly-batch jobs already use for fully unattended `claude -p` runs.
-# Do the one-time login ONCE on any machine, then point this at that
-# machine's ~/.claude/.credentials.json -- never paste the credential
-# itself into a chat/prompt, same handling as the Gemini key above.
-if [ -n "${CRT_CLAUDE_CREDENTIALS_PATH:-}" ]; then
+# Do the one-time login ONCE on any machine that already has a real
+# ~/.claude/.credentials.json, then either point CRT_CLAUDE_CREDENTIALS_PATH
+# at that file directly (preferred -- the content never has to transit a
+# terminal at all), or paste its contents at the prompt below if copying
+# the file over isn't convenient. Never paste it into a chat/prompt with an
+# AI assistant, same handling as the Gemini key above -- this script's own
+# interactive prompt (a real local terminal) is a different, fine, channel.
+CRT_CLAUDE_CREDS_TMP=""
+if [ -z "$CRT_CLAUDE_CREDENTIALS_PATH" ] && [ -t 0 ] && [ ! -f "$HOME/.claude/.credentials.json" ]; then
+  echo "    Paste the full contents of .credentials.json below, then a line"
+  echo "    containing just EOF -- or press Enter on an empty first line to"
+  echo "    skip and log in interactively on first run instead."
+  first_line=""
+  IFS= read -r first_line || true
+  if [ -n "$first_line" ]; then
+    CRT_CLAUDE_CREDS_TMP="$(mktemp)"
+    {
+      printf '%s\n' "$first_line"
+      while IFS= read -r paste_line; do
+        [ "$paste_line" = "EOF" ] && break
+        printf '%s\n' "$paste_line"
+      done
+    } > "$CRT_CLAUDE_CREDS_TMP"
+    if jq empty "$CRT_CLAUDE_CREDS_TMP" 2>/dev/null; then
+      CRT_CLAUDE_CREDENTIALS_PATH="$CRT_CLAUDE_CREDS_TMP"
+    else
+      echo "    Pasted content isn't valid JSON -- skipping, discarding the paste."
+      rm -f "$CRT_CLAUDE_CREDS_TMP"
+      CRT_CLAUDE_CREDS_TMP=""
+    fi
+  fi
+fi
+if [ -n "$CRT_CLAUDE_CREDENTIALS_PATH" ]; then
   if [ -f "$CRT_CLAUDE_CREDENTIALS_PATH" ]; then
     mkdir -p "$HOME/.claude"
     umask 077
@@ -85,6 +158,11 @@ if [ -n "${CRT_CLAUDE_CREDENTIALS_PATH:-}" ]; then
   fi
 else
   echo "    Not set -- 'claude' will prompt for a one-time login on first run"
+fi
+# Shred the temp copy of a pasted credential either way (installed or not) --
+# it's the plaintext OAuth token, don't leave it sitting in a tempdir.
+if [ -n "$CRT_CLAUDE_CREDS_TMP" ] && [ -f "$CRT_CLAUDE_CREDS_TMP" ]; then
+  shred -u "$CRT_CLAUDE_CREDS_TMP" 2>/dev/null || rm -f "$CRT_CLAUDE_CREDS_TMP"
 fi
 
 echo "==> Building whisper.cpp"

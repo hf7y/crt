@@ -169,6 +169,21 @@ Differences from the VM path:
   HDMI→RCA path to the CRT applies unchanged.
 - **Everything else** (autologin, tmux wiring, hookswitch evdev listener,
   `crt-console.sh`) is identical — `install.sh` + reboot is the whole setup.
+- **Finding it on the network** (2026-07-21): `install.sh` installs
+  `avahi-daemon` and sets the hostname (`CRT_HOSTNAME`, default
+  `crt-console`), so it's reachable as `crt-console.local` from any
+  device on the same LAN segment — no static IP, no router config
+  (mDNS/multicast, same mechanism that makes `dexter.local` work).
+  Doesn't cross routers/VLANs, though — `crt-console.sh` also flashes
+  the box's actual IP on the physical screen for a few seconds at boot
+  (`CRT_IP_FLASH_SECS`, default 4, `0` to disable) as a fallback that
+  works regardless of network topology.
+- **First-boot setup, unattended**: `install.sh` now supports both
+  editing its own `CONFIG` block at the top (WiFi SSID/password,
+  hostname, Gemini key, Claude credentials path) and answering
+  interactive prompts for the same values — including pasting a
+  `.credentials.json` directly at the prompt to skip Claude Code's
+  one-time login entirely. See that file's own header.
 
 ## Porting to native Windows later
 

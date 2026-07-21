@@ -40,6 +40,26 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
   exec tmux attach -t "$SESSION"
 fi
 
+# Flash the current IP on the real tty (still plain tty1 here, tmux hasn't
+# started yet) for CRT_IP_FLASH_SECS before the console takes over --
+# mDNS (install.sh's avahi-daemon + CRT_HOSTNAME.local) is the normal way
+# to reach this box without knowing its IP, but that only works from the
+# SAME LAN segment (multicast doesn't cross routers/VLANs); this is the
+# fallback that works regardless, and the only option at all if avahi
+# isn't installed/running. Only on a genuine fresh boot (the has-session
+# check above already exited for a reattach), so this never interrupts an
+# already-running console.
+if [ "${CRT_IP_FLASH_SECS:-4}" != "0" ]; then
+  IP_ADDRS="$(hostname -I 2>/dev/null | xargs)"
+  clear
+  echo ""
+  echo "  crt console booting..."
+  echo "  IP: ${IP_ADDRS:-(none yet -- check network)}"
+  echo "  or: $(hostname).local (same network only)"
+  echo ""
+  sleep "${CRT_IP_FLASH_SECS:-4}"
+fi
+
 # Wrap each long-running command with `; exec bash` so that if it exits (claude
 # quits, stt-solo crashes), it drops to a shell instead of closing -- which would
 # otherwise collapse the session and break the attach/respawn loop.
