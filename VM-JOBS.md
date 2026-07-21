@@ -92,3 +92,32 @@ Job spec, service/timer units, and the sync script are written and
 syntax-checked, nothing installed or run (no VM access this session). The
 report-merging question above is the one real open design decision
 blocking this from being fully wired end-to-end.
+
+## Open item: svc-vaporwave's own credential to reach crt-vm (deferred, 2026-07-21)
+
+`bin/crt-sync-vm.sh` / `bin/crt-sync-vm-reports.sh` authenticate as
+**zach** (`zach@dexter.local`), matching this doc's documented access path.
+For either script to run on an unattended schedule rather than by hand,
+something needs to hold that credential persistently -- zach has agreed
+`svc-vaporwave` (the service account that already runs crt's nightly-batch
+Tier 2 job, see the "Autonomous overnight batch" section in `HANDOFF.md`)
+should get its own, so this doesn't depend on zach's personal key being
+available to a cron job.
+
+**Deliberately not done yet** -- zach said "let's set that up later." Not
+a design question like the report-merging one above; just needs someone to
+actually provision it. When picked up:
+- Generate a fresh, separate credential for `svc-vaporwave` specifically
+  (matching this account's existing pattern of one deploy key per job/repo
+  it touches -- see its own `~/CLAUDE.md` -- rather than reusing zach's key
+  or the reverted 2026-07-21 VM-push key, which was a different, wrong-
+  direction design, see that section's own note above this one if it's
+  still around, or svc-vaporwave's memory).
+- It needs read (and for `crt-sync-vm.sh push`, write) access to crt-vm's
+  `~/crt` over the documented `ssh -p 2222 zach@dexter.local`-equivalent
+  path -- ask whether that means a second OS user on crt-vm, or a
+  restricted key added to zach's own `authorized_keys` there, before
+  picking one unilaterally.
+- Once it exists, wire `crt-sync-vm-reports.sh` (at minimum) into a
+  schedule -- see this file's own "Wiring the pull into the scheduler"
+  section above for the leaning-toward option.
