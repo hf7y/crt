@@ -163,3 +163,16 @@ that instead of fighting it:
    with a real scan, update this doc's status once actually verified
    (not just "should work" -- this doc has already been burned once today
    by an unverified "confirmed working" claim, see above).
+
+## 2026-07-21, later: dead `deliver()` removed (input-routing cleanup)
+
+Point 3 above called the `tmux send-keys` delivery in `bin/crt-scanner-
+feed.py` "nice to have, not load-bearing" and left it in place. Revisited
+as part of a broader pass on how STT/scanner streams get routed: that
+send-keys call was a second, uncontrolled path for a scan to land as
+literal keystrokes in whatever window had focus -- including window 0's
+live Claude pane, exactly the kind of unrouted escalation the STT side
+already has a wake-word gate (`STT-GATE.md`) to prevent. Since nothing
+still depends on it (`crt-book-console.py` tails `scanner.log` directly,
+per the pivot above), removed outright rather than left dormant --
+`crt-scanner-feed.py` is now log-only. See `tests/test_scanner_feed.py`.

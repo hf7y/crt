@@ -115,6 +115,12 @@ if [ -f "$DIR/test_book_catalog.py" ]; then
 fi
 echo
 
+echo "== crt-scanner-feed.py log-only =="
+if [ -f "$DIR/test_scanner_feed.py" ]; then
+  python3 -m unittest discover -s "$DIR" -p "test_scanner_feed.py" -v 2>&1 | tail -5 || fail=1
+fi
+echo
+
 echo "== crt-window-switcher.py =="
 if [ -f "$DIR/test_window_switcher.py" ]; then
   python3 -m unittest discover -s "$DIR" -p "test_window_switcher.py" -v 2>&1 | tail -5 || fail=1

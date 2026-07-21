@@ -246,6 +246,23 @@ def load_fixups(path):
 FIXUPS = load_fixups(FIXUPS_PATH)
 
 
+def log_user_thought(text, log_path=None, timestamp=None):
+    """Writes a '[you] ...' line to the same log crt-monologue.py already
+    tails for Claude's own replies (crt-claude-bridge.py's thoughts.log) --
+    the window-1 gap flagged repeatedly ("no visual signal of the USER's
+    own speech"). Best-effort, same convention as every other logging
+    write in this project (a broken write here must never block the real
+    STT->secretary/claude routing that follows it)."""
+    log_path = log_path or GATE_LOG
+    ts = timestamp or time.strftime("%H:%M:%S")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a") as f:
+            f.write("%s  [you] %s\n" % (ts, text))
+    except OSError:
+        pass
+
+
 def _contains_phrase(words, phrase):
     """Whole-word containment check: `phrase` (space-separated) must appear
     as a contiguous run of whole words in `words`, not as a bare substring
@@ -430,6 +447,16 @@ def emit(text, peak=1.0):
         label = "(key %s)" % CONTROL[key] if is_control else "->"
         if STT_DEBUG_PERSIST:
             print("%s  %s %s" % (ts, label, text))
+        # Window 1 ("mono") previously only ever showed Claude's own
+        # replies (crt-claude-bridge.py tailing its transcript) -- flagged
+        # repeatedly in HANDOFF.md/crt-console.sh as the missing other half
+        # of the conversation. Free-text utterances that actually got past
+        # the gate (not bare control keystrokes -- those're just yes/no/up/
+        # down, not worth the clutter) get a tagged line into the same
+        # thoughts.log crt-monologue.py already renders, so the person's
+        # own speech and Claude's reply show up interleaved.
+        if not is_control:
+            log_user_thought(text)
         # Control keystrokes are meta-interactions with whatever's already
         # on screen (confirm a prompt, jog scroll position, etc) -- those
         # always go straight to tmux even in secretary mode, never through

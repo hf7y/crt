@@ -58,6 +58,35 @@ class TestSecretarySinkRouting(unittest.TestCase):
         self.assertEqual(self.claude_calls, [("what time is it", "whattimeisit")])
         self.assertEqual(self.secretary_calls, [])
 
+    def test_free_text_utterance_logs_to_thoughts_for_mono_window(self):
+        # window 1 ("mono") previously only showed Claude's own replies --
+        # a real free-text utterance that gets routed onward should also
+        # show up in thoughts.log so mono displays both sides.
+        self.stt.emit("what time is it")
+        with open(self.stt.GATE_LOG) as f:
+            contents = f.read()
+        self.assertIn("[you] what time is it", contents)
+
+    def test_control_keyword_does_not_clutter_thoughts_log(self):
+        self.stt.emit("yes")
+        # log_user_thought is never called for a control keystroke, so the
+        # file may not even exist yet -- that (no "[you]" line, period) is
+        # the actual thing under test, not any particular file state.
+        contents = ""
+        if os.path.exists(self.stt.GATE_LOG):
+            with open(self.stt.GATE_LOG) as f:
+                contents = f.read()
+        self.assertNotIn("[you]", contents)
+
+    def test_gated_utterance_is_not_logged_as_user_thought(self):
+        self.stt.GATE = True
+        self.stt.emit("just some ambient room chatter")
+        contents = ""
+        if os.path.exists(self.stt.GATE_LOG):
+            with open(self.stt.GATE_LOG) as f:
+                contents = f.read()
+        self.assertNotIn("[you]", contents)
+
 
 if __name__ == "__main__":
     unittest.main()

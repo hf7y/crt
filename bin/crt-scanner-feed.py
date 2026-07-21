@@ -1,29 +1,35 @@
 #!/usr/bin/env python3
 # Receives forwarded USB 1D-scanner reads from dexter (see
-# bin/dexter-scanner-forward.ps1) and delivers them the same way
-# stt-feed.sh delivers voice transcriptions: typed into the tmux Claude
-# Code pane + Enter. The scanner is physically plugged into dexter (a
-# Windows host), not this VM, so it can't be read directly here -- dexter
-# reads the raw HID device and POSTs each decoded line to this listener
-# over the NAT port-forward set up for it (host 8993 -> guest 8993, see
-# HANDOFF.md's dexter<->crt-vm access pathways section).
+# bin/dexter-scanner-forward.ps1). The scanner is physically plugged into
+# dexter (a Windows host), not this VM, so it can't be read directly here --
+# dexter reads the raw HID device and POSTs each decoded line to this
+# listener over the NAT port-forward set up for it (host 8993 -> guest
+# 8993, see HANDOFF.md's dexter<->crt-vm access pathways section).
 #
-# Every scan is logged unfiltered to ~/.crt/scanner.log first (same
-# spirit as ~/.crt/stt.log for voice) so a mis-scan or barcode-format
-# question can be diagnosed after the fact, before whatever filtering/
-# routing logic below decides what to do with it.
+# LOG-ONLY, deliberately (2026-07-21, input-routing cleanup): every scan is
+# logged unfiltered to ~/.crt/scanner.log (same spirit as ~/.crt/stt.log for
+# voice) -- that log is the single source of truth for this stream.
+# `bin/crt-book-console.py` tails it directly for the book-game display, and
+# `bin/crt-book-answer-listen.py` correlates it against stt.log for grading.
+# This used to ALSO `tmux send-keys` each scan into whatever window
+# currently had focus -- SCANNER.md's "2026-07-21 late session" already
+# found that path unreliable (raw scanner keystrokes land wherever tmux
+# focus happens to be, not necessarily somewhere a scan should be typed) and
+# pivoted book-game to read its own stdin/tail the log instead. That send-
+# keys call was left in as dead-ish code after the pivot -- it still meant
+# an unrelated scan could land as literal keystrokes in window 0's Claude
+# pane (or wherever else had focus), a second uncontrolled escalation path
+# alongside STT's already-gated one. Removed: this listener now only ever
+# writes the log; nothing here can put a barcode in front of Claude.
 #
 # Run on crt-vm:  python3 bin/crt-scanner-feed.py
 # From dexter:    POST http://<crt-vm>:8993/scan   body: {"text": "..."}
 import datetime
 import json
 import os
-import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = int(os.environ.get("CRT_SCANNER_PORT", "8993"))
-SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
-PANE = os.environ.get("CRT_TMUX_PANE", "0")
 LOG_PATH = os.path.expanduser("~/.crt/scanner.log")
 
 
@@ -31,14 +37,6 @@ def log_scan(text: str) -> None:
     os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
     with open(LOG_PATH, "a") as f:
         f.write("%s\t%s\n" % (datetime.datetime.now().isoformat(timespec="seconds"), text))
-
-
-def deliver(text: str) -> None:
-    target = "%s:%s" % (SESSION, PANE)
-    # Prefix so it reads distinctly from spoken/typed text in the pane --
-    # a barcode is a scan event, not a sentence someone said.
-    subprocess.run(["tmux", "send-keys", "-t", target, "-l", "[scan] " + text])
-    subprocess.run(["tmux", "send-keys", "-t", target, "Enter"])
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -65,7 +63,6 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         log_scan(text)
-        deliver(text)
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -83,5 +80,5 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    print("[crt-scanner-feed] listening on 0.0.0.0:%d, feeding tmux %s:%s" % (PORT, SESSION, PANE))
+    print("[crt-scanner-feed] listening on 0.0.0.0:%d, logging to %s" % (PORT, LOG_PATH))
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
