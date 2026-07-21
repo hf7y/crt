@@ -296,6 +296,9 @@ def get_db(db_path=None):
             first_scanned TEXT
         )
     """)
+    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(books)")}
+    if "quote" not in existing_cols:
+        conn.execute("ALTER TABLE books ADD COLUMN quote TEXT")
     conn.commit()
     return conn
 
