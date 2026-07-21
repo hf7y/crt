@@ -1,5 +1,19 @@
 # Persona-channel indicator: mechanism decision
 
+**SUPERSEDED 2026-07-21 (Chris)**: option C (physical rotary switch)
+below is abandoned. New direction: use the CRT's **actual TV channels**
+as the persona indicator, not a separate commodity switch. Mechanism:
+the IR blaster emits the channel code to *reinforce* which channel/
+persona should be active; the TV's own built-in speaker beeps back a
+confirmation tone, picked up by the handset mic, to confirm the channel
+actually matches. No rotary switch part, no faceplate/knob CAD. See
+`PARKING-LOT.md`'s "Channel-confirmation loop" section for the new idea
+in full, and `cad/CAD-BACKLOG.md` — the switch faceplate line item is
+removed. Rest of this file kept for history/rationale, not current
+direction.
+
+---
+
 `cad/CAD-BACKLOG.md` flagged this as needing a mechanism decided before
 any geometry gets written. Three options were on the table; this picks
 one and says why, so it isn't re-litigated from scratch later.
