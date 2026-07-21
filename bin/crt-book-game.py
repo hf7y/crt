@@ -21,11 +21,14 @@
 #   CRT_BOOK_GAME_CLAUDE_RATE (default 0.5) -- fraction of fresh scans that
 #     get a Claude-authored question instead of a template one
 import argparse
+import hashlib
 import json
 import os
 import random
 import re
+import shutil
 import sqlite3
+import textwrap
 import time
 import urllib.request
 
@@ -326,19 +329,258 @@ def get_book(conn, isbn):
 
 
 # ---------------------------------------------------------------------------
+# Screen real estate: width/height variables, centering
+# ---------------------------------------------------------------------------
+# Same env-override > real-terminal-size > CLAUDE.md-40x15-fallback pattern
+# as bin/crt-pager.py -- kept as a small local copy (not an import) because
+# bin/ scripts here aren't packaged as a shared library; see BOOK-GAME-
+# STYLE.md "Screen real estate" for the full rationale and the layout
+# rules built on top of these two numbers.
+FALLBACK_WIDTH = 40
+FALLBACK_HEIGHT = 15
+
+
+def detect_screen_size():
+    env_w = os.environ.get("CRT_BOOK_GAME_WIDTH")
+    env_h = os.environ.get("CRT_BOOK_GAME_HEIGHT")
+    if env_w and env_h:
+        return int(env_w), int(env_h)
+    try:
+        cols, lines = shutil.get_terminal_size(fallback=(FALLBACK_WIDTH, FALLBACK_HEIGHT))
+    except OSError:
+        cols, lines = FALLBACK_WIDTH, FALLBACK_HEIGHT
+    return int(env_w) if env_w else cols, int(env_h) if env_h else lines
+
+
+def center_text(text, width):
+    """Pure centering helper -- pads `text` with leading/trailing spaces
+    to `width`. Truncates (never wraps) text longer than width, since a
+    single over-length line is a caller bug, not something this helper
+    should silently multi-line."""
+    if len(text) >= width:
+        return text[:width]
+    pad = width - len(text)
+    left = pad // 2
+    right = pad - left
+    return (" " * left) + text + (" " * right)
+
+
+def render_question_screen(book_title, question, width=None, height=None):
+    """Full-screen layout for one question round, per BOOK-GAME-STYLE.md's
+    'questions centered' rule -- title top, question + options centered
+    in the vertical middle, everything else blank padding. Pure function:
+    returns a list of exactly `height` strings, each exactly `width`
+    chars, no ANSI codes (callers wrap in color separately, see
+    wrap_color) so this is trivially diffable in tests."""
+    width = width or FALLBACK_WIDTH
+    height = height or FALLBACK_HEIGHT
+    lines = [" " * width for _ in range(height)]
+
+    title_line = center_text(book_title[: width - 2], width)
+    q_lines = textwrap.wrap(question["text"], width - 2) or [""]
+    options_line = center_text(" / ".join(question["options"]), width)
+
+    block = [center_text(l, width) for l in q_lines] + [" " * width, options_line]
+    block_start = max(0, (height - len(block)) // 2)
+
+    lines[0] = title_line
+    for i, l in enumerate(block):
+        row = block_start + i
+        if 0 <= row < height:
+            lines[row] = l
+    return lines
+
+
+# ---------------------------------------------------------------------------
+# Color palette: register-matched, CRT-safe (see BOOK-GAME-STYLE.md)
+# ---------------------------------------------------------------------------
+# CRT PERSISTENT LIMITATION, flag every time this file is touched: this is
+# an analog composite/RF display, not a digital one. Fully-saturated
+# primaries -- pure ANSI-bright red (91), green (92), blue (94/34), and
+# any hard edge between complementary hues (red<->cyan especially) --
+# are exactly the colors that bleed/smear/ring on a real CRT tube fed a
+# composite or RF signal (limited chroma bandwidth vs. luma, the same
+# reason old broadcast graphics avoided saturated red text). This is a
+# hardware constraint of the device this project targets, not a taste
+# preference -- don't "fix" it by reaching for brighter/bolder colors
+# later without rereading this note. Same flag lives in CLAUDE.md so it
+# survives outside this one file.
+#
+# Palette below reuses crt-idle-teaser.sh's existing register colors
+# (COLOR_URGENT=31, COLOR_QUESTION=33, COLOR_CURIOUS=36 -- EXPRESSIVE-
+# TONE.md's table) rather than inventing a parallel scheme, and adds two
+# more from the same safe family (dim magenta, dim white) for the book
+# game's own registers (correct-answer "content/settled", idle-quote
+# "wistful/quiet").
+COLOR_QUESTION = "\033[33m"    # warm/curious register -- a question posed
+COLOR_CORRECT = "\033[32m"     # content/settled -- got it right (dim/std green, not bright 92)
+COLOR_WRONG = "\033[31m"       # clipped -- got it wrong (std red 31, not bright 91)
+COLOR_QUOTE = "\033[2;35m"     # wistful/quiet -- idle-bait quote (dim magenta)
+COLOR_TITLE = "\033[36m"       # ordinary/curious -- book title, same cyan as idle-teaser
+COLOR_RESET = "\033[0m"
+
+
+def wrap_color(text, color_code):
+    return color_code + text + COLOR_RESET
+
+
+# ---------------------------------------------------------------------------
+# ASCII art library: small curated set, book-themed
+# ---------------------------------------------------------------------------
+# Hand-curated, in the well-known public style of ASCII-art collections
+# shared across BBSes/forums/asciiart.eu for decades (bare line-art, no
+# single canonical author, the same category crt-screensaver.py's FRAMES
+# already draws from) -- NOT machine-scraped from a live URL at build or
+# run time, since this project's offline-safe acceptance bar (see
+# BOOK-GAME.md/FOCUS.md) means nothing here can depend on a fetch
+# succeeding at the moment it's shown. Each entry is sized to fit inside
+# the fallback 40x15 screen with room for a caption line below it.
+ASCII_ART = {
+    "book": r"""
+     .-------.
+    /  ___  / |
+   /  /  / /  |
+  /  /__/ /   |
+ /_______/    |
+ |       |    |
+ |_______|___/
+""",
+    "cat_reading": r"""
+   /\_/\
+  ( o.o )   [BOOK]
+   > ^ <   still reading...
+""",
+    "bookworm": r"""
+   ____
+  (o  o)~~ nom nom nom
+   \  /
+   /  \___
+  (________)
+""",
+    "shelf": r"""
+ |||  ||  ||||  |  ||||
+ |||  ||  ||||  |  ||||
+ =====================
+""",
+}
+
+
+def get_ascii_art(name):
+    """Returns the named art, stripped of the leading/trailing blank line
+    the triple-quoted literals above carry, or None for an unknown name --
+    callers should treat a missing name as 'skip the art, not a hard
+    failure' (the game round works fine without it)."""
+    art = ASCII_ART.get(name)
+    if art is None:
+        return None
+    return art.strip("\n")
+
+
+# ---------------------------------------------------------------------------
+# Idle-bait quotes: non-API, sourced from already-cached local data
+# ---------------------------------------------------------------------------
+# Deliberately NOT a Claude/API call -- per direction, this feature only
+# ever reads what's already sitting in books.db (the raw Open Library
+# response cached at scan time) or, failing that, a small static local
+# fallback pool. No network, no live inference, at idle-bait time.
+FALLBACK_QUOTES = [
+    "a room without books is like a body without a soul.",
+    "the person who deserves most pity is a lonesome one on a rainy day who doesn't know how to read.",
+    "there is no friend as loyal as a book.",
+    "once you learn to read, you will be forever free.",
+    "books are a uniquely portable magic.",
+]
+
+
+def extract_quote(raw_book_data):
+    """Pure function: pull a first-sentence-shaped quote out of an Open
+    Library raw response if one exists (the ISBN endpoint doesn't always
+    have it), else None -- callers fall back to FALLBACK_QUOTES rather
+    than treating a missing quote as an error, since most scans won't
+    have one."""
+    fs = raw_book_data.get("first_sentence") if raw_book_data else None
+    if isinstance(fs, dict):
+        return fs.get("value")
+    if isinstance(fs, str) and fs:
+        return fs
+    return None
+
+
+def pick_idle_quote(conn, rng=None):
+    """Picks one registered book at random and returns (title, quote) for
+    an idle-bait line -- quote is either that book's own cached
+    first_sentence or a deterministic (isbn-seeded, so it's stable across
+    calls for the same book) pick from FALLBACK_QUOTES. Returns None if
+    the registry is empty (nothing to bait with yet)."""
+    rng = rng or random
+    rows = conn.execute("SELECT isbn, title, raw_json FROM books").fetchall()
+    if not rows:
+        return None
+    isbn, title, raw_json = rng.choice(rows)
+    raw = json.loads(raw_json or "{}")
+    quote = extract_quote(raw)
+    if not quote:
+        idx = int(hashlib.sha256(isbn.encode()).hexdigest(), 16) % len(FALLBACK_QUOTES)
+        quote = FALLBACK_QUOTES[idx]
+    return title, quote
+
+
+# ---------------------------------------------------------------------------
+# Scanner-feed integration: bridges bin/crt-scanner-feed.py's delivery
+# convention (SCANNER.md) with this CLI's plain --isbn argument
+# ---------------------------------------------------------------------------
+
+SCAN_PREFIX = "[scan] "
+ISBN_RE = re.compile(r"\d{9}[\dXx]|\d{13}")
+
+
+def is_isbn_like(text):
+    """Pure function: does `text` look like a bare ISBN-10/13 (optional
+    trailing check-digit 'X')? Shared by parse_scan_line (tmux-delivered,
+    prefixed) and crt-book-console.py (tails ~/.crt/scanner.log directly,
+    unprefixed) so the two entry points can't drift on what counts as a
+    valid scan."""
+    return bool(re.fullmatch(ISBN_RE, text.strip()))
+
+
+def parse_scan_line(line):
+    """Pure function: strips crt-scanner-feed.py's '[scan] ' delivery
+    prefix (SCANNER.md) and returns the bare ISBN, or None if the line
+    isn't a scan line or doesn't look like an ISBN. Kept here rather than
+    in crt-scanner-feed.py itself since that script is a generic deliver-
+    anything-into-tmux listener and shouldn't need to know book-game
+    specifics -- the hands-on wiring step (BOOK-GAME.md roadmap step 3)
+    is expected to call this before shelling out to --isbn."""
+    line = line.strip()
+    if not line.startswith(SCAN_PREFIX):
+        return None
+    candidate = line[len(SCAN_PREFIX):].strip()
+    return candidate.upper() if is_isbn_like(candidate) else None
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="Book Game (offline-safe slice)")
-    parser.add_argument("--isbn", required=True)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--isbn", help="bare ISBN")
+    group.add_argument("--scan-line", help="a raw line as delivered by crt-scanner-feed.py, e.g. '[scan] 9780141439518'")
     parser.add_argument("--answer", help="spoken/typed answer to grade against a pending question")
     args = parser.parse_args()
 
+    isbn = args.isbn
+    if args.scan_line:
+        isbn = parse_scan_line(args.scan_line)
+        if isbn is None:
+            print(f"Not a recognizable scan line/ISBN: {args.scan_line!r}")
+            return
+
     conn = get_db()
-    existing = get_book(conn, args.isbn)
+    existing = get_book(conn, isbn)
     if existing is None:
-        book = fetch_book_metadata(args.isbn)
+        book = fetch_book_metadata(isbn)
         source = pick_question_source()
         # Live Claude-batch calls need a real crt-vm session (see
         # BOOK-GAME.md); this standalone CLI always uses the template
@@ -360,7 +602,7 @@ def main():
             return
         q = questions[0]
         grade = grade_answer(expected=q.get("correct"), heard=args.answer, correct_option=q.get("correct"))
-        log_training_row(args.isbn, grade)
+        log_training_row(isbn, grade)
         print(f"correct_content={grade['correct_content']} correct_stt={grade['correct_stt']}")
 
 

@@ -81,3 +81,11 @@ first**, before STT-MECHANISM.md, if it exists.
   emphasis, or simple layout changes to make responses clearer or more fun,
   especially for casual/playful requests. Keep it readable at this size and
   don't overdo it for ordinary status replies.
+- **Persistent color limitation, don't relitigate this:** this is a real
+  analog CRT tube over composite/RF, not a digital panel — chroma
+  bandwidth is far lower than luma, so fully-saturated primaries (bright
+  ANSI 90-97, especially bright red, and hard edges between complementary
+  hues like red/cyan) bleed, smear, or ring on the actual tube. Prefer
+  standard-intensity ANSI (30-37), never the bright/bold family, for
+  anything meant to read cleanly. See `BOOK-GAME-STYLE.md`'s color
+  section for the register-matched palette this is already applied to.

@@ -1,5 +1,9 @@
 # Book Game: a training-data game for crt-vm (2026-07-21, vision)
 
+See `BOOK-GAME-STYLE.md` for personality/animation/screen-layout/color
+style guide (built 2026-07-21) and `SCANNER.md` for how a scan physically
+reaches this game.
+
 ## Why this exists
 
 Every other crt document (`FOCUS.md`'s top vision entry, `PARKING-LOT.md`)
@@ -201,18 +205,34 @@ then-print pattern `crt-print.sh` already uses for reports.
    question path (needs the same `claude -p` wiring pattern as
    `crt-secretary.py`, and per "standalone first, merge later" below,
    shouldn't be built at the same time as hardware integration).
-2. **Next (needs a live crt-vm session, hands-on):** wire the real
-   scanner (plug in, confirm HID passthrough works exactly like a
-   keyboard — should need zero new driver work per how these scanners
-   work, but unverified on this specific VM/USB-passthrough setup given
-   the MIDI controller's `VBoxManage usbattach` troubles, see Blockers),
-   run the loop against the real mic pipeline, human-verify the
-   grading feels fair (this is a game — false "you got it wrong" from
-   bad STT is the failure mode to watch for specifically, hence the
-   exact-ish-not-fuzzy grading choice needing a real ear on it early).
-3. **Then:** decide standalone-vs-integrated placement in the console
-   (new tmux window? a secretary playbook? both?) once the standalone
-   version is proven fun and correct.
+2. **Next (needs a live crt-vm session, hands-on):** scanner delivery
+   itself is DONE (see Blockers — `SCANNER.md`'s dexter-bridge, live and
+   systemd-persistent as of 2026-07-21). What's left here: have the live
+   crt-vm session call `parse_scan_line()` on each `[scan] <isbn>` line
+   and shell out to `crt-book-game.py --isbn`, run the loop against the
+   real mic pipeline, human-verify the grading feels fair (this is a
+   game — false "you got it wrong" from bad STT is the failure mode to
+   watch for specifically, hence the exact-ish-not-fuzzy grading choice
+   needing a real ear on it early), and put a human eye on
+   `BOOK-GAME-STYLE.md`'s screen/color/art choices against the actual
+   tube.
+3. **Console placement: a new tmux window, DONE 2026-07-21.**
+   `bin/crt-book-console.py` is wired into `crt-console.sh` as window
+   `book` — tails `~/.crt/scanner.log` (already written unfiltered by
+   `crt-scanner-feed.py`), looks up/registers each new ISBN-shaped line,
+   and renders the centered question screen. **Deliberately
+   display-only**: it shows the question, it does NOT grade a spoken
+   answer yet — that's still `crt-book-game.py --answer` run by hand, or
+   a future secretary-playbook wiring (a real "both" answer to this
+   step's original either/or, picked because display-first is the safer
+   half to ship before wiring live grading into window 0's Claude Code
+   pane). Unconditional in `crt-console.sh` (not gated behind an env var
+   like the `hook` window), since the scanner bridge itself is a
+   standing systemd service now, not optional hardware. 10 new tests
+   (`tests/test_book_console.py`), one real live-fetch smoke test against
+   a fixture `scanner.log` (confirmed the whole idle→scan→question→
+   idle-again cycle end to end). **Not yet eye-verified on the real
+   tube** — same caveat as `BOOK-GAME-STYLE.md`'s own Status section.
 4. **Stretch, now demoted:** label printer integration. **Resolved
    2026-07-21, Zach: skip it for v1.** The Phomemo M02 itself is known
    to work (already the report-printing channel, `bin/catprint`), but
@@ -228,25 +248,34 @@ then-print pattern `crt-print.sh` already uses for reports.
 
 ## Blockers / open questions for a human
 
-- **Barcode scanner confirmed NOT reaching the VM via direct USB
-  passthrough — checked live 2026-07-21, reproduced.** Identified the
-  scanner on dexter's host USB list (`0145:0012`, "Unknown" manufacturer,
-  confirmed by unplug/replug diff) and ran
+- **Barcode scanner bridge: RESOLVED and confirmed LIVE, 2026-07-21 —
+  see `SCANNER.md` for the full build.** The dexter-side network-bridge
+  path predicted below was exactly right: `bin/dexter-scanner-forward.ps1`
+  (runs on dexter, Win32 RawInput API, filtered to this scanner's
+  `HID\VID_0145&PID_0012`) POSTs each decoded barcode to
+  `bin/crt-scanner-feed.py` (runs on crt-vm, systemd-managed, survives
+  reboot) over a new NAT port-forward (host 8993 → guest 8993).
+  `crt-scanner-feed.py` delivers into the tmux Claude Code pane prefixed
+  `[scan] <isbn>` — same channel STT transcriptions already use, just
+  visibly tagged as a scan event, not a spoken sentence. **Confirmed
+  working end-to-end with a real physical scan**, not just a synthetic
+  POST. `crt-book-game.py`'s `parse_scan_line()` (added this pass)
+  strips that `[scan] ` prefix and validates the ISBN shape, so the
+  hands-on wiring step below is now "call `parse_scan_line()` then
+  `crt-book-game.py --isbn <n>`," not a new integration to design.
+  Superseded finding, kept below for history:
+  <details><summary>original NOT-reaching-the-VM finding (2026-07-21, superseded)</summary>
+
+  Identified the scanner on dexter's host USB list (`0145:0012`,
+  "Unknown" manufacturer, confirmed by unplug/replug diff) and ran
   `VBoxManage controlvm crt-vm usbattach <uuid>` directly. The command
   returned **no error** (unlike the MIDI controller's explicit "busy
   with a previous request"), but: `VBoxManage list usbhost` afterward
   still showed the device `Current State: Busy`, never `Captured`: and
   `ls /dev/bus/usb/*/*` on the guest showed only the two root hubs, no
   new device. So the attach silently no-ops — same underlying failure
-  class as the MIDI controller, just a quieter symptom. This is now a
-  verified finding, not an assumption: **the scanner needs to go over
-  the same path STT audio already uses** (dexter-side capture →
-  network/HTTP bridge into the guest, like `dexter-whisper-server.py`
-  for audio) rather than raw USB passthrough. Concretely: a small
-  listener on dexter reads the scanner's HID output natively and posts
-  scanned ISBNs to `crt-book-game.py` on the VM over the network,
-  mirroring `CRT_WHISPER_SERVER`'s shape. This is now the assumed
-  integration path for the hands-on phase.
+  class as the MIDI controller, just a quieter symptom.
+  </details>
 - **USB passthrough risk (MIDI controller, unconfirmed for anything
   else):** `HANDOFF.md`'s MIDI section documents `VBoxManage usbattach`
   failing ("busy with a previous request") for the Arturia MiniLab,

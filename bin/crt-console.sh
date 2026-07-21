@@ -87,6 +87,18 @@ if [ -n "${CRT_HOOK_DEVICE:-}" ]; then
   tmux new-window -d -t "$SESSION" -n hook -c "$BIN_DIR" "./hookswitch-listen.sh; exec bash"
 fi
 
+# Window: Book Game display (BOOK-GAME.md/BOOK-GAME-STYLE.md). Tails
+# ~/.crt/scanner.log -- already written unfiltered by crt-scanner-feed.py
+# (SCANNER.md's dexter->crt-vm bridge, live/systemd-persistent as of
+# 2026-07-21) -- and renders the centered question screen for each new
+# scan. Display-only for this pass: it shows the question, it does not
+# grade a spoken answer (still `crt-book-game.py --answer`, run by hand,
+# or window 0/secretary wiring later -- BOOK-GAME.md roadmap step 3).
+# Unconditional (not gated behind an env var like `hook` above) since the
+# scanner bridge itself is a standing systemd service now, not optional
+# hardware.
+tmux new-window -d -t "$SESSION" -n book -c "$BIN_DIR" "python3 ./crt-book-console.py; exec bash"
+
 # NOT YET BUILT (flagged explicitly so it doesn't get assumed-done next time):
 # a visual signal of the USER's speech (not claude's replies) in the monologue
 # window -- e.g. the raw/interim STT text, or just a level indicator. Right now

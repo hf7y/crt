@@ -151,5 +151,116 @@ class TestRegistry(unittest.TestCase):
         self.assertIsNone(bg.get_book(conn, "nope"))
 
 
+class TestScreenLayout(unittest.TestCase):
+    def test_center_text_pads_both_sides(self):
+        self.assertEqual(bg.center_text("hi", 6), "  hi  ")
+
+    def test_center_text_truncates_overlength(self):
+        self.assertEqual(bg.center_text("this is way too long", 5), "this ")
+
+    def test_render_question_screen_dimensions(self):
+        q = {"text": "Fiction or nonfiction?", "options": ["fiction", "nonfiction"]}
+        lines = bg.render_question_screen("Dune", q, width=40, height=15)
+        self.assertEqual(len(lines), 15)
+        self.assertTrue(all(len(l) == 40 for l in lines))
+
+    def test_render_question_screen_title_on_top(self):
+        q = {"text": "Fiction or nonfiction?", "options": ["fiction", "nonfiction"]}
+        lines = bg.render_question_screen("Dune", q, width=40, height=15)
+        self.assertIn("Dune", lines[0])
+
+    def test_render_question_screen_options_centered_somewhere(self):
+        q = {"text": "Q?", "options": ["yes", "no"]}
+        lines = bg.render_question_screen("T", q, width=20, height=10)
+        self.assertTrue(any("yes / no" in l for l in lines))
+
+
+class TestColorAndArt(unittest.TestCase):
+    def test_wrap_color_adds_reset(self):
+        wrapped = bg.wrap_color("hi", bg.COLOR_QUESTION)
+        self.assertTrue(wrapped.startswith(bg.COLOR_QUESTION))
+        self.assertTrue(wrapped.endswith(bg.COLOR_RESET))
+
+    def test_no_bright_ansi_codes_in_palette(self):
+        # 91/92/93/94 etc (bright primaries) are exactly the CRT-bleed
+        # colors this palette is designed to avoid -- see the flag
+        # comment above the palette in crt-book-game.py and in CLAUDE.md.
+        palette = [bg.COLOR_QUESTION, bg.COLOR_CORRECT, bg.COLOR_WRONG, bg.COLOR_QUOTE, bg.COLOR_TITLE]
+        for code in palette:
+            self.assertNotRegex(code, r"\033\[9\d")
+
+    def test_get_ascii_art_known_name(self):
+        art = bg.get_ascii_art("book")
+        self.assertIsNotNone(art)
+        self.assertLessEqual(max(len(l) for l in art.splitlines()), 40)
+
+    def test_get_ascii_art_unknown_name(self):
+        self.assertIsNone(bg.get_ascii_art("nonexistent"))
+
+
+class TestIdleQuotes(unittest.TestCase):
+    def test_extract_quote_from_dict_form(self):
+        self.assertEqual(bg.extract_quote({"first_sentence": {"value": "It was a dark night."}}),
+                          "It was a dark night.")
+
+    def test_extract_quote_from_string_form(self):
+        self.assertEqual(bg.extract_quote({"first_sentence": "Call me Ishmael."}), "Call me Ishmael.")
+
+    def test_extract_quote_missing(self):
+        self.assertIsNone(bg.extract_quote({}))
+        self.assertIsNone(bg.extract_quote(None))
+
+    def test_pick_idle_quote_empty_registry(self):
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+            self.assertIsNone(bg.pick_idle_quote(conn))
+
+    def test_pick_idle_quote_uses_cached_first_sentence(self):
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+            book = {"isbn": "1", "title": "Moby Dick", "authors": ["H"], "year": 1851,
+                    "subjects": [], "raw": {"first_sentence": "Call me Ishmael."}}
+            bg.register_book(conn, book, questions=[], question_source="template")
+            title, quote = bg.pick_idle_quote(conn)
+            self.assertEqual(title, "Moby Dick")
+            self.assertEqual(quote, "Call me Ishmael.")
+
+    def test_pick_idle_quote_falls_back_deterministically(self):
+        with tempfile.TemporaryDirectory() as d:
+            conn = bg.get_db(os.path.join(d, "books.db"))
+            book = {"isbn": "2", "title": "No Quote Book", "authors": ["H"], "year": 2000,
+                    "subjects": [], "raw": {}}
+            bg.register_book(conn, book, questions=[], question_source="template")
+            title1, quote1 = bg.pick_idle_quote(conn)
+            title2, quote2 = bg.pick_idle_quote(conn)
+            self.assertIn(quote1, bg.FALLBACK_QUOTES)
+            self.assertEqual(quote1, quote2)  # deterministic per-isbn, not re-randomized
+
+
+class TestScanLineParsing(unittest.TestCase):
+    def test_parses_valid_scan_line(self):
+        self.assertEqual(bg.parse_scan_line("[scan] 9780141439518"), "9780141439518")
+
+    def test_parses_10_digit_isbn_with_check_x(self):
+        self.assertEqual(bg.parse_scan_line("[scan] 123456789X"), "123456789X")
+
+    def test_rejects_non_scan_line(self):
+        self.assertIsNone(bg.parse_scan_line("hello there"))
+
+    def test_rejects_scan_line_with_non_isbn_text(self):
+        self.assertIsNone(bg.parse_scan_line("[scan] not an isbn"))
+
+    def test_strips_whitespace(self):
+        self.assertEqual(bg.parse_scan_line("  [scan] 9780141439518  \n"), "9780141439518")
+
+    def test_is_isbn_like_accepts_bare_isbn(self):
+        self.assertTrue(bg.is_isbn_like("9780141439518"))
+        self.assertTrue(bg.is_isbn_like("123456789X"))
+
+    def test_is_isbn_like_rejects_garbage(self):
+        self.assertFalse(bg.is_isbn_like("not an isbn"))
+        self.assertFalse(bg.is_isbn_like(""))
+
+
 if __name__ == "__main__":
     unittest.main()
