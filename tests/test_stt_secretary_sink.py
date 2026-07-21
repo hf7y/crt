@@ -23,6 +23,7 @@ class TestSecretarySinkRouting(unittest.TestCase):
         self.stt = load_stt_solo()
         self.tmpdir = tempfile.mkdtemp()
         self.stt.STT_LOG = os.path.join(self.tmpdir, "stt.log")
+        self.stt.GATE_LOG = os.path.join(self.tmpdir, "thoughts.log")
         self.stt.SINK = "secretary"
         self.stt.GATE = False
         self.claude_calls = []
