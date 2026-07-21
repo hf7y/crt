@@ -24,7 +24,10 @@ heard) pair.
    endpoints, no key needed for Open Library). Cache the raw response.
 3. **Ask.** Generate a 2-option multiple-choice question from the book's
    facts ("Published before or after 2000?", "Is the author's first name
-   Ray or Roy?", "Fiction or nonfiction?"). One option is correct.
+   Ray or Roy?", "Fiction or nonfiction?"). One option is correct. See
+   "Question generation: salted, cached, batched Claude calls" below for
+   how deterministic templates and occasional Claude-authored questions
+   mix.
 4. **Listen.** User speaks their answer into the existing mic pipeline.
    STT transcribes it.
 5. **Grade.** Compare the transcription against the two known option
@@ -65,6 +68,53 @@ the mic hear them right) are tracked as two separate axes — a wrong
 content-answer with correct STT is a fine game round and useless
 training noise; a right content-answer with wrong STT is the valuable
 case (proves the mismatch is transcription, not the user being unsure).
+
+## Question generation: salted, cached, batched Claude calls (2026-07-21, Zach)
+
+Not a pure-template system. Direction: **deterministic templates are the
+reliable base; Claude-authored questions are a token-aware flavor
+layer**, mixed in roughly half the time, never issued as one solo call
+per book if a cheaper batched option exists.
+
+- **Per-book source decision**: when a book is freshly scanned (cache
+  miss), flip a weighted coin (~50/50, tunable) — deterministic template
+  or Claude-authored.
+- **Claude calls are per-batch, not per-book, and produce 3 questions at
+  once.** A single call's prompt carries metadata for *every* book
+  currently pending a question (every book that rolled "Claude" this
+  session, plus optionally some that rolled "template" — bundling a
+  template-slated book into an in-flight batch is fine and encouraged
+  when it doesn't cost extra, since the marginal token cost of one more
+  book's metadata in an already-open prompt is far below a solo call)
+  and asks for 3 two-option questions per book, correct answer marked,
+  returned as one JSON blob keyed by ISBN. Exactly how "pending" batches
+  get flushed (a short debounce window per game session? end of a scan
+  burst? a size cap?) is an implementation-time policy call, not
+  something that needs to be nailed down in this vision doc — the
+  offline-buildable unit is "given N books' metadata, return questions
+  for all of them," independent of when the batch gets assembled.
+- **Cache everything.** Once a book has generated questions (either
+  source), store them in the registry keyed by ISBN — a re-scan of the
+  same book never re-queries Claude or re-computes templates. This is
+  the same "cache the raw lookup response" principle already applied to
+  the ISBN metadata call, just extended to the questions themselves.
+- **Why this shape**: matches the project's own stated direction of
+  minimizing/tuning live API usage by default (`CLAUDE.md`'s "token
+  usage of claude calls should be minimized by default and tunable,"
+  `FOCUS.md`'s STT-gate long-term item about reducing live calls) while
+  still getting real API-generated variety ("flavor") rather than the
+  game feeling like a fixed quiz bank forever. The batching-across-books
+  behavior is the same instinct as the STT gate's own escalate-only-
+  when-unsure design, just applied to a different call site.
+- **Offline-buildable now**: the source-decision coin flip, the cache
+  read/write, and the batch-prompt-construction/response-parsing logic
+  are all pure functions/mockable-HTTP, same as the rest of this list.
+  Only the actual live Claude Code invocation (however it's shelled out
+  — likely `claude -p` the same way `crt-secretary.py` already routes
+  Claude-bound requests) needs real wiring during the hands-on phase;
+  build it behind a pluggable question-source interface so the offline
+  pass can fully exercise the decision/cache/batch logic against a
+  stubbed Claude response.
 
 ## Registry: local file, not a new project
 
@@ -129,10 +179,12 @@ then-print pattern `crt-print.sh` already uses for reports.
 ## Roadmap
 
 1. **Now (offline-safe, nightly-batch can start immediately):** ISBN
-   lookup client, question generator, grading/logging, SQLite registry,
-   LCC call-number computation — each with `tests/` coverage, each
-   wired behind a CLI (`crt-book-game.py --isbn <n>` for manual testing
-   without hardware) before any hardware integration.
+   lookup client, deterministic question templates, the Claude-batch
+   question-source path (decision/cache/batch-prompt logic behind a
+   pluggable interface, stubbed Claude response in tests), grading/
+   logging, SQLite registry, naive LCC heuristic — each with `tests/`
+   coverage, each wired behind a CLI (`crt-book-game.py --isbn <n>` for
+   manual testing without hardware) before any hardware integration.
 2. **Next (needs a live crt-vm session, hands-on):** wire the real
    scanner (plug in, confirm HID passthrough works exactly like a
    keyboard — should need zero new driver work per how these scanners
@@ -212,10 +264,18 @@ then-print pattern `crt-print.sh` already uses for reports.
   falling back to Google Books later if fact quality/coverage is
   insufficient for generating good multiple-choice questions — this is a
   build-time choice, not one that needs a human decision now.
-- **LCC computation accuracy:** the Library of Congress Classification
-  outline is public, but assigning a *real* correct LCC number from raw
-  ISBN-lookup metadata (subject headings, not a pre-assigned LCC field)
-  is a genuinely fuzzy classification problem, not a lookup — early
-  versions should treat the computed LCC as a best-effort label, not an
-  authoritative library-science claim, and this should be stated
-  wherever the label is shown or printed.
+- **LCC computation accuracy — resolved 2026-07-21, Zach: build a naive
+  heuristic now, not a stub.** A small subject-keyword → LCC-range table
+  (e.g. subject contains "fiction" → PS/PR, "history" → D, "science" →
+  Q) computed from the Open Library lookup's subject headings, clearly
+  labeled "best effort, not authoritative" wherever shown/printed — real
+  subject→LCC assignment is a genuinely fuzzy library-science problem,
+  this is explicitly not trying to solve that, just get the
+  registry/label-printing pipeline wired end to end now.
+- **Network egress — checked live 2026-07-21, confirmed working.** This
+  disposable-clone environment successfully reached
+  `openlibrary.org` (`curl` got a real `302`, not a timeout/DNS
+  failure) — the offline-safe build can be verified against the real
+  API, not only mocks, though tests should still mock by default for
+  determinism/speed and use a real call only as an occasional smoke
+  check.
