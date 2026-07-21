@@ -29,6 +29,34 @@ record/links; nothing left in this section for an unattended pass to
 pick up until either a new offline-safe batch is registered here, or VM
 access unblocks the STT section.
 
+## Book Game — structured STT training-data game (2026-07-21, vision session)
+
+Full vision, roadmap, and open questions: `../BOOK-GAME.md`. Direct instance
+of this file's own 2026-07-20 15:57 vision line ("games and idle bait are
+important ways of requesting specific sonic information in a structured
+way that informs the voice detection model") — scan a book's ISBN barcode,
+ask a 2-option multiple-choice question about it, grade the spoken answer
+against the two known option strings, log every (expected, heard) mismatch
+as labeled STT training data, register the book locally. Stretch: print an
+LCC label per book via the existing Phomemo/`catprint` channel or a
+dedicated label printer (open question, see BOOK-GAME.md).
+
+**Offline-safe slice: DONE, 2026-07-21.** `bin/crt-book-game.py` +
+`tests/test_book_game.py` (20 cases, all green in `tests/run_tests.sh`,
+plus a live smoke-test against the real Open Library API). Covers ISBN
+lookup, question templates + Claude-batch prompt/parse (pure functions,
+no live `claude -p` shell-out wired yet), grading/logging, SQLite
+registry, best-effort LCC. Full detail in `../BOOK-GAME.md`'s Roadmap
+step 1. Standalone CLI only — not yet wired into `crt-console.sh`/
+`crt-secretary.py`, per the "standalone first, merge later" direction.
+
+Do NOT attempt next: live scanner/HID passthrough, wiring into the console
+layout, or live mic verification — all genuinely need a hands-on crt-vm
+session (see BOOK-GAME.md's roadmap step 2), same hardware-acceptance-bar
+rule as everything else in this file. Also still open (not hardware,
+just not built this pass): the actual live Claude Code shell-out for the
+batch question-generation path.
+
 ## Cross-project ask: locate prior demucs work on dexter (2026-07-20)
 
 `wtul` (the CD-ripper project) needs Demucs for ROADMAP #5 (instrumental

@@ -14,6 +14,26 @@ PANE="${CRT_TMUX_PANE:-0}"
 # has watched this run live yet -- see SECRETARY.md's own status note.
 # The raw tmux send-keys path below is completely unchanged when this is 0.
 USE_SECRETARY="${CRT_SECRETARY:-0}"
+# STT gate (opt-in, default OFF, 2026-07-20 FOCUS.md "STT gate" item):
+# without this, every utterance that clears VAD becomes a live Claude Code
+# turn, including room chatter never addressed to the console. Not
+# hardware-verified against real room noise yet -- see nightly-batch.md's
+# acceptance-bar note. Shells out to crt-stt-solo.py's addressed_to_console()
+# (below) rather than reimplementing the wake-word/stt-fixups.json lookup a
+# second time in bash -- one place for that logic, not two that can drift.
+USE_GATE="${CRT_STT_GATE:-0}"
+GATE_LOG="${CRT_STT_GATE_LOG:-$HOME/.crt/thoughts.log}"
+
+addressed_to_console() {
+  BIN_DIR="$BIN_DIR" python3 -c '
+import importlib.util, os, sys
+spec = importlib.util.spec_from_file_location(
+    "crt_stt_solo", os.path.join(os.environ["BIN_DIR"], "crt-stt-solo.py"))
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+sys.exit(0 if m.addressed_to_console(sys.argv[1]) else 1)
+' "$1"
+}
 # Where recognized text goes:
 #   claude  - type it into the tmux Claude Code pane (+ voice control keystrokes)
 #   stdout  - just print timestamped transcriptions (standalone STT view / debug)
@@ -152,6 +172,13 @@ while true; do
         echo "[stt-feed] (key) clear line"
         tmux send-keys -t "${SESSION}:${PANE}" C-u; continue ;;
     esac
+  fi
+
+  if [ "$USE_GATE" != "0" ] && ! addressed_to_console "$text"; then
+    echo "[stt-feed] (gated, no wake word) $text"
+    mkdir -p "$(dirname "$GATE_LOG")" 2>/dev/null || true
+    printf '%s  [stt-gate] dropped (no wake word): %s\n' "$(date +%H:%M:%S)" "$text" >> "$GATE_LOG" 2>/dev/null || true
+    continue
   fi
 
   if [ "$USE_SECRETARY" != "0" ]; then

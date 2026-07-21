@@ -19,9 +19,14 @@ pointers below for depth on any one piece.
   transcription, predictive-text feel, morning-reports + media-playback as
   the two core jobs). Not built, captured so it isn't lost.
 - `SCANNER.md` — USB 1D barcode scanner on dexter, forwarded to crt-vm's
-  tmux pane (new 2026-07-21). Guest-side listener confirmed working live;
-  dexter-side RawInput capture script written but not yet load-tested
-  against a real scan — see that doc's open items before assuming it's live.
+  tmux pane (2026-07-21). Confirmed working live (both the guest-side
+  listener and dexter's RawInput capture script), persistent on both
+  ends (systemd on crt-vm, Task Scheduler on dexter). Read this before
+  `BOOK-GAME.md`'s scanner-passthrough note below — it supersedes the
+  "USB passthrough fails" finding with a working network-forwarding path.
+- `BOOK-GAME.md` (2026-07-21) — barcode-scan book trivia game, standalone
+  build, doubles as structured STT training-data collection and a personal
+  library registry. Offline-safe portion registered in `.claude/FOCUS.md`.
 
 ## Where it runs
 
