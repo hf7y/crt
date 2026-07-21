@@ -74,7 +74,12 @@ case "$cmd" in
     echo "$only_vm" | while read -r f; do
       [ -z "$f" ] && continue
       mkdir -p "$REPO_DIR/$(dirname "$f")"
-      $SSH "cat $VM_DIR/$f" > "$REPO_DIR/$f"
+      # </dev/null: without it, ssh reads from this loop's own stdin pipe
+      # (the `echo ... | while read` list of filenames) and silently
+      # swallows the rest of the list after the first iteration -- the
+      # classic "ssh inside a while-read loop" footgun. Found 2026-07-21
+      # when `pull` reported 7 ONLY_VM files but only ever pulled the first.
+      $SSH "cat $VM_DIR/$f" < /dev/null > "$REPO_DIR/$f"
       echo "pulled: $f (review + git add yourself)"
     done
     ;;
