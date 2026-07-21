@@ -25,6 +25,26 @@ backend are solid.
   codes** (channel-change, power) as part of its own behavior — e.g.
   switching mode = actually changing the TV's channel via IR blaster.
 
+### Channel-confirmation loop (2026-07-21, Chris) — replaces the rotary-switch idea
+Supersedes `PERSONA-CHANNEL.md`'s rotary-switch decision. Persona/mode is
+the CRT's **actual TV channel**, not a separate commodity switch:
+1. System decides (or Chris decides, TBD) which persona/channel should be
+   active.
+2. **IR blaster emits that channel's code** to the TV, reinforcing/
+   setting the channel — the same blaster already planned for TV
+   power-on above, no new hardware.
+3. **TV's own built-in speaker beeps a confirmation tone** specific to
+   that channel.
+4. **The handset mic picks up that beep** (it's in the room, TV speaker
+   is audible) — the system uses it to confirm the channel actually
+   landed where it meant to, closing the loop without any dedicated
+   sensor or physical switch position to read.
+This removes the rotary switch (and its faceplate CAD) entirely — no
+knob part to source, no shaft/bushing dimensions to measure. Still needs
+a real design pass (which channel = which persona, what the confirmation
+tone sounds like/how it's distinguished from room noise) before it's
+buildable; captured here so the direction survives, not started yet.
+
 ## Interface philosophy
 - On-screen: as close to nothing as possible. A **blinking cursor**, not a
   transcript. **Hide the STT transcription entirely once past debugging** —
@@ -136,8 +156,10 @@ again 2026-07-20 to keep this session's live-access time on blockers that
 actually cleared) — not on the critical path for the core voice console.
 
 ## IR blaster mount (cad/CAD-BACKLOG.md)
-Parked 2026-07-21 — Chris flagged it may not be necessary. LED is sourced
-(https://www.amazon.com/dp/B099ZJ6555) but TV sensor position was never
-measured, so the mount geometry never advanced past placeholder anyway.
-Revisit only if the TV-power-on-via-IR idea (or the persona/channel IR
-reinforcement in this file's HDMI-to-RF section) gets confirmed as wanted.
+Parked 2026-07-21 — **updated same day**: the IR blaster itself is still
+wanted (it's now load-bearing for the "Channel-confirmation loop" idea
+above, replacing the rotary switch), but Chris is explicitly not building
+the physical case/mount right now. LED is sourced
+(https://www.amazon.com/dp/B099ZJ6555); TV sensor position still not
+measured either way. Revisit the case once the channel-confirmation
+design is real enough to need physical placement.
