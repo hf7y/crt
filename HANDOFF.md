@@ -76,22 +76,27 @@ walks this exact path nightly-job-side to pull VM reports back to mandark
 
 **svc-vaporwave (planned, not yet done):** a service account needs SSH
 into crt-vm for automated (non-interactive, non-Zach) access — e.g. a
-future scheduler-driven pull job. Decided 2026-07-21: give it a
-**dedicated restricted identity on crt-vm**, not Zach's key/account.
-Plan, not yet executed (no VM access this session):
-1. On crt-vm: `sudo adduser --disabled-password svc-vaporwave`.
-2. Generate a fresh keypair for it (on mandark or wherever the caller
-   runs from) — don't reuse Zach's key.
-3. Install the pubkey in `/home/svc-vaporwave/.ssh/authorized_keys` on
-   crt-vm, prefixed with a forced command / restricted options
-   (`command="...",no-port-forwarding,no-X11-forwarding,no-agent-forwarding`)
-   scoped to only what the job needs (e.g. just running
-   `crt-sync-vm-reports`-side pull scripts or reading `~/reports/crt/`) —
-   not a general shell.
-4. No sudo for svc-vaporwave.
-Open item: exact forced-command scope depends on what the nightly job
-actually needs to read/run — decide once that job's shape is finalized
-(see the report-merging open item in `VM-JOBS.md`).
+future scheduler-driven pull job, plus mandark-side shared write access
+to the bare remote/reports tree. Decided 2026-07-21: give it a
+**dedicated restricted identity**, not Zach's key/account.
+
+**Status: fully established** (confirmed 2026-07-21, mandark side) — the
+`svc-vaporwave` user (uid 1001) and `vaporwave-reports` group both exist;
+`~/git-remotes/crt.git` and `~/reports/crt/` are group-owned
+`vaporwave-reports` with setgid dirs, so any member (Zach included) can
+push/write without needing to *be* svc-vaporwave. One gotcha hit doing
+the first post-setup push: a shell opened *before* your user was added to
+`vaporwave-reports` doesn't see the new group membership (`id` reflects
+it, but the running shell's supplementary-group list doesn't) — use
+`sg vaporwave-reports -c '...'` (or a fresh login) if a push into
+`~/git-remotes/crt.git` gets a confusing "unable to migrate objects to
+permanent storage" / permission-denied error.
+
+The crt-vm-side SSH piece of the original plan (forced-command restricted
+key for automated pulls) is not independently re-verified from this
+session — no crt-vm sudo access here to check `authorized_keys`/sudoers.
+If a scheduler-driven crt-vm pull job is being wired up, confirm that
+side directly on crt-vm before assuming it's done too.
 
 ## What's actually running right now (2026-07-20 night, current)
 
