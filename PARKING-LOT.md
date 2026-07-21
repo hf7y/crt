@@ -106,3 +106,31 @@ is presumably the target, since it's what's git-managed and scheduler-
 registered) so there's a single source of truth instead of code living
 wherever it happened to be written. Needs an inventory pass first: what
 exists on each machine, what's already mirrored here vs. only local.
+
+## MIDI controller pass-through (parked 2026-07-20)
+Goal: pass the Arturia MiniLab through to `crt-vm` so its pads/knobs can
+drive the console (control-file writes, same channel as other HUD input —
+see `crt-midi-knobs.py`). **Status when parked**: root cause of the original
+failure was found and fixed (Windows had the MiniLab's MIDI interface
+disabled, `CM_PROB_DISABLED` in Device Manager — fixed via
+`Enable-PnpDevice`), but `VBoxManage usbattach` still fails ("busy with a
+previous request") even after that fix and a full VM power-cycle
+(`controlvm poweroff` + `startvm`, done live 2026-07-20 for an unrelated
+audio issue — didn't clear this either). Points to a stuck VBoxUSB/VBoxSVC
+host-proxy state, independent of the PnP fix. **Next step, whenever this is
+picked back up**: kill/restart the `VBoxSVC.exe` process tree on dexter (a
+process-kill action that needs a human's direct OK — the live VM depends on
+it, don't do this mid-session without checking first) and retry
+`usbattach`, or fall back to a full dexter reboot if VBoxSVC restart alone
+doesn't clear it.
+
+**Direction** (from `BLOCKERS.md`, 2026-07-20): develop this on the
+dexter/Windows side for now, but with the explicit long-term intent it
+merges back into the bare-metal Linux distro eventually (see README's
+"Bare-metal deployment" / "Porting to native Windows later" sections) — so
+design/wiring choices made here should stay portable, not lean on anything
+Windows-only that would need re-solving on the eventual Linux target.
+
+Deprioritized twice now (2026-07-19 "abandon midi, pick it up later"; parked
+again 2026-07-20 to keep this session's live-access time on blockers that
+actually cleared) — not on the critical path for the core voice console.

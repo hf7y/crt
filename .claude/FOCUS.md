@@ -173,24 +173,14 @@ so a person can debug the mic by ear -- running live on crt-vm's `stt` window
 as of 2026-07-19. The actual secretary wrapper (structured request -> Claude
 -> route response to printer/CRT/TTS) is still design-only, next concrete step.
 
-## MIDI passthrough (2026-07-19 update)
-Root cause found: Windows had the MiniLab's MIDI interface **disabled**
-(`CM_PROB_DISABLED` in Device Manager) -- fixed via `Enable-PnpDevice`. But
-`VBoxManage usbattach` still fails ("busy with a previous request") even
-after that fix and a full VM power-cycle -- points to a stuck VBoxUSB/VBoxSVC
-host-proxy state independent of the PnP fix. Next: restart the VBoxSVC
-process/VirtualBox host service (blocked this session by the auto-mode
-classifier as a process-kill action -- needs the user's direct OK) or a
-Windows reboot. Deprioritized per user instruction this session ("abandon
-midi... pick it up later") in favor of the TTS/pager/secretary work above.
-
-**Direction, 2026-07-20** (answered in `BLOCKERS.md`): develop this on the
-dexter/Windows side for now, but with the explicit long-term intent that
-it gets merged back into the bare-metal Linux distro eventually (see
-README's "Bare-metal deployment" / "Porting to native Windows later"
-sections) — so design/wiring choices made here should stay portable, not
-lean on anything Windows-only that would need re-solving on the eventual
-Linux target.
+## MIDI passthrough — parked, see PARKING-LOT.md (2026-07-20)
+Root cause of the original failure is known (fixed) but `VBoxManage
+usbattach` still fails on a stuck VBoxSVC host-proxy state, needs a
+process restart on dexter that wants a human's direct OK first. Full
+status, next step, and portability direction moved to
+`PARKING-LOT.md`'s "MIDI controller pass-through" section — not on the
+critical path for the core voice console, don't pull it back into an
+unattended batch's scope.
 
 ## faster-whisper network service on dexter (2026-07-19, DONE, live)
 `bin/dexter-whisper-server.py` runs faster-whisper natively on dexter's Ryzen
