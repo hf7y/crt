@@ -100,6 +100,17 @@ tests, full suite green.
 
 ### NEXT (2026-07-21 late session): stop routing scans through dexter -- read stdin directly
 
+**CONFIRMED LIVE, 2026-07-21 (hands-on agent, crt-vm)** -- this is the
+active blocker, not a hypothetical. Selected the `book` window as active
+(step 2 below, done manually) and watched a real scan happen: barcode
+digits land on screen fine (raw USB-keyboard keystrokes into the focused
+pane, confirmed working), but nothing happens after -- `crt-book-console.py`
+only tails `scanner.log`, never reads its own stdin, so the keystrokes just
+echo over the drawn screen and get silently dropped. No question ever
+renders. **Step 1 below (stdin reading) is the whole fix and is the next
+thing this account should build** -- it's the only piece keeping the
+book-game funnel from actually working end to end on real hardware.
+
 Spent a long stretch this session chasing the dexter-side capture path
 (`bin/dexter-scanner-forward.ps1`) and hit a real dead end -- full
 writeup in `../SCANNER.md`'s "2026-07-21 late session" section, don't
@@ -118,11 +129,13 @@ SSH).
    addition to tailing `scanner.log` -- detect an ISBN-shaped line the
    same way `parse_scanner_log_line()` already does, feed it through the
    same `handle_scan()` path.
-2. `bin/crt-console.sh`: make `book` the default selected window on
-   boot instead of window 0 (`claude`), since that's where a physical
-   scan's raw keystrokes will land regardless of which window "should"
-   have them. `claude` stays one `prefix+0` away, and voice/STT already
-   covers claude-facing interaction.
+2. **DONE manually on the live VM session, 2026-07-21 (hands-on agent)
+   -- `tmux select-window -t claude:book`, not yet made durable.** Still
+   needs the actual code change: `bin/crt-console.sh` should make `book`
+   the default selected window on boot instead of window 0 (`claude`),
+   so this survives the next respawn/reboot instead of relying on a
+   manual select. `claude` stays one `prefix+0` away, and voice/STT
+   already covers claude-facing interaction.
 3. This makes `dexter-scanner-forward.ps1` + the scanner NAT
    port-forward + `crt-scanner-feed.py`'s systemd service "nice to have,
    not load-bearing" for the book-scanning feature -- leave them in
