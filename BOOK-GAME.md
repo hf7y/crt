@@ -44,6 +44,12 @@ heard) pair.
    this session's Q&A result) gets appended to a local registry —
    "documents the books for safe keeping" per the vision, i.e. this
    doubles as a personal library catalog, independent of the game.
+   **Actually viewable now, 2026-07-21** (this vision line held true in
+   `books.db` from day one, but there was no way to actually SEE the
+   catalog until now): `bin/crt-book-catalog.py` (`screen`/`print-all`
+   modes) plus a `book_catalog` `crt-secretary.py` playbook ("my
+   library", "book catalog", "list my books") — most recently scanned
+   first, title/author(s)/year/best-effort LCC per book.
 7. **(Stretch) Print.** Send an LCC (Library of Congress Classification)
    call number label to a connected label printer, so each scanned book
    gets a physical spine label — turning the registry into an actual

@@ -183,6 +183,43 @@ class TestBookGameStatsPlaybook(unittest.TestCase):
             self.assertEqual(name, "book_game_stats", phrase)
 
 
+class TestBookCatalogPlaybook(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.spoken = []
+        self.printed = []
+        self.sec.speak = lambda text, device="handset": self.spoken.append(text)
+        self.sec.print_full = lambda text: self.printed.append(text)
+
+    def test_missing_tool_speaks_and_does_not_crash(self):
+        self.sec.BOOK_CATALOG_BIN = "/nonexistent/catalog.py"
+        self.sec.handle_book_catalog("my library")
+        self.assertIn("don't have", self.spoken[0].lower())
+        self.assertEqual(self.printed, [])
+
+    def test_speaks_screen_output_and_prints_full(self):
+        self.sec.BOOK_CATALOG_BIN = __file__
+        calls = []
+
+        def fake_sh(cmd, **kw):
+            calls.append(cmd)
+            if cmd[-1] == "screen":
+                return _FakeResult("2 book(s) in your library.\nLatest: Dune\n")
+            return _FakeResult("full catalog body here")
+
+        self.sec.sh = fake_sh
+        self.sec.handle_book_catalog("my library")
+        self.assertIn("Latest: Dune", self.spoken[0])
+        self.assertEqual(self.printed, ["full catalog body here"])
+        self.assertEqual(len(calls), 2)
+
+    def test_matches_trigger_variants(self):
+        for phrase in ("my library", "book catalog", "list my books",
+                       "what books have i scanned"):
+            name, _ = self.sec.find_playbook(phrase)
+            self.assertEqual(name, "book_catalog", phrase)
+
+
 class TestCalibratePlaybook(unittest.TestCase):
     def setUp(self):
         self.sec = load_secretary()

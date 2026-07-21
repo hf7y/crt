@@ -307,6 +307,37 @@ def handle_book_game_stats(text):
     return spoken
 
 
+# --- Playbook: book_catalog --------------------------------------------
+# BOOK-GAME.md's own vision line: the registry "documents the books for
+# safe keeping... doubles as a personal library catalog, independent of
+# the game." That catalog existed in books.db all along but had no way
+# to actually be VIEWED until bin/crt-book-catalog.py -- distinct from
+# book_game_stats above (STT-training numbers, not the catalog itself).
+BOOK_CATALOG_TRIGGERS = (
+    "my library", "my book library", "what books have i scanned",
+    "book catalog", "list my books", "show my books",
+)
+BOOK_CATALOG_BIN = os.environ.get(
+    "CRT_BOOK_CATALOG_BIN", os.path.join(BIN_DIR, "crt-book-catalog.py"))
+
+
+def match_book_catalog(text):
+    return _matches_any(text, BOOK_CATALOG_TRIGGERS)
+
+
+def handle_book_catalog(text):
+    if not os.path.exists(BOOK_CATALOG_BIN):
+        speak("I don't have the book catalog installed.")
+        return "I don't have the book catalog installed."
+    r = sh(["python3", BOOK_CATALOG_BIN, "screen"])
+    lines = [ln for ln in (r.stdout or "").splitlines() if ln.strip()]
+    spoken = " ".join(lines) if lines else "Your library's empty so far."
+    speak(spoken)
+    full = sh(["python3", BOOK_CATALOG_BIN, "print-all"])
+    print_full(full.stdout or "")
+    return spoken
+
+
 # --- Playbook: media --------------------------------------------------
 # PARKING-LOT.md's second "primary product surface" job: "play the
 # thing", "next", "pause" via handset voice. match_media() delegates the
@@ -334,6 +365,7 @@ PLAYBOOKS = (
     ("what_time", match_what_time, handle_what_time),
     ("morning_report", match_morning_report, handle_morning_report),
     ("book_game_stats", match_book_game_stats, handle_book_game_stats),
+    ("book_catalog", match_book_catalog, handle_book_catalog),
     ("media", match_media, handle_media),
 )
 
