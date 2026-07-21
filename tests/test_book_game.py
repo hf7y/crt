@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import random
+import re
 import sqlite3
 import sys
 import tempfile
@@ -324,13 +325,20 @@ class TestColorAndArt(unittest.TestCase):
         self.assertTrue(wrapped.startswith(bg.COLOR_QUESTION))
         self.assertTrue(wrapped.endswith(bg.COLOR_RESET))
 
-    def test_no_bright_ansi_codes_in_palette(self):
-        # 91/92/93/94 etc (bright primaries) are exactly the CRT-bleed
-        # colors this palette is designed to avoid -- see the flag
+    def test_no_primary_rgb_codes_in_palette(self):
+        # HARD RULE (2026-07-21, Zach, confirmed live): never 31/32/34
+        # (standard-intensity red/green/blue) or 91/92/94 (their bright
+        # variants), at ANY boldness/dimness -- these are exactly the
+        # colors that bleed/smear on a real composite/RF CRT. Only
+        # yellow/magenta/cyan/white (33/35/36/37) are safe. This isn't
+        # just a comment -- this test mechanically blocks a future
+        # palette edit from reintroducing a banned code. See the flag
         # comment above the palette in crt-book-game.py and in CLAUDE.md.
+        banned_codes = {31, 32, 34, 91, 92, 94}
         palette = [bg.COLOR_QUESTION, bg.COLOR_CORRECT, bg.COLOR_WRONG, bg.COLOR_QUOTE, bg.COLOR_TITLE]
         for code in palette:
-            self.assertNotRegex(code, r"\033\[9\d")
+            numbers = {int(n) for n in re.findall(r"\d+", code)}
+            self.assertFalse(numbers & banned_codes, f"{code!r} contains a banned primary RGB code")
 
     def test_get_ascii_art_known_name(self):
         art = bg.get_ascii_art("book")

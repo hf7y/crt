@@ -140,6 +140,15 @@ tmux new-window -d -t "$SESSION" -n bookidle -c "$BIN_DIR" "python3 ./crt-book-i
 # `book` window.
 tmux new-window -d -t "$SESSION" -n bookanswer -c "$BIN_DIR" "python3 ./crt-book-answer-listen.py; exec bash"
 
+# Background: the idle half of "switch to mono when Claude's engaged,
+# back to book on idle or by command" (2026-07-21, Zach's direct ask).
+# crt-secretary.py's handle() switches TO `mono` the moment a request
+# escalates to Claude; this watches for that view going idle and
+# switches back to `book` -- see crt-window-switcher.py's own header for
+# why this has to be a separate long-running process (crt-secretary.py
+# itself is a fresh short-lived process per utterance).
+tmux new-window -d -t "$SESSION" -n windowswitch -c "$BIN_DIR" "python3 ./crt-window-switcher.py; exec bash"
+
 # NOT YET BUILT (flagged explicitly so it doesn't get assumed-done next time):
 # a visual signal of the USER's speech (not claude's replies) in the monologue
 # window -- e.g. the raw/interim STT text, or just a level indicator. Right now

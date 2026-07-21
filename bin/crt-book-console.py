@@ -73,27 +73,58 @@ def parse_stdin_scan_line(line):
     return text if bg.is_isbn_like(text) else None
 
 
+def _place_text(text, width, align):
+    """Pure function: like bg.center_text, but supports left/right
+    alignment too -- used to move the idle caption around the screen
+    (2026-07-21, Zach: 'move around the screen with idle bait rather
+    than render in center every time') instead of always the same
+    horizontal position."""
+    text = text[:width]
+    pad = width - len(text)
+    if align == "left":
+        return text + " " * pad
+    if align == "right":
+        return " " * pad + text
+    left = pad // 2
+    return " " * left + text + " " * (pad - left)
+
+
 def render_idle_screen(book_count, width, height, rng=None):
     """Pure function: the resting display -- shelf art + a book count,
     per BOOK-GAME-STYLE.md's suggested 'shelf as a periodic flourish'
     use of the ASCII art library. Caption rotates between the plain
     count and a random enticement line (bg.pick_entice_line) so the
     resting screen actively invites a new scan rather than just sitting
-    static -- the actual point of this feature, 2026-07-21 direction."""
+    static -- the actual point of this feature, 2026-07-21 direction.
+
+    Caption POSITION also moves around the screen (2026-07-21, Zach's
+    direct ask) -- previously always the same fixed row directly under
+    the shelf art, centered; now a random row (never overlapping the
+    title or the art itself) and random left/center/right alignment each
+    draw, so the idle screen doesn't look frozen in the same layout
+    every single time."""
     rng = rng or random
     lines = [" " * width for _ in range(height)]
     lines[0] = bg.center_text("BOOK GAME", width)
     art = bg.get_ascii_art("shelf") or ""
     art_lines = art.splitlines()
     start = max(1, (height - len(art_lines)) // 2)
+    art_rows = set()
     for i, l in enumerate(art_lines):
         row = start + i
         if 0 <= row < height:
             lines[row] = bg.center_text(l, width)
-    caption_row = min(height - 1, start + len(art_lines) + 1)
+            art_rows.add(row)
+
+    available_rows = [r for r in range(1, height) if r not in art_rows]
+    caption_row = rng.choice(available_rows) if available_rows else min(height - 1, start + len(art_lines) + 1)
+    align = rng.choice(("left", "center", "right"))
     caption = (bg.pick_entice_line(rng=rng) if rng.random() < 0.5
                else f"{book_count} book(s) registered -- scan one!")
-    lines[caption_row] = bg.center_text(caption[:width], width)
+    # HARD RULE (2026-07-21, Zach): never more than MAX_CONTENT_WIDTH
+    # (30) characters of actual text, even on a wider screen -- entice
+    # lines especially can run well past that.
+    lines[caption_row] = _place_text(caption[:bg.MAX_CONTENT_WIDTH], width, align)
     return [bg.wrap_color(l, bg.COLOR_TITLE) for l in lines]
 
 
@@ -147,19 +178,20 @@ def render_answer_result(title, row, width, height):
     ungradeable fallback question (nothing to grade, neutral ack)."""
     lines = [" " * width for _ in range(height)]
     lines[0] = bg.center_text("BOOK GAME", width)
+    cw = bg.MAX_CONTENT_WIDTH  # HARD RULE 2026-07-21: cap actual text, not just line width
     if row.get("correct_content") is None:
-        block = [bg.center_text(f"logged your answer for {title}.", width)]
+        block = [bg.center_text(f"logged your answer for {title}."[:cw], width)]
         color = bg.COLOR_QUESTION
     elif row["correct_content"]:
         block = [
             bg.center_text("correct!", width),
-            bg.center_text(f"{title}: {row['expected']}", width),
+            bg.center_text(f"{title}: {row['expected']}"[:cw], width),
         ]
         color = bg.COLOR_CORRECT
     else:
         block = [
             bg.center_text("nope.", width),
-            bg.center_text(f"it was {row['expected']} -- {title}", width),
+            bg.center_text(f"it was {row['expected']} -- {title}"[:cw], width),
         ]
         color = bg.COLOR_WRONG
     start = max(1, (height - len(block)) // 2)

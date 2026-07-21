@@ -348,6 +348,74 @@ class TestMediaPlaybook(unittest.TestCase):
         self.assertNotEqual(name, "media")
 
 
+class TestReturnToBookGamePlaybook(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.switched = []
+        self.sec.switch_tmux_window = lambda name: self.switched.append(name)
+
+    def test_matches_trigger_variants(self):
+        for phrase in ("book game", "back to the game", "switch to book game"):
+            name, _ = self.sec.find_playbook(phrase)
+            self.assertEqual(name, "return_to_book_game", phrase)
+
+    def test_does_not_shadow_book_game_stats(self):
+        # "book game" is a substring of "book game stats" -- the more
+        # specific playbook must still win.
+        name, _ = self.sec.find_playbook("book game stats")
+        self.assertEqual(name, "book_game_stats")
+
+    def test_does_not_shadow_book_catalog(self):
+        name, _ = self.sec.find_playbook("my library")
+        self.assertEqual(name, "book_catalog")
+
+    def test_switches_to_book_window(self):
+        self.sec.handle_return_to_book_game("book game")
+        self.assertEqual(self.switched, [self.sec.BOOK_WINDOW])
+
+
+class TestClaudeWindowSwitch(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.sec.FALLTHROUGH_LOG = os.path.join(tempfile.mkdtemp(), "fallthrough.log")
+        self.sec.capture_pane = lambda: ""
+        self.sec.send_to_claude = lambda text: None
+        self.sec.wait_for_claude_reply = lambda before: ""
+        self.sec.route_claude_reply = lambda reply: None
+
+    def test_fallthrough_switches_to_claude_view_window(self):
+        switched = []
+        self.sec.switch_tmux_window = lambda name: switched.append(name)
+        self.sec.handle("refactor the audio pipeline please")
+        self.assertEqual(switched, [self.sec.CLAUDE_VIEW_WINDOW])
+
+    def test_fallthrough_touches_claude_active_state(self):
+        touched = []
+        self.sec.touch_claude_active = lambda: touched.append(True)
+        self.sec.handle("refactor the audio pipeline please")
+        self.assertEqual(len(touched), 2)  # once before, once after the reply
+
+    def test_matched_playbook_never_switches_window(self):
+        switched = []
+        self.sec.switch_tmux_window = lambda name: switched.append(name)
+        self.sec.speak = lambda text, device="handset": None
+        self.sec.handle("what time is it")
+        self.assertEqual(switched, [])
+
+    def test_touch_claude_active_writes_a_timestamp(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.sec.CLAUDE_ACTIVE_STATE = os.path.join(d, "state")
+            self.sec.touch_claude_active()
+            with open(self.sec.CLAUDE_ACTIVE_STATE) as f:
+                float(f.read())  # must parse as a real timestamp
+
+    def test_touch_claude_active_broken_path_does_not_raise(self):
+        blocker = os.path.join(tempfile.mkdtemp(), "not_a_dir")
+        open(blocker, "w").close()
+        self.sec.CLAUDE_ACTIVE_STATE = os.path.join(blocker, "state")
+        self.sec.touch_claude_active()  # must not raise
+
+
 class TestSpeculativeFiller(unittest.TestCase):
     def setUp(self):
         self.sec = load_secretary()

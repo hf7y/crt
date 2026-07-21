@@ -87,6 +87,48 @@ CLAUDE_IDLE_SECS = float(os.environ.get("CRT_SECRETARY_IDLE_SECS", "3"))
 CLAUDE_MAX_WAIT = float(os.environ.get("CRT_SECRETARY_MAX_WAIT", "120"))
 CLAUDE_POLL = float(os.environ.get("CRT_SECRETARY_POLL", "1"))
 
+# Window-switch on Claude escalation (2026-07-21, Zach's direct call):
+# send_to_claude()/capture_pane() above type into and read from window
+# 0's pane directly, regardless of which tmux window is actually
+# DISPLAYED -- so with `book` as the boot-default window (crt-console.sh),
+# a Claude exchange happened entirely invisibly to anyone just looking at
+# the tube. `mono` (crt-monologue.sh, the pretty-print dialogue view) is
+# the one window that actually shows Claude's replies -- switch there
+# the moment a request escalates, and back to `book` once things go quiet
+# (bin/crt-window-switcher.py, a separate background poller -- watching
+# tmux's active window from inside crt-secretary.py itself doesn't work,
+# since each utterance is a fresh short-lived process, gone long before
+# an idle timeout could ever fire from within it) or on an explicit
+# "book game"/"back to the game" voice command (the return_to_book_game
+# playbook below).
+BOOK_WINDOW = os.environ.get("CRT_BOOK_WINDOW_NAME", "book")
+CLAUDE_VIEW_WINDOW = os.environ.get("CRT_CLAUDE_VIEW_WINDOW_NAME", "mono")
+CLAUDE_ACTIVE_STATE = os.path.expanduser(
+    os.environ.get("CRT_CLAUDE_ACTIVE_STATE", "~/.crt/claude-window-active.state"))
+
+
+def switch_tmux_window(window_name):
+    """Best-effort: a broken/absent tmux session must never crash the
+    caller (e.g. this being run outside a real crt-console.sh session,
+    like in tests or by hand)."""
+    try:
+        sh(["tmux", "select-window", "-t", "%s:%s" % (SESSION, window_name)])
+    except OSError:
+        pass
+
+
+def touch_claude_active():
+    """Records 'a Claude exchange just happened' for
+    crt-window-switcher.py's idle-return check to read -- best-effort,
+    same convention as every other logging write in this project (a
+    broken write here shouldn't block the actual Claude routing)."""
+    try:
+        os.makedirs(os.path.dirname(CLAUDE_ACTIVE_STATE), exist_ok=True)
+        with open(CLAUDE_ACTIVE_STATE, "w") as f:
+            f.write(str(time.time()))
+    except OSError:
+        pass
+
 SHORT_ANSWER_CHARS = 240  # above this, speak a one-line summary + print full text
 
 
@@ -356,6 +398,27 @@ def handle_media(text):
     return spoken
 
 
+# --- Playbook: return_to_book_game --------------------------------------
+# The explicit half of "switch back to book game on idle, or by command"
+# (2026-07-21, Zach) -- crt-window-switcher.py handles the idle half.
+# This is a locally-answered playbook like any other (no Claude call
+# needed to just switch a tmux window), matched BEFORE the fallthrough
+# path so it never itself triggers a switch TO the Claude view.
+RETURN_TO_BOOK_GAME_TRIGGERS = (
+    "book game", "back to the game", "back to book game",
+    "switch to book game", "show me the book game",
+)
+
+
+def match_return_to_book_game(text):
+    return _matches_any(text, RETURN_TO_BOOK_GAME_TRIGGERS)
+
+
+def handle_return_to_book_game(text):
+    switch_tmux_window(BOOK_WINDOW)
+    return "back to the book game."
+
+
 # Ordered: first match wins. See SUPERVISOR.md for what belongs here vs.
 # what should stay a Claude call.
 PLAYBOOKS = (
@@ -364,8 +427,13 @@ PLAYBOOKS = (
     ("calibrate", match_calibrate, handle_calibrate),
     ("what_time", match_what_time, handle_what_time),
     ("morning_report", match_morning_report, handle_morning_report),
+    # book_game_stats/book_catalog BEFORE return_to_book_game -- "book
+    # game" (return_to_book_game's own trigger) is a substring of "book
+    # game stats", so the more specific ones must get first shot or
+    # they'd never fire (first match wins, see find_playbook below).
     ("book_game_stats", match_book_game_stats, handle_book_game_stats),
     ("book_catalog", match_book_catalog, handle_book_catalog),
+    ("return_to_book_game", match_return_to_book_game, handle_return_to_book_game),
     ("media", match_media, handle_media),
 )
 
@@ -530,9 +598,12 @@ def handle(text):
     log_fallthrough(text)
     if SPECULATE_ENABLED:
         show_filler_line()
+    switch_tmux_window(CLAUDE_VIEW_WINDOW)
+    touch_claude_active()
     before = capture_pane()
     send_to_claude(text)
     reply = wait_for_claude_reply(before)
+    touch_claude_active()  # the reply itself also counts as recent activity
     route_claude_reply(reply)
 
 

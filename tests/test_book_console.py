@@ -79,6 +79,29 @@ class TestRenderIdleScreen(unittest.TestCase):
         lines = bc.render_idle_screen(0, 40, 15, rng=_StubRng(0.9))
         self.assertTrue(all(l.startswith(bg.COLOR_TITLE) for l in lines))
 
+    def test_caption_position_varies_across_draws(self):
+        # 2026-07-21, Zach's direct ask: "move around the screen with
+        # idle bait rather than render in center every time" -- confirm
+        # the caption doesn't land on the same row every draw.
+        import random
+        rows_seen = set()
+        for seed in range(15):
+            lines = bc.render_idle_screen(3, 40, 15, rng=random.Random(seed))
+            for i, l in enumerate(lines):
+                if "book(s) registered" in l or any(e[:15] in l for e in bg.ENTICE_LINES):
+                    rows_seen.add(i)
+        self.assertGreater(len(rows_seen), 1)
+
+    def test_caption_never_overlaps_shelf_art(self):
+        art_lines = bg.get_ascii_art("shelf").splitlines()
+        for seed in range(15):
+            lines = bc.render_idle_screen(3, 40, 15, rng=__import__("random").Random(seed))
+            for l in art_lines:
+                matching_rows = [i for i, line in enumerate(lines) if l.strip() and l.strip() in line]
+                # each art row should still show its own art line, not be
+                # clobbered by the caption landing on the same row
+                self.assertTrue(matching_rows, f"art line {l!r} missing from screen")
+
 
 class TestRenderScanResult(unittest.TestCase):
     def test_renders_question_from_row(self):

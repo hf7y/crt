@@ -452,6 +452,12 @@ def get_book(conn, isbn):
 # rules built on top of these two numbers.
 FALLBACK_WIDTH = 40
 FALLBACK_HEIGHT = 15
+# HARD RULE (2026-07-21, Zach): actual text content never spans more
+# than this many characters, even on a wider screen -- readability on
+# the real tube, confirmed live, not a stylistic choice. Screen LINES
+# still get padded to the full detected/fallback width for a consistent
+# layout; this only caps the text itself before centering.
+MAX_CONTENT_WIDTH = 30
 
 
 def detect_screen_size():
@@ -485,14 +491,22 @@ def render_question_screen(book_title, question, width=None, height=None):
     in the vertical middle, everything else blank padding. Pure function:
     returns a list of exactly `height` strings, each exactly `width`
     chars, no ANSI codes (callers wrap in color separately, see
-    wrap_color) so this is trivially diffable in tests."""
+    wrap_color) so this is trivially diffable in tests.
+
+    HARD RULE (2026-07-21, Zach): actual text content never exceeds
+    MAX_CONTENT_WIDTH (30) characters, even on a wider screen -- lines
+    are still padded to the full `width` for a consistent screen size,
+    but wrapping/truncation of the title/question/options text itself is
+    computed against `min(width, MAX_CONTENT_WIDTH)`, not the raw
+    `width`."""
     width = width or FALLBACK_WIDTH
     height = height or FALLBACK_HEIGHT
+    content_width = min(width, MAX_CONTENT_WIDTH)
     lines = [" " * width for _ in range(height)]
 
-    title_line = center_text(book_title[: width - 2], width)
-    q_lines = textwrap.wrap(question["text"], width - 2) or [""]
-    options_line = center_text(" / ".join(question["options"]), width)
+    title_line = center_text(book_title[: content_width - 2], width)
+    q_lines = textwrap.wrap(question["text"], content_width - 2) or [""]
+    options_line = center_text(" / ".join(question["options"])[:content_width], width)
 
     block = [center_text(l, width) for l in q_lines] + [" " * width, options_line]
     block_start = max(0, (height - len(block)) // 2)
@@ -510,26 +524,32 @@ def render_question_screen(book_title, question, width=None, height=None):
 # ---------------------------------------------------------------------------
 # CRT PERSISTENT LIMITATION, flag every time this file is touched: this is
 # an analog composite/RF display, not a digital one. Fully-saturated
-# primaries -- pure ANSI-bright red (91), green (92), blue (94/34), and
-# any hard edge between complementary hues (red<->cyan especially) --
-# are exactly the colors that bleed/smear/ring on a real CRT tube fed a
-# composite or RF signal (limited chroma bandwidth vs. luma, the same
-# reason old broadcast graphics avoided saturated red text). This is a
-# hardware constraint of the device this project targets, not a taste
-# preference -- don't "fix" it by reaching for brighter/bolder colors
-# later without rereading this note. Same flag lives in CLAUDE.md so it
-# survives outside this one file.
+# primaries -- red, green, and blue, AT ANY INTENSITY (not just the
+# bright/bold 91/92/94 variants -- confirmed live 2026-07-21 by Zach:
+# even standard-intensity 31/32/34 render badly) -- are exactly the
+# colors that bleed/smear/ring on a real CRT tube fed a composite or RF
+# signal (limited chroma bandwidth vs. luma, the same reason old
+# broadcast graphics avoided saturated primary text). This is a hardware
+# constraint of the device this project targets, not a taste preference.
 #
-# Palette below reuses crt-idle-teaser.sh's existing register colors
-# (COLOR_URGENT=31, COLOR_QUESTION=33, COLOR_CURIOUS=36 -- EXPRESSIVE-
-# TONE.md's table) rather than inventing a parallel scheme, and adds two
-# more from the same safe family (dim magenta, dim white) for the book
-# game's own registers (correct-answer "content/settled", idle-quote
-# "wistful/quiet").
+# HARD RULE (2026-07-21, Zach, confirmed live -- do not reintroduce):
+# never use ANSI codes 31, 32, 34, 91, 92, or 94 anywhere in this
+# project's screen output, at any boldness/dimness. Only the secondary/
+# mixed hues -- yellow (33), magenta (35), cyan (36), white (37) -- plus
+# dim/bold modifiers on THOSE, are CRT-safe. Enforced mechanically by
+# tests/test_book_game.py's test_no_primary_rgb_codes_in_palette (not
+# just a comment -- a future palette edit that violates this will fail
+# the test suite). Same flag lives in CLAUDE.md so it survives outside
+# this one file.
+#
+# Palette below stays within that safe set only -- previously
+# COLOR_CORRECT/COLOR_WRONG used plain green(32)/red(31), which violated
+# this exact rule; reassigned to white/magenta instead, still visually
+# distinct per register.
 COLOR_QUESTION = "\033[33m"    # warm/curious register -- a question posed
-COLOR_CORRECT = "\033[32m"     # content/settled -- got it right (dim/std green, not bright 92)
-COLOR_WRONG = "\033[31m"       # clipped -- got it wrong (std red 31, not bright 91)
-COLOR_QUOTE = "\033[2;35m"     # wistful/quiet -- idle-bait quote (dim magenta)
+COLOR_CORRECT = "\033[1;37m"   # content/settled -- got it right (bold white, was green -- fixed)
+COLOR_WRONG = "\033[35m"       # clipped -- got it wrong (magenta, was red -- fixed)
+COLOR_QUOTE = "\033[2;36m"     # wistful/quiet -- idle-bait quote (dim cyan)
 COLOR_TITLE = "\033[36m"       # ordinary/curious -- book title, same cyan as idle-teaser
 COLOR_RESET = "\033[0m"
 

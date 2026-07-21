@@ -148,38 +148,66 @@ error — no intermediate "scanning..." or "waiting for your answer..."
 state to attach transitional art to). Real follow-up if that render
 model ever grows a waiting state, not attempted this pass.
 
-## Colors: register-matched, and NOT primary colors
+## Colors: register-matched, and NEVER primary red/green/blue
 
 **Persistent flag, read this before changing book-game colors:** this
 project's display is a real analog CRT tube (`DISPLAY-CALIBRATION.md`),
 driven over composite/RF, not a digital panel. Composite/RF video has
 far less chroma (color) bandwidth than luma (brightness) — the classic
-symptom is **fully-saturated primaries bleeding, smearing, or ringing**,
-worst on bright/bold red, and worst of all at a hard edge between
-complementary hues (red next to cyan). This is real broadcast-video
-physics, the same reason old TV graphics avoided pure saturated red
-text — **not a stylistic choice that can be "improved" later by going
-brighter/bolder.** The same flag is now also in `CLAUDE.md` so it isn't
-lost if this file is never opened again.
+symptom is **fully-saturated primaries bleeding, smearing, or ringing**.
+This is real broadcast-video physics, the same reason old TV graphics
+avoided pure saturated primary text — **not a stylistic choice that can
+be "improved" later.** The same flag is now also in `CLAUDE.md` so it
+isn't lost if this file is never opened again.
 
-The book-game palette (`crt-book-game.py`) deliberately reuses
-`crt-idle-teaser.sh`'s existing register colors rather than inventing a
-parallel scheme (`EXPRESSIVE-TONE.md`'s color dimension, one taxonomy
-project-wide):
+**HARD RULE, updated 2026-07-21 (Zach, confirmed live) — this is
+stricter than the original version of this section said:** it is NOT
+just the bright/bold family (91/92/94) that bleeds — **standard-
+intensity red (31), green (32), and blue (34) render badly too, at any
+boldness/dimness.** Never use ANSI codes 31, 32, 34, 91, 92, or 94
+anywhere in this project's screen output. Only yellow (33), magenta
+(35), cyan (36), and white (37) — plus dim/bold modifiers on those —
+are CRT-safe.
+
+The book-game palette (`crt-book-game.py`), reassigned to comply with
+the corrected rule above (previously `COLOR_CORRECT`/`COLOR_WRONG` used
+plain green/red, which violated it):
 
 | Constant | ANSI | Register | Used for |
 |---|---|---|---|
-| `COLOR_QUESTION` | `33` (std yellow) | warm/curious | posing a question |
-| `COLOR_CORRECT` | `32` (std green) | content/settled | right answer |
-| `COLOR_WRONG` | `31` (std red) | clipped | wrong answer |
-| `COLOR_QUOTE` | `2;35` (dim magenta) | wistful/quiet | idle-bait quote |
-| `COLOR_TITLE` | `36` (std cyan) | curious | book title |
+| `COLOR_QUESTION` | `33` (yellow) | warm/curious | posing a question |
+| `COLOR_CORRECT` | `1;37` (bold white) | content/settled | right answer |
+| `COLOR_WRONG` | `35` (magenta) | clipped | wrong answer |
+| `COLOR_QUOTE` | `2;36` (dim cyan) | wistful/quiet | idle-bait quote |
+| `COLOR_TITLE` | `36` (cyan) | curious | book title |
 
-All five are **standard-intensity** ANSI codes (30-37), never the
-bright/bold family (90-97) — `tests/test_book_game.py`'s
-`test_no_bright_ansi_codes_in_palette` asserts this mechanically so a
-future edit can't accidentally reach for `\033[91m` "brighter red" and
-reintroduce the exact bleed this section warns about.
+Mechanically enforced by `tests/test_book_game.py`'s
+`test_no_primary_rgb_codes_in_palette` — checks every code in the
+palette against the banned set (31/32/34/91/92/94), not just the bright
+half, so a future edit can't accidentally reintroduce the exact bleed
+this section warns about.
+
+## Screen real estate: content capped at 30 characters (hard rule, 2026-07-21)
+
+Also confirmed live by Zach: actual text content should never span more
+than **30 characters**, even though the screen itself is nominally
+40 columns wide — `MAX_CONTENT_WIDTH` in `crt-book-game.py`. Lines still
+get padded to the full detected/fallback screen width for a consistent
+layout; only the title/question/options/caption TEXT itself is wrapped/
+truncated against `min(width, 30)` before centering. Applied in
+`render_question_screen()` (the shared question-screen renderer) and
+`crt-book-console.py`'s `render_idle_screen()`/`render_answer_result()`.
+
+## Idle screen: caption moves around, not fixed in the center (2026-07-21)
+
+The idle screen's caption (entice line or book count) used to always
+render at the same fixed row, centered, directly under the shelf art —
+Zach's direct ask: "move around the screen with idle bait rather than
+render in center every time." `render_idle_screen()` now picks a random
+row each draw (never overlapping the title row or the shelf art itself)
+and a random left/center/right alignment via a new `_place_text()`
+helper, so the resting screen doesn't look frozen in the same layout
+every time.
 
 ## Status
 

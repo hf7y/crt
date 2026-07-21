@@ -83,9 +83,14 @@ first**, before STT-MECHANISM.md, if it exists.
   don't overdo it for ordinary status replies.
 - **Persistent color limitation, don't relitigate this:** this is a real
   analog CRT tube over composite/RF, not a digital panel — chroma
-  bandwidth is far lower than luma, so fully-saturated primaries (bright
-  ANSI 90-97, especially bright red, and hard edges between complementary
-  hues like red/cyan) bleed, smear, or ring on the actual tube. Prefer
-  standard-intensity ANSI (30-37), never the bright/bold family, for
-  anything meant to read cleanly. See `BOOK-GAME-STYLE.md`'s color
-  section for the register-matched palette this is already applied to.
+  bandwidth is far lower than luma, so fully-saturated primaries bleed,
+  smear, or ring on the actual tube. **Updated 2026-07-21, confirmed live
+  by Zach: this is NOT limited to the bright/bold family (90-97) —
+  standard-intensity red/green/blue (31/32/34) render badly too.** Hard
+  rule: never use ANSI codes 31, 32, 34, 91, 92, or 94 anywhere in this
+  project's screen output, at any boldness/dimness. Only yellow (33),
+  magenta (35), cyan (36), and white (37) — plus dim/bold modifiers on
+  those — are CRT-safe. See `BOOK-GAME-STYLE.md`'s color section for the
+  register-matched palette this applies to, and
+  `tests/test_book_game.py`'s `test_no_primary_rgb_codes_in_palette` for
+  the mechanical enforcement (not just a comment).
