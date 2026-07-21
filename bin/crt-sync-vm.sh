@@ -14,7 +14,7 @@
 #                              # (or differ from the repo) back into the repo,
 #                              # for you to review and `git add` yourself --
 #                              # never auto-commits.
-#   bin/crt-sync-vm.sh push   # tar the repo's tracked files (minus tests/)
+#   bin/crt-sync-vm.sh push   # tar the repo's tracked files
 #                              # onto the VM, overwriting same-named files.
 #                              # Run `pull` first so nothing VM-only is lost.
 #   bin/crt-sync-vm.sh status # just report the diff, no copying either way.
@@ -38,7 +38,7 @@ diff_report() {
     | awk '{h=$1; $1=""; sub(/^ /,""); p=$0; sub(/^\.\//,"",p); print p, h}' \
     | LC_ALL=C sort > "$vm_hashes"
 
-  (cd "$REPO_DIR" && git ls-files -z -- . ':!tests') \
+  (cd "$REPO_DIR" && git ls-files -z) \
     | xargs -0 sha256sum \
     | awk '{print $2, $1}' \
     | LC_ALL=C sort > "$local_hashes"
@@ -79,7 +79,7 @@ case "$cmd" in
     done
     ;;
   push)
-    (cd "$REPO_DIR" && git ls-files -- . ':!tests') > /tmp/crt-sync-push-filelist.txt
+    (cd "$REPO_DIR" && git ls-files) > /tmp/crt-sync-push-filelist.txt
     tar cf - -C "$REPO_DIR" -T /tmp/crt-sync-push-filelist.txt \
       | $SSH "mkdir -p $VM_DIR && tar xf - -C $VM_DIR"
     echo "pushed $(wc -l < /tmp/crt-sync-push-filelist.txt) files to VM:$VM_DIR"
