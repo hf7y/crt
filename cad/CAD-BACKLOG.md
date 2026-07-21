@@ -20,7 +20,11 @@ before printing anything.
   hasn't been checked against the assembled lever/pivot yet; (3) openscad
   still not installed in this environment — nothing here has been
   render-checked, only hand-verified. Run `./export_stl.sh` and eyeball
-  before printing.
+  before printing. **2026-07-20**: `switch_mount.scad`/`cradle.scad`
+  reworked to be screwless (no M-hardware on hand) — switch presses into
+  its bracket by interference fit, bracket presses into a socket rim on
+  the cradle base. Pivot pin still needs a 4mm rod (nail/filament/skewer
+  work, not a screw).
 - A Gemini-suggested alternate script (hanging wall-cradle instead of the
   see-saw lever) was considered this session and **not adopted** — Chris
   chose to keep the existing lever mechanism and feed it the real
