@@ -231,7 +231,19 @@ namespace CrtScanner
         {
             if (nCode >= 0 && ((int)wParam == Native.WM_KEYDOWN || (int)wParam == Native.WM_SYSKEYDOWN))
             {
-                long now = Environment.TickCount64;
+                // Environment.TickCount, not TickCount64: this dexter's
+                // Windows PowerShell 5.1 targets an older .NET Framework
+                // that doesn't have TickCount64, and Add-Type's compile
+                // error on it was silently hanging the whole process on
+                // every launch (the giant compiler-error dump filled the
+                // Start-Process-redirected stderr pipe with nobody
+                // reading it, so the process sat there "running" but
+                // never reached Application.Run -- every scan since this
+                // was introduced leaked straight to whatever had focus
+                // instead of ever being captured). int wraps every ~24.9
+                // days of uptime; irrelevant for a single keystroke-gap
+                // delta like this.
+                long now = Environment.TickCount;
                 long dt = lastTickMs == 0 ? long.MaxValue : now - lastTickMs;
                 lastTickMs = now;
 
