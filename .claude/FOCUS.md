@@ -29,6 +29,36 @@ record/links; nothing left in this section for an unattended pass to
 pick up until either a new offline-safe batch is registered here, or VM
 access unblocks the STT section.
 
+## Book Game — structured STT training-data game (2026-07-21, vision session)
+
+Full vision, roadmap, and open questions: `../BOOK-GAME.md`. Direct instance
+of this file's own 2026-07-20 15:57 vision line ("games and idle bait are
+important ways of requesting specific sonic information in a structured
+way that informs the voice detection model") — scan a book's ISBN barcode,
+ask a 2-option multiple-choice question about it, grade the spoken answer
+against the two known option strings, log every (expected, heard) mismatch
+as labeled STT training data, register the book locally. Stretch: print an
+LCC label per book via the existing Phomemo/`catprint` channel or a
+dedicated label printer (open question, see BOOK-GAME.md).
+
+**Offline-safe, nightly-batch can pick this up now** — build
+`bin/crt-book-game.py` standalone (own CLI, not yet wired into
+`crt-console.sh`/`crt-secretary.py`), with `tests/` coverage, for:
+1. ISBN → metadata lookup (Open Library API first; mock the HTTP call in
+   tests).
+2. 2-option question generator from a book-facts dict.
+3. Grading + `~/.crt/book-game-training.jsonl` logging (exact-ish
+   normalize-then-compare, per Zach's direction 2026-07-21 — not fuzzy —
+   because every mismatch is deliberately kept as a training signal, not
+   smoothed over).
+4. `~/.crt/books.db` SQLite registry (schema in BOOK-GAME.md).
+5. LCC call-number best-effort computation as its own pure function.
+
+Do NOT attempt: live scanner/HID passthrough, wiring into the console
+layout, or live mic verification — all genuinely need a hands-on crt-vm
+session (see BOOK-GAME.md's roadmap step 2), same hardware-acceptance-bar
+rule as everything else in this file.
+
 ## Cross-project ask: locate prior demucs work on dexter (2026-07-20)
 
 `wtul` (the CD-ripper project) needs Demucs for ROADMAP #5 (instrumental

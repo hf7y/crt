@@ -18,6 +18,9 @@ pointers below for depth on any one piece.
 - `PARKING-LOT.md` — the deep end-state vision (RF power-on, hidden
   transcription, predictive-text feel, morning-reports + media-playback as
   the two core jobs). Not built, captured so it isn't lost.
+- `BOOK-GAME.md` (2026-07-21) — barcode-scan book trivia game, standalone
+  build, doubles as structured STT training-data collection and a personal
+  library registry. Offline-safe portion registered in `.claude/FOCUS.md`.
 
 ## Where it runs
 
