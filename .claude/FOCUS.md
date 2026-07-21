@@ -1,5 +1,62 @@
 # crt — focus & backlog
 
+## Compute-stick migration in progress (2026-07-21) — read this before touching install.sh/scanner/console boot wiring
+
+Moving off dexter+crt-vm onto a single Intel Compute Stick, **Debian
+13.6 amd64 confirmed as the target**. This is a genuine architecture
+shift, not a hardware swap — the whole dexter<->crt-vm bridge (separate
+Windows host + VM guest) goes away, one machine does everything. Commits
+so far, in order: `43bf894` `4a5fb27` `a932b08` `64947fe` `5484d5a`
+`985ac4a`. What each did:
+
+- **`43bf894`** — Gemini wired as a cheap-tier question source for Book
+  Game (`crt-book-game.py`'s `call_gemini_batch()`), key installed via
+  `install.sh` (`CRT_GEMINI_API_KEY`, file or interactive prompt).
+- **`4a5fb27`** — two input-routing bugs closed: `crt-scanner-feed.py`
+  no longer `tmux send-keys`'s scans into whatever window has focus
+  (dead leftover from before the stdin pivot, a second uncontrolled
+  escalation path into Claude's pane); window 1 (`mono`) now also shows
+  the user's own STT utterances, not just Claude's replies.
+- **`a932b08`** — registered (not built) the next offline-safe item:
+  Gemini-before-Claude fallthrough in `crt-secretary.py` itself (see the
+  entry below this one) — separate track, not part of the stick move,
+  just filed the same day.
+- **`64947fe`** — **`bin/dexter-scanner-forward.ps1` retired** (git
+  history only, `git log -- bin/dexter-scanner-forward.ps1`). It only
+  ever existed to bridge the scanner across two machines; bare metal
+  has one. `crt-book-console.py`'s stdin path now writes its own
+  `scanner.log` entries (`format_scan_log_line()`, self-echo-suppressed)
+  so the audit trail survives without that listener running.
+- **`5484d5a`** — `install.sh` gained optional `CRT_WIFI_SSID/PSK/IFACE`
+  (nmcli or wpa_supplicant, whichever's present) and
+  `CRT_CLAUDE_CREDENTIALS_PATH` (pre-seeds `~/.claude/.credentials.json`
+  so first boot skips the interactive Claude Code login — same
+  mechanism this account's own nightly-batch jobs already rely on for
+  unattended `claude -p`).
+- **`985ac4a`** — `avahi-daemon` + `CRT_HOSTNAME` (default
+  `crt-console`) for `crt-console.local` mDNS discovery; `crt-console.sh`
+  flashes the real IP on the physical screen for `CRT_IP_FLASH_SECS` at
+  boot as a same-segment-only mDNS's fallback; `install.sh` restructured
+  around one editable `CONFIG` block up top PLUS interactive prompts for
+  every value (WiFi password, Gemini key, Claude credentials can now be
+  **pasted directly**, EOF-terminated, jq-validated) — both paths work
+  for everything now, not just one value.
+
+**What's still open, not this account's job to build:**
+- **OS-level preseed/unattended-install** — a different agent is on
+  this already, blocked on a GRUB blind-mode issue on the real
+  hardware. Don't duplicate that work; `install.sh` assumes Debian is
+  already installed and network-reachable by the time it runs.
+- **Nothing here is hardware-verified.** Every piece above (WiFi via
+  nmcli/wpa_supplicant, avahi/mDNS, the IP flash, the credentials
+  paste/pre-seed path) is written and unit-tested offline only — same
+  acceptance bar as everything else in this repo. First real boot on
+  the actual stick is the actual test.
+- If you're a fresh session picking this up (on the stick itself, or
+  continuing this migration from mandark/svc-vaporwave): read
+  `README.md`'s "Bare-metal deployment" section and `install.sh`'s own
+  header/CONFIG block first, they're kept current with all of the above.
+
 - **2026-07-20 15:57 (via `scheduler -i`):** vision: crt off, handset on killswitch hookswitch. handset picked up = noise in line. lightweight watcher tracks mic signal, no AI API yet. handset pick up, IR beam monitor on, sidetone in earpiece. user speaks command in natural language, earpiece beeps expressively in response based on keyword type filter that directs a search tree. users voice shows as flickering line on crt (stt at bottom of screen, right aligned, line length based on amplitude, visual decay, eventually predictive text auto fills in words, or lighter weight stt with shorter window drops words that later get replaced by better stt. tunable afterglow that lets last recorded line persist for a few seconds for auditing. words grey out from left to right. language tree does its best to navigate without API calls, calls out to API when unsure, little light in the corner indicates claude has been requested. claude comes in and takes over the bot voice (user never feels it). program is always recording stt results (eventually voice when we merge vm and windows halves) and generating more accurate handling of interactions. games and idle bait are important ways of requesting specific sonic information in a structured way that informs the voice detection model. we never feel it when claude comes in to take over, other than the color change. calls to claude leave residue for future refinement automatically but the token usage of claude calls should be minimized by default and tunable.
 
 **Heads-up (2026-07-20, from scheduler's own repo) — check scheduler's
