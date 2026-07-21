@@ -9,6 +9,47 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_USER="$(whoami)"
 
+echo "==> WiFi (optional -- set CRT_WIFI_SSID/CRT_WIFI_PSK/CRT_WIFI_IFACE)"
+# Runs FIRST, before apt-get update: on a compute-stick deployment with no
+# ethernet, this may be the only path to network at all, including for the
+# rest of this script. Two backends, whichever is actually present --
+# NOT hardware-verified against a real stick's wifi adapter yet, same
+# acceptance bar as everything else in this repo (see this file's own
+# convention of flagging untested paths rather than claiming they work).
+CRT_WIFI_IFACE="${CRT_WIFI_IFACE:-wlan0}"
+if [ -n "${CRT_WIFI_SSID:-}" ]; then
+  if command -v nmcli >/dev/null 2>&1; then
+    sudo nmcli device wifi connect "$CRT_WIFI_SSID" password "${CRT_WIFI_PSK:-}" ifname "$CRT_WIFI_IFACE" \
+      && echo "    connected via NetworkManager ($CRT_WIFI_IFACE)" \
+      || echo "    nmcli connect failed -- check SSID/password and that $CRT_WIFI_IFACE exists"
+  elif command -v wpa_passphrase >/dev/null 2>&1; then
+    # Minimal Debian installs (no NetworkManager) ship ifupdown +
+    # wpasupplicant instead. wpa_passphrase hashes the PSK into the config
+    # file rather than storing it in plaintext -- but it also emits a
+    # "#psk=..." COMMENT line with the raw passphrase by default; strip
+    # that line, only the hash needs to persist to disk.
+    WPA_CONF="/etc/wpa_supplicant/wpa_supplicant-${CRT_WIFI_IFACE}.conf"
+    {
+      echo "ctrl_interface=/run/wpa_supplicant"
+      echo "update_config=1"
+      wpa_passphrase "$CRT_WIFI_SSID" "${CRT_WIFI_PSK:-}" | grep -v '^#psk='
+    } | sudo tee "$WPA_CONF" >/dev/null
+    sudo chmod 600 "$WPA_CONF"
+    if ! grep -q "iface $CRT_WIFI_IFACE" /etc/network/interfaces 2>/dev/null; then
+      printf 'auto %s\niface %s inet dhcp\n    wpa-conf %s\n' \
+        "$CRT_WIFI_IFACE" "$CRT_WIFI_IFACE" "$WPA_CONF" \
+        | sudo tee -a /etc/network/interfaces >/dev/null
+    fi
+    sudo systemctl restart networking 2>/dev/null || sudo ifup "$CRT_WIFI_IFACE" 2>/dev/null || true
+    echo "    wrote $WPA_CONF + /etc/network/interfaces stanza for $CRT_WIFI_IFACE"
+  else
+    echo "    neither nmcli nor wpa_passphrase found -- install network-manager or"
+    echo "    wpasupplicant first, or connect via ethernet and skip this for now."
+  fi
+else
+  echo "    CRT_WIFI_SSID not set, skipping (assuming ethernet or already-connected wifi)"
+fi
+
 echo "==> Installing packages"
 sudo apt-get update
 sudo apt-get install -y build-essential cmake git tmux sox alsa-utils curl openscad evtest
@@ -20,6 +61,30 @@ if ! command -v claude >/dev/null 2>&1; then
   export PATH="$HOME/.local/bin:$PATH"
 else
   echo "    claude already installed, skipping"
+fi
+
+echo "==> Claude Code credentials (optional -- set CRT_CLAUDE_CREDENTIALS_PATH)"
+# claude's own OAuth login is interactive by default (visit a URL, paste a
+# code back -- text-only, no browser needed on THIS machine, but still a
+# one-time human step). Pre-seeding ~/.claude/.credentials.json skips that
+# entirely on first boot -- the same mechanism svc-vaporwave's own
+# nightly-batch jobs already use for fully unattended `claude -p` runs.
+# Do the one-time login ONCE on any machine, then point this at that
+# machine's ~/.claude/.credentials.json -- never paste the credential
+# itself into a chat/prompt, same handling as the Gemini key above.
+if [ -n "${CRT_CLAUDE_CREDENTIALS_PATH:-}" ]; then
+  if [ -f "$CRT_CLAUDE_CREDENTIALS_PATH" ]; then
+    mkdir -p "$HOME/.claude"
+    umask 077
+    cp "$CRT_CLAUDE_CREDENTIALS_PATH" "$HOME/.claude/.credentials.json"
+    chmod 600 "$HOME/.claude/.credentials.json"
+    umask 022
+    echo "    Installed to ~/.claude/.credentials.json -- no first-run login needed"
+  else
+    echo "    CRT_CLAUDE_CREDENTIALS_PATH=$CRT_CLAUDE_CREDENTIALS_PATH not found, skipping"
+  fi
+else
+  echo "    Not set -- 'claude' will prompt for a one-time login on first run"
 fi
 
 echo "==> Building whisper.cpp"
@@ -95,4 +160,7 @@ fi
 echo ""
 echo "==> Done. Reboot to test full autoboot flow: sudo reboot"
 echo "    Manual test without reboot: bash $PROJECT_DIR/bin/crt-console.sh"
-echo "    First run: 'claude' will prompt you to log in once (needs network + one-time auth)."
+if [ ! -f "$HOME/.claude/.credentials.json" ]; then
+  echo "    First run: 'claude' will prompt you to log in once (needs network + one-time auth)."
+  echo "    (skip this next time: pre-seed CRT_CLAUDE_CREDENTIALS_PATH)"
+fi
