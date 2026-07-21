@@ -22,5 +22,9 @@
 # Hardcodes the real binary's path rather than relying on PATH order for
 # the exec target, so this can never recurse into itself even if PATH
 # ends up misconfigured.
-printf '\e[?1000l\e[?1003l\e[?1006l\e[?1015l\e[?1002l' > /dev/tty 2>/dev/null || true
+# Grouped so a failed /dev/tty open (no controlling terminal -- e.g. a
+# non-interactive SSH command) is swallowed too: an ungrouped redirect's
+# open failure prints straight to the script's real stderr before the
+# command's own `2>/dev/null` ever applies.
+{ printf '\e[?1000l\e[?1003l\e[?1006l\e[?1015l\e[?1002l' > /dev/tty; } 2>/dev/null || true
 exec "$HOME/.local/bin/claude" "$@"
