@@ -46,6 +46,7 @@ _spec.loader.exec_module(bg)
 SCANNER_LOG = os.path.expanduser(os.environ.get("CRT_SCANNER_LOG", "~/.crt/scanner.log"))
 IDLE_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_IDLE_SECS", "20"))
 POLL_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_POLL_SECS", "0.5"))
+WAIT_HINT_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_WAIT_HINT_SECS", "8"))
 
 
 def parse_scanner_log_line(line):
@@ -96,7 +97,7 @@ def render_idle_screen(book_count, width, height, rng=None):
     return [bg.wrap_color(l, bg.COLOR_TITLE) for l in lines]
 
 
-def render_scan_result(row, width, height):
+def render_scan_result(row, width, height, show_waiting_hint=False):
     """Pure function: the question screen for a freshly-scanned or
     already-registered book, colored in the warm/curious register
     (posing a question) per BOOK-GAME-STYLE.md. Title includes the
@@ -105,11 +106,31 @@ def render_scan_result(row, width, height):
     the CRT" instead of printing a physical label (Bluetooth-through-VM
     risk, demoted), but that decision was never actually wired into this
     screen until now; `crt-book-game.py`'s own CLI has printed it to
-    stdout all along, this was the real console gap."""
+    stdout all along, this was the real console gap.
+
+    `show_waiting_hint=True` overlays the `cat_reading` ASCII art into
+    the bottom rows -- BOOK-GAME-STYLE.md named this exact pairing
+    ("cat_reading while waiting on an answer") when the art library was
+    built, but there was no real "waiting" period to attach it to until
+    the hands-on agent wired `render_answer_result()` in (main() now
+    genuinely sits on the question screen for a stretch before a graded
+    answer lands, or doesn't). Overlaid onto the LAST rows of the
+    already-rendered screen (usually blank padding below the centered
+    question block) rather than a full re-layout -- a first-draft
+    approximation that can overlap a very long wrapped question on a
+    tall answer-options block; acceptable for a first pass, not
+    reworked here."""
     questions = json.loads(row["questions_json"] or "[]")
     question = questions[0] if questions else {"text": "(no question on file)", "options": []}
     title = f"{row['title']} ({row['lcc']})" if row.get("lcc") else row["title"]
     lines = bg.render_question_screen(title, question, width, height)
+    if show_waiting_hint:
+        art_lines = (bg.get_ascii_art("cat_reading") or "").splitlines()
+        start = height - len(art_lines)
+        for i, art_line in enumerate(art_lines):
+            row_i = start + i
+            if 0 <= row_i < height:
+                lines[row_i] = bg.center_text(art_line, width)
     return [bg.wrap_color(l, bg.COLOR_QUESTION) if l.strip() else l for l in lines]
 
 
@@ -352,21 +373,26 @@ def main():
 
     training_tail = open_training_tail(bg.TRAINING_LOG)
     pending_isbn = None  # isbn of the question currently on screen, if any
+    pending_row = None   # that question's own row, kept around to redraw with the waiting hint
+    hint_shown = False   # whether the cat_reading waiting hint has already fired for this question
 
     draw(render_idle_screen(book_count(), width, height))
     last_scan_at = 0.0
     showing_idle = True
 
     def show_scan(isbn):
-        nonlocal last_scan_at, showing_idle, pending_isbn
+        nonlocal last_scan_at, showing_idle, pending_isbn, pending_row, hint_shown
         try:
             row = handle_scan(conn, isbn)
         except ScanLookupFailed:
             draw(render_scan_error(isbn, width, height))
             pending_isbn = None
+            pending_row = None
         else:
             draw(render_scan_result(row, width, height))
             pending_isbn = isbn
+            pending_row = row
+            hint_shown = False
         last_scan_at = time.time()
         showing_idle = False
 
@@ -375,7 +401,7 @@ def main():
         # instant there's nothing new, never blocks. Drains everything
         # currently available each tick, same "don't starve" shape as
         # the stdin queue above.
-        nonlocal last_scan_at, pending_isbn
+        nonlocal last_scan_at, pending_isbn, pending_row
         while True:
             line = training_tail.readline()
             if not line:
@@ -388,10 +414,26 @@ def main():
             draw(render_answer_result(title, row, width, height))
             last_scan_at = time.time()
             pending_isbn = None  # only react once per active question
+            pending_row = None
+
+    def maybe_show_waiting_hint():
+        # BOOK-GAME-STYLE.md named "cat_reading while waiting on an
+        # answer" -- there was no real waiting period to attach it to
+        # until render_answer_result existed (see that function's own
+        # docstring). Fires once per question, WAIT_HINT_SECS after the
+        # scan, without resetting last_scan_at -- the idle timeout still
+        # counts from the original scan, showing the hint doesn't extend
+        # how long the question stays on screen.
+        nonlocal hint_shown
+        if (pending_isbn is not None and not hint_shown
+                and time.time() - last_scan_at >= WAIT_HINT_SECS):
+            draw(render_scan_result(pending_row, width, height, show_waiting_hint=True))
+            hint_shown = True
 
     stdin_alive = True
     for line in tail_new_lines(SCANNER_LOG):
         check_training_log()
+        maybe_show_waiting_hint()
         # Drain any stdin-sourced scans first, non-blocking -- stdin is
         # the primary path in practice now (see file header), scanner.log
         # is the fallback, so neither should starve the other.

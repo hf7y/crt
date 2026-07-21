@@ -109,6 +109,33 @@ class TestRenderScanResult(unittest.TestCase):
         self.assertTrue(any("Dune" in l for l in lines))
         self.assertFalse(any("(" in l and "Dune" in l for l in lines))
 
+    def test_no_waiting_hint_by_default(self):
+        row = {"title": "Dune", "questions_json": json.dumps(
+            [{"text": "Fiction or nonfiction?", "options": ["fiction", "nonfiction"], "correct": "fiction"}])}
+        lines = bc.render_scan_result(row, 40, 15)
+        self.assertFalse(any("still reading" in l for l in lines))
+
+    def test_waiting_hint_shows_cat_reading_art(self):
+        # BOOK-GAME-STYLE.md named "cat_reading while waiting on an
+        # answer" when the ASCII art library was built -- confirmed by
+        # grep that nothing used it anywhere before this fix.
+        row = {"title": "Dune", "questions_json": json.dumps(
+            [{"text": "Fiction or nonfiction?", "options": ["fiction", "nonfiction"], "correct": "fiction"}])}
+        lines = bc.render_scan_result(row, 40, 15, show_waiting_hint=True)
+        self.assertTrue(any("still reading" in l for l in lines))
+
+    def test_waiting_hint_dimensions_unchanged(self):
+        row = {"title": "Dune", "questions_json": json.dumps(
+            [{"text": "Fiction or nonfiction?", "options": ["fiction", "nonfiction"], "correct": "fiction"}])}
+        lines = bc.render_scan_result(row, 40, 15, show_waiting_hint=True)
+        self.assertEqual(len(lines), 15)
+        self.assertTrue(all(len(_strip_ansi(l)) == 40 for l in lines))
+
+
+def _strip_ansi(text):
+    import re
+    return re.sub(r"\033\[[0-9;]*m", "", text)
+
 
 class TestHandleScan(unittest.TestCase):
     def test_fresh_scan_registers_book(self):
