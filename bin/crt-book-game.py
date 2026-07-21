@@ -49,13 +49,40 @@ OPEN_LIBRARY_URL = "https://openlibrary.org/isbn/{isbn}.json"
 def fetch_book_metadata(isbn, fetcher=None):
     """Look up a book by ISBN. `fetcher` is injectable for tests -- a
     callable(url) -> dict, default does a real HTTP GET against Open
-    Library. Raises on lookup failure; callers decide how to handle it."""
+    Library. Raises on lookup failure; callers decide how to handle it.
+
+    Author extraction handles THREE real shapes confirmed live against
+    Open Library's actual ISBN/edition endpoint (2026-07-21 branch
+    investigation into "trivia always asks the year question, never the
+    author one, and author always shows as Unknown"):
+      1. `"author": ["Last, First[, dates].", ...]` -- the common real
+         shape this endpoint actually returns, previously NOT CHECKED AT
+         ALL (code only looked for "author_names"/"authors", neither of
+         which this endpoint uses for this shape) -- this was the
+         confirmed root cause of authors always coming back ["Unknown"],
+         which in turn meant generate_template_question()'s author-name
+         candidate could never fire (it requires authors[0] != "Unknown"),
+         starving most real scans down to only the year-based question.
+      2. `"authors": [{"key": "/authors/OL...A"}]` -- a bare reference
+         with NO embedded name, confirmed live too (needs a second API
+         call to `/authors/OL...A.json` to resolve a name). NOT resolved
+         here -- an extra network hop per scan is a real latency/
+         reliability tradeoff, deliberately not added in this pass; falls
+         back to "Unknown" same as before, so this shape is a known,
+         documented remaining limitation, not silently claimed as fixed.
+      3. No author field present at all -- genuinely absent upstream,
+         nothing to extract.
+    "Last, First[, dates]." entries are reformatted to "First Last" via
+    _clean_author_name() so both display and the author-first-name
+    template question read naturally instead of showing "Orwell," (a
+    trailing comma from naively splitting the raw "Last, First" string)."""
     fetcher = fetcher or _http_get_json
     data = fetcher(OPEN_LIBRARY_URL.format(isbn=isbn))
     title = data.get("title", "Unknown title")
-    authors = data.get("author_names") or data.get("authors") or []
-    if authors and isinstance(authors[0], dict):
-        authors = [a.get("name", "Unknown") for a in authors]
+    authors_raw = data.get("author_names") or data.get("authors") or data.get("author") or []
+    if authors_raw and isinstance(authors_raw[0], dict):
+        authors_raw = [a.get("name", "Unknown") for a in authors_raw]
+    authors = [_clean_author_name(a) for a in authors_raw if a] or ["Unknown"]
     publish_date = data.get("publish_date", "")
     year_match = re.search(r"\d{4}", publish_date or "")
     year = int(year_match.group()) if year_match else None
@@ -63,11 +90,28 @@ def fetch_book_metadata(isbn, fetcher=None):
     return {
         "isbn": isbn,
         "title": title,
-        "authors": authors or ["Unknown"],
+        "authors": authors,
         "year": year,
         "subjects": subjects,
         "raw": data,
     }
+
+
+def _clean_author_name(raw):
+    """Pure function: Open Library's edition/ISBN endpoint's `"author"`
+    field commonly gives 'Last, First Middle, dates.' (e.g. 'Orwell,
+    George, 1903-1950.', confirmed live) -- reformat to 'First Middle
+    Last' so both display and generate_template_question()'s first-name
+    extraction (which assumes "First Last" word order) work naturally.
+    Falls back to the raw string unchanged if it doesn't contain a comma
+    (already "First Last" shape, or an org/unknown-format name)."""
+    raw = raw.strip()
+    if "," not in raw:
+        return raw
+    parts = [p.strip() for p in raw.split(",")]
+    last = parts[0]
+    first = parts[1].rstrip(".").strip() if len(parts) > 1 else ""
+    return f"{first} {last}" if first else last
 
 
 def _http_get_json(url):
