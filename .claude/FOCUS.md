@@ -1,5 +1,41 @@
 # crt — focus & backlog
 
+## FIRST STEP EVERY CYCLE (2026-07-21): pull from crt-vm before doing anything else
+
+This account now has standing SSH access to crt-vm (`ssh crt-vm`, alias
+in `~/.ssh/config`, key `~/.ssh/crt_vm_pull` — both live in this
+account's home directory, NOT the disposable clone, so they survive the
+`git reset --hard` this repo's clone gets every cycle). crt-vm runs its
+own hands-on, interactive Claude sessions independently of this batch
+job, and has repeatedly diverged from this repo without anyone noticing
+until the next manual pull — as of 2026-07-21 the VM had built an
+entire fuzzy-wake-word "calibration game" feature (see its own
+`.claude/SESSION-STATE.md`, fetch with
+`ssh crt-vm "cat ~/crt/.claude/SESSION-STATE.md"`) that had never once
+synced back. Real feature work has sat un-synced for a while before —
+don't assume this repo reflects everything crt-vm has done.
+
+**Before reading further in this file, before touching any code:** run
+`bin/crt-sync-vm.sh status` (read-only) to see what's changed on
+crt-vm since the last sync. If it reports anything under `ONLY_VM` or
+`DIFFER`, run `bin/crt-sync-vm.sh pull` next (never auto-commits —
+copies VM-only files into the working tree for review). Then:
+- Anything genuinely standalone (new files with their own tests that
+  pass against this repo as-is) — safe to `git add`/commit normally as
+  part of this cycle's work.
+- Anything that DIFFERs from a file already tracked here — do NOT
+  blindly overwrite either direction. Read both versions, understand
+  why they diverged (crt-vm's `.claude/SESSION-STATE.md` explains its
+  own recent changes), and only merge what you can verify still passes
+  the full test suite. If a real conflict needs a human decision, leave
+  it uncommitted in the working tree and describe it in tonight's
+  report rather than guessing.
+- If `bin/crt-sync-vm.sh` fails (host key, auth, connection) — don't
+  spend the whole cycle debugging SSH; note it in the report and
+  continue with whatever this cycle would otherwise do. The credential
+  is new (set up 2026-07-21) and not yet proven reliable across many
+  unattended runs.
+
 ## Compute-stick migration in progress (2026-07-21) — read this before touching install.sh/scanner/console boot wiring
 
 Moving off dexter+crt-vm onto a single Intel Compute Stick, **Debian
