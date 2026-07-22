@@ -245,6 +245,35 @@ pass until a new batch gets registered. A recurring cron
   the lure toward it, not a replacement for it.
 - No STT error-pattern learning (no live transcriptions this session).
 
+## Seventh wave (2026-07-22): potato migration + self-repair scoping
+`potato` (Raspberry Pi, 192.168.0.45, user `vkv`, sudo added to that
+account) is the new migration target, replacing dexter/crt-vm eventually.
+Repo deployed there (`~/crt`, tar-over-ssh, 164 files), offline test suite
+green, `install.sh` run (whisper.cpp built, ALSA/autologin wired), `claude`
+logged in as zach@nomac.org on tty1 — confirmed working live. **No mic
+hardware attached to potato yet** (`arecord -l` empty) — nothing audio-side
+is verifiable until that's physically wired.
+
+`CRT_CLAUDE_ARGS="--permission-mode bypassPermissions"` set in potato's
+`~/.bash_profile` (zero-prompt autonomy, explicitly scoped to this trusted
+console per Zach). New tonight: `SELF-REPAIR.md` + `bin/crt-self-repair.sh`
++ `systemd/crt-self-repair.{service,timer}` — a nightly unattended
+`claude -p` pass, potato-only, licensed to tune STT/VAD settings (and
+beyond) aggressively, gated ONLY by a forced pre/post git commit (so any
+change is one `git revert` away) — read `SELF-REPAIR.md` in full before
+touching this, it has the exact scoping Zach gave and what's deliberately
+NOT built yet (off-box visibility, push access, actual tuning numbers —
+none of that ran, potato went unreachable mid-move before the timer could
+even be installed).
+
+**Not yet done**: `git init` on potato's `~/crt` (was about to run this
+when potato dropped off the network — no route to host, mid-physical-move
+per Zach). The self-repair timer/service files exist in THIS repo but were
+never copied to potato or `systemctl enable`'d. Service-user setup (push/
+pull access, modeled on `svc-vaporwave`, likely pull-only at first) is
+explicitly deferred — needs potato back up and a live design conversation
+about the `/srv/` reporting mechanism first.
+
 ## Pick up next, in order
 1. Get back on `crt-vm` and answer question #1 above — it gates both
    sidetone and whether `crt-idle-teaser.sh`'s earcon calls will even
