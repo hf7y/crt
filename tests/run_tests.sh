@@ -127,6 +127,18 @@ if [ -f "$DIR/test_wake_pool_tally.py" ]; then
 fi
 echo
 
+echo "== crt-wake-judge.py (autonomous wake-word tuning judge, pulled from crt-vm) =="
+if [ -f "$DIR/test_wake_judge.py" ]; then
+  python3 -m unittest discover -s "$DIR" -p "test_wake_judge.py" -v 2>&1 | tail -5 || fail=1
+fi
+echo
+
+echo "== crt-attach-ssh-bridge.sh (pulled from crt-vm) =="
+if [ -f "$DIR/test_attach_ssh_bridge.sh" ]; then
+  bash "$DIR/test_attach_ssh_bridge.sh" || fail=1
+fi
+echo
+
 echo "== crt-scanner-feed.py log-only =="
 if [ -f "$DIR/test_scanner_feed.py" ]; then
   python3 -m unittest discover -s "$DIR" -p "test_scanner_feed.py" -v 2>&1 | tail -5 || fail=1
