@@ -101,6 +101,32 @@ so far, in order: `43bf894` `4a5fb27` `a932b08` `64947fe` `5484d5a`
   `README.md`'s "Bare-metal deployment" section and `install.sh`'s own
   header/CONFIG block first, they're kept current with all of the above.
 
+- **2026-07-22 (folded in via realisateur's nightly-batch):** two
+  duplicate inbox drops in realisateur
+  (`service-that-runs-on-the-crt-v-20260720-214544.idea` and the
+  `...214555.idea` twin, same text) independently re-described the
+  barcode-scanner → book quote/summary feature — this is exactly the
+  Book Game funnel already designed in `SCANNER.md`/`BOOK-GAME.md`
+  ("Not yet implemented" section of `SCANNER.md`: stdin-reading in
+  `crt-book-console.py`, flip default tmux window to `book`). No new
+  work added here, just a corroborating signal from Zach that this is
+  the right feature to keep pushing on — both source notes archived in
+  realisateur, not scaffolded as a separate project.
+- **2026-07-22 (folded in via realisateur's nightly-batch):** dexter NPU
+  idea (`dexter-npu-tools-20260722.idea`) — clean up `dexter` (the Ryzen
+  mini-PC hosting `crt-vm`) and wire in its real NPU (Ryzen AI/XDNA)
+  tooling to accelerate whisper.cpp STT inference (Ryzen AI SDK/DirectML/
+  ONNX Runtime backend) instead of the current plain-CPU build, letting
+  the console run a bigger/more accurate model than `base.en` at the
+  same latency. NPU can't do training/fine-tuning (quantized low-power
+  inference silicon, no backprop toolchain) — inference acceleration
+  only. Needs a different whisper.cpp build/backend than `install.sh`
+  builds now, and dexter is live hardware — treat like the `potato`
+  reachability item above: hands-on work, not something this unattended
+  tier can execute blind. Flagging here rather than scaffolding a
+  separate project since it's dexter/crt-vm-specific infrastructure, not
+  a standalone idea.
+
 - **2026-07-20 15:57 (via `scheduler -i`):** vision: crt off, handset on killswitch hookswitch. handset picked up = noise in line. lightweight watcher tracks mic signal, no AI API yet. handset pick up, IR beam monitor on, sidetone in earpiece. user speaks command in natural language, earpiece beeps expressively in response based on keyword type filter that directs a search tree. users voice shows as flickering line on crt (stt at bottom of screen, right aligned, line length based on amplitude, visual decay, eventually predictive text auto fills in words, or lighter weight stt with shorter window drops words that later get replaced by better stt. tunable afterglow that lets last recorded line persist for a few seconds for auditing. words grey out from left to right. language tree does its best to navigate without API calls, calls out to API when unsure, little light in the corner indicates claude has been requested. claude comes in and takes over the bot voice (user never feels it). program is always recording stt results (eventually voice when we merge vm and windows halves) and generating more accurate handling of interactions. games and idle bait are important ways of requesting specific sonic information in a structured way that informs the voice detection model. we never feel it when claude comes in to take over, other than the color change. calls to claude leave residue for future refinement automatically but the token usage of claude calls should be minimized by default and tunable.
 
 **Heads-up (2026-07-20, from scheduler's own repo) — check scheduler's
