@@ -35,6 +35,14 @@ copies VM-only files into the working tree for review). Then:
   continue with whatever this cycle would otherwise do. The credential
   is new (set up 2026-07-21) and not yet proven reliable across many
   unattended runs.
+- **Check crt-vm's own `.claude/SESSION-STATE.md` header before merging
+  anything DIFFER.** As of 2026-07-21 it explicitly warns of a SEPARATE
+  live SSH Claude Code session actively working on the VM in real time
+  (Zach talking directly to the physical console, tuning things live) —
+  merging a file mid-edit by that session would be actively destructive,
+  not just risky. If that header's still there, treat any DIFFER file
+  as off-limits for this cycle beyond pulling+reading, no matter how
+  tempting the merge looks.
 
 ## Compute-stick migration in progress (2026-07-21) — read this before touching install.sh/scanner/console boot wiring
 
