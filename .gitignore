@@ -4,3 +4,4 @@ __pycache__/
 .DS_Store
 .scheduler-autocommit.log
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
