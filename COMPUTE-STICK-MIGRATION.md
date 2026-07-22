@@ -1,4 +1,18 @@
-# Compute stick migration (Intel Compute Stick STK1AW32SC)
+# Compute stick migration (Intel Compute Stick STK1AW32SC) — ABANDONED
+
+**Outcome: abandoned after ~1hr+ blind hangs that didn't resolve even with
+a trivial single-line preseed test. Migration target switched to a
+Raspberry Pi instead** (see "Why we gave up" and "What's next" at the
+bottom). Internal Windows install was never touched — every attempt hung
+before reaching partitioning, so the stick's eMMC should be untouched;
+unplug the USB and it should boot straight back into Windows.
+
+Kept below for reference (the 32-bit-UEFI-boot and isohybrid-partitioning
+techniques are reusable if anyone ever revisits Compute Stick hardware),
+but **do not resume this path** without reading the "Why we gave up"
+section first.
+
+---
 
 Side task, unrelated to the crt voice console's STT mission — flashing a USB
 stick to install Debian on an Intel Compute Stick ahead of migrating project
@@ -218,31 +232,49 @@ password entry, so a human always has to run them)
 - `copy-candidate-preseeds.sh` — copies the two `initrd-mmcblk*.gz`
   candidates onto `sda3` alongside the diagnostic files.
 
-## Status as of this writing / next steps for whoever picks this up
+## Why we gave up
 
-1. Stick is fully prepped: ia32 bootloader on `sda2`, four boot payloads
-   on `sda3` (`vmlinuz` shared + `initrd-diag.gz` / `initrd-mmcblk0.gz` /
-   `initrd-mmcblk1.gz`).
-2. **Not yet done**: user was about to run the diagnostic boot. Waiting
-   on `DISKINFO.TXT` to come back (stick gets pulled, mounted on
-   `mandark`, file read from `sda2`) to confirm the real internal disk
-   device name before running either candidate install for real.
-3. Once confirmed, boot the matching `initrd-mmcblkN.gz` — full cmdline
-   pattern:
-   ```
-   linux (hd0,msdos3)/vmlinuz nomodeset console=tty1 auto=true priority=critical preseed/file=/preseed.cfg ---
-   initrd (hd0,msdos3)/initrd-mmcblkN.gz
-   boot
-   ```
-4. If the real device name doesn't match either candidate, a new preseed
-   needs to be built (same template, `preseed-template.cfg` in the
-   session scratchpad — **not committed to the repo, only lives in
-   `/tmp/claude-*/scratchpad`, regenerate from this doc's contents if
-   that's gone**) and a new initrd baked, following the same
-   `cat + cpio` recipe above.
-5. After a successful install: pull the USB stick, board should boot
-   straight into Debian from internal storage — no more manual boot
-   selection needed. If the ESP's `INSTALL-OK.TXT` isn't there and the
-   board also doesn't boot into anything afterward, that's a sign the
-   preseed hit an unhandled debconf prompt and hung blind — needs another
-   diagnostic-style iteration to find out where.
+Ran the diagnostic boot (safe, no-disk-writes version) twice — both hung
+indefinitely in blind mode (kernel/keyboard alive via Caps Lock toggling,
+fan hot, but no poweroff, no `DISKINFO.TXT` ever written). Rebuilt with a
+mount-retry loop and progress checkpoints — same hang. Verified via direct
+inspection (not guesswork) that the preseed-embedding technique itself was
+structurally correct: the appended cpio archive's magic bytes (`070701`)
+landed exactly where the base `initrd.gz`'s gzip stream ended, and
+extracting it back out showed the exact intended `early_command` content.
+So the embedding mechanism wasn't the bug.
+
+To isolate further, built the simplest possible test — a single-line
+`d-i preseed/early_command string poweroff -f`, no loops, no multi-line
+shell, nothing that could be mangled by preseed's line-continuation
+parsing. **This hung identically for over an hour.** A trivial
+"power off immediately" command failing to execute at all, combined with
+every more-complex variant failing the exact same way regardless of
+content, points away from a preseed/shell-syntax bug and toward something
+lower-level — most likely this stick's flaky 32-bit-UEFI/USB stack failing
+to load the ~24MB `initrd-*.gz` correctly (a truncated or corrupted
+initramfs would explain a wedged early-userspace that behaves identically
+no matter what's inside it — the kernel itself boots fine since that comes
+from a separate, much smaller read via GRUB's own FAT driver). This wasn't
+independently confirmed (no way to verify blind), but it's the most
+consistent explanation across all the evidence gathered.
+
+**Conclusion**: further blind iteration on this hardware has diminishing
+returns. Internal Windows install was never touched — every attempt hung
+before any partitioning step could run — so no recovery/reinstall should
+be needed; unplug the USB stick and it should boot normally back into
+Windows.
+
+## What's next
+
+Target hardware switched to a **Raspberry Pi** for the file migration —
+modern Pi OS is 64-bit ARM with a normal, well-supported UEFI/bootloader
+chain and no equivalent GPU-driver gap, making it a much shorter path to a
+working headless Linux box than continuing to fight this Compute Stick's
+firmware quirks. That work continues in a fresh session/doc, not this one.
+
+Reusable techniques from this effort if Compute Stick hardware ever comes
+up again: the ia32-GRUB-loads-kernel-directly trick (see "Getting a
+32-bit UEFI bootloader" above) is sound and did get the installer kernel
+booting — the blocker was specifically the *blind, initrd-reading-off-USB*
+part, not the boot-chain part.
