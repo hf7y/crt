@@ -1,5 +1,7 @@
 # crt — focus & backlog
 
+- **2026-07-22 14:11 (via `scheduler -i`):** set up claude on pi to not use thinking. looking for the lowest api usage possible. eventually, canned responses injected before claude responds based on cached past conversations with claude calls in batches for review. visually, claude should be able to overwrite the canned responses on the screen with its informed response later. minimize api usage, maximize responsiveness.
+
 ## FIRST STEP EVERY CYCLE (2026-07-21): pull from crt-vm before doing anything else
 
 This account now has standing SSH access to crt-vm (`ssh crt-vm`, alias
