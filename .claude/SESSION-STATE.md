@@ -274,6 +274,19 @@ pull access, modeled on `svc-vaporwave`, likely pull-only at first) is
 explicitly deferred — needs potato back up and a live design conversation
 about the `/srv/` reporting mechanism first.
 
+**Update, later same night — potato came back on an unknown IP.** Old
+address (192.168.0.45) went dead mid-move; a full subnet scan found no
+other host with SSH open. Zach was physically at potato's monitor but the
+text was too small to read the IP, and it booted straight into the
+tmux `book` window instead of `claude` (window 0) — **confirmed
+NOT a bug**, that's `crt-console.sh`'s intentional boot-default (see its
+own 2026-07-21 comment re: scanner-keystroke focus) — don't "fix" it in a
+future pass. Full blocker writeup + the one real code-shaped task
+(potato has no avahi/mDNS — `potato.local` doesn't resolve, install
+`avahi-daemon` once reachable so this can't happen again) is in
+`.claude/FOCUS.md`'s new "potato migration" section — read that before
+resuming this thread, not just this file.
+
 ## Pick up next, in order
 1. Get back on `crt-vm` and answer question #1 above — it gates both
    sidetone and whether `crt-idle-teaser.sh`'s earcon calls will even
