@@ -149,6 +149,37 @@ record/links; nothing left in this section for an unattended pass to
 pick up until either a new offline-safe batch is registered here, or VM
 access unblocks the STT section.
 
+## potato migration — blocked on physical reachability (2026-07-22)
+
+`potato` (Raspberry Pi migration target, see `../SELF-REPAIR.md` and the
+assistant's own memory) went unreachable mid-physical-move tonight and
+came back on an unknown IP. **Branch around this — needs Zach's hands**,
+same as any live-hardware item: a subnet scan (`nmap -sn` /
+`nmap -p22 --open`) found no host with SSH open except the known
+OctoPrint Pi (`192.168.0.43`); the old address (`192.168.0.45`) is dead.
+Zach was looking at potato's actual monitor and saw the book-game tmux
+window, not window 0 — **that is NOT a bug**, `bin/crt-console.sh` selects
+`book` as the boot-default window on purpose (see that file's own
+2026-07-21 comment on raw-scanner-keystroke focus) — do not "fix" this
+away in a future pass. He couldn't read the tiny on-screen text to get
+the IP either.
+
+**Real code-shaped fix once potato is reachable again (do this first, it
+directly prevents tonight's exact problem from recurring):** potato has
+no mDNS/avahi — `ping potato.local` fails with "Name or service not
+known" from mandark. Install/enable `avahi-daemon` on potato (Debian
+trixie, `apt-get install avahi-daemon`, plus confirm mandark has
+`libnss-mdns`/avahi resolution working, which it may not either) so
+`potato.local` resolves regardless of DHCP lease changes after a move —
+this is exactly the class of problem that just cost a live session real
+time. Also worth checking whether the router can hand out a DHCP
+reservation for potato's MAC instead/in addition.
+
+Self-repair mechanism itself (`bin/crt-self-repair.sh`,
+`systemd/crt-self-repair.{service,timer}`) is designed and committed to
+THIS repo but was never copied onto potato or `git init`'d there — still
+todo, also blocked on reachability.
+
 ## Book Game — structured STT training-data game (2026-07-21, vision session)
 
 **End-goal statement (2026-07-21, Zach) — the whole point of this
