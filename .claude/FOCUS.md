@@ -1,5 +1,39 @@
 # crt — focus & backlog
 
+- **2026-07-23 06:40 (gap found via live log review, not yet built):**
+  the STT wake-word gate (`addressed_to_console()` in
+  `bin/crt-stt-solo.py`) has NO "stay open" window after a successful
+  wake -- every single utterance must contain the wake word (or a
+  confirmed `stt-fixups.json` alias) to reach secretary/Claude at all,
+  even mid-conversation right after a reply. Confirmed live 2026-07-23
+  ~06:21 BST on potato: "Potato, this is Zach" woke it and got a reply
+  ("still listening"), but the next four follow-up utterances in the
+  same breath ("we made some updates to the model", "routed off-site...",
+  etc) all got silently gate-dropped for lacking the wake word again.
+  Zach expected this to already exist -- likely conflated with
+  `crt-claude-bridge.py`'s `CRT_BRIDGE_FALLBACK_STALE_SECS` (2min,
+  window-1 marker-filter fallback), a similarly-shaped but *unrelated*
+  timer in a different part of the pipeline. Needs an actual
+  sticky-conversation-window: once woken, keep the gate open for N
+  seconds/turns without re-requiring the wake word, then re-arm.
+  Threshold tuning (how long to stay open, single-word-utterance
+  handling, etc) is a real design question, not just a number to guess
+  -- Zach floated making the tuning itself a game/rhythm-game rather
+  than a config file.
+- **2026-07-23 06:41 (game idea, not yet built):** "potato game" --
+  ASCII-art potato on screen, user says "potato" (or whatever the wake
+  word/pool is), and each STT-recognized word/fragment from the
+  utterance gets splashed around the potato scored by string similarity
+  to "potato" (reuse `crt-wake-pool.py`'s `difflib`-based near-match
+  scoring, already built for the wake-pool near-miss tally). Splash
+  duration and brightness proportional to similarity score. Doubles as:
+  (a) a fun way to *feel out* the STT error pattern for this specific
+  word live instead of reading `stt.log` after the fact, and (b) per the
+  sticky-window note above, a candidate vehicle for actually tuning
+  gate/threshold parameters interactively (a rhythm-game-style loop
+  instead of editing a config value and guessing) -- these two ideas
+  may be the same feature.
+
 - **2026-07-23 01:00 (higher-concept design, not yet built):** dual-tier
   STT design idea from Zach — potato runs a small/fast local whisper
   model (tiny.en) continuously in parallel with the offsite transcribe
