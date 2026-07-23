@@ -1,5 +1,44 @@
 # crt — focus & backlog
 
+- **2026-07-23 07:15 (live latency-tuning session, real changes made):**
+  root cause of the ~6s felt round-trip found and addressed: it wasn't
+  STT/whisper (measured 1-3s), it was `crt-secretary.py`'s fixed
+  `CLAUDE_IDLE_SECS=3` wait before the pane-diff idle-detector considers
+  Claude "done" replying. Changed tonight:
+  - `CLAUDE_IDLE_SECS` default lowered 3->1.5 (still env-overridable).
+    Added a "grace-check" in `wait_for_claude_reply()`: right before
+    finalizing on an apparent idle break, one more poll confirms the pane
+    really stayed quiet; if it grew during that grace window, waiting
+    resumes instead of returning a reply cut off mid-thought. This is the
+    real answer to "what if a reply gets cut off, can't we append" --
+    rather than reopening an already-spoken reply, it just doesn't
+    finalize early in the first place. Needs live re-tuning by ear over
+    more sessions, 1.5s is a first retune not a final number.
+  - Added a `thinking` earcon (`bin/crt-earcon.sh`), fired the instant
+    secretary escalates to Claude (before the real wait begins) --
+    kills dead air during the wait. Deliberately one fixed sound for now;
+    documented as the seed of a fuller expressive layer (contour/urgency
+    varying with expected wait length, escalation type, etc) for later,
+    not built beyond the single sound tonight.
+  - Added a cheap scaffold toward the bigger "stream grey partial text,
+    overwrite with white flavorful final text" idea: `wait_for_claude_reply`
+    now takes an `on_partial` callback, fired once on first real pane
+    growth. Wired to `show_composing_line()`, which just pushes
+    "...composing" through the existing `crt-think.sh` -> thoughts.log ->
+    window 1 path (same path `show_filler_line()`'s speculative-filler
+    idea already uses). This is NOT the grey/white streaming design --
+    just a foothold in the right place if/when that gets built.
+  - Filed, not built: running the actual Claude Code session on mandark
+    instead of potato, to see if Pi CPU/network path (not just
+    CLAUDE_IDLE_SECS) is also costing latency. Added a documented
+    stub/seam in `crt-secretary.py` right above `capture_pane()` --
+    only `capture_pane()`/`send_to_claude()` assume a local tmux pane;
+    swapping those two for an SSH- or HTTP-based remote equivalent is
+    the whole change needed later. Explicitly NOT built tonight because
+    the measured bottleneck was the idle-wait, not the host running
+    Claude -- don't build this until that's separately confirmed to
+    matter.
+
 - **2026-07-23 06:40 (gap found via live log review, not yet built):**
   the STT wake-word gate (`addressed_to_console()` in
   `bin/crt-stt-solo.py`) has NO "stay open" window after a successful

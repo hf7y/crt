@@ -83,7 +83,13 @@ TEST_SUITE = os.environ.get("CRT_TEST_SUITE", os.path.join(REPO_DIR, "tests/run_
 CALIBRATE_BIN = os.environ.get(
     "CRT_CALIBRATE_BIN", os.path.join(BIN_DIR, "crt-calibrate-display.py"))
 
-CLAUDE_IDLE_SECS = float(os.environ.get("CRT_SECRETARY_IDLE_SECS", "3"))
+# Lowered 3->1.5 2026-07-23 live tuning session (Zach on the mic, potato):
+# the fixed idle-stability wait was most of the ~6s felt round-trip
+# latency, independent of STT/whisper time. wait_for_claude_reply()'s
+# grace-check (below) is the safety net against this lower threshold
+# false-triggering mid-reply -- tune further by ear, this is a first
+# retuning, not a final number.
+CLAUDE_IDLE_SECS = float(os.environ.get("CRT_SECRETARY_IDLE_SECS", "1.5"))
 CLAUDE_MAX_WAIT = float(os.environ.get("CRT_SECRETARY_MAX_WAIT", "120"))
 CLAUDE_POLL = float(os.environ.get("CRT_SECRETARY_POLL", "1"))
 
@@ -445,6 +451,18 @@ def find_playbook(text):
     return None, None
 
 
+# STUB/HOOK (2026-07-23, filed not built -- see FOCUS.md "call Claude from
+# mandark" idea): capture_pane()/send_to_claude() below are the ONLY two
+# functions that assume Claude Code runs in a local tmux pane on this same
+# box. A future "run the actual Claude Code session on mandark instead of
+# potato" design would only need to swap these two functions' bodies (e.g.
+# `ssh mandark tmux capture-pane ...` / `ssh mandark tmux send-keys ...`,
+# or a small HTTP shim if SSH round-trip latency is itself a problem) --
+# everything else in this file (playbooks, wait_for_claude_reply, earcon/
+# composing-line hooks) is already agnostic to where Claude actually runs.
+# Not built because the actual bottleneck measured live 2026-07-23 was
+# CLAUDE_IDLE_SECS's fixed wait, not Pi CPU or network path -- don't
+# build this until that's separately confirmed to matter.
 def capture_pane():
     r = sh(["tmux", "capture-pane", "-t", "%s:%s" % (SESSION, PANE), "-p", "-S", "-200"])
     return r.stdout if r.returncode == 0 else ""
@@ -455,22 +473,50 @@ def send_to_claude(text):
     sh(["tmux", "send-keys", "-t", "%s:%s" % (SESSION, PANE), "Enter"])
 
 
-def wait_for_claude_reply(before_snapshot):
+def wait_for_claude_reply(before_snapshot, on_partial=None):
     """Poll capture-pane until it stops changing for CLAUDE_IDLE_SECS, or
     CLAUDE_MAX_WAIT elapses. Returns the pane lines added since before_snapshot
     (best-effort -- a real terminal UI has spinners/prompt redraws that a
     plain diff can't fully distinguish from genuine new content; this is a
-    first draft, not a robust terminal parser)."""
+    first draft, not a robust terminal parser).
+
+    Grace-check (added 2026-07-23 alongside lowering CLAUDE_IDLE_SECS 3->1.5):
+    right before finalizing on an apparent idle break, one extra poll
+    confirms the pane really has gone quiet. If it grew during that grace
+    window, the stability timer resets and waiting resumes instead of
+    returning a reply that got cut off mid-thought -- a lower idle
+    threshold means "looks done" fires more eagerly, so this is the cheap
+    insurance against acting on a false one, without needing to re-open
+    an already-returned/spoken reply and append to it after the fact.
+
+    on_partial (optional): called (best-effort, exceptions swallowed) the
+    first time the pane is observed to grow after send_to_claude -- a
+    foothold for a future streaming/'thinking' preview in window 1 (see
+    FOCUS.md's grey-then-white-overwrite idea), not a full implementation
+    of it. No-op by default."""
     deadline = time.time() + CLAUDE_MAX_WAIT
     last = capture_pane()
     stable_since = time.time()
+    partial_fired = False
     while time.time() < deadline:
         time.sleep(CLAUDE_POLL)
         now_snap = capture_pane()
         if now_snap != last:
             last = now_snap
             stable_since = time.time()
+            if on_partial and not partial_fired:
+                partial_fired = True
+                try:
+                    on_partial(now_snap)
+                except Exception:
+                    pass
         elif time.time() - stable_since >= CLAUDE_IDLE_SECS:
+            time.sleep(CLAUDE_POLL)  # grace-check, see docstring
+            confirm_snap = capture_pane()
+            if confirm_snap != last:
+                last = confirm_snap
+                stable_since = time.time()
+                continue
             break
 
     before_lines = before_snapshot.splitlines()
@@ -574,6 +620,32 @@ def confidence_route(text, action):
     return local_answer
 
 
+def play_earcon(name):
+    """Fire-and-forget (Popen, not sh()/run) -- an earcon must never add
+    its own latency on top of the real wait it's meant to paper over."""
+    try:
+        subprocess.Popen(
+            [os.path.join(BIN_DIR, "crt-earcon.sh"), name],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        pass
+
+
+def show_composing_line(_pane_snapshot):
+    """wait_for_claude_reply's on_partial hook: fires once, the first time
+    the pane is observed to grow after send_to_claude -- a cheap scaffold
+    toward the real streaming/'thinking' preview idea (grey partial text,
+    overwritten by the final flavorful line), not that feature itself.
+    Reuses the same crt-think.sh -> thoughts.log -> window 1 path
+    show_filler_line() already uses, just triggered by real pane growth
+    instead of a canned speculative line."""
+    try:
+        sh([os.path.join(BIN_DIR, "crt-think.sh"), "...composing"])
+    except OSError:
+        pass
+
+
 def show_filler_line():
     """PARKING-LOT.md's speculative/optimistic-response idea: an instant,
     content-free acknowledgment shown via crt-think.sh (crt-monologue.sh
@@ -602,7 +674,8 @@ def handle(text):
     touch_claude_active()
     before = capture_pane()
     send_to_claude(text)
-    reply = wait_for_claude_reply(before)
+    play_earcon("thinking")
+    reply = wait_for_claude_reply(before, on_partial=show_composing_line)
     touch_claude_active()  # the reply itself also counts as recent activity
     route_claude_reply(reply)
 

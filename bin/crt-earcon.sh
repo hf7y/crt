@@ -27,6 +27,17 @@
 #   success   a job finished clean (bright, quick, satisfied)
 #   ack       pickup acknowledged / now listening (a soft click, not a tone
 #             -- confirms the line is live without announcing anything)
+#   thinking  added 2026-07-23 (live latency-tuning session): fires the
+#             instant crt-secretary.py escalates to Claude, before
+#             wait_for_claude_reply()'s real (multi-second) round-trip --
+#             kills the dead-air feeling that made the wait read as
+#             "broken" rather than "working." Deliberately a single fixed
+#             sound for now (two soft rising ticks, "on it") -- the
+#             intended evolution (not built yet) is a whole expressive
+#             layer here: contour/urgency could vary with expected wait
+#             length, escalation type (secretary fallthrough vs confirmed
+#             playbook), or elapsed time if a reply is running long. Treat
+#             this one sound as the seed of that, not the final design.
 #   oops      something broke in a way that's actually funny/self-aware,
 #             not scary (a little descending "whoop," cartoon-stumble, NOT
 #             a klaxon -- reserve real klaxon energy for nothing, ever)
@@ -54,7 +65,7 @@ if [ "${1:-}" = "--device" ]; then
 fi
 
 if [ -z "$NAME" ]; then
-  echo "usage: crt-earcon.sh <bait|curious|question|content|success|ack|oops> [--device tv|handset]" >&2
+  echo "usage: crt-earcon.sh <bait|curious|question|content|success|ack|thinking|oops> [--device tv|handset]" >&2
   exit 2
 fi
 
@@ -118,6 +129,14 @@ case "$NAME" in
     # a soft click: very short, low, no tonal quality to speak of -- reads
     # as "the line picked up," like an old handset relay.
     note 220 0.03 "$TMP/out.wav"
+    ;;
+  thinking)
+    # two soft rising ticks -- "on it," not a full musical gesture. See
+    # the header note above: this is a seed sound, meant to grow into a
+    # richer expressive layer later, not the final design.
+    note 330 0.04 "$TMP/a.wav"
+    note 392 0.04 "$TMP/b.wav"
+    sox "$TMP/a.wav" "$TMP/b.wav" "$TMP/out.wav"
     ;;
   oops)
     # descending whoop, cartoon-stumble energy, not a klaxon.

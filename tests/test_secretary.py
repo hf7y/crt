@@ -268,7 +268,7 @@ class TestFallthroughLogging(unittest.TestCase):
         # the log write happens, not about tmux/Claude behavior.
         self.sec.capture_pane = lambda: ""
         self.sec.send_to_claude = lambda text: None
-        self.sec.wait_for_claude_reply = lambda before: ""
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
         self.sec.route_claude_reply = lambda reply: None
 
     def test_matched_playbook_does_not_log(self):
@@ -380,7 +380,7 @@ class TestClaudeWindowSwitch(unittest.TestCase):
         self.sec.FALLTHROUGH_LOG = os.path.join(tempfile.mkdtemp(), "fallthrough.log")
         self.sec.capture_pane = lambda: ""
         self.sec.send_to_claude = lambda text: None
-        self.sec.wait_for_claude_reply = lambda before: ""
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
         self.sec.route_claude_reply = lambda reply: None
 
     def test_fallthrough_switches_to_claude_view_window(self):
@@ -422,7 +422,7 @@ class TestSpeculativeFiller(unittest.TestCase):
         self.sec.FALLTHROUGH_LOG = os.path.join(tempfile.mkdtemp(), "fallthrough.log")
         self.sec.capture_pane = lambda: ""
         self.sec.send_to_claude = lambda text: None
-        self.sec.wait_for_claude_reply = lambda before: ""
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
         self.sec.route_claude_reply = lambda reply: None
 
     def test_disabled_by_default_no_filler_call(self):
@@ -492,7 +492,7 @@ class TestConfidenceRouting(unittest.TestCase):
         self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
         self.sec.capture_pane = lambda: "before"
         self.sec.send_to_claude = lambda text: None
-        self.sec.wait_for_claude_reply = lambda before: "It's 3:15 PM exactly"
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: "It's 3:15 PM exactly"
         self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
         state = self.sec.stt_confidence.load_state()
         key = self.sec.stt_confidence.normalize_key("what time is it")
@@ -503,7 +503,7 @@ class TestConfidenceRouting(unittest.TestCase):
         self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
         self.sec.capture_pane = lambda: "before"
         self.sec.send_to_claude = lambda text: None
-        self.sec.wait_for_claude_reply = lambda before: "completely unrelated reply"
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: "completely unrelated reply"
         self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
         state = self.sec.stt_confidence.load_state()
         key = self.sec.stt_confidence.normalize_key("what time is it")
