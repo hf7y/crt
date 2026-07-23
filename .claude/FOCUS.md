@@ -1,5 +1,23 @@
 # crt — focus & backlog
 
+- **2026-07-23 00:40:** two things worth re-checking/hardening now that
+  `crt-stt-solo.py` on potato offloads transcription to
+  `bin/mandark-whisper-server.py` (`CRT_WHISPER_SERVER`, wired into
+  `crt-console.sh`'s stt window 2026-07-23):
+  - The "single mic reader only" design constraint in `crt-stt-solo.py`'s
+    header was measured on the VirtualBox guest's *emulated* capture
+    device (dsnoop starving a second reader). Potato has a real ALSA
+    device (`ALC3271`/`plughw:0,0`) — that constraint may not actually
+    apply on real hardware. Worth re-measuring before assuming a second
+    concurrent reader (e.g. a separate level-meter process) would still
+    starve `crt-stt-solo.py` here.
+  - `transcribe_remote()` (bin/crt-stt-solo.py) returns `""` silently on
+    ANY error talking to `CRT_WHISPER_SERVER` (timeout, mandark down, LAN
+    drop) — no fallback to local `whisper-cli`. Right now that means a
+    dead/unreachable mandark makes potato go fully silent, not just
+    slower. Worth adding a local-whisper fallback path if this offload
+    becomes the permanent default rather than a low-risk experiment.
+
 - **2026-07-23 00:15 (research to-do, not yet acted on):** offsite/real-time STT alternatives to self-hosting whisper on mandark/potato, surfaced via a Gemini conversation Zach pasted in. Options worth evaluating later if the mandark-whisper-server (Option A, `bin/mandark-whisper-server.py`) latency/uptime ever becomes a real constraint:
   - **Managed APIs w/ free tiers**: Deepgram Nova (~$200 free credit, ~450+ hrs, native WebSocket streaming ~300ms latency), Gladia (10 hrs/month free forever, Whisper-based streaming), AssemblyAI ($50 free credit).
   - **Free-hosted open-source**: HF Inference Endpoints/Spaces free CPU tier (whisper-tiny/small via whisper.cpp or faster-whisper — may struggle with latency), Colab/Kaggle notebook + ngrok/localtunnel relay (zero-cost but sessions reset, not for 24/7).

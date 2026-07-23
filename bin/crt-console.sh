@@ -123,7 +123,7 @@ tmux new-window -d -t "$SESSION" -n bridge -c "$BIN_DIR" "./crt-claude-bridge.py
 # lines get logged to thoughts.log, not silently discarded. Control
 # keystrokes bypass the gate entirely (see addressed_to_console's callers).
 tmux new-window -d -t "$SESSION" -n stt -c "$BIN_DIR" \
-  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 python3 ./crt-stt-solo.py; exec bash"
+  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 CRT_WHISPER_SERVER=${CRT_WHISPER_SERVER:-http://192.168.0.27:8991/transcribe} python3 ./crt-stt-solo.py; exec bash"
 
 if [ -n "${CRT_HOOK_DEVICE:-}" ]; then
   tmux new-window -d -t "$SESSION" -n hook -c "$BIN_DIR" "./hookswitch-listen.sh; exec bash"
