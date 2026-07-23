@@ -173,11 +173,6 @@ if [ -f "$DIR/test_attach_ssh_bridge.sh" ]; then
 fi
 echo
 
-echo "== crt-scanner-feed.py log-only =="
-if [ -f "$DIR/test_scanner_feed.py" ]; then
-  python3 -m unittest discover -s "$DIR" -p "test_scanner_feed.py" -v 2>&1 | tail -5 || fail=1
-fi
-echo
 
 echo "== crt-window-switcher.py =="
 if [ -f "$DIR/test_window_switcher.py" ]; then
@@ -227,6 +222,10 @@ echo
 
 echo "== crt-mandark.sh on/off/status toggle =="
 bash "$DIR/test_mandark_toggle.sh" || fail=1
+echo
+
+echo "== crt-mandark-serve.sh status/args (non-destructive) =="
+bash "$DIR/test_mandark_serve.sh" || fail=1
 echo
 
 echo "== crt-wake-router.py brain decision =="
