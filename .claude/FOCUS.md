@@ -1,5 +1,49 @@
 # crt — focus & backlog
 
+- **2026-07-23 08:00 (built tonight, live on potato):** `bin/crt-calibration-game.py`
+  -- the "potato game" from earlier tonight's idea, built as a real
+  interactive script rather than a background service. Reuses
+  `crt-wake-pool.py`'s `closest_pool_word()`/`difflib` scoring (which its
+  own header comment says was built "2026-07-21, calibration-game pass"
+  -- this game is what that comment was anticipating). Tails
+  `~/.crt/stt.log` live, splashes recognized words around ASCII art
+  scored/colored by similarity to a target word, offers to save
+  recurring near-misses into `stt-fixups.json` as confirmed aliases, plus
+  an earcon device-confirmation round. Running in tmux window 9 ("game")
+  on potato. Deliberately does NOT touch the live capture process --
+  passive `stt.log` reader only, same posture as
+  `crt-book-answer-listen.py`.
+- **2026-07-23 08:00 (NEXT SESSION / overnight pass -- concrete spec, not
+  vague):** wire the dormant autonomous wake-judge system into potato's
+  live pipeline. Everything for this already exists except the actual
+  state machine:
+  - `bin/crt-wake-pool.py` (fuzzy/exact wake-pool matching, real code,
+    tested) and `bin/crt-wake-judge.py` (autonomous `claude -p` judge,
+    rate-limited, real code, tested) both exist and work in isolation.
+  - `WAKE-TUNING-STATE.md` has a genuinely rich judgment log (dozens of
+    real dated entries from 2026-07-21) proving this ran live at some
+    point -- almost certainly lost in the VM->potato hardware migration,
+    same pattern as other features that silently regressed in that move.
+  - **What's actually missing**: an arm-window state machine in
+    `crt-stt-solo.py` itself. `consume_arm_with_followup()` and
+    `check_arm_timeout()` are referenced by name in `crt-wake-judge.py`'s
+    prompt-building code and in the judgment log's own vocabulary, but
+    grep confirms **zero implementations exist anywhere in bin/*.py** --
+    only comments/docs reference them. The missing piece: on a wake-pool
+    match (not just the exact-wake-word gate `addressed_to_console`
+    already handles), arm a short window; if a real follow-up utterance
+    arrives before it closes, dispatch it and call
+    `crt-wake-judge.py --outcome consumed`; if it times out, call with
+    `--outcome timeout-with-leftover` or `--outcome timeout-empty`
+    depending on whether anything was pending. This is also the natural
+    real implementation of the OTHER still-open gap from earlier tonight
+    (07:23 note): the sticky-conversation-window idea and this arm-window
+    mechanism are the same feature, not two separate ones -- build once.
+  - Once wired, this closes the loop the user asked for tonight
+    ("Claude snoops around after silence, finds logs of failed wake
+    attempts, tries to repair the cause") -- the judge already knows how
+    to do exactly that, it just has no live trigger calling it.
+
 - **2026-07-23 07:20 (design constraint for the "resolve capture device
   by name" fix filed above):** keep BOTH paths available, don't replace
   the hardcoded ALSA index with name-resolution outright -- resolve by
