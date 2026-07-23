@@ -29,5 +29,29 @@
     "intent": "claude",
     "note": "'the other clot' 2026-07-23 -- likely 'the other Claude', /klɔːd/ heard as /klɒt/, needs confirmation before treating as confirmed",
     "type": "a-substitution"
+  },
+  "clod": {
+    "confidence": "auto",
+    "intent": "claude",
+    "note": "'clod potato' 2026-07-23, same session as 'clot' above -- final-consonant devoicing/voicing wobbles on the same word both times (t vs d), strengthens the 'claude' hypothesis but still needs an explicit yes/no before calling it confirmed",
+    "type": "a-substitution"
+  },
+  "wonder one": {
+    "confidence": "confirmed",
+    "intent": "window one",
+    "note": "'wonder one, please... switch to window' 2026-07-23 -- 'window' -> 'wonder' (d/n cluster reshuffle, dropped w-glide), self-disambiguated in the same breath by the literal word 'window' right after",
+    "type": "a-substitution"
+  },
+  "gal wah": {
+    "confidence": "auto",
+    "intent": "galois",
+    "note": "'gal wah theory' 2026-07-23 -- whisper spelling-out the French pronunciation of 'Galois' phonetically since it has no English-spelling match; unconfirmed guess, not yet asked directly",
+    "type": "proper-noun-phonetic"
+  },
+  "cloud text": {
+    "confidence": "auto",
+    "intent": "claude text",
+    "note": "'switch me to Windows 0 so I can see the cloud text' 2026-07-23 -- 'Claude' -> 'cloud', vowel-diphthong swap /klɔːd/ vs /klaʊd/, same word family as clot/clod above but a different vowel error this time; context (asking for window 0, the raw claude session) makes intent clear even if unconfirmed",
+    "type": "a-substitution"
   }
 }
