@@ -1,5 +1,48 @@
 # crt — focus & backlog
 
+- **2026-07-23 09:30 (MAXUTT/TRAIL review, recommendation only -- not
+  changed):** per the 2026-07-23 finding that continuous speech with no
+  real pause rides the full `CRT_VAD_MAX` (20s) hard cap before an
+  utterance even gets cut, reviewed both constants
+  (`bin/crt-stt-solo.py`): `CRT_VAD_TRAIL` (0.8s silence-to-cutoff) seems
+  reasonable as-is -- it's not what caused tonight's stuck-utterance
+  case, that was purely "no pause happened at all." `CRT_VAD_MAX=20`
+  is the one worth a human ear-tuning session: lowering it (e.g. to
+  8-10s) would force more frequent chunking during continuous speech at
+  the cost of possibly cutting a genuinely long single thought
+  mid-sentence. NOT changed here -- this is exactly a "live session
+  confirms it feels right" tuning call, not a code-correctness fix, same
+  posture this project applies everywhere else to default-behavior
+  changes. Flagging as a concrete open question for Zach rather than
+  guessing at a number unattended.
+
+- **2026-07-23 09:25 (nightly-batch finding, recalibrates the earlier
+  Vosk/Sherpa-ONNX recommendation):** potato is a **Raspberry Pi 3 Model
+  B+** (`cat /proc/cpuinfo` confirmed) -- quad-core Cortex-A53 @1.4GHz,
+  905MB total RAM, only 183MB free with active swap use and load average
+  1.36 at the time of testing. This is meaningfully weaker than the
+  Pi 4/5-class hardware most Vosk/whisper.cpp benchmarks assume, and
+  under real memory pressure from everything else already running
+  (crt-stt-solo.py, tmux, etc). Installed `vosk` (venv
+  `~/.venvs/crt-vosk` on potato, real aarch64/cp313 wheel, works) and its
+  small English model, tested live: a 1.5s clip took until t+1.53s for
+  the FIRST partial result, and 2.65s wall-clock for the final result --
+  i.e. Vosk on THIS specific hardware right now is not dramatically
+  faster than realtime either, contrary to the "<100ms, built for weak
+  ARM hardware" framing in the earlier research note. Streaming partial
+  results (available continuously, not gated on a full utterance/fixed
+  encode window like whisper.cpp) is still Vosk's real structural
+  advantage over the batch-VAD approach -- that reasoning still holds --
+  but the earlier assumption that it'd feel snappy specifically ON THIS
+  BOX needs re-testing once the system isn't under memory pressure (or
+  after trimming what else runs on potato) before committing design
+  decisions to it. Test scripts left in
+  `~/vosk-models/vosk_test.py`/`vosk_test_short.py` on potato for re-use.
+  Worth considering as a separate, orthogonal question: is potato's own
+  hardware (a Pi 3B+) the right long-term choice at all, independent of
+  which STT approach it runs -- flagging for a human decision, not
+  something to guess at unattended.
+
 ## TOP PRIORITY for tonight's/next unattended pass (2026-07-23 08:20) --
 ## calibration/testing features first, per Zach's explicit instruction,
 ## ahead of the bigger dormant-wake-judge-wiring item further down.
