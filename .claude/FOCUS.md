@@ -1,5 +1,9 @@
 # crt — focus & backlog
 
+- **2026-07-23 13:05 (via `scheduler -i`):** scrape this site for viable potatos (no character encoding problems) and
+  swap out potato_small.txt with one or more (for personality)
+  https://textart.sh/topic/potato
+
 ## PRIORITIZED BATCH BACKLOG (2026-07-23, scheduler-integrated)
 
 How to read this: items are ranked by **value ÷ risk**, offline-safe work
