@@ -83,6 +83,29 @@ brain window swap) — see POTATO.md "remaining live wiring".
    - "Grey partial → white final" reply streaming: the `on_partial` seam
      already exists in `crt-secretary.py`; build the real grey/white
      overwrite (2026-07-23 07:15 note has the foothold).
+5b. **[batch]+[hw] Potato screensaver: CRT-margin-correct rendering (DEEP
+   WORK, filed 2026-07-23).** Quick fix already shipped (the art was
+   centering for 80 cols before the tmux client attached, so lines wrapped
+   on the 40-col tube -- now re-reads size every frame + CRT_COLS/ROWS
+   pinned from crt-console.sh + clamps so no line exceeds width;
+   regression-tested in test_screensaver.py). Remaining depth:
+   - **Consume the overscan safe-margin** (`~/.crt/display.conf`, the same
+     one crt-pager.py/crt-monologue.sh already honor) so the potato
+     centers inside the *visible* safe area, not raw 40 cols -- at pad 5
+     the edges may still clip on a real tube. Offline: wire the margin +
+     test the math. [hw]: confirm by eye on the tube.
+   - **Resolve `potato_large.txt`**: byte-identical dup of
+     `potato-small.txt`, inconsistent naming (hyphen vs underscore),
+     referenced by nothing. Either make it a genuinely larger/detailed
+     awake-screen variant or delete it (Zach's art call -- see POTATO.md).
+   - Consider an awake/listening frame distinct from the sleeping potato
+     (the old crt-screensaver.py had a LISTENING/zzz pair) so the screen
+     reflects wake state once the wake supervisor (item 7) lands.
+5c. **[batch] Test-coverage gaps found during the 2026-07-23 tidy.**
+   `crt-monologue.py` has NO direct python test (run_tests.sh referenced a
+   never-written `test_monologue_py.py` -- now guarded, but the test
+   itself should be written). `crt-stt-solo.py` -- the single most
+   critical process -- also has no direct test (REFACTOR-ASSESSMENT.md #6).
 6. **[batch] Calibration tests as first-class, non-interactive checks.**
    Promote the acoustic-loopback + noise-floor tools into a
    `crt-calibrate` suite that emits pass/fail + numbers (not just

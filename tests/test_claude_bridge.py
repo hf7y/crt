@@ -41,7 +41,11 @@ class TestDefaultProjectDir(unittest.TestCase):
         # what user/path was actually running it.
         m = load_bridge({"CRT_PROJECT_DIR": "/home/someoneelse/crt", "PATH": os.environ.get("PATH", "")})
         self.assertEqual(m.PROJECT_DIR, os.path.expanduser("~/.claude/projects/-home-someoneelse-crt"))
-        self.assertNotIn("zach", m.PROJECT_DIR)
+        # Guard the actual regression: the hardcoded "-home-zach-crt" project
+        # segment must not reappear. (Don't test for the bare substring
+        # "zach" -- $HOME legitimately expands to /home/zach on this box, so
+        # that gave a false failure whenever the runner's own user is zach.)
+        self.assertNotIn("-home-zach-crt", m.PROJECT_DIR)
 
     def test_explicit_override_wins(self):
         m = load_bridge({"CRT_CLAUDE_PROJECT_DIR": "/explicit/path",

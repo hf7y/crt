@@ -71,13 +71,18 @@ def render_frame(art, width, height, caption, color, dim):
     """Build one full-screen frame string: cleared, art centered
     horizontally and vertically, caption on the last row."""
     art = art[: max(1, height - 2)]  # leave a row for the caption
+    # Never let a rendered line exceed the width, or it wraps on the tube
+    # (the bug that made the potato look broken): if the art is wider than
+    # the screen, drop leading cells rather than pad it off the edge.
+    art = [line[:width] if _display_len(line) > width else line for line in art]
     pad_top = max(0, (height - len(art) - 1) // 2)
     out = ["\x1b[H\x1b[2J"]
     style = (DIM if dim else "") + "\x1b[%sm" % color
     for _ in range(pad_top):
         out.append("")
     for line in art:
-        left = max(0, (width - _display_len(line)) // 2)
+        # clamp so leftpad + line can never exceed width (no wrap)
+        left = max(0, min((width - _display_len(line)) // 2, width - _display_len(line)))
         out.append(" " * left + style + line + RESET)
     if caption:
         cap = caption[:width]
@@ -107,15 +112,20 @@ def main(argv=None):
     args = p.parse_args(argv)
 
     art = load_art(args.art)
-    cols, rows = resolve_size()
 
     if args.once:
+        cols, rows = resolve_size()
         sys.stdout.write(render_frame(art, cols, rows, args.caption, CYAN, dim=True))
         sys.stdout.write("\n")
         sys.stdout.flush()
         return 0
 
+    # Re-read the terminal size EVERY frame, not once at startup: a tmux
+    # window created detached defaults to 80x24 and only resizes to the
+    # real 40x15 once the client attaches. Reading once at boot cached 80
+    # and centered for it, so lines wrapped on the tube. Cheap to redo.
     for dim in itertools.cycle([True, False]):
+        cols, rows = resolve_size()
         sys.stdout.write(render_frame(art, cols, rows, args.caption, CYAN, dim=dim))
         sys.stdout.flush()
         time.sleep(args.interval)

@@ -52,6 +52,25 @@ class TestRender(unittest.TestCase):
         self.assertIsNone(FORBIDDEN.search(frame),
                           "screensaver must not emit CRT-unsafe primary colors")
 
+    def _visible_lines(self, frame):
+        strip = re.compile(r"\x1b\[[0-9;]*m")
+        for ln in frame.split("\n"):
+            ln = strip.sub("", ln).replace("\x1b[H\x1b[2J", "")
+            yield ln
+
+    def test_no_line_exceeds_width_30_art_in_40(self):
+        # The exact real case: 30-wide braille art on the 40-col tube.
+        art = ["x" * 30 for _ in range(11)]
+        frame = ss.render_frame(art, 40, 15, "say 'potato' to wake me", ss.CYAN, dim=True)
+        for ln in self._visible_lines(frame):
+            self.assertLessEqual(len(ln), 40, "no rendered line may exceed the tube width (would wrap)")
+
+    def test_art_wider_than_screen_is_clipped_not_wrapped(self):
+        art = ["y" * 60]  # wider than the screen
+        frame = ss.render_frame(art, 40, 15, "", ss.CYAN, dim=True)
+        for ln in self._visible_lines(frame):
+            self.assertLessEqual(len(ln), 40)
+
 
 class TestCli(unittest.TestCase):
     def test_once_renders_and_exits(self):

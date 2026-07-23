@@ -5,6 +5,13 @@ set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fail=0
 
+# Marker so the secretary's "run the tests" meta-test (test_secretary.py's
+# test_runs_real_suite_and_reports_green) can tell it's running INSIDE this
+# suite and skip re-invoking it -- otherwise it shells back out to this
+# script and recurses without bound. Standalone (python3 test_secretary.py)
+# the var is unset, so that test still runs for real exactly once.
+export CRT_TEST_SUITE_RUNNING=1
+
 echo "== shell syntax =="
 bash "$DIR/test_shell_syntax.sh" || fail=1
 echo
@@ -56,7 +63,13 @@ python3 "$DIR/test_pager.py" || fail=1
 echo
 
 echo "== crt-monologue.py (the actually-live 'mono' window script) =="
-python3 "$DIR/test_monologue_py.py" || fail=1
+# NOTE: test_monologue_py.py was never written -- crt-monologue.py has no
+# direct python test yet (coverage gap, see FOCUS.md batch backlog).
+# Guarded like the other optional sections so a missing file can't fail
+# the whole suite (it silently did until 2026-07-23).
+if [ -f "$DIR/test_monologue_py.py" ]; then
+  python3 "$DIR/test_monologue_py.py" || fail=1
+fi
 echo
 
 echo "== crt-predict.py =="

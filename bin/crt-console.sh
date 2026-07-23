@@ -96,7 +96,10 @@ fi
 # so nothing regresses unless this is deliberately turned on and
 # live-verified. crt-wake-router.py is the decision brain either way.
 if [ "${CRT_NO_IDLE_CLAUDE:-0}" = "1" ]; then
-  tmux new-session -d -s "$SESSION" -c "$BIN_DIR" "python3 ./crt-screensaver.py; exec bash"
+  # CRT_COLS/ROWS pinned to the tube's real geometry so the screensaver
+  # centers correctly even before the tmux client attaches (a detached
+  # window is 80x24 until then -- the cause of the earlier line-wrap).
+  tmux new-session -d -s "$SESSION" -c "$BIN_DIR" "CRT_COLS=${CRT_COLS:-40} CRT_ROWS=${CRT_ROWS:-15} python3 ./crt-screensaver.py; exec bash"
 else
   CLAUDE_ARGS="${CRT_CLAUDE_ARGS:---permission-mode acceptEdits}"
   tmux new-session -d -s "$SESSION" -c "$PROJECT_DIR" "claude $CLAUDE_ARGS; exec bash"

@@ -98,6 +98,11 @@ class TestRunTestsPlaybook(unittest.TestCase):
     def test_runs_real_suite_and_reports_green(self):
         # Uses this repo's own real test suite -- if THIS test is running,
         # the suite it's part of had better still be green.
+        # Skip when we're ALREADY inside run_tests.sh (it exports this
+        # marker): otherwise this shells back out to run_tests.sh and
+        # recurses without bound. Standalone runs (no marker) still verify.
+        if os.environ.get("CRT_TEST_SUITE_RUNNING"):
+            self.skipTest("running inside run_tests.sh; would recurse")
         self.sec.TEST_SUITE = os.path.join(REPO_DIR, "tests", "run_tests.sh")
         self.sec.handle_run_tests("run the tests")
         self.assertIn("green", self.spoken[0].lower())
