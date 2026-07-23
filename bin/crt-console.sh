@@ -177,9 +177,13 @@ if [ -n "${CRT_HOOK_DEVICE:-}" ]; then
 fi
 
 # Window: Book Game display (BOOK-GAME.md/BOOK-GAME-STYLE.md). Tails
-# ~/.crt/scanner.log -- already written unfiltered by crt-scanner-feed.py
-# (SCANNER.md's dexter->crt-vm bridge, live/systemd-persistent as of
-# 2026-07-21) -- and renders the centered question screen for each new
+# ~/.crt/scanner.log -- written by crt-book-console.py's OWN stdin path
+# (format_scan_log_line(), 2026-07-21 stdin pivot). The old dexter->8993
+# HTTP receiver (crt-scanner-feed.py) that used to write this log was
+# RETIRED 2026-07-23 (Zach: "kill scanner feed, keep claude") -- it
+# collided with the remote-Claude bridge's tunnel on port 8993 and was
+# dexter-legacy dead weight on potato. -- and renders the centered
+# question screen for each new
 # scan. Display-only for this pass: it shows the question, it does not
 # grade a spoken answer (still `crt-book-game.py --answer`, run by hand,
 # or window 0/secretary wiring later -- BOOK-GAME.md roadmap step 3).
@@ -247,5 +251,13 @@ tmux set-option -t "$SESSION" status off
 # survive a respawn/reboot) -- `claude` stays one `prefix+0` away, and
 # voice/STT already covers claude-facing interaction without needing
 # window 0's focus.
-tmux select-window -t "${SESSION}:book"
+# Boot-default window. In the idle-lean layout the screensaver (window 0)
+# IS the idle face, so select it. Otherwise keep `book` as the default
+# (the 2026-07-21 scanner-keystroke-focus decision above) -- `claude`/
+# screensaver stays one prefix+0 away either way.
+if [ "${CRT_NO_IDLE_CLAUDE:-0}" = "1" ]; then
+  tmux select-window -t "${SESSION}:0"
+else
+  tmux select-window -t "${SESSION}:book"
+fi
 exec tmux attach -t "$SESSION"
