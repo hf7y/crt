@@ -260,6 +260,23 @@ GATE_LOG   = os.environ.get("CRT_STT_GATE_LOG", os.path.expanduser("~/.crt/thoug
 FIXUPS_PATH = os.environ.get("CRT_STT_FIXUPS",
                               os.path.join(os.path.dirname(os.path.abspath(__file__)), "stt-fixups.json"))
 
+# Arm-window / wake-judge wiring (2026-07-23, see bin/crt-wake-arm.py's
+# own header for the full story -- this is the "sticky conversation
+# window" fix, wired to crt-wake-judge.py's dormant autonomous tuning
+# judge). Opt-in, default OFF: with CRT_WAKE_ARM_ENABLED unset, every
+# line below that references ARM_STATE/wake_arm is dead code and the
+# gate behaves EXACTLY as it did before this change -- do not flip the
+# default on without a live session confirming the arm window feels
+# right (see crt-wake-arm.py's own STATUS note).
+WAKE_ARM_ENABLED = os.environ.get("CRT_WAKE_ARM_ENABLED", "0") == "1"
+if WAKE_ARM_ENABLED:
+    import importlib.util as _importlib_util
+    _wa_spec = _importlib_util.spec_from_file_location(
+        "crt_wake_arm", os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt-wake-arm.py"))
+    wake_arm = _importlib_util.module_from_spec(_wa_spec)
+    _wa_spec.loader.exec_module(wake_arm)
+    ARM_STATE = wake_arm.ArmState()
+
 
 def load_fixups(path):
     """stt-fixups.json: {lowercased misheard fragment: {"intent": ..., ...}}.
@@ -318,6 +335,27 @@ def addressed_to_console(text, wake_word=WAKE_WORD, fixups=FIXUPS):
         return True
     return any(info.get("intent") == wake_word and _contains_phrase(words, fragment)
                 for fragment, info in fixups.items())
+
+
+def classify_wake_match(text, wake_word=WAKE_WORD, fixups=FIXUPS):
+    """Only called when WAKE_ARM_ENABLED -- identifies WHICH word/fragment
+    made addressed_to_console() true, so the arm-window has enough detail
+    to hand crt-wake-judge.py a real match-kind/matched-word. Deliberately
+    kept in sync with addressed_to_console()'s own exact/fixup logic by
+    hand (same two checks) rather than refactored to share code, since
+    addressed_to_console() is the proven, unchanged-tonight gate function
+    and this is new, opt-in, unverified code -- not worth the risk of a
+    shared-code regression in the existing gate for this. Returns
+    ("exact", None, matched_word) or (None, None, None); no pool/fuzzy
+    kind yet -- crt-wake-pool.py isn't wired into the gate itself yet,
+    see FOCUS.md."""
+    words = re.findall(r"[a-z0-9']+", text.lower())
+    if wake_word in words:
+        return "exact", None, wake_word
+    for fragment, info in fixups.items():
+        if info.get("intent") == wake_word and _contains_phrase(words, fragment):
+            return "exact", None, fragment
+    return None, None, None
 
 
 def read_exact(f, n):
@@ -465,6 +503,26 @@ def emit(text, peak=1.0):
         pass
     if SINK in ("claude", "secretary"):
         is_control = " " not in text and key in CONTROL
+
+        # Arm-window follow-up check (opt-in, WAKE_ARM_ENABLED, see
+        # bin/crt-wake-arm.py) -- MUST run before the normal gate below,
+        # since its entire point is letting a follow-up through WITHOUT
+        # repeating the wake word. When disarmed/expired/disabled this is
+        # a no-op and every line below is completely unaffected -- the
+        # existing gate logic is untouched otherwise.
+        if WAKE_ARM_ENABLED and not is_control and \
+                wake_arm.consume_arm_with_followup(ARM_STATE, text):
+            if STT_DEBUG_PERSIST:
+                print("%s  (arm follow-up) %s" % (ts, text))
+            log_user_thought(text)
+            if EARCON_ON_ADDRESSED:
+                play_earcon("addressed")
+            if SINK == "secretary":
+                send_to_secretary(text)
+            else:
+                send_to_claude(text, key)
+            return
+
         if GATE and not is_control and not addressed_to_console(text):
             if STT_DEBUG_PERSIST:
                 print("%s  (gated, no wake word) %s" % (ts, text))
@@ -479,6 +537,10 @@ def emit(text, peak=1.0):
             play_earcon("control")
         elif EARCON_ON_ADDRESSED and not is_control:
             play_earcon("addressed")
+        if WAKE_ARM_ENABLED and not is_control:
+            kind, source, word = classify_wake_match(text)
+            if kind:
+                ARM_STATE.arm(text, kind, source, word)
         label = "(key %s)" % CONTROL[key] if is_control else "->"
         if STT_DEBUG_PERSIST:
             print("%s  %s %s" % (ts, label, text))
@@ -602,6 +664,12 @@ def main():
                 else:
                     meter(peak)
                 last_meter = now
+
+            # Cheap tick, opt-in only -- see bin/crt-wake-arm.py. Must run
+            # even with no speech happening at all, since a timeout is
+            # defined by silence, not by the next utterance arriving.
+            if WAKE_ARM_ENABLED:
+                wake_arm.check_arm_timeout(ARM_STATE, now)
 
             if not in_utt:
                 pre.append(data)
