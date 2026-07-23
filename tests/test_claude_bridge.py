@@ -73,42 +73,93 @@ class TestLatestTranscript(unittest.TestCase):
         self.assertIsNone(m.latest_transcript())
 
 
-class TestExtractText(unittest.TestCase):
+class TestExtractMarked(unittest.TestCase):
     def setUp(self):
         self.m = load_bridge({"PATH": os.environ.get("PATH", "")})
 
     def test_extracts_marked_line_and_strips_marker(self):
         entry = {"type": "assistant", "message": {"content": [{"type": "text", "text": "» hi zach"}]}}
-        self.assertEqual(self.m.extract_text(entry), "hi zach")
+        self.assertEqual(self.m.extract_marked(entry), "hi zach")
 
     def test_ignores_unmarked_prose_entirely(self):
         # The whole point of the marker filter: ordinary technical/
         # diagnostic writeups must NOT flood window 1.
         entry = {"type": "assistant", "message": {"content": [
             {"type": "text", "text": "Found the bug: latest_transcript() picks by mtime...\nlots more detail here"}]}}
-        self.assertIsNone(self.m.extract_text(entry))
+        self.assertIsNone(self.m.extract_marked(entry))
 
     def test_extracts_only_marked_lines_from_a_mixed_reply(self):
         entry = {"type": "assistant", "message": {"content": [
             {"type": "text", "text": "Here's the diagnosis, boring detail.\n» *bzzt* i hear you\nmore boring detail"}]}}
-        self.assertEqual(self.m.extract_text(entry), "*bzzt* i hear you")
+        self.assertEqual(self.m.extract_marked(entry), "*bzzt* i hear you")
 
     def test_ignores_non_assistant_entries(self):
         entry = {"type": "user", "message": {"content": [{"type": "text", "text": "» hello"}]}}
-        self.assertIsNone(self.m.extract_text(entry))
+        self.assertIsNone(self.m.extract_marked(entry))
 
     def test_ignores_tool_use_blocks(self):
         entry = {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash"}]}}
-        self.assertIsNone(self.m.extract_text(entry))
+        self.assertIsNone(self.m.extract_marked(entry))
 
     def test_joins_multiple_marked_lines_across_blocks(self):
         entry = {"type": "assistant", "message": {"content": [
             {"type": "text", "text": "» part one"}, {"type": "text", "text": "» part two"}]}}
-        self.assertEqual(self.m.extract_text(entry), "part one part two")
+        self.assertEqual(self.m.extract_marked(entry), "part one part two")
 
     def test_custom_marker_override(self):
         entry = {"type": "assistant", "message": {"content": [{"type": "text", "text": "CRT: hi"}]}}
-        self.assertEqual(self.m.extract_text(entry, marker="CRT: "), "hi")
+        self.assertEqual(self.m.extract_marked(entry, marker="CRT: "), "hi")
+
+
+class TestExtractFallback(unittest.TestCase):
+    def setUp(self):
+        self.m = load_bridge({"PATH": os.environ.get("PATH", "")})
+
+    def test_returns_full_unmarked_text(self):
+        entry = {"type": "assistant", "message": {"content": [
+            {"type": "text", "text": "Found the bug in latest_transcript()."}]}}
+        self.assertEqual(self.m.extract_fallback(entry), "Found the bug in latest_transcript().")
+
+    def test_ignores_non_assistant_entries(self):
+        entry = {"type": "user", "message": {"content": [{"type": "text", "text": "hello"}]}}
+        self.assertIsNone(self.m.extract_fallback(entry))
+
+    def test_joins_multiple_text_blocks(self):
+        entry = {"type": "assistant", "message": {"content": [
+            {"type": "text", "text": "part one"}, {"type": "text", "text": "part two"}]}}
+        self.assertEqual(self.m.extract_fallback(entry), "part one part two")
+
+
+class TestChooseText(unittest.TestCase):
+    def setUp(self):
+        self.m = load_bridge({"PATH": os.environ.get("PATH", "")})
+        self.marked_entry = {"type": "assistant", "message": {"content": [{"type": "text", "text": "» hi"}]}}
+        self.prose_entry = {"type": "assistant", "message": {"content": [{"type": "text", "text": "long diagnosis"}]}}
+
+    def test_prefers_marked_line_when_present(self):
+        text, was_marked = self.m.choose_text(self.marked_entry, last_marked=0, now=1)
+        self.assertEqual(text, "hi")
+        self.assertTrue(was_marked)
+
+    def test_unmarked_prose_stays_silent_while_marker_still_fresh(self):
+        text, was_marked = self.m.choose_text(self.prose_entry, last_marked=1000, now=1010)
+        self.assertIsNone(text)
+        self.assertFalse(was_marked)
+
+    def test_falls_back_to_full_text_once_marker_has_gone_stale(self):
+        # The real fix, per Zach: a dark window 1 is worse than a flooded
+        # one -- if the marker convention lapses (long session, model
+        # drift), degrade back to forwarding everything rather than
+        # forwarding nothing forever.
+        now = 1000 + self.m.FALLBACK_STALE_SECS + 1
+        text, was_marked = self.m.choose_text(self.prose_entry, last_marked=1000, now=now)
+        self.assertEqual(text, "long diagnosis")
+        self.assertFalse(was_marked)
+
+    def test_boundary_exactly_at_fallback_stale_secs_stays_silent(self):
+        now = 1000 + self.m.FALLBACK_STALE_SECS
+        text, was_marked = self.m.choose_text(self.prose_entry, last_marked=1000, now=now)
+        self.assertIsNone(text)
 
 
 class TestShouldSwitch(unittest.TestCase):

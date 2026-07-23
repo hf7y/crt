@@ -87,6 +87,14 @@ technical writeups. When you want something to actually flash on the CRT
 that line with `» `. Don't mark long/technical text — it won't fit the
 screen and isn't what this pane is for.
 
+There's a safety net, per Zach 2026-07-23: a permanently dark window 1 is
+worse than a flooded one. If nothing marked has come through for 2 minutes
+(`CRT_BRIDGE_FALLBACK_STALE_SECS`), the bridge stops trusting the marker
+and forwards full unmarked text again until a marked line reappears. So
+forgetting to mark things during a long tangent degrades to the old
+flood-everything behavior, not silence — don't rely on that as your normal
+mode, but don't panic about it either.
+
 ## You control this screen's display
 
 - This is a real terminal on a real CRT — you're not limited to plain text.
