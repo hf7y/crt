@@ -30,6 +30,27 @@ Built + deployed live to potato this session (see POTATO.md):
   potato, no live impact. scanner.log now written by crt-book-console.py.
 - Commits 806ba31 (brain-placement scaffolding + POTATO.md +
   REFACTOR-ASSESSMENT.md + FOCUS.md batch backlog) and de37a06 pushed.
+- **`bin/crt-mandark-serve.sh {on|off|status}`** (MANDARK side) — toggles
+  the whole remote path (whisper + bridge + reverse tunnel). Prefers
+  systemd, falls back to ad-hoc. whisper on/off needs sudo. Committed
+  dca5bb5.
+
+**POST-REBOOT, VERIFIED LIVE 2026-07-23 evening:** potato was rebooted
+into the idle-lean layout and it works end-to-end. Persisted in potato's
+`~/.bash_profile` (before the tty1 `exec crt-console.sh`; original backed
+up to `~/.bash_profile.bak-idlelean`): `CRT_NO_IDLE_CLAUDE=1` +
+`CRT_WAKE_ARM_ENABLED=1`. Confirmed after reboot: window 0 = screensaver
+(selected idle face), NO resident Claude, **560MB free (was 98MB)**, stt
+window has CRT_CLAUDE_REMOTE_PORT=8993 + CRT_WAKE_ARM_ENABLED=1, bridge
+reachable from potato, sshfs mount healthy.
+
+**DURABILITY GAP (the one remaining):** mandark's bridge + reverse tunnel
+are still ad-hoc `nohup`, NOT systemd — a mandark reboot OR a potato
+reboot drops the tunnel and it does NOT auto-reconnect (must re-run
+`crt-mandark-serve.sh on` on mandark). Fix: run
+`bin/setup-mandark-remote-claude-persistence.sh` on mandark (needs sudo)
+to install the systemd units. Until then, after any reboot, restore with
+`crt-mandark-serve.sh on`.
 
 STILL OPEN / next: (1) window 0 still holds a redundant live local Claude
 eating RAM (98MB free) — kill it or restart into CRT_NO_IDLE_CLAUDE to
