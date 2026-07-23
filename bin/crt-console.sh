@@ -122,8 +122,18 @@ tmux new-window -d -t "$SESSION" -n bridge -c "$BIN_DIR" "./crt-claude-bridge.py
 # it, e.g. "slide") before it reaches secretary/Claude at all -- dropped
 # lines get logged to thoughts.log, not silently discarded. Control
 # keystrokes bypass the gate entirely (see addressed_to_console's callers).
+# CRT_AUDIO_DEV pinned to plughw:1,0 2026-07-23 (live session): potato's
+# mic (KT USB Audio) only ever shows up as a CAPTURE device on card 1 --
+# card 0 (bcm2835, onboard) is playback-only, has no capture subdevice at
+# all. crt-stt-solo.py's own default (plughw:0,0) is a leftover from a
+# different box's card layout; a real USB reconnect event happened
+# mid-session tonight (dmesg-confirmed, ~01:25) and exposed this the hard
+# way when the sole-reader process got restarted after it -- silent exit,
+# no capture, no error. Hardcoding a card INDEX at all is fragile (any
+# USB replug/reboot can renumber it) -- see FOCUS.md's 2026-07-23 note
+# for the real fix (resolve by device name via `arecord -l`, not index).
 tmux new-window -d -t "$SESSION" -n stt -c "$BIN_DIR" \
-  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 CRT_WHISPER_SERVER=${CRT_WHISPER_SERVER:-http://192.168.0.27:8991/transcribe} python3 ./crt-stt-solo.py; exec bash"
+  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 CRT_WHISPER_SERVER=${CRT_WHISPER_SERVER:-http://192.168.0.27:8991/transcribe} CRT_AUDIO_DEV=${CRT_AUDIO_DEV:-plughw:1,0} python3 ./crt-stt-solo.py; exec bash"
 
 if [ -n "${CRT_HOOK_DEVICE:-}" ]; then
   tmux new-window -d -t "$SESSION" -n hook -c "$BIN_DIR" "./hookswitch-listen.sh; exec bash"

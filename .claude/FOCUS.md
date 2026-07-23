@@ -1,5 +1,25 @@
 # crt — focus & backlog
 
+- **2026-07-23 07:10 (real bug, hotfixed live, root cause not fully
+  closed):** restarting potato's stt tmux window (to pick up tonight's
+  earcon changes) exposed that `crt-stt-solo.py`'s capture device default
+  (`CRT_AUDIO_DEV=plughw:0,0`) doesn't exist as a capture device on
+  potato at all -- `arecord -l` only lists card 1 ("KT USB Audio") for
+  capture; card 0 (bcm2835 onboard) is playback-only. The process
+  restarted silently exits (no error, no capture) rather than failing
+  loudly. Confirmed via dmesg a real USB reconnect event happened
+  mid-session (~01:25 BST, KT USB Audio re-enumerated with new HID
+  instance IDs) -- plausible trigger, though it doesn't fully explain why
+  the ORIGINAL process (started 03:47, after that reconnect) kept working
+  fine on the same default all evening; didn't chase that discrepancy
+  further tonight. Hotfixed by pinning `CRT_AUDIO_DEV=plughw:1,0` in both
+  the live tmux relaunch and `crt-console.sh`'s stt window (so a future
+  full restart doesn't regress). **Real fix, not done tonight**: stop
+  hardcoding an ALSA card INDEX at all -- resolve the capture device by
+  NAME (parse `arecord -l` for "KT USB Audio" or similar) at startup
+  instead, so any future USB replug/reboot-driven renumbering can't
+  silently break capture again the same way.
+
 - **2026-07-23 07:45 (measured live on potato, real numbers, pivots the
   earlier dual-tier design idea):** tested "beep the instant the wake
   word is detected, via a local tiny.en whisper pass on potato" (Zach's
