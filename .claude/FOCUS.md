@@ -1,5 +1,7 @@
 # crt — focus & backlog
 
+- **2026-07-23 13:14 (via `scheduler -i`):** establish passwordless sudo on potato with a reminder to turn that off when we get out of this prototyping phase. unnecessary friction right now when there's no security risk (I'm the only user)
+
 - **2026-07-23 13:05 (via `scheduler -i`):** scrape this site for viable potatos (no character encoding problems) and
   swap out potato_small.txt with one or more (for personality)
   https://textart.sh/topic/potato
