@@ -1,5 +1,7 @@
 # crt — focus & backlog
 
+- **2026-07-23 13:40 (via `scheduler -i`):** figure out what's wrong with the text column constraints, problem on mono window and more. suggest 40 column limit but overscan detect idea is better
+
 - **2026-07-23 13:14 (via `scheduler -i`):** establish passwordless sudo on potato with a reminder to turn that off when we get out of this prototyping phase. unnecessary friction right now when there's no security risk (I'm the only user)
 
 - **2026-07-23 13:05 (via `scheduler -i`):** scrape this site for viable potatos (no character encoding problems) and
