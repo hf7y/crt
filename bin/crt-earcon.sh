@@ -41,6 +41,25 @@
 #   oops      something broke in a way that's actually funny/self-aware,
 #             not scary (a little descending "whoop," cartoon-stumble, NOT
 #             a klaxon -- reserve real klaxon energy for nothing, ever)
+#   heard     added 2026-07-23: VAD threshold crossed, an utterance is
+#             being captured -- lowest-stakes, highest-frequency sound in
+#             this whole file (fires on ALL room speech, not just
+#             wake-worded requests -- see crt-stt-solo.py's
+#             CRT_EARCON_ON_THRESHOLD, default OFF for exactly that
+#             reason). A single very short, quiet tick -- must stay
+#             nearly subliminal if it's ever turned on for real, not a
+#             per-sentence intrusion.
+#   addressed added 2026-07-23: the STT wake-word gate passed (request is
+#             actually addressed to the console, whether or not it later
+#             matches a local playbook or escalates to Claude) -- fires
+#             in crt-stt-solo.py right after addressed_to_console()
+#             succeeds, earlier than `thinking` (which only fires for the
+#             Claude-escalation branch specifically).
+#   control   added 2026-07-23: a single-word CONTROL keystroke was
+#             recognized (yes/no/enter/up/down/etc, see CONTROL dict) --
+#             the "watchword" gate, structurally separate from the
+#             addressed/gate-drop wake-word path since control words
+#             bypass that gate entirely.
 #
 # CRT_EARCON_FADE_SCALE (default 1.0) is the "how urgent does this feel
 # right now" dial, orthogonal to which tone/contour is picked above -- see
@@ -65,7 +84,7 @@ if [ "${1:-}" = "--device" ]; then
 fi
 
 if [ -z "$NAME" ]; then
-  echo "usage: crt-earcon.sh <bait|curious|question|content|success|ack|thinking|oops> [--device tv|handset]" >&2
+  echo "usage: crt-earcon.sh <bait|curious|question|content|success|ack|thinking|heard|addressed|control|oops> [--device tv|handset]" >&2
   exit 2
 fi
 
@@ -130,6 +149,26 @@ case "$NAME" in
     # as "the line picked up," like an old handset relay.
     note 220 0.03 "$TMP/out.wav"
     ;;
+  heard)
+    # a very short, quiet tick -- deliberately closer to `ack` (a click,
+    # not a tone) than to anything melodic, since this is meant to be
+    # nearly subliminal even if left on. Quieter (vol 0.25) than the
+    # rest of this file's sounds on purpose.
+    sox -n -r 22050 "$TMP/out.wav" synth 0.02 sine 350 vol 0.25 fade 0.005 0.02 0.01
+    ;;
+  addressed)
+    # a single clean short note, brighter than `heard` but not as busy as
+    # `thinking`'s two-tick pattern -- "yes, that reached me."
+    note 494 0.06 "$TMP/out.wav"
+    ;;
+  control)
+    # two quick equal notes, same pitch (not a rise/fall like thinking) --
+    # a flat, mechanical double-blip: "keystroke received," not a
+    # conversational gesture.
+    note 660 0.03 "$TMP/a.wav"
+    note 660 0.03 "$TMP/b.wav"
+    sox "$TMP/a.wav" "$TMP/b.wav" "$TMP/out.wav"
+    ;;
   thinking)
     # two soft rising ticks -- "on it," not a full musical gesture. See
     # the header note above: this is a seed sound, meant to grow into a
@@ -158,16 +197,26 @@ mkdir -p "$(dirname "$SIDEBAND_MUTE_FILE")" 2>/dev/null || true
 unduck() { rm -f "$SIDEBAND_MUTE_FILE" 2>/dev/null || true; }
 trap 'rm -rf "$TMP"; unduck' EXIT
 
-# Same device routing as crt-tts.py: tv/handset go through dexter's audio
-# bridge (VirtualBox one-sink-per-VM workaround, see AUDIO-ROUTING.md),
-# anything else plays locally. Kept as a plain curl call here rather than
-# importing crt-tts.py, since a WAV file, not synthesized speech, is all
-# this needs to send.
-DEXTER_URL="${CRT_AUDIO_OUT_URL:-http://192.168.0.22:8992/play}"
+# Device routing, rewritten 2026-07-23 for potato's real hardware (this
+# used to POST to a dexter-hosted audio bridge -- a VirtualBox
+# one-sink-per-VM workaround from the old dexter+crt-vm architecture,
+# meaningless on bare-metal potato, and the actual reason earcons never
+# reached the TV/handset here: DEXTER_URL pointed at a host/service that
+# doesn't exist in this architecture at all). Confirmed live 2026-07-23
+# by ear (Zach on the handset): plughw:2,0 (card 2, vc4-hdmi) is the
+# TV/RF-modulator path; plughw:1,0 (card 1, "KT USB Audio" -- the same
+# USB device the mic itself uses) is the handset earpiece. `plug` (not
+# bare `hw`) because these devices don't accept sox's raw synth format
+# directly (tested: bare hw:2,0 fails with "Sample format non
+# available", hw:1,0 fails with "Channels count non available").
+TV_DEVICE="${CRT_EARCON_TV_DEVICE:-plughw:2,0}"
+HANDSET_DEVICE="${CRT_EARCON_HANDSET_DEVICE:-plughw:1,0}"
 case "$DEVICE" in
-  tv|handset)
-    curl -s -X POST --data-binary @"$TMP/out.wav" \
-      -H "Content-Type: audio/wav" "$DEXTER_URL?device=$DEVICE" >/dev/null
+  tv)
+    aplay -D "$TV_DEVICE" -q "$TMP/out.wav"
+    ;;
+  handset)
+    aplay -D "$HANDSET_DEVICE" -q "$TMP/out.wav"
     ;;
   *)
     aplay -D "${DEVICE:-default}" -q "$TMP/out.wav"
