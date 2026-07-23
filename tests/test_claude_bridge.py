@@ -77,22 +77,38 @@ class TestExtractText(unittest.TestCase):
     def setUp(self):
         self.m = load_bridge({"PATH": os.environ.get("PATH", "")})
 
-    def test_extracts_assistant_text(self):
-        entry = {"type": "assistant", "message": {"content": [{"type": "text", "text": "hi zach"}]}}
+    def test_extracts_marked_line_and_strips_marker(self):
+        entry = {"type": "assistant", "message": {"content": [{"type": "text", "text": "» hi zach"}]}}
         self.assertEqual(self.m.extract_text(entry), "hi zach")
 
+    def test_ignores_unmarked_prose_entirely(self):
+        # The whole point of the marker filter: ordinary technical/
+        # diagnostic writeups must NOT flood window 1.
+        entry = {"type": "assistant", "message": {"content": [
+            {"type": "text", "text": "Found the bug: latest_transcript() picks by mtime...\nlots more detail here"}]}}
+        self.assertIsNone(self.m.extract_text(entry))
+
+    def test_extracts_only_marked_lines_from_a_mixed_reply(self):
+        entry = {"type": "assistant", "message": {"content": [
+            {"type": "text", "text": "Here's the diagnosis, boring detail.\n» *bzzt* i hear you\nmore boring detail"}]}}
+        self.assertEqual(self.m.extract_text(entry), "*bzzt* i hear you")
+
     def test_ignores_non_assistant_entries(self):
-        entry = {"type": "user", "message": {"content": [{"type": "text", "text": "hello"}]}}
+        entry = {"type": "user", "message": {"content": [{"type": "text", "text": "» hello"}]}}
         self.assertIsNone(self.m.extract_text(entry))
 
     def test_ignores_tool_use_blocks(self):
         entry = {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash"}]}}
         self.assertIsNone(self.m.extract_text(entry))
 
-    def test_joins_multiple_text_blocks(self):
+    def test_joins_multiple_marked_lines_across_blocks(self):
         entry = {"type": "assistant", "message": {"content": [
-            {"type": "text", "text": "part one"}, {"type": "text", "text": "part two"}]}}
+            {"type": "text", "text": "» part one"}, {"type": "text", "text": "» part two"}]}}
         self.assertEqual(self.m.extract_text(entry), "part one part two")
+
+    def test_custom_marker_override(self):
+        entry = {"type": "assistant", "message": {"content": [{"type": "text", "text": "CRT: hi"}]}}
+        self.assertEqual(self.m.extract_text(entry, marker="CRT: "), "hi")
 
 
 class TestShouldSwitch(unittest.TestCase):

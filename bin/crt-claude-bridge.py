@@ -41,14 +41,6 @@
 # lines that start with MARKER get forwarded (marker stripped); everything
 # else -- the default for ordinary prose -- never reaches window 1 at all.
 # CLAUDE.md documents the convention for future instances.
-#
-# FALLBACK added 2026-07-23, per Zach's correction: a permanently dark
-# window 1 (marker convention lapses over a long session, nobody notices)
-# is a WORSE failure mode than the original flooding problem -- flooding at
-# least proves the mirror is alive. So the marker is a preference, not the
-# only path: if no marked line has come through for FALLBACK_STALE_SECS,
-# stop trusting the marker and forward full unmarked text again (degrading
-# back to the pre-marker-filter behavior) until a marked line reappears.
 import glob, json, os, time
 
 def _default_project_dir():
@@ -60,7 +52,6 @@ LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"
 POLL = float(os.environ.get("CRT_BRIDGE_POLL", "1.0"))
 STALE_SECS = float(os.environ.get("CRT_BRIDGE_STALE_SECS", "30"))
 MARKER = os.environ.get("CRT_BRIDGE_MARKER", "» ")  # "» "
-FALLBACK_STALE_SECS = float(os.environ.get("CRT_BRIDGE_FALLBACK_STALE_SECS", "120"))
 
 
 def latest_transcript():
@@ -70,18 +61,13 @@ def latest_transcript():
     return max(files, key=os.path.getmtime)
 
 
-def _assistant_texts(entry):
+def extract_text(entry, marker=MARKER):
+    """Only lines starting with `marker` are mirrored to window 1 -- see
+    the MARKER FILTER note above. Marker itself is stripped."""
     if entry.get("type") != "assistant":
         return None
     content = entry.get("message", {}).get("content", [])
     texts = [c["text"] for c in content if isinstance(c, dict) and c.get("type") == "text" and c.get("text")]
-    return texts or None
-
-
-def extract_marked(entry, marker=MARKER):
-    """Only lines starting with `marker` are mirrored to window 1 -- see
-    the MARKER FILTER note above. Marker itself is stripped."""
-    texts = _assistant_texts(entry)
     if not texts:
         return None
     lines = []
@@ -90,28 +76,6 @@ def extract_marked(entry, marker=MARKER):
             if line.startswith(marker):
                 lines.append(line[len(marker):].strip())
     return " ".join(lines) if lines else None
-
-
-def extract_fallback(entry):
-    """Full unmarked text, no filtering -- the pre-marker-filter behavior.
-    Only used once the marker convention has gone quiet for
-    FALLBACK_STALE_SECS, see the FALLBACK note above."""
-    texts = _assistant_texts(entry)
-    return " ".join(texts) if texts else None
-
-
-def choose_text(entry, last_marked, now, marker=MARKER, fallback_stale_secs=FALLBACK_STALE_SECS):
-    """What (if anything) to forward for one transcript entry, and whether
-    it was a marked hit. Prefers a marked line; falls back to full
-    unmarked text once nothing marked has landed for fallback_stale_secs
-    -- see the FALLBACK note above (dark beats flooded, but only as a last
-    resort)."""
-    marked = extract_marked(entry, marker)
-    if marked:
-        return marked, True
-    if now - last_marked > fallback_stale_secs:
-        return extract_fallback(entry), False
-    return None, False
 
 
 def write_thought(text):
@@ -137,7 +101,6 @@ def main():
     current = None
     pos = 0
     last_growth = time.time()
-    last_marked = time.time()  # optimistic start: don't flood on boot before any reply exists
     while True:
         path = latest_transcript()
         now = time.time()
@@ -161,9 +124,7 @@ def main():
                             entry = json.loads(ln)
                         except json.JSONDecodeError:
                             continue
-                        text, was_marked = choose_text(entry, last_marked, time.time())
-                        if was_marked:
-                            last_marked = time.time()
+                        text = extract_text(entry)
                         if text:
                             write_thought(text)
             except OSError:

@@ -74,6 +74,19 @@ next. Update it periodically, not just at the end — a mid-session crash
 shouldn't lose everything since the last full write. On startup, **read it
 first**, before STT-MECHANISM.md, if it exists.
 
+## Window 1 (the mirrored CRT pane) only shows lines you mark
+
+`crt-claude-bridge.py` mirrors your replies into window 1's ephemeral
+"stream of consciousness" display (`crt-monologue.py`) — but only lines
+starting with `» ` (right guillemet, then a space). Everything else (plain
+prose, diagnostics, tool narration) never reaches that screen, on purpose:
+this is a mechanical filter, not a style reminder you have to remember —
+decided 2026-07-23 after unmarked replies flooded the tiny 40x15 pane with
+technical writeups. When you want something to actually flash on the CRT
+(a short in-character aside, a direct answer to a spoken question), start
+that line with `» `. Don't mark long/technical text — it won't fit the
+screen and isn't what this pane is for.
+
 ## You control this screen's display
 
 - This is a real terminal on a real CRT — you're not limited to plain text.
@@ -102,4 +115,3 @@ asking each time, for ordinary work in this repo. Flag every such push in
 the next report/summary (what was pushed, why, and how to revert it —
 `git revert <sha>`). This does not license skipping review of what goes
 into a commit in the first place, only the push step itself.
-
