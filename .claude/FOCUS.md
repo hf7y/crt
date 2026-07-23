@@ -1,5 +1,64 @@
 # crt — focus & backlog
 
+## TOP PRIORITY for tonight's/next unattended pass (2026-07-23 08:20) --
+## calibration/testing features first, per Zach's explicit instruction,
+## ahead of the bigger dormant-wake-judge-wiring item further down.
+
+1. **Confirm/fix the handset play-while-capture finding below** (real
+   loopback-test evidence, needs either a code fix + re-test, or live
+   human confirmation next time Zach is on the handset -- whichever
+   this session/pass can actually do).
+2. **Live-test `bin/crt-calibration-game.py`** on potato (tmux window
+   9, "game") now that its continuous-tailing bug is fixed -- this
+   was fixed but never actually re-played live end-to-end tonight.
+3. Everything else in this file's other 2026-07-23 entries, roughly in
+   the order they appear (dormant wake-judge wiring is the biggest/
+   last item, intentionally not first).
+
+**Acoustic loopback test built and run live tonight**
+(`bin/crt-earcon-loopback-test.py`) -- real, fairly strong evidence of a
+NEW bug, separate from the earlier dexter-bridge routing bug (which IS
+fixed): the handset output device (`plughw:1,0`) is the SAME USB
+hardware as the active mic capture device, and a tone played on it while
+capture is running showed almost no signal in the recording (0.1x above
+baseline) -- backwards from what physical proximity would predict, and
+much worse than the TV path (a separate physical device, 5.0x above
+baseline, itself below my test's conservative 8x "detected" threshold
+but at least in the right direction). Likely explanation: this USB
+audio adapter can't reliably play+record simultaneously (a real hardware/
+driver limitation, not a software routing bug this time) -- earlier
+tonight's successful "yes, heard both in order" confirmation of the
+handset path happened while capture was ACCIDENTALLY DEAD (the
+`plughw:0,0` bug, fixed later the same session), so there was no
+device contention at that time to reveal this. **Needs**: either (a) a
+code fix -- briefly duck/pause the capture arecord process during a
+handset earcon, same pattern as the existing sideband-mute duck, then
+re-run `crt-earcon-loopback-test.py handset` to confirm it fixes the
+measured ratio, or (b) failing a code fix, live human confirmation
+(the tool's own measurement, while informative, is not 100% proof --
+Zach's ear is the ground truth) next time he's on the handset. The tool
+itself is genuinely reusable going forward -- also reports the room's
+noise floor (peak/rms) each run, directly useful for retuning
+`CRT_VAD_THRESHOLD` without a by-ear session.
+
+## Nightly-batch / unattended-pass access to potato, confirmed tonight
+
+The nightly-batch runner operates as the persistent `zach` account on
+mandark (same `$HOME` FOCUS.md's crt-vm section already documents the
+`crt_vm_pull` SSH key living in, "NOT the disposable clone, so they
+survive the `git reset --hard` this repo's clone gets every cycle") --
+the SAME account this session added `Host potato` to in
+`~/.ssh/config` tonight (key auth, no password). Confirmed: `whoami` /
+`$HOME` in this session match `zach`/`/home/zach`, the persistent
+account crt-vm's own access already relies on. **This means `ssh potato`
+should already work for an unattended pass without further setup** --
+but this has NOT been end-to-end verified by actually triggering a real
+nightly-batch run and watching it use `ssh potato` successfully. If a
+pass starts and `ssh potato` fails (host key, auth, connection), don't
+spend the whole cycle debugging it -- note it in the report and continue
+with whatever else is in scope, same policy the crt-vm section below
+already established for that host.
+
 - **2026-07-23 08:00 (built tonight, live on potato):** `bin/crt-calibration-game.py`
   -- the "potato game" from earlier tonight's idea, built as a real
   interactive script rather than a background service. Reuses
