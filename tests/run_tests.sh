@@ -225,6 +225,22 @@ echo "== earcon sideband duck =="
 bash "$DIR/test_earcon_sideband_duck.sh" || fail=1
 echo
 
+echo "== crt-mandark.sh on/off/status toggle =="
+bash "$DIR/test_mandark_toggle.sh" || fail=1
+echo
+
+echo "== crt-wake-router.py brain decision =="
+if [ -f "$DIR/test_wake_router.py" ]; then
+  python3 "$DIR/test_wake_router.py" || fail=1
+fi
+echo
+
+echo "== crt-screensaver.py potato art =="
+if [ -f "$DIR/test_screensaver.py" ]; then
+  python3 "$DIR/test_screensaver.py" || fail=1
+fi
+echo
+
 if [ "$fail" -eq 0 ]; then
   echo "ALL GREEN"
 else

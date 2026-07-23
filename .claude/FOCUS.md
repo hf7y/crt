@@ -1,5 +1,100 @@
 # crt — focus & backlog
 
+## PRIORITIZED BATCH BACKLOG (2026-07-23, scheduler-integrated)
+
+How to read this: items are ranked by **value ÷ risk**, offline-safe work
+first (the `nightly-batch` skill / disposable-clone tier can do these
+unattended — it reads THIS file and is scoped by it). Each item is tagged:
+
+- **[batch]** — offline-safe. Buildable + unit-testable on mandark with no
+  potato/live hardware. A nightly-batch cycle can land it, run
+  `tests/run_tests.sh`, commit, and push (per CLAUDE.md push permission).
+- **[hw]** — needs the physical Pi / mic / handset. Batch tier must NOT
+  guess at these: build the offline-safe half, then flag for Zach's live
+  session, same posture the rest of this file already uses.
+
+Scheduler integration: the batch runner picks the top unblocked **[batch]**
+item, does it end-to-end (code + test + commit + push + note in its
+report), then stops — it does not chain into **[hw]** items or flip live
+defaults. **[hw]** items surface in the report as "waiting on Zach".
+
+### Landed this session (2026-07-23) — brain-placement / screensaver
+
+The idle-lean architecture Zach asked for is scaffolded + offline-tested;
+see `POTATO.md` for the whole picture. Shipped: `bin/crt-mandark.sh`
+(on/off/status toggle), `bin/crt-wake-router.py` (remote/local/none
+decision brain), `bin/crt-screensaver.py` (renders `potato-small.txt`),
+`crt-console.sh` sources `~/.crt/mandark.conf` + `CRT_NO_IDLE_CLAUDE`
+layout. **The one remaining live piece is [hw]:** a wake supervisor that
+acts on the router's decision (on-demand local-brain spin-up + screensaver↔
+brain window swap) — see POTATO.md "remaining live wiring".
+
+### Ranked backlog
+
+1. **[batch] Refactor sweep — kill dead dexter/crt-vm code + config sprawl.**
+   Full plan in `REFACTOR-ASSESSMENT.md`. Highest value/lowest risk:
+   delete `bin/dexter-*.py`, `bin/crt-sync-vm*.sh`, `bin/crt-vm-*.sh`,
+   `systemd/crt-vm-*` (dead on bare-metal potato); fix the dexter `:8992`
+   default still lurking in `crt-tts.py`/`crt-announce.sh` (silent-fail
+   class, same as the earcon bug); introduce one config source
+   (`crt-config.sh` + `crt_config.py`) for the port `8993`, whisper URL,
+   and ALSA device now retyped across many files. **Real bug found:** port
+   8993 collides — both `crt-remote-claude-bridge.py` and
+   `crt-scanner-feed.py:32` claim it. Resolve as part of the config
+   consolidation.
+2. **[batch] Docs consolidation.** ~37 `.md` files, heavy overlap,
+   SESSION-STATE/HANDOFF self-declare superseded. Add `DOCS-INDEX.md` +
+   `docs/archive/`, fold design-only docs into one backlog. Low risk,
+   makes every future pass faster.
+3. **[batch] Pi-without-mandark standalone jobs.** Things the console does
+   with NO brain attached at all (the `none` route, or deliberate offline
+   mode) — all reuse existing local-only code, no API cost:
+   - Screensaver + book-game idle-bait loop as a self-sufficient "attract
+     mode" (`crt-book-idle-bait.py` already API-free).
+   - `crt-book-game-stats.py export-fixups` on a timer → candidate
+     `stt-fixups.json` entries from accumulated training data.
+   - Noise-floor / `CRT_VAD_THRESHOLD` calibration from
+     `crt-earcon-loopback-test.py`'s ambient-RMS report (no ear needed).
+   - Local canned-response cache: pre-answer common utterances from past
+     `stt.log`/Claude exchanges so the screen can respond instantly with
+     no brain, then let a brain overwrite it later when one is available
+     (directly the 2026-07-22 14:11 scheduler note + the 2026-07-20 15:57
+     vision line — "canned responses injected before claude responds").
+4. **[batch] Book Game reboot audit.** The funnel (idle-bait→scan→question→
+   spoken answer→STT training) is fully built but was disrupted by the
+   VM→potato move and the brain-off-box change. Verify each window
+   (`book`/`bookidle`/`bookanswer`/`windowswitch`) still composes on
+   potato's current layout; the full integration test
+   (`test_book_game_integration.py`) is the offline half — re-run + extend
+   it to cover the no-idle-Claude layout. Live scan re-test is [hw].
+5. **[batch] Interface / interaction streamlining.**
+   - Single wake vocabulary source: fold the wake-word/pool constants
+     scattered across `crt-stt-solo.py`/`crt-wake-pool.py`/gate logic into
+     one place (ties to item 1's config work).
+   - Reduce `crt-console.sh`'s ~10 always-on windows: make the Book Game
+     windows and `stttrain` lazy/on-demand (RAM lever on a 1GB Pi — see
+     `REFACTOR-ASSESSMENT.md` #5).
+   - "Grey partial → white final" reply streaming: the `on_partial` seam
+     already exists in `crt-secretary.py`; build the real grey/white
+     overwrite (2026-07-23 07:15 note has the foothold).
+6. **[batch] Calibration tests as first-class, non-interactive checks.**
+   Promote the acoustic-loopback + noise-floor tools into a
+   `crt-calibrate` suite that emits pass/fail + numbers (not just
+   exit-0), so silent-audio regressions (the earcon-bug class) get caught
+   mechanically. Live re-run on potato is [hw].
+7. **[hw] Wake supervisor** (POTATO.md remaining-wiring #1) — on-demand
+   local-brain spin-up + screensaver↔brain swap. Offline half: the
+   decision + a dry-run harness (done via `crt-wake-router.py`). Live
+   spin-up/teardown + RAM/whisper readiness gating needs the Pi.
+8. **[hw] Sticky wake window / dormant wake-judge wiring** — `crt-wake-arm.py`
+   exists (opt-in, `CRT_WAKE_ARM_ENABLED`); needs live tuning of the
+   arm-window duration by ear. See the 2026-07-23 08:00 entry below.
+9. **[hw] Streaming STT (Vosk/Sherpa-ONNX) for wake-spotting** — whisper
+   is the wrong tool for instant wake on this Pi (measured). See the
+   2026-07-23 07:45 / 09:25 entries below for the real numbers.
+
+---
+
 ## CURRENT TOP PRIORITY (2026-07-23 evening, before a context reset) --
 ## Claude-on-mandark is LIVE, verify it stays that way
 

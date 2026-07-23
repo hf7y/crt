@@ -21,6 +21,19 @@ BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # crash drops to the `; exec bash` fallback below.
 export PATH="$BIN_DIR:$HOME/.local/bin:$PATH"
 
+# Where the console's Claude brain runs is a runtime choice Zach flips with
+# bin/crt-mandark.sh, persisted to ~/.crt/mandark.conf (sets
+# CRT_CLAUDE_REMOTE_PORT: a real port -> route escalations to mandark's
+# remote Claude bridge; 0 -> keep it local/onsite). Sourcing it here lets
+# that toggle survive a reboot without editing this file. No file = the
+# historical default (remote on, port 8993), preserved by the `:-8993`
+# fallback on the stt window's launch line below. See POTATO.md.
+CRT_MANDARK_CONF="${CRT_MANDARK_CONF:-$HOME/.crt/mandark.conf}"
+if [ -f "$CRT_MANDARK_CONF" ]; then
+  # shellcheck disable=SC1090
+  . "$CRT_MANDARK_CONF"
+fi
+
 # CRT_MODE=stt  -> standalone speech-to-text only, no Claude Code. A single
 # process (crt-stt-solo.py) is the SOLE mic reader -- metering + VAD + whisper
 # off one continuous arecord stream. This deliberately avoids the dsnoop meter,
@@ -70,8 +83,24 @@ fi
 # acceptEdits auto-accepts file edits. Set
 # CRT_CLAUDE_ARGS='--permission-mode bypassPermissions' for zero prompts (only on
 # a console doing your own trusted work), or override entirely as needed.
-CLAUDE_ARGS="${CRT_CLAUDE_ARGS:---permission-mode acceptEdits}"
-tmux new-session -d -s "$SESSION" -c "$PROJECT_DIR" "claude $CLAUDE_ARGS; exec bash"
+# CRT_NO_IDLE_CLAUDE=1 -> idle-lean layout: hold NO Claude brain on potato
+# while idle (Claude Code was ~37% of this 1GB Pi's RAM --
+# ARCHITECTURE-REVIEW-2026-07-23.md). Window 0 shows the potato
+# screensaver instead of a resident Claude; escalations route to mandark's
+# remote Claude over the bridge (CRT_CLAUDE_REMOTE_PORT). If mandark is
+# down, the onsite fallback brain is meant to be spun up on demand by a
+# wake supervisor -- that supervisor is the ONE remaining piece of live
+# wiring (see POTATO.md "remaining live wiring"); until it exists,
+# mandark-down in this mode degrades to a short honest reply, not a crash.
+# Default (unset/0) keeps the historical always-resident-Claude layout,
+# so nothing regresses unless this is deliberately turned on and
+# live-verified. crt-wake-router.py is the decision brain either way.
+if [ "${CRT_NO_IDLE_CLAUDE:-0}" = "1" ]; then
+  tmux new-session -d -s "$SESSION" -c "$BIN_DIR" "python3 ./crt-screensaver.py; exec bash"
+else
+  CLAUDE_ARGS="${CRT_CLAUDE_ARGS:---permission-mode acceptEdits}"
+  tmux new-session -d -s "$SESSION" -c "$PROJECT_DIR" "claude $CLAUDE_ARGS; exec bash"
+fi
 
 # Window 1 -- visible "monologue" pane: claude's own DIALOGUE replies (not its
 # thinking), pretty-printed and ephemeral (crt-monologue.py fades/drops old
