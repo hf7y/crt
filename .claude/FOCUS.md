@@ -1,5 +1,31 @@
 # crt — focus & backlog
 
+- **2026-07-23 18:00 (cleanup flags from the mandark-Claude/bridge
+  work):**
+  - Port `8993` is hardcoded in THREE places with no single source of
+    truth: `bin/crt-remote-claude-bridge.py`'s default, both systemd
+    unit files in `bin/setup-mandark-remote-claude-persistence.sh`, and
+    `CRT_CLAUDE_REMOTE_PORT` in `crt-console.sh`'s stt launch line. If
+    this port ever needs to change, all three need updating together --
+    worth a shared config source (env file, or one constant imported by
+    all three) if this setup survives past the prototype stage.
+  - `setup-mandark-remote-claude-persistence.sh` kills the ad-hoc
+    `nohup` bridge/tunnel processes by hardcoded PID (756846/756877) --
+    scaffolding for this one-time transition, not a pattern to copy for
+    future setup scripts (harmless no-op if those exact PIDs are already
+    gone, but worth removing the dead kill lines once this has actually
+    been run).
+  - No log rotation/size cap on the bridge server's own stdout
+    (`crt-remote-claude-bridge.service`'s journal) or the tunnel's --
+    fine for now, worth checking after this has run for a while.
+  - Testing live now (2026-07-23): potato's `stt` window escalates to
+    Claude running on mandark via this bridge+tunnel instead of a local
+    tmux pane. Watch for real failure modes over the next few real
+    conversations: tunnel drop mid-conversation, bridge server restart
+    losing in-flight state, `wait_for_claude_reply()`'s idle-detection
+    timing against network-added latency (should be small on LAN, but
+    unverified over a longer live session).
+
 - **2026-07-23 09:30 (MAXUTT/TRAIL review, recommendation only -- not
   changed):** per the 2026-07-23 finding that continuous speech with no
   real pause rides the full `CRT_VAD_MAX` (20s) hard cap before an
