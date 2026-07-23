@@ -7,6 +7,80 @@ pick up.
 
 # Session state (read this first, before STT-MECHANISM.md)
 
+## LATEST (2026-07-23, afternoon/evening) — Claude Code itself now runs
+## on mandark, not potato. This supersedes anything below that assumes
+## Claude runs locally on potato's window 0.
+
+**The single biggest architecture change of the whole day.** Following
+the morning's `ARCHITECTURE-REVIEW-2026-07-23.md` finding (potato is a
+1GB Pi 3B+, memory-constrained, Claude Code itself was 37% of its RAM),
+Zach asked what moving Claude off potato would look like — this session
+built and live-tested it, and it's **currently live**:
+
+- **`bin/crt-remote-claude-bridge.py`** — a tiny server on mandark,
+  binds `127.0.0.1:8993` ONLY (never LAN-reachable), speaks a 2-command
+  protocol (`CAPTURE`, `SEND <text>`) against one named tmux session
+  (`potato-claude`) — not a shell, not SSH, nothing else possible over
+  this socket.
+- **Reverse tunnel, mandark-initiated**: `ssh -N -R 8993:localhost:8993
+  potato` — deliberately NOT the other direction. mandark has no SSH
+  server at all (only ever the client); Zach flagged potato having any
+  network path INTO mandark as a real vulnerability, so this was
+  rejected in favor of mandark dialing OUT (the direction that already
+  works/is trusted). Potato ends up talking to its own `localhost:8993`,
+  never to mandark directly.
+- **`crt-secretary.py`'s `capture_pane()`/`send_to_claude()`** swap to
+  this bridge when `CRT_CLAUDE_REMOTE_PORT` is set (unset = old local
+  behavior, byte-identical). **Currently set live** on potato's `stt`
+  tmux window (`CRT_CLAUDE_REMOTE_PORT=8993`, wired into
+  `crt-console.sh`'s launch line too, so it survives a full restart).
+- **The actual Claude session** lives in a mandark-local tmux session
+  named `potato-claude`, working directory `~/potato-crt` — an
+  **sshfs mount of potato's real `~/crt`** (`sshfs potato:/home/vkv/crt
+  ~/potato-crt`, NOT mandark's own git checkout at
+  `~/Documents/Projects/crt` — these are two different directories on
+  mandark, don't confuse them). This is how Claude-on-mandark reads/
+  writes potato's real files (books.db, logs, stt-fixups.json) — tool
+  calls operate on the mount, which is really potato's disk over SFTP.
+
+**Live-tested this session, multiple real exchanges, all worked**:
+wake-word trigger → secretary fallthrough → bridge → mandark's Claude →
+reply with the `» ` marker convention → back to potato's window 1.
+Confirmed Claude-on-mandark can actually run tool calls against the
+sshfs-mounted files (asked to list top-level files, got the real
+answer). No failures observed, but only tested for a few minutes, not a
+full session's worth of tunnel-stability/idle-detection-over-network
+questions — see the FOCUS.md cleanup-flags entry from this session.
+
+**NOT yet durable**: the bridge server and tunnel are still the
+original ad-hoc `nohup` background processes on mandark (PIDs will not
+survive a mandark reboot/logout). `bin/setup-mandark-remote-claude-
+persistence.sh` (systemd units for both, same password-needed-so-hand-
+Zach-a-script pattern as `setup-mandark-whisper-persistence.sh`) is
+written and committed but **has NOT been run yet** — check `systemctl
+is-active crt-remote-claude-bridge.service crt-potato-tunnel.service` on
+mandark; if both say "inactive" or "could not be found", the ad-hoc
+processes are still what's actually running (check `ps aux | grep
+crt-remote-claude-bridge` on mandark) — don't assume the systemd units
+are live just because the setup script exists in the repo.
+
+**To resume/verify this is still working**: on mandark, confirm the
+bridge + tunnel are running (systemd or ad-hoc, per above); on potato,
+confirm the `stt` tmux window has `CRT_CLAUDE_REMOTE_PORT=8993` in its
+environment (`ps eww <pid>` on the `crt-stt-solo.py` process); the real
+Claude session is `tmux capture-pane -t potato-claude` on mandark, not
+anything on potato's own window 0 anymore (window 0 on potato is now a
+SEPARATE, no-longer-primary Claude session — don't confuse the two if
+debugging a reply that doesn't show up where expected).
+
+**Reconciled same session**: potato's `bin/stt-fixups.json` had 4 new
+STT-mishear entries (clod, wonder one, gal wah, cloud text) accumulated
+live that hadn't been pulled into the main repo yet — done, pushed.
+Potato's git tree otherwise unchanged since the morning's 4-commit
+cherry-pick (no new potato-side commits to reconcile this time).
+
+---
+
 Last updated: 2026-07-23 (early morning BST) — a long live-tuning session
 with Zach on the mic, direct interactive access to BOTH mandark (this
 dev box) and potato (the real console hardware, a Raspberry Pi). This
