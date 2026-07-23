@@ -1,5 +1,38 @@
 # crt — focus & backlog
 
+- **2026-07-23 07:20 (design constraint for the "resolve capture device
+  by name" fix filed above):** keep BOTH paths available, don't replace
+  the hardcoded ALSA index with name-resolution outright -- resolve by
+  name (parse `arecord -l` for "KT USB Audio" or similar) as the
+  default/preferred path, but keep `CRT_AUDIO_DEV` (or an equivalent
+  explicit override) working as a hard override for when name-matching
+  is ambiguous (two identical USB adapters plugged in, a renamed/generic
+  device string, etc) or when name-resolution itself breaks. Same
+  reasoning as `stt-fixups.json`'s tiered confidence levels elsewhere in
+  this project -- never remove the manual escape hatch when adding an
+  automatic path.
+- **2026-07-23 07:22 (test/diagnostic idea, not yet built):** can the
+  mic hear the earcons? i.e. an acoustic loopback self-test -- play a
+  known earcon (or a plain fixed-frequency tone) through the actual
+  output device, simultaneously record via the actual capture device,
+  and check for that frequency's energy spike in the recording (a simple
+  Goertzel/FFT bin check, not full whisper transcription -- this is
+  tone-detection, not speech). Would give:
+  - A real audio-diagnostic test (does sound actually reach the mic from
+    each output path -- TV/handset/whatever), not just "the subprocess
+    exited 0" (which is exactly the false confidence that let tonight's
+    silent-earcon bug go unnoticed for a while).
+  - A **noise-floor calibration tool**: record N seconds of ambient room
+    audio with nothing playing, report peak/RMS stats -- directly useful
+    for retuning `CRT_VAD_THRESHOLD` (see `crt-stt-solo.py`'s own header
+    comment on why VAD is peak-based, tuned for THIS room's specific
+    noise floor) without guessing/live-testing by ear each time the room
+    or hardware changes.
+  - Loopback timing could also give a real measured round-trip number
+    for "how long between telling ALSA to play and the mic actually
+    picking it up" -- a concrete input to any future latency budget,
+    rather than an assumed-negligible constant.
+
 - **2026-07-23 07:10 (real bug, hotfixed live, root cause not fully
   closed):** restarting potato's stt tmux window (to pick up tonight's
   earcon changes) exposed that `crt-stt-solo.py`'s capture device default
