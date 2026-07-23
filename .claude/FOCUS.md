@@ -1,5 +1,20 @@
 # crt — focus & backlog
 
+## CURRENT TOP PRIORITY (2026-07-23 evening, before a context reset) --
+## Claude-on-mandark is LIVE, verify it stays that way
+
+1. Run `bin/setup-mandark-remote-claude-persistence.sh` on mandark (needs
+   sudo password) so the bridge+tunnel survive a reboot -- still ad-hoc
+   `nohup` processes as of this writing.
+2. Keep live-testing real conversations through it (see
+   `.claude/SESSION-STATE.md`'s LATEST section for the full picture) --
+   watch specifically for tunnel drops, bridge restarts losing state, and
+   whether `CLAUDE_IDLE_SECS`'s idle-detection timing holds up over the
+   network (should be negligible on LAN, unverified over a longer
+   session).
+3. Everything else below this is real but secondary to confirming this
+   new architecture is actually solid.
+
 - **2026-07-23 18:00 (cleanup flags from the mandark-Claude/bridge
   work):**
   - Port `8993` is hardcoded in THREE places with no single source of
