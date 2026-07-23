@@ -52,7 +52,9 @@ pointers below for depth on any one piece.
 - **`crt-vm`** — Debian 13 guest on dexter. The console itself (mic capture,
   VAD, tmux/CRT display).
   - SSH: `ssh -p 2222 zach@dexter.local` (NAT port-forward 2222→22, key auth).
-  - Password `kw0kWXESrKQpNvuKXiU8`; passwordless sudo enabled.
+  - Password: **redacted — was committed in plaintext, so it is still in
+    git history; ROTATE it and store the new one out-of-repo (an untracked
+    `.env`/password manager), not here.** Passwordless sudo enabled.
   - To see its screen: at dexter's KVM, open **VirtualBox Manager** and
     double-click `crt-vm` (GUI mode). Do NOT use "Show" on a headless VM
     (hangs), and do NOT `startvm --type gui` over SSH (no window appears
