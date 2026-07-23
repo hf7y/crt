@@ -76,6 +76,17 @@ _media_spec.loader.exec_module(media_player)
 MEDIA_BACKEND = media_player.VlcBackend()
 SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
 PANE = os.environ.get("CRT_TMUX_PANE", "0")
+
+# Remote-Claude wiring (2026-07-23, reverse-tunneled local-socket first
+# cut -- see FOCUS.md's "move Claude off potato" note for the API-based
+# version planned for later, and bin/crt-remote-claude-bridge.py's own
+# header for the full design/threat-model reasoning). Empty by default:
+# local tmux, byte-identical to before this change. Set
+# CRT_CLAUDE_REMOTE_PORT to instead talk to a bridge server tunneled in
+# on that LOCAL port (127.0.0.1 only -- potato never connects to mandark
+# directly, mandark's own outbound ssh reverse-tunnels the port in).
+CLAUDE_REMOTE_PORT = int(os.environ.get("CRT_CLAUDE_REMOTE_PORT", "0")) or None
+SSH_CONNECT_TIMEOUT = os.environ.get("CRT_CLAUDE_REMOTE_SSH_TIMEOUT", "5")
 REPORTS_DIR = os.path.expanduser(os.environ.get("CRT_REPORTS_DIR", "~/reports/crt"))
 REPO_DIR = os.path.expanduser(os.environ.get("CRT_REPO_DIR", "~/crt"))
 QUESTIONS = os.environ.get("CRT_QUESTIONS_FILE", os.path.join(REPO_DIR, ".claude/QUESTIONS.md"))
@@ -451,24 +462,67 @@ def find_playbook(text):
     return None, None
 
 
-# STUB/HOOK (2026-07-23, filed not built -- see FOCUS.md "call Claude from
-# mandark" idea): capture_pane()/send_to_claude() below are the ONLY two
-# functions that assume Claude Code runs in a local tmux pane on this same
-# box. A future "run the actual Claude Code session on mandark instead of
-# potato" design would only need to swap these two functions' bodies (e.g.
-# `ssh mandark tmux capture-pane ...` / `ssh mandark tmux send-keys ...`,
-# or a small HTTP shim if SSH round-trip latency is itself a problem) --
-# everything else in this file (playbooks, wait_for_claude_reply, earcon/
-# composing-line hooks) is already agnostic to where Claude actually runs.
-# Not built because the actual bottleneck measured live 2026-07-23 was
-# CLAUDE_IDLE_SECS's fixed wait, not Pi CPU or network path -- don't
-# build this until that's separately confirmed to matter.
+# Remote-Claude wiring via a reverse-tunneled local socket, built
+# 2026-07-23 (first cut -- an API-based version, for delegating to any
+# VM rather than one specific tunnel, is the planned next step, see
+# FOCUS.md). Deliberately NOT ssh-from-potato-to-mandark: mandark has no
+# SSH server at all, and potato having any network path INTO mandark is
+# a real vulnerability Zach flagged directly -- installing/exposing
+# sshd on a personal dev laptop just so potato can reach in was
+# rejected in favor of this instead. mandark's own crt-remote-claude-
+# bridge.py binds 127.0.0.1-only (see that file) and mandark's own
+# outbound ssh (already trusted, already working) reverse-tunnels that
+# port to potato (`ssh -R <port>:localhost:<port> potato -N`) -- potato
+# only ever talks to ITS OWN localhost, never to mandark directly, and
+# mandark never accepts an unsolicited inbound connection. The bridge
+# server's own protocol (two commands only: CAPTURE, SEND) is a much
+# smaller surface than generic shell/SSH access would be, too.
+#
+# capture_pane()/send_to_claude() are the ONLY two functions that know
+# whether Claude Code runs locally or remotely -- everything else in
+# this file (playbooks, wait_for_claude_reply, earcon/composing-line
+# hooks) stays completely agnostic. With CLAUDE_REMOTE_PORT unset (the
+# default), these are byte-identical to the old local-only versions.
+import socket as _socket
+
+
+def _bridge_request(command, port, timeout=None):
+    """One request, one response, newline-terminated, then close --
+    dead simple by design (this is the whole protocol). Returns "" on
+    any failure (timeout, connection refused because the tunnel/bridge
+    isn't up) -- same tolerant-degrade posture as every other
+    best-effort call in this file, never raises up into the capture
+    loop."""
+    timeout = timeout if timeout is not None else float(SSH_CONNECT_TIMEOUT)
+    try:
+        with _socket.create_connection(("127.0.0.1", port), timeout=timeout) as s:
+            s.sendall((command + "\n").encode("utf-8"))
+            s.shutdown(_socket.SHUT_WR)
+            chunks = []
+            while True:
+                chunk = s.recv(65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            return b"".join(chunks).decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
 def capture_pane():
+    if CLAUDE_REMOTE_PORT:
+        return _bridge_request("CAPTURE", CLAUDE_REMOTE_PORT)
     r = sh(["tmux", "capture-pane", "-t", "%s:%s" % (SESSION, PANE), "-p", "-S", "-200"])
     return r.stdout if r.returncode == 0 else ""
 
 
 def send_to_claude(text):
+    if CLAUDE_REMOTE_PORT:
+        # newline-terminated single-line protocol -- a real utterance
+        # never legitimately contains one (whisper output is one line),
+        # but strip defensively so a stray one can't desync the protocol.
+        _bridge_request("SEND " + text.replace("\n", " "), CLAUDE_REMOTE_PORT)
+        return
     sh(["tmux", "send-keys", "-t", "%s:%s" % (SESSION, PANE), "-l", text])
     sh(["tmux", "send-keys", "-t", "%s:%s" % (SESSION, PANE), "Enter"])
 
