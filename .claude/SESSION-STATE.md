@@ -7,6 +7,45 @@ pick up.
 
 # Session state (read this first, before STT-MECHANISM.md)
 
+## LATEST-2 (2026-07-23, evening) — idle-lean brain placement + potato screensaver
+
+Built + deployed live to potato this session (see POTATO.md):
+- **Screensaver is LIVE** on potato — `bin/crt-screensaver.py` renders
+  `potato-small.txt` (braille potato) in a tmux window named `saver`,
+  currently selected on the CRT. NOTE: `saver` is a hand-created window,
+  NOT durable — a reboot loses it. To make it the boot idle-face, set
+  `CRT_NO_IDLE_CLAUDE=1` (crt-console.sh now supports that layout: window
+  0 becomes the screensaver instead of a resident Claude). NOT yet
+  persisted in potato's `~/.bash_profile` — do that to survive reboot.
+- **`bin/crt-mandark.sh on|off|status`** — the toggle for routing the
+  brain to mandark. Ran `on` live; wrote potato's `~/.crt/mandark.conf`
+  (CRT_CLAUDE_REMOTE_PORT=8993); bridge probe = reachable.
+- **`bin/crt-wake-router.py`** — pure remote/local/none decision brain
+  (offline-tested). The live wake SUPERVISOR that acts on it (on-demand
+  local-brain spin-up + screensaver↔brain window swap) is NOT built —
+  the one remaining [hw] piece (POTATO.md "remaining live wiring").
+- **Scanner feed RETIRED** (commit de37a06): `bin/crt-scanner-feed.py` +
+  its systemd unit + test removed — dexter-era HTTP receiver that bound
+  0.0.0.0:8993, colliding with the Claude bridge tunnel. Was inactive on
+  potato, no live impact. scanner.log now written by crt-book-console.py.
+- Commits 806ba31 (brain-placement scaffolding + POTATO.md +
+  REFACTOR-ASSESSMENT.md + FOCUS.md batch backlog) and de37a06 pushed.
+
+STILL OPEN / next: (1) window 0 still holds a redundant live local Claude
+eating RAM (98MB free) — kill it or restart into CRT_NO_IDLE_CLAUDE to
+reclaim. (2) STICKY WAKE WINDOW: `crt-wake-arm.py` is built+wired+tested
+but disabled (CRT_WAKE_ARM_ENABLED=0) — enabling it (restart stt window
+with the env set) fixes the follow-up-gate-drop bug; needs live ARM_SECS
+tuning. (3) A mid-session slip: mis-read window 0 as idle bash and
+accidentally submitted a prompt into its live Claude; classifier blocked
+the Escape cleanup. Don't send-keys into window 0.
+
+INCIDENT NOTE for whoever's next: `tmux list-windows` showing "0: bash"
+did NOT mean window 0 was an idle shell — a live Claude Code TUI was
+running there. Capture-pane before assuming a window is safe to write to.
+
+---
+
 ## LATEST (2026-07-23, afternoon/evening) — Claude Code itself now runs
 ## on mandark, not potato. This supersedes anything below that assumes
 ## Claude runs locally on potato's window 0.
