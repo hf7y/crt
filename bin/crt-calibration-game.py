@@ -34,6 +34,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -101,34 +102,54 @@ def play_earcon(name, device=None):
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def wake_round(target, seconds):
+class Tailer:
+    """Runs in a background thread for the ENTIRE game session, not just
+    during a nominal 'round' -- the original per-round-only tailer went
+    dead the instant a blocking input() prompt ran between rounds, so
+    anything said in that gap (or right at a round boundary, given
+    VAD-trail + remote-whisper round-trip latency) was silently dropped.
+    This starts the moment the game launches and never stops until exit,
+    so timing relative to prompts/rounds no longer matters."""
+
+    def __init__(self, target):
+        self.target = target
+        self.seen = {}
+        self._stop = False
+        try:
+            self.pos = os.path.getsize(os.path.expanduser(STT_LOG))
+        except OSError:
+            self.pos = 0
+
+    def run(self):
+        def loop():
+            while not self._stop:
+                lines, self.pos = tail_new_lines(os.path.expanduser(STT_LOG), self.pos)
+                for line in lines:
+                    for word in line.lower().split():
+                        word = "".join(c for c in word if c.isalnum())
+                        if len(word) < 3:
+                            continue
+                        ratio = difflib.SequenceMatcher(None, word, self.target).ratio()
+                        color = color_for_ratio(ratio)
+                        pad = " " * (int(ratio * 12))
+                        print("%s%s%-16s%s (%.0f%%)" % (pad, color, word, RESET, ratio * 100))
+                        self.seen[word] = max(self.seen.get(word, 0.0), ratio)
+                time.sleep(0.5)
+        self._thread = threading.Thread(target=loop, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._stop = True
+
+
+def wake_round(tailer, target, seconds):
     print(POTATO)
     print("%s%s ROUND: say %r into the mic for the next %ds.%s"
           % (BRIGHT, CYAN, target, seconds, RESET))
-    print("Each recognized word splashes below, scored against %r.\n" % target)
-
-    try:
-        pos = os.path.getsize(os.path.expanduser(STT_LOG))
-    except OSError:
-        pos = 0
-    seen = {}
-    deadline = time.time() + seconds
-    while time.time() < deadline:
-        lines, pos = tail_new_lines(os.path.expanduser(STT_LOG), pos)
-        for line in lines:
-            for word in line.lower().split():
-                word = "".join(c for c in word if c.isalnum())
-                if len(word) < 3:
-                    continue
-                ratio = difflib.SequenceMatcher(None, word, target).ratio()
-                color = color_for_ratio(ratio)
-                pad = " " * (int(ratio * 12))
-                print("%s%s%-16s%s (%.0f%%)" % (pad, color, word, RESET, ratio * 100))
-                seen[word] = max(seen.get(word, 0.0), ratio)
-        time.sleep(0.5)
-
-    print("\n%s-- round over --%s" % (DIM + WHITE, RESET))
-    return seen
+    print("(listening continues between rounds too -- nothing is dropped)\n")
+    time.sleep(seconds)
+    print("\n%s-- round over (still listening) --%s" % (DIM + WHITE, RESET))
+    return tailer.seen
 
 
 def offer_to_save(seen, target):
@@ -177,10 +198,15 @@ def earcon_round():
 def main():
     target = sys.argv[1] if len(sys.argv) > 1 else "potato"
     seconds = int(sys.argv[2]) if len(sys.argv) > 2 else 20
-    seen = wake_round(target, seconds)
-    offer_to_save(seen, target)
-    if input("\nRun the earcon device-check round too? (y/N) ").strip().lower().startswith("y"):
-        earcon_round()
+    tailer = Tailer(target)
+    tailer.run()
+    try:
+        seen = wake_round(tailer, target, seconds)
+        offer_to_save(seen, target)
+        if input("\nRun the earcon device-check round too? (y/N) ").strip().lower().startswith("y"):
+            earcon_round()
+    finally:
+        tailer.stop()
     print("\ndone.")
 
 
