@@ -17,5 +17,17 @@
     "intent": "claude",
     "note": "wake word 'Claude' misheard whole-word, calibration-confirmed 2026-07-19",
     "type": "a-substitution"
+  },
+  "potato": {
+    "confidence": "confirmed",
+    "intent": "claude",
+    "note": "deliberate second wake word, not a mishear -- this machine's own hostname, added 2026-07-23 per Zach",
+    "type": "wake-word-alias"
+  },
+  "clot": {
+    "confidence": "auto",
+    "intent": "claude",
+    "note": "'the other clot' 2026-07-23 -- likely 'the other Claude', /klɔːd/ heard as /klɒt/, needs confirmation before treating as confirmed",
+    "type": "a-substitution"
   }
 }
