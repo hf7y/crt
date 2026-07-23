@@ -132,8 +132,16 @@ tmux new-window -d -t "$SESSION" -n bridge -c "$BIN_DIR" "./crt-claude-bridge.py
 # no capture, no error. Hardcoding a card INDEX at all is fragile (any
 # USB replug/reboot can renumber it) -- see FOCUS.md's 2026-07-23 note
 # for the real fix (resolve by device name via `arecord -l`, not index).
+# CRT_CLAUDE_REMOTE_PORT set 2026-07-23 (live session): the actual
+# Claude Code process now runs on mandark, not potato -- see
+# bin/crt-remote-claude-bridge.py's header for the full design (a
+# 127.0.0.1-only bridge server on mandark, reverse-tunneled in by
+# mandark's own outbound ssh -- potato never gets a network path INTO
+# mandark). Requires the bridge server running on mandark AND the
+# reverse tunnel (`ssh -R 8993:localhost:8993 potato -N`) both up before
+# this window starts, or every escalation will just time out empty.
 tmux new-window -d -t "$SESSION" -n stt -c "$BIN_DIR" \
-  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 CRT_WHISPER_SERVER=${CRT_WHISPER_SERVER:-http://192.168.0.27:8991/transcribe} CRT_AUDIO_DEV=${CRT_AUDIO_DEV:-plughw:1,0} python3 ./crt-stt-solo.py; exec bash"
+  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 CRT_WHISPER_SERVER=${CRT_WHISPER_SERVER:-http://192.168.0.27:8991/transcribe} CRT_AUDIO_DEV=${CRT_AUDIO_DEV:-plughw:1,0} CRT_CLAUDE_REMOTE_PORT=${CRT_CLAUDE_REMOTE_PORT:-8993} python3 ./crt-stt-solo.py; exec bash"
 
 if [ -n "${CRT_HOOK_DEVICE:-}" ]; then
   tmux new-window -d -t "$SESSION" -n hook -c "$BIN_DIR" "./hookswitch-listen.sh; exec bash"
