@@ -1,5 +1,39 @@
 # crt — focus & backlog
 
+- **2026-07-23 07:45 (measured live on potato, real numbers, pivots the
+  earlier dual-tier design idea):** tested "beep the instant the wake
+  word is detected, via a local tiny.en whisper pass on potato" (Zach's
+  ask, extending the 2026-07-23 01:00 dual-tier STT note above). Result:
+  **not viable as designed** -- whisper (any size, including tiny.en) is
+  the wrong model family for this job on this hardware. Measured on
+  potato directly (`~/whisper.cpp/build/bin/whisper-cli`, real
+  `ggml-tiny.en.bin`, not the test stub):
+  - Full jfk.wav sample (11s audio), `-bs 1 -t 4`: **11.1s** -- ~1x
+    realtime, no faster than the audio itself.
+  - Trimmed to 1.2s of audio, same flags, default `-ac` (audio context):
+    still **12.0s** -- whisper's encoder pads/processes a fixed internal
+    window regardless of actual input length, so trimming the clip alone
+    does nothing.
+  - Same 1.2s clip with `-ac 512` (reduced audio context): **4.1s**
+    total, encode time alone **2.8s** -- this is the real floor, a CPU
+    throughput ceiling on this Pi, not a config problem.
+  - `-ac 128`: destabilized rather than sped up further -- one run hung
+    past a 2-minute timeout, a second returned garbled/truncated text
+    ("And") with a nonsensically long total-time figure. Not a usable
+    direction, don't push audio-context reduction further than ~512.
+  - Bottom line: best case (~2.8-4s) is slower than or comparable to the
+    full remote pipeline's just-tuned end-to-end latency (~1.5-3s,
+    2026-07-23 07:15 note above) -- a "beep on detect" meant to feel
+    instant would land AFTER the real answer's own round-trip, which
+    defeats the purpose.
+  - **Right tool instead**: the offsite-STT research note from earlier
+    tonight (2026-07-23 00:15) already named the correct fit --
+    **Vosk or Sherpa-ONNX**, Kaldi-based keyword spotters purpose-built
+    for exactly this (<100ms, designed for weak ARM hardware), not
+    general transcription. Next step for the wake-detect-beep idea is
+    evaluating one of those for keyword-spotting specifically, not
+    retrying whisper at a smaller size.
+
 - **2026-07-23 07:15 (live latency-tuning session, real changes made):**
   root cause of the ~6s felt round-trip found and addressed: it wasn't
   STT/whisper (measured 1-3s), it was `crt-secretary.py`'s fixed
