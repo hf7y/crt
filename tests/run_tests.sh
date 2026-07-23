@@ -39,8 +39,24 @@ if [ -f "$DIR/test_stt_feed_gate_flag.sh" ]; then
 fi
 echo
 
+echo "== crt-audio-doctor.sh BUSY/DEAD/ERROR/LIVE verdicts =="
+if [ -f "$DIR/test_audio_doctor.sh" ]; then
+  bash "$DIR/test_audio_doctor.sh" || fail=1
+fi
+echo
+
+echo "== crt-mic-footer.sh status-bar rendering =="
+if [ -f "$DIR/test_mic_footer.sh" ]; then
+  bash "$DIR/test_mic_footer.sh" || fail=1
+fi
+echo
+
 echo "== crt-pager.py =="
 python3 "$DIR/test_pager.py" || fail=1
+echo
+
+echo "== crt-monologue.py (the actually-live 'mono' window script) =="
+python3 "$DIR/test_monologue_py.py" || fail=1
 echo
 
 echo "== crt-predict.py =="
@@ -76,6 +92,18 @@ echo
 echo "== crt-book-console.py =="
 if [ -f "$DIR/test_book_console.py" ]; then
   python3 -m unittest discover -s "$DIR" -p "test_book_console.py" -v 2>&1 | tail -5 || fail=1
+fi
+echo
+
+echo "== crt-claude-bridge.py =="
+if [ -f "$DIR/test_claude_bridge.py" ]; then
+  python3 "$DIR/test_claude_bridge.py" || fail=1
+fi
+echo
+
+echo "== crt-calibrate.py (auto safe-area + conf round-trip) =="
+if [ -f "$DIR/test_calibrate.py" ]; then
+  python3 "$DIR/test_calibrate.py" || fail=1
 fi
 echo
 
