@@ -1,5 +1,29 @@
 # crt — focus & backlog
 
+- **2026-07-23 01:00 (higher-concept design, not yet built):** dual-tier
+  STT design idea from Zach — potato runs a small/fast local whisper
+  model (tiny.en) continuously in parallel with the offsite transcribe
+  (mandark's `mandark-whisper-server.py`, or a higher-quality API later),
+  same audio, two consumers. The local tiny pass exists purely for
+  low-latency, low-confidence tasks: single-word/short-utterance
+  wake-word and CONTROL-keystroke detection (yes/no/enter/up/down/etc,
+  see `CONTROL` dict in `bin/crt-stt-solo.py`) via simple thresholding —
+  "did I just hear my wake word or a control word" doesn't need
+  base.en-quality accuracy or a network round-trip, just fast local
+  signal. The offsite/remote pass stays the accuracy source of truth for
+  actual content (everything that gets routed to secretary/Claude).
+  This is the "high-responsivity watchword" design floated earlier in
+  this project (see Option C in prior conversation/PARKING-LOT.md-style
+  hybrid discussion) — same shape as the tiny.en-local +
+  better-model-remote hybrid, but the local tier's *job* narrows to
+  wake/control-word spotting specifically rather than full transcription.
+  **Reusable fallback**: this is also the natural shape for "what
+  happens if `CRT_WHISPER_SERVER` is unreachable" (flagged separately
+  above/2026-07-23 00:40 note re: `transcribe_remote()`'s silent-empty
+  failure) — if the local tiny-model pass is already running for
+  wake/control words, promoting it to full-utterance duty when the
+  remote is down is a small extension, not a new subsystem.
+
 - **2026-07-23 00:40:** two things worth re-checking/hardening now that
   `crt-stt-solo.py` on potato offloads transcription to
   `bin/mandark-whisper-server.py` (`CRT_WHISPER_SERVER`, wired into
