@@ -7,11 +7,149 @@ pick up.
 
 # Session state (read this first, before STT-MECHANISM.md)
 
-Last updated: 2026-07-20 night — first session this project had real
-dexter+crt-vm network access. Live blocker-clearing pass, not design work.
+Last updated: 2026-07-23 (early morning BST) — a long live-tuning session
+with Zach on the mic, direct interactive access to BOTH mandark (this
+dev box) and potato (the real console hardware, a Raspberry Pi). This
+supersedes everything below it (2026-07-20 and earlier) as the current
+accurate picture -- read this section fully before touching STT/audio
+code, then check `.claude/FOCUS.md`'s 2026-07-23-dated entries for full
+detail/reasoning on any item below.
+
+## Current real topology (2026-07-23) -- dexter/crt-vm is legacy
+
+**potato is the actual console now.** A Raspberry Pi, `ssh potato` (key
+auth, alias in mandark's `~/.ssh/config`), user `vkv`, real ALSA
+hardware (not VirtualBox emulation). It runs a live tmux session named
+`claude` with windows: 0=main Claude session, 1=mono (window-1 display),
+2=bridge, 3=stt (the sole mic reader), 4=book, 5=bookidle, 6=bookanswer,
+7=windowswitch, 8=stttrain, 9=game (new tonight, the calibration game).
+
+**IMPORTANT: potato's `~/crt` is NOT a git clone of this repo.** It has
+its OWN separate git history (no common ancestor -- confirmed via
+`git fetch potato; git log potato/master`, "no common commits") and its
+working tree has ~127 files that show as untracked relative to ITS OWN
+git state, meaning it was seeded by copying files in, not a real clone.
+Files move mandark<->potato by hand (`scp bin/whatever.py potato:~/crt/bin/`),
+same posture HANDOFF.md already documented for mandark<->dexter<->crt-vm.
+**Always diff after scp'ing to confirm it landed** (`diff <(cat) ~/crt/bin/X.py < X.py` over ssh),
+and always `git status`/read `WAKE-TUNING-STATE.md`-style files on potato
+BEFORE overwriting -- potato had real historical work (4 real commits,
+cherry-picked into mandark's main earlier tonight, see git log
+`38607bd`/`3a352b2`/`2eb253c`/`739172a`) that would have been lost if
+overwritten carelessly.
+
+**A live, human-operated Claude Code session runs in potato's window 0**
+-- Zach talks to it directly via the physical handset/CRT, independent of
+whatever this (mandark) session is doing. Same "don't clobber a live
+session" caution HANDOFF.md already established for crt-vm now applies
+to potato too -- check `~/.crt/thoughts.log` on potato for recent activity
+and ask before editing a file that session might be mid-editing.
+
+**mandark now runs a real transcription server**: `bin/mandark-whisper-server.py`,
+systemd service `crt-whisper-server.service`, faster-whisper base.en,
+port 8991, `http://192.168.0.27:8991/transcribe` (POST WAV -> `{"text":...}`).
+potato's `crt-stt-solo.py` offloads transcription here via
+`CRT_WHISPER_SERVER` (wired into `crt-console.sh`'s stt window tonight).
+
+**dexter/crt-vm (the old Windows-host+VirtualBox setup) is now legacy** --
+`bin/dexter-whisper-server.py` and any `CRT_AUDIO_OUT_URL`/dexter-bridge
+reference is from that era and does NOT apply to potato's real hardware.
+Tonight's earcon fix (below) is the concrete example of this era-mismatch
+causing a real silent bug -- expect more like it if anything else still
+assumes the old dexter-bridge exists.
+
+## What's built, fixed, and VERIFIED LIVE tonight (2026-07-23)
+
+- **STT offload**: potato -> mandark-whisper-server, confirmed working
+  end-to-end (curl test from potato succeeded, real transcriptions
+  observed in stt.log going through the remote path).
+- **`CRT_AUDIO_DEV` fixed**: potato's mic capture is ONLY valid on
+  `plughw:1,0` (card 1, "KT USB Audio") -- card 0 (bcm2835 onboard) is
+  playback-only, has no capture subdevice at all. The old default
+  (`plughw:0,0`) silently exits the whole sole-reader process with no
+  error if used. Pinned in `crt-console.sh`'s stt launch line. Real fix
+  (resolve by device NAME, not a hardcoded index) still open --
+  see FOCUS.md, and keep the hardcoded override available alongside
+  any name-resolution path, don't replace it outright (Zach's explicit
+  instruction).
+- **`crt-earcon.sh` device routing fixed**: used to POST to a
+  dexter-hosted audio bridge that doesn't exist on potato's bare-metal
+  setup -- silent no-op, the root cause of "no beeps on TV or handset"
+  for potentially a while. Now plays directly via `plughw:2,0` (HDMI/TV)
+  and `plughw:1,0` (USB/handset) -- BOTH confirmed audible live, in
+  order, by Zach on the actual hardware.
+- **New earcons wired into the live pipeline**: `heard` (VAD threshold
+  crossed, default OFF -- fires on all room chatter, would be constant
+  noise on by default), `addressed` (STT wake-gate passed, default ON),
+  `control` (CONTROL keystroke recognized, default ON), `thinking`
+  (fires the instant `crt-secretary.py` escalates to Claude, before the
+  real wait). All fire-and-forget (Popen), never block the sole mic
+  reader or the secretary's routing.
+- **Secretary escalation latency cut**: `CLAUDE_IDLE_SECS` 3->1.5 in
+  `crt-secretary.py`, with a grace-check hardening so a lower threshold
+  can't silently truncate a reply mid-thought (re-verifies idle before
+  finalizing rather than needing to re-open/append to an already-spoken
+  reply). Root cause of the felt ~6s round-trip was THIS fixed wait, not
+  STT/whisper (measured 1-3s).
+- **`bin/crt-calibration-game.py` built and deployed** (potato tmux
+  window 9, "game"). Interactive: tails `stt.log` continuously in a
+  background thread (fixed tonight -- the first version's tailer only
+  ran during a fixed round window and went dead during blocking
+  `input()` prompts between rounds, silently dropping speech in the
+  gaps), splashes recognized words around Zach's own braille-art potato
+  scored by `crt-wake-pool.py`'s `difflib`-based similarity, offers to
+  save recurring near-misses into `stt-fixups.json` as confirmed
+  aliases, plus an earcon device-confirmation round. Verified with an
+  offline synthetic-log test before deploying (no live mic needed for
+  that check) -- NOT yet verified with Zach actually playing it live
+  after the tailer fix; that's the natural next live-test.
+- **`bin/crt-wake-pool.py` deployed to potato** (it existed on mandark's
+  main but had NEVER been copied to potato at all -- the game script's
+  first run there crashed with `FileNotFoundError` until this was fixed).
+
+## Major open findings, fully specced in FOCUS.md's 2026-07-23 entries --
+## read FOCUS.md itself for full reasoning, this is just the index
+
+1. **Dormant autonomous wake-judge system**: `bin/crt-wake-pool.py` +
+   `bin/crt-wake-judge.py` + `WAKE-TUNING-STATE.md` already implement
+   almost exactly an "autonomous self-tuning judge" (rich real judgment
+   log from 2026-07-21 proves it ran live once -- on the OLD crt-vm, not
+   potato, per one log entry literally saying "it's a virtual machine").
+   The ONE missing piece: an arm-window state machine in
+   `crt-stt-solo.py` that would call `consume_arm_with_followup()`/
+   `check_arm_timeout()` -- these names are referenced in
+   `crt-wake-judge.py`'s prompt-building code and the judgment log's own
+   vocabulary, but grep confirms **zero implementations exist anywhere**.
+   This is also the same feature as the "sticky conversation window" gap
+   (item 2 below) -- build once, not two separate things.
+2. **No sticky-wake-window**: every utterance needs the wake word fresh,
+   confirmed live (a real conversation where 4 follow-ups in a row got
+   silently gate-dropped after a successful wake). Same feature as #1.
+3. **Whisper is the wrong tool for instant wake-detection on this Pi**:
+   measured live, `tiny.en` best-case ~2.8-4s encode time even on a short
+   clip with reduced audio context -- a hardware CPU throughput ceiling,
+   not a config problem. Real fix: Vosk or Sherpa-ONNX (Kaldi-based,
+   <100ms, built for weak ARM hardware) for wake-word spotting
+   specifically, NOT whisper at any size. Full whisper transcription for
+   actual request content (post-wake) is fine as-is.
+4. **MAXUTT=20/TRAIL=0.8 in `crt-stt-solo.py` is a real architecture
+   limit, confirmed live tonight**: continuous speech with no real pause
+   rides the full 20s hard cap before an utterance even gets cut, THEN
+   queues for transcription -- this is why the console can feel
+   unresponsive during continuous talking, independent of whisper/network
+   speed. The batch-VAD design (wait for silence or a cap, transcribe the
+   whole blob) fundamentally cannot be snappy mid-speech without a real
+   streaming STT layer (ties directly to item 3's Vosk/Sherpa-ONNX
+   pivot) -- tuning TRAIL/MAXUTT numbers alone won't fix this, it needs a
+   different mechanism for the wake-detection job specifically.
+5. **Acoustic loopback self-test idea** (not built): play a known tone,
+   record via the mic, detect it -- would give a real audio-diagnostic
+   test (vs exit-code-only checks that let tonight's silent earcon bug
+   go unnoticed) and double as a noise-floor calibration tool for
+   `CRT_VAD_THRESHOLD` tuning.
+
 See `HANDOFF.md`'s "What's actually running right now" section for the
-current accurate live layout (it's kept in sync with reality now, not this
-file's older waves below).
+older (2026-07-20, now-superseded-by-the-above) live layout description.
 
 ## Sixth wave (2026-07-20): live access, real bugs found and fixed on hardware
 - **VM deploy gap closed**: the VM's `~/crt` (no git, plain deploy target)
