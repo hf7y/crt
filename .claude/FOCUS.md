@@ -1,5 +1,10 @@
 # crt — focus & backlog
 
+- **2026-07-23 00:15 (research to-do, not yet acted on):** offsite/real-time STT alternatives to self-hosting whisper on mandark/potato, surfaced via a Gemini conversation Zach pasted in. Options worth evaluating later if the mandark-whisper-server (Option A, `bin/mandark-whisper-server.py`) latency/uptime ever becomes a real constraint:
+  - **Managed APIs w/ free tiers**: Deepgram Nova (~$200 free credit, ~450+ hrs, native WebSocket streaming ~300ms latency), Gladia (10 hrs/month free forever, Whisper-based streaming), AssemblyAI ($50 free credit).
+  - **Free-hosted open-source**: HF Inference Endpoints/Spaces free CPU tier (whisper-tiny/small via whisper.cpp or faster-whisper — may struggle with latency), Colab/Kaggle notebook + ngrok/localtunnel relay (zero-cost but sessions reset, not for 24/7).
+  - **Self-hosted streaming-native projects** (better fit than plain whisper-server for true streaming vs. chunked-VAD): `whisper-live` (faster-whisper, ~500ms), whisper.cpp server mode (~200-400ms, already have the binary built on mandark), Vosk/Sherpa-ONNX (Kaldi-based, not Whisper, <100ms, lightest weight — worth a look if latency ever matters more than accuracy).
+  - Current mandark server already covers the "self-hosted offsite" case reasonably (2.7s for 11s audio via faster-whisper); this list is for if/when we want lower latency (streaming vs. full-clip POST) or to compare against a managed option's accuracy.
 - **2026-07-22 14:11 (via `scheduler -i`):** set up claude on pi to not use thinking. looking for the lowest api usage possible. eventually, canned responses injected before claude responds based on cached past conversations with claude calls in batches for review. visually, claude should be able to overwrite the canned responses on the screen with its informed response later. minimize api usage, maximize responsiveness.
 
 ## FIRST STEP EVERY CYCLE (2026-07-21): pull from crt-vm before doing anything else
