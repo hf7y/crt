@@ -1,5 +1,7 @@
 # crt — focus & backlog
 
+- **2026-07-23 13:41 (via `scheduler -i`):** reduce this to a simple potato game where the user either says or doesn't say potato on prompt, earcon and visual feedback, designed to train the stt. could be the core default on-boot mode with a toggle switch until we get this calibration right
+
 - **2026-07-23 13:40 (via `scheduler -i`):** figure out what's wrong with the text column constraints, problem on mono window and more. suggest 40 column limit but overscan detect idea is better
 
 - **2026-07-23 13:14 (via `scheduler -i`):** establish passwordless sudo on potato with a reminder to turn that off when we get out of this prototyping phase. unnecessary friction right now when there's no security risk (I'm the only user)
