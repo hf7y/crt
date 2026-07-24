@@ -1,3 +1,16 @@
+## Stability milestone
+
+**Current:** the core voice loop (wake word → STT → Claude reply → spoken response, with a sticky follow-up window and no handset play-while-capture interference) is reliable on real potato hardware, AND the Book Game funnel (idle-bait → scan → question → spoken answer → STT-training log) runs end-to-end on potato's current layout — status: in-progress
+Done when:
+- [ ] sticky-conversation-window / arm-window state machine wired into `crt-stt-solo.py` (`consume_arm_with_followup()`/`check_arm_timeout()` referenced by `crt-wake-judge.py` but not implemented anywhere — see 2026-07-23 08:00 note below) and live-confirmed on potato
+- [ ] handset play-while-capture bug fixed and confirmed (either the code fix via `setup-potato-audio-sharing.sh` + a re-run of `crt-earcon-loopback-test.py handset` showing the ratio improved, or Zach's own ear on the handset)
+- [ ] capture device resolved by NAME (`arecord -l` parse) instead of a hardcoded ALSA index, so a USB replug/reboot can't silently kill capture again (2026-07-23 07:10 note)
+- [ ] Book Game funnel re-verified end-to-end on potato post VM→potato move (`test_book_game_integration.py` extended + a real live scan re-test) — ranked-backlog item 4
+
+Ideas beyond this bar are PARKED by default (see realisateur/STABILITY-MILESTONES.md): **dual-tier local+offsite STT** and **Vosk/Sherpa-ONNX keyword-spotting evaluation** (ranked-backlog item 9 — real design ideas, but the core loop above doesn't need them yet); **compute-stick/bare-metal migration** (explicitly excluded from this bar by Zach 2026-07-24 — one deployment target is a separate, later goal, not required for the core loop or Book Game to be reliable); **refactor sweep / config consolidation, docs consolidation, no-brain standalone jobs, interaction streamlining, screensaver CRT-margin depth, calibration-suite promotion** (ranked-backlog items 1, 2, 3, 5, 5b, 6 — real cleanup/polish, not required for the bar); **wake supervisor + dormant wake-judge autonomy** (ranked-backlog items 7/8's *judge* half, and the `CRT_WAKE_JUDGE_ENABLED` flag — the arm-window mechanism itself is IN the active bar above, but turning on autonomous judge-driven tuning is beyond it until the arm window is proven live); **Gemini-before-Claude fallthrough, dexter NPU tooling** (cost/perf optimizations on a loop that isn't reliable yet).
+
+*(Milestone drafted 2026-07-24 via realisateur's `/ideate crt` — revise if it doesn't fit crt's own read of its bar.)*
+
 # crt — focus & backlog
 
 - **2026-07-23 13:41 (via `scheduler -i`):** reduce this to a simple potato game where the user either says or doesn't say potato on prompt, earcon and visual feedback, designed to train the stt. could be the core default on-boot mode with a toggle switch until we get this calibration right
