@@ -49,16 +49,6 @@ something from this file.
   question this pass should guess at -- flagging for a human decision on
   whether to keep tuning around this hardware or consider an upgrade.
 
-- **2026-07-23 (nightly-batch pass): `~/reports/crt` write access is
-  broken for the `zach` account.** The directory (`/srv/vaporwave-reports/crt`
-  via symlink) is owned by group `vaporwave-reports`; `id`/`groups`
-  confirm `zach` is not currently a member, despite older report files
-  in that directory showing `zach` as owner (group membership was
-  apparently revoked since). Tonight's report landed at
-  `.reports-fallback/2026-07-23.md` in the repo instead. Needs whoever
-  manages that group membership to either re-add `zach` or clarify the
-  intended access model for future nightly-batch report writes.
-
 - **2026-07-23 (nightly-batch pass): should `CRT_WAKE_ARM_ENABLED`/
   `CRT_WAKE_JUDGE_ENABLED` be turned on?** Both new (this pass), both
   default OFF, both NOT hardware-verified. `bin/crt-wake-arm.py`
@@ -91,3 +81,23 @@ something from this file.
   implied. Needs a human check from a machine actually on potato's LAN
   (or with an active tunnel to it) before concluding potato itself is
   offline.
+
+- **2026-07-24 (nightly-batch, 7th cycle today): potato is back to
+  "reachable but auth-rejected"** -- `ip route` this session shows
+  `192.168.0.0/24` reachable again (unlike the 6th cycle's no-route
+  session), and `ssh potato` gets `Permission denied
+  (publickey,password)` from `vkv@192.168.0.45`, the same failure shape
+  as cycles 2-4, not the bare timeout of cycles 5-6. This resolves the
+  6th cycle's open question in favor of "potato itself is likely fine,
+  just not accepting this account's key" -- the real, still-open blocker
+  is `~/.ssh/config`'s `Host potato` entry (wrong user/key, or the
+  host's `authorized_keys` no longer has this account's public key).
+  Not something to brute-force blind; needs Zach to either add
+  `~/.ssh/id_ed25519.pub` to potato's `authorized_keys` directly, or
+  confirm the right user/key to use here.
+
+- **2026-07-24 (nightly-batch, 7th cycle today): `~/reports/crt` write
+  access is fixed** -- `id`/`groups` now show `zach` IS a member of
+  `vaporwave-reports` (was missing as of the 2026-07-23 report). Removed
+  the stale question above about it; confirmed writable with a real
+  touch+rm this cycle.
