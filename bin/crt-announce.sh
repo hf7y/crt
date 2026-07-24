@@ -6,10 +6,11 @@
 # enforced by a lockfile timestamp, so this can be called freely from job
 # completion hooks etc. without risking a barrage.
 #
-# STATUS: routes through dexter-audio-server.py (see crt-tts.py, confirmed
-# working via live human test 2026-07-19) -- the old plughw guess this used
-# to pass is dead code from before that bridge existed, see AUDIO-ROUTING.md
-# for the history of why a same-VM device name could never have worked.
+# STATUS (2026-07-24): potato is bare-metal, so this now routes through
+# crt-tts.py's local-ALSA tv/handset path (plughw:2,0 by default -- see
+# crt-tts.py) rather than the old dexter-audio-server.py bridge, which only
+# ever applied to the VirtualBox-hosted crt-vm setup (AUDIO-ROUTING.md,
+# now legacy). Set CRT_AUDIO_OUT_URL explicitly to restore the old bridge.
 #
 # Usage: crt-announce.sh "the batch job needs your input"
 set -euo pipefail

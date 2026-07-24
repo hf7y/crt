@@ -18,13 +18,15 @@
 #   crt-tts.py --mood urgent "hurry"            # EXPRESSIVE-TONE.md register preset
 #   crt-tts.py --pitch-semitones -1 --rate-mult 0.85 --volume-mult 0.8 "..."
 #
-# ROUTING (2026-07-19, confirmed working via live human test): when --device
-# is "tv" or "handset", audio is POSTed to dexter-audio-server.py
-# (CRT_AUDIO_OUT_URL, default http://192.168.0.22:8992/play) which plays it
-# on dexter's Ryzen host directly to that named device via sounddevice/
-# PortAudio -- this is the actual fix for VirtualBox's one-audio-device-per-VM
-# limit (see AUDIO-ROUTING.md). Any other --device value (or none) plays
-# locally in the guest via aplay, as before.
+# ROUTING: on the old dexter/crt-vm setup (2026-07-19), --device tv|handset
+# POSTed to dexter-audio-server.py so VirtualBox's one-audio-device-per-VM
+# limit could still reach two named outputs (see AUDIO-ROUTING.md, now
+# legacy). potato is bare-metal with real ALSA, so tv/handset now default to
+# local aplay against the same plughw devices crt-earcon.sh already uses
+# (CRT_EARCON_TV_DEVICE/CRT_EARCON_HANDSET_DEVICE). The dexter path only
+# still fires if CRT_AUDIO_OUT_URL is explicitly set (2026-07-24 fix -- it
+# used to default to a dead dexter URL and silently no-op on potato, the
+# same bug class the earcon routing had, see REFACTOR-ASSESSMENT.md #1).
 #
 # PER-CALL PROSODY (2026-07-20, EXPRESSIVE-TONE.md): pitch/rate/volume used
 # to only come from flat tts.conf/env config, so every utterance sounded
@@ -38,8 +40,10 @@
 # No flags at all = byte-identical behavior to before this existed.
 import sys, os, subprocess, shlex, tempfile, urllib.request
 
-DEXTER_URL = os.environ.get("CRT_AUDIO_OUT_URL", "http://192.168.0.22:8992/play")
+DEXTER_URL = os.environ.get("CRT_AUDIO_OUT_URL")  # unset = no dexter, use local ALSA below
 DEXTER_DEVICES = ("tv", "handset")
+LOCAL_TV_DEVICE = os.environ.get("CRT_EARCON_TV_DEVICE", "plughw:2,0")
+LOCAL_HANDSET_DEVICE = os.environ.get("CRT_EARCON_HANDSET_DEVICE", "plughw:1,0")
 
 MOOD_PRESETS = {
     # name: (pitch_semitones, rate_mult, volume_mult) -- EXPRESSIVE-TONE.md's
@@ -124,7 +128,7 @@ def _sideband_mute(muted):
 def play_wav(wav, device):
     _sideband_mute(True)
     try:
-        if device in DEXTER_DEVICES:
+        if device in DEXTER_DEVICES and DEXTER_URL:
             try:
                 with open(wav, "rb") as f:
                     data = f.read()
@@ -137,7 +141,13 @@ def play_wav(wav, device):
             except Exception as e:
                 sys.stderr.write("[crt-tts] dexter audio-out failed: %s\n" % e)
                 return False
-        subprocess.run(["aplay", "-D", device or DEV, "-q", wav])
+        if device == "tv":
+            alsa_device = LOCAL_TV_DEVICE
+        elif device == "handset":
+            alsa_device = LOCAL_HANDSET_DEVICE
+        else:
+            alsa_device = device or DEV
+        subprocess.run(["aplay", "-D", alsa_device, "-q", wav])
         return True
     finally:
         _sideband_mute(False)

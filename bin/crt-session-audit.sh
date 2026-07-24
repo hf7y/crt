@@ -3,8 +3,9 @@
 # in this project will actually see -- and a checksum so drift (like the
 # CRT_AUDIO_DEV / stale-bash_profile bug found 2026-07-21) is DETECTABLE
 # instead of silently assumed. Appends one timestamped block to
-# .claude/AUDIT-LOG.md (durable, synced like any other repo file via
-# bin/crt-sync-vm.sh) -- never overwrites, so the log itself is a history.
+# .claude/AUDIT-LOG.md (durable, synced like any other repo file, hand-
+# copied to potato same as everything else) -- never overwrites, so the
+# log itself is a history.
 #
 # Usage: bin/crt-session-audit.sh          # append a record, print summary
 #        bin/crt-session-audit.sh verify   # recompute hashes, diff against
@@ -25,7 +26,7 @@ FILES=(
   "$HOME/.claude/settings.json"
   "$HOME/.bash_profile"
   "$REPO_DIR/bin/crt-console.sh"
-  "$REPO_DIR/bin/crt-vm-watchdog.sh"
+  "$REPO_DIR/bin/crt-secretary.py"
   "$REPO_DIR/bin/crt-stt-solo.py"
   "$REPO_DIR/bin/crt-monologue.py"
 )
