@@ -211,11 +211,32 @@ trap 'rm -rf "$TMP"; unduck' EXIT
 # available", hw:1,0 fails with "Channels count non available").
 TV_DEVICE="${CRT_EARCON_TV_DEVICE:-plughw:2,0}"
 HANDSET_DEVICE="${CRT_EARCON_HANDSET_DEVICE:-plughw:1,0}"
+
+# Capture duck (2026-07-24, see crt-tts.py's _capture_mute for the full
+# rationale): the handset output is the same USB adapter as the live mic
+# capture, and playing on it while crt-stt-solo.py's arecord is running
+# leaves the recording near-dead (measured by crt-earcon-loopback-test.py).
+# Suppress VAD triggering for the duration via the same CTL-file "mute"
+# flag crt-tts.py's handset path now uses, so a played tone can't be
+# misread as speech while the adapter can't hear the room anyway.
+CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
+CAPTURE_MUTED=0
+capture_mute() {
+  mkdir -p "$(dirname "$CTL_FILE")" 2>/dev/null || true
+  echo "mute $1" >> "$CTL_FILE" 2>/dev/null || true
+}
+# Unmute via the same EXIT trap as the sideband unduck, not just after a
+# successful aplay -- `set -e` means a failed/killed aplay would otherwise
+# skip a plain post-aplay "capture_mute 0" and leave capture muted forever.
+trap 'rm -rf "$TMP"; unduck; [ "$CAPTURE_MUTED" = 1 ] && capture_mute 0; true' EXIT
+
 case "$DEVICE" in
   tv)
     aplay -D "$TV_DEVICE" -q "$TMP/out.wav"
     ;;
   handset)
+    CAPTURE_MUTED=1
+    capture_mute 1
     aplay -D "$HANDSET_DEVICE" -q "$TMP/out.wav"
     ;;
   *)

@@ -21,6 +21,17 @@ BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # crash drops to the `; exec bash` fallback below.
 export PATH="$BIN_DIR:$HOME/.local/bin:$PATH"
 
+# Real bug found 2026-07-24: this was never set anywhere in the console's
+# boot path, so the whole CTL-file live-tune mechanism (crt-ring.sh, the
+# "mute" flag crt-tts.py/crt-earcon.sh's handset paths now write to duck
+# capture during playback, crt-midi-knobs.py) was silently dead on potato
+# -- every writer defaulted to ~/.crt/ctl, but crt-stt-solo.py's own
+# default is "" (CTL file support off) unless this is exported, and
+# nothing exported it. Set once here so every window/subprocess this
+# script forks (stt included) inherits the same file, same pattern as
+# PATH above.
+export CRT_CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
+
 # Where the console's Claude brain runs is a runtime choice Zach flips with
 # bin/crt-mandark.sh, persisted to ~/.crt/mandark.conf (sets
 # CRT_CLAUDE_REMOTE_PORT: a real port -> route escalations to mandark's

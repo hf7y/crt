@@ -239,6 +239,13 @@ echo "== earcon sideband duck =="
 bash "$DIR/test_earcon_sideband_duck.sh" || fail=1
 echo
 
+echo "== earcon/tts handset capture duck =="
+bash "$DIR/test_earcon_capture_duck.sh" || fail=1
+if [ -f "$DIR/test_tts_capture_duck.py" ]; then
+  python3 "$DIR/test_tts_capture_duck.py" || fail=1
+fi
+echo
+
 echo "== crt-mandark.sh on/off/status toggle =="
 bash "$DIR/test_mandark_toggle.sh" || fail=1
 echo
@@ -262,6 +269,12 @@ echo
 echo "== crt-console.sh Book Game funnel windows (both layouts) =="
 if [ -f "$DIR/test_console_book_game_layout.sh" ]; then
   bash "$DIR/test_console_book_game_layout.sh" || fail=1
+fi
+echo
+
+echo "== crt-console.sh CRT_CTL_FILE export =="
+if [ -f "$DIR/test_console_ctl_env_export.sh" ]; then
+  bash "$DIR/test_console_ctl_env_export.sh" || fail=1
 fi
 echo
 

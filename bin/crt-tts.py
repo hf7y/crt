@@ -125,8 +125,37 @@ def _sideband_mute(muted):
         pass
 
 
+# Capture duck (2026-07-24, closes the stability-bar handset play-while-
+# capture item): crt-earcon-loopback-test.py measured that the handset
+# output (plughw:1,0) is the SAME USB adapter as the live capture device,
+# and playing through it while crt-stt-solo.py's arecord is running leaves
+# the recording at ~0.1x baseline -- this hardware can't reliably play+
+# record at once. Software can't fix the missing signal, but it CAN stop
+# treating that corrupted window as real audio: crt-stt-solo.py already has
+# a CTL-file "mute N" flag (apply_ctl_line) that suppresses VAD triggering
+# without tearing down the sole-reader arecord process (see CRT_CTL_FILE in
+# HANDOFF.md). Route handset playback through it, same duck-around-the-call
+# shape as _sideband_mute above, so a stray earcon/TTS blip on the handset
+# can't be misread as speech (or drown out a real utterance's start) while
+# the adapter is deaf to the mic anyway.
+CTL_FILE = os.path.expanduser(os.environ.get("CRT_CTL_FILE", "~/.crt/ctl"))
+
+
+def _capture_mute(muted):
+    try:
+        d = os.path.dirname(CTL_FILE)
+        if d:
+            os.makedirs(d, exist_ok=True)
+        with open(CTL_FILE, "a") as f:
+            f.write("mute %s\n" % ("1" if muted else "0"))
+    except OSError:
+        pass
+
+
 def play_wav(wav, device):
     _sideband_mute(True)
+    if device == "handset":
+        _capture_mute(True)
     try:
         if device in DEXTER_DEVICES and DEXTER_URL:
             try:
@@ -151,6 +180,8 @@ def play_wav(wav, device):
         return True
     finally:
         _sideband_mute(False)
+        if device == "handset":
+            _capture_mute(False)
 
 
 def resolve_prosody(mood=None, pitch_semitones=None, rate_mult=None, volume_mult=None):
