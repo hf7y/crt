@@ -90,6 +90,12 @@ if [ -f "$DIR/test_stt_secretary_sink.py" ]; then
 fi
 echo
 
+echo "== crt-stt-solo.py capture device by name =="
+if [ -f "$DIR/test_capture_device.py" ]; then
+  python3 "$DIR/test_capture_device.py" || fail=1
+fi
+echo
+
 echo "== crt-book-game.py =="
 if [ -f "$DIR/test_book_game.py" ]; then
   python3 -m unittest discover -s "$DIR" -p "test_book_game.py" -v 2>&1 | tail -5 || fail=1

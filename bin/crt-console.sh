@@ -162,8 +162,14 @@ tmux new-window -d -t "$SESSION" -n bridge -c "$BIN_DIR" "./crt-claude-bridge.py
 # mid-session tonight (dmesg-confirmed, ~01:25) and exposed this the hard
 # way when the sole-reader process got restarted after it -- silent exit,
 # no capture, no error. Hardcoding a card INDEX at all is fragile (any
-# USB replug/reboot can renumber it) -- see FOCUS.md's 2026-07-23 note
-# for the real fix (resolve by device name via `arecord -l`, not index).
+# USB replug/reboot can renumber it) -- 2026-07-24: crt-stt-solo.py now
+# resolves by device NAME (`arecord -l` parse for CRT_AUDIO_DEV_NAME,
+# default "USB Audio") when CRT_AUDIO_DEV is unset, so a future replug
+# can't silently kill capture the same way again. The explicit pin below
+# still wins over that (CRT_AUDIO_DEV is a hard override) -- left in place
+# deliberately rather than removed, since dropping to auto-detect on
+# potato's actual live process needs a real restart + confirm, not an
+# unattended assumption.
 # CRT_CLAUDE_REMOTE_PORT set 2026-07-23 (live session): the actual
 # Claude Code process now runs on mandark, not potato -- see
 # bin/crt-remote-claude-bridge.py's header for the full design (a

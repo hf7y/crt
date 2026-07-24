@@ -117,7 +117,56 @@ CHUNK  = int(RATE * 0.1)                 # 100 ms analysis window
 NBYTES = CHUNK * 2                        # S16_LE mono
 FULL   = 32768.0
 
-DEV    = os.environ.get("CRT_AUDIO_DEV", "plughw:0,0")   # single reader; NOT dsnoop
+# Capture device resolution (2026-07-23 07:10/07:20 notes): a hardcoded ALSA
+# card INDEX (plughw:0,0) silently breaks whenever a USB replug/reboot
+# renumbers cards -- hit live on potato when "KT USB Audio" moved from card 0
+# to card 1 mid-session. resolve_capture_device_by_name() parses `arecord -l`
+# for a card whose name matches CRT_AUDIO_DEV_NAME (default "USB Audio", case-
+# insensitive) and returns "plughw:<card>,<device>" for it. CRT_AUDIO_DEV
+# stays a hard override on top of this -- if set, it always wins outright and
+# name-resolution never runs (same "never remove the manual escape hatch"
+# posture as stt-fixups.json's tiered confidence).
+DEV_NAME_PATTERN = os.environ.get("CRT_AUDIO_DEV_NAME", "USB Audio")
+DEV_FALLBACK = "plughw:0,0"
+
+ARECORD_CARD_RE = re.compile(
+    r"^card (\d+):.*\[(.*?)\],\s*device (\d+):", re.IGNORECASE)
+
+
+def resolve_capture_device_by_name(arecord_l_output, name_pattern=DEV_NAME_PATTERN,
+                                    fallback=DEV_FALLBACK):
+    """Pure string parse of `arecord -l` CAPTURE-device listing output --
+    returns 'plughw:<card>,<device>' for the first card whose bracketed name
+    contains name_pattern (case-insensitive), or fallback if none match /
+    output is empty. Does not touch hardware itself; callers pass in the
+    already-captured `arecord -l` text so this stays unit-testable."""
+    if not arecord_l_output:
+        return fallback
+    needle = name_pattern.lower()
+    for line in arecord_l_output.splitlines():
+        m = ARECORD_CARD_RE.match(line.strip())
+        if m and needle in m.group(2).lower():
+            return "plughw:%s,%s" % (m.group(1), m.group(3))
+    return fallback
+
+
+def _detect_capture_device():
+    explicit = os.environ.get("CRT_AUDIO_DEV")
+    if explicit:
+        return explicit
+    # Broad except deliberately: this runs at import time, so anything going
+    # wrong here (arecord missing, a test harness monkeypatching subprocess
+    # globally, whatever) must fall back quietly rather than ever crash the
+    # whole process -- same posture as set_sideband_state()/predictive_flash().
+    try:
+        out = subprocess.run(["arecord", "-l"], capture_output=True,
+                              text=True, timeout=5).stdout
+    except Exception:
+        return DEV_FALLBACK
+    return resolve_capture_device_by_name(out)
+
+
+DEV    = _detect_capture_device()   # single reader; NOT dsnoop
 WBIN   = os.environ.get("CRT_WHISPER_BIN",   os.path.expanduser("~/whisper.cpp/build/bin/whisper-cli"))
 MODEL  = os.environ.get("CRT_WHISPER_MODEL", os.path.expanduser("~/whisper.cpp/models/ggml-base.en.bin"))
 THRESH = float(os.environ.get("CRT_VAD_THRESHOLD", "1.0")) / 100.0   # peak fraction
