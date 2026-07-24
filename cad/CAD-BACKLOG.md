@@ -38,6 +38,27 @@ print done and confirmed fine — Ender 3 SD path is not a blocker anymore.
   the lever mechanism above — two live candidate designs right now, needs
   a decision once both are test-printed.
 
+  **2026-07-24, re: BLOCKERS.md "caliper on hand, measurements not taken
+  yet":** neck diameter (`handset_barrel_d`) and the switch were already
+  real-calipered 2026-07-20, above — that blocker note was stale for
+  those two. What's genuinely still ungauged is the *full-body* handset
+  shape (overall length, earpiece/mouthpiece cup diameters, weight),
+  which `wall_hook.scad` and this file's imported-STL union both touch.
+  Per Zach's steer (handset "feels standard" in the hand — use an
+  educated guess and an existing similar-handset STL rather than block):
+  added `handset_overall_length`/`handset_earpiece_d`/
+  `handset_mouthpiece_d`/`handset_weight_g` to `params.scad` as clearly-
+  marked GUESS values sized off a typical corded handset (and consistent
+  with the ~50mm scale this file's own imported reference STL already
+  uses), and wired `wall_hook.scad`'s previously-hardcoded neck/hook
+  numbers to derive from them instead of standalone magic numbers. The
+  downloaded `Phone_Handset_Cradle_3.stl` referenced above **is** the
+  "existing STL of a similar handset" for interim dev — already in the
+  tree, no new sourcing needed. New `cad/HANDSET-MEASUREMENTS.md` has an
+  ASCII diagram of exactly where to caliper each GUESS value once the
+  B09R84QZ2P calipers are actually in hand; nothing here is blocking in
+  the meantime.
+
 ## New this session (speculative, design-stage only)
 - `ir_blaster_mount.scad` — bracket to aim an IR LED at the TV. **Parked
   2026-07-21** (see `PARKING-LOT.md`) — the blaster itself is now

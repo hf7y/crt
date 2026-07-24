@@ -9,6 +9,19 @@
 handset_barrel_d   = 32.8 + 0.6;  // = 33.4
 handset_rest_len   = 60;   // length of barrel section that sits in the saddle (not calipered — neck length, adjust if handset sits too shallow/deep)
 
+// GUESS, not calipered (2026-07-24) — full-body handset dims beyond the
+// neck above. Zach says the handset "feels standard" in the hand, so
+// these are sized off a typical modern corded/cordless handset (same
+// ballpark as the earpiece-cup scale already used in
+// zach_hookswitch_cradle.scad's imported reference STL). Good enough to
+// keep wall_hook.scad/cradle work moving; replace with real numbers from
+// cad/HANDSET-MEASUREMENTS.md whenever calipers are actually in hand —
+// don't let this comment go stale once that happens.
+handset_overall_length = 225;  // GUESS — tip of earpiece to tip of mouthpiece
+handset_earpiece_d     = 50;   // GUESS — cup diameter at the ear end
+handset_mouthpiece_d   = 45;   // GUESS — cup diameter at the mouth end (typically a touch smaller)
+handset_weight_g       = 170;  // GUESS — informs lever spring/pivot friction choice, not geometry
+
 // --- Hook lever (see-saw pressed down by handset weight) ---
 lever_length       = 70;
 lever_width        = 22;

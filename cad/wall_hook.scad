@@ -6,10 +6,10 @@
 // this is the low-effort "just hang it up" version.
 include <params.scad>
 
-hook_depth       = 40;   // how far the hook reaches under the handset barrel
+hook_depth       = handset_earpiece_d - 10;  // GUESS-derived: how far the hook reaches under the handset barrel
 hook_wall        = 6;
-neck_w           = 26;
-neck_h           = 30;
+neck_w           = handset_earpiece_d - 24;  // GUESS-derived, see params.scad handset_earpiece_d
+neck_h           = handset_earpiece_d - 20;  // GUESS-derived
 mount_hole_d     = 4.5;  // screw/bolt to the wall
 switch_hole_d    = 8;    // reserved hole for hanging switch, drill/insert later
 switch_hole_z    = 10;   // height up the neck where the hole sits
