@@ -80,3 +80,14 @@ something from this file.
   question from cycles 2-4 still stands; now compounded by potato
   possibly being offline outright. This blocks all live verification of
   bar items 2/3/4 in `.claude/FOCUS.md`'s stability milestone.
+
+- **2026-07-24 (nightly-batch, 6th cycle today): correction to the 5th
+  cycle's "potato may be off-network" conclusion.** This cycle's
+  environment has no route to 192.168.0.0/24 at all (ip route only
+  shows a 10.129.176.0/20 link) -- a subnet sweep from here can't
+  distinguish "potato is down" from "this box just can't reach that LAN
+  this session" (e.g. no VPN/tunnel active). The bare-timeout result is
+  real but its cause is now less certain than the 5th cycle's report
+  implied. Needs a human check from a machine actually on potato's LAN
+  (or with an active tunnel to it) before concluding potato itself is
+  offline.
