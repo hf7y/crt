@@ -69,3 +69,14 @@ something from this file.
   window stays open) actually feels right before either flag becomes the
   default.
 
+
+- **2026-07-24 (nightly-batch, 5th cycle today): `ssh potato` regressed
+  from "reachable but auth-rejected" to fully unresponsive.** Cycles 2-4
+  today all got `Permission denied (publickey,password)` from
+  `vkv@192.168.0.45` (host up, wrong key). This cycle got a bare
+  connection timeout on both SSH and `ping` to that same IP — no answer
+  at all, a strictly worse state (host likely off-network, powered down,
+  or re-addressed again). The stale `~/.ssh/config` `Host potato` entry
+  question from cycles 2-4 still stands; now compounded by potato
+  possibly being offline outright. This blocks all live verification of
+  bar items 2/3/4 in `.claude/FOCUS.md`'s stability milestone.
