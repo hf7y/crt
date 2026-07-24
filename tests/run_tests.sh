@@ -259,6 +259,12 @@ if [ -f "$DIR/test_screensaver.py" ]; then
 fi
 echo
 
+echo "== crt-console.sh Book Game funnel windows (both layouts) =="
+if [ -f "$DIR/test_console_book_game_layout.sh" ]; then
+  bash "$DIR/test_console_book_game_layout.sh" || fail=1
+fi
+echo
+
 if [ "$fail" -eq 0 ]; then
   echo "ALL GREEN"
 else
