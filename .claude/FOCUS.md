@@ -13,6 +13,8 @@ Ideas beyond this bar are PARKED by default (see realisateur/STABILITY-MILESTONE
 
 # crt — focus & backlog
 
+- **2026-07-24 16:12 (via `scheduler -i`):** batch run audio tests are outputting to mandark card, not pi
+
 - **2026-07-23 13:41 (via `scheduler -i`):** reduce this to a simple potato game where the user either says or doesn't say potato on prompt, earcon and visual feedback, designed to train the stt. could be the core default on-boot mode with a toggle switch until we get this calibration right
 
 - **2026-07-23 13:40 (via `scheduler -i`):** figure out what's wrong with the text column constraints, problem on mono window and more. suggest 40 column limit but overscan detect idea is better
