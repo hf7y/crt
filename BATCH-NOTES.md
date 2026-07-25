@@ -91,6 +91,19 @@ one durable channel it actually owns.
   bless this file and drop the `.claude/FOCUS.md` upkeep instruction from the
   `nightly-batch` skill so it stops asking for something that cannot happen.
 
+- **2026-07-25 (sixth cycle): `transcribe_remote()` in `bin/crt-stt-solo.py`
+  needs a decision, and it's the last instance of tonight's defect class.** It
+  returns `""` on any error talking to `CRT_WHISPER_SERVER`, so an unreachable
+  whisper server is indistinguishable from a silent room — the same shape as
+  `capture_pane()` before `931c0d9` and `send_to_claude()` before `9eeccc3`.
+  FOCUS.md's own 2026-07-23 00:40 note already flags it and wants a
+  local-whisper fallback. **Not fixed unattended**, and deliberately so: unlike
+  the secretary cases, `""` here is genuinely ambiguous — whisper legitimately
+  returns nothing for silence — so a sentinel alone doesn't settle it, and the
+  fallback it points at (local `whisper-cli` on a Pi 3B+, measured at ~1x
+  realtime) may cost more than the silence does. The question: honest failure
+  signal only, or signal plus local fallback?
+
 ## Pending — for `.claude/FOCUS.md`
 
 - **The "FIRST STEP EVERY CYCLE (2026-07-21): pull from crt-vm before doing

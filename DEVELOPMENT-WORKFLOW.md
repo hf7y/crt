@@ -14,6 +14,20 @@ one place. Read the linked doc for depth on any one piece.
    tier. `BATCH-NOTES.md` (repo root, 2026-07-25) is where it stages
    entries bound for `.claude/QUESTIONS.md`/`FOCUS.md` instead; fold them
    in from an interactive session and delete them from there.
+
+   **This tier's only inbound channel is Zach's inline reply on
+   `~/reports/crt/LATEST.md`, and the report's shape decides whether it
+   works.** The reply arrives anchored by section heading plus a quoted
+   line, so a heading that occurs twice in the file is an ambiguous anchor.
+   For five cycles a day's report carried each earlier cycle of that day
+   verbatim underneath it, which put four copies of `## New issues found`
+   in `LATEST.md` — and three consecutive cycles then opened with a reply
+   pointing at a bug already fixed two cycles earlier, because the text it
+   quoted was still in the file. **One cycle per file.** Earlier cycles go
+   to `~/reports/crt/<date>-cycle-N.md` and get linked, not nested.
+   `bin/crt-report-lint.py` is the mechanical check (run over
+   `.reports-fallback/` by `tests/run_tests.sh`), not a note asking the next
+   instance to remember.
 2. **VM-resident hardware check** (new, `VM-JOBS.md`) — a systemd timer
    running `claude -p` directly on crt-vm, real mic/display/printer
    access, narrow scope: verify what can be mechanically verified, report
