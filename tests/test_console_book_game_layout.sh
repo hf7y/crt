@@ -22,9 +22,14 @@ trap 'rm -rf "$TMP"' EXIT
 FAKEBIN="$TMP/fakebin"
 mkdir -p "$FAKEBIN"
 LOG="$TMP/tmux.log"
+ENVLOG="$TMP/tmux-env.log"
 cat > "$FAKEBIN/tmux" <<'EOF'
 #!/usr/bin/env bash
 echo "$@" >> "$TMUX_LOG"
+# Also record the environment each window would INHERIT. A window-focus
+# mechanism that reads an env var the boot script never exported is silently
+# inert -- exactly how the CTL-file duck sat dead on potato until 2026-07-24.
+echo "$* | CRT_IDLE_FACE_WINDOW=${CRT_IDLE_FACE_WINDOW-<unset>}" >> "$TMUX_ENV_LOG"
 case "$1" in
   has-session) exit 1 ;;   # never a pre-existing session
   attach) exit 0 ;;
@@ -36,7 +41,8 @@ chmod +x "$FAKEBIN/tmux"
 run_layout() {
   local no_idle="$1"
   : > "$LOG"
-  TMUX_LOG="$LOG" PATH="$FAKEBIN:$PATH" \
+  : > "$ENVLOG"
+  TMUX_LOG="$LOG" TMUX_ENV_LOG="$ENVLOG" PATH="$FAKEBIN:$PATH" \
     CRT_NO_IDLE_CLAUDE="$no_idle" \
     CRT_IP_FLASH_SECS=0 \
     CRT_MANDARK_CONF="$TMP/no-such-mandark.conf" \
@@ -55,8 +61,24 @@ check_windows_present() {
   done
 }
 
+# Where the book window hands the tube back to when a question times out
+# (crt-book-console.py's release_tube). Checked per layout because the two
+# answers are different and both matter: a stale value in the historical
+# layout would send focus to a window 0 that holds a live Claude, not an
+# idle face.
+check_idle_face_env() {
+  local no_idle="$1" want="$2"
+  if grep -- "-n book " "$ENVLOG" | grep -q -- "CRT_IDLE_FACE_WINDOW=$want"; then
+    echo "PASS: CRT_NO_IDLE_CLAUDE=$no_idle hands the book window CRT_IDLE_FACE_WINDOW=$want"
+  else
+    echo "FAIL: CRT_NO_IDLE_CLAUDE=$no_idle did not export CRT_IDLE_FACE_WINDOW=$want to the book window"
+    fail=1
+  fi
+}
+
 run_layout 0
 check_windows_present 0
+check_idle_face_env 0 "<unset>"
 if grep -q "select-window -t testsess-0:book" "$LOG"; then
   echo "PASS: CRT_NO_IDLE_CLAUDE=0 selects 'book' as boot-default"
 else
@@ -65,6 +87,7 @@ fi
 
 run_layout 1
 check_windows_present 1
+check_idle_face_env 1 "0"
 if grep -q "select-window -t testsess-1:0" "$LOG"; then
   echo "PASS: CRT_NO_IDLE_CLAUDE=1 selects window 0 (screensaver) as boot-default"
 else

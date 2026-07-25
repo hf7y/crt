@@ -118,6 +118,12 @@ if [ "${CRT_NO_IDLE_CLAUDE:-0}" = "1" ]; then
   # window is 80x24 until then -- the cause of the earlier line-wrap).
   tmux new-session -d -s "$SESSION" -c "$BIN_DIR" "CRT_COLS=${CRT_COLS:-40} CRT_ROWS=${CRT_ROWS:-15} python3 ./crt-screensaver.py; exec bash"
 else
+  # In this layout `book` IS the idle face, so there is nowhere to hand the
+  # tube back to. Unset rather than assumed-absent: re-running this script
+  # in a shell that booted the idle-lean layout earlier would otherwise
+  # leave the book window releasing focus to a screensaver that no longer
+  # exists on window 0 (a live Claude does).
+  unset CRT_IDLE_FACE_WINDOW
   CLAUDE_ARGS="${CRT_CLAUDE_ARGS:---permission-mode acceptEdits}"
   tmux new-session -d -s "$SESSION" -c "$PROJECT_DIR" "claude $CLAUDE_ARGS; exec bash"
 fi
