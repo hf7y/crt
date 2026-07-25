@@ -36,6 +36,8 @@
 #   CRT_SCANNER_LOG (default ~/.crt/scanner.log)
 #   CRT_BOOK_CONSOLE_IDLE_SECS (default 20) -- how long a scan result
 #     stays on screen before falling back to the idle shelf display
+#   CRT_BOOK_IDLE_ROTATE_SECS (default 8, 0 disables) -- how often the
+#     resting screen redraws itself in a new position with a new caption
 #   CRT_TMUX_SESSION / CRT_BOOK_WINDOW_NAME -- read via
 #     crt-window-switcher.py, so both processes agree on which window this
 #     is
@@ -78,10 +80,37 @@ _ws_spec = importlib.util.spec_from_file_location(
 window_switcher = importlib.util.module_from_spec(_ws_spec)
 _ws_spec.loader.exec_module(window_switcher)
 
+def _env_secs(name, default):
+    """A seconds-valued env var, junk-tolerant. These names are set by
+    crt-console.sh, i.e. by shell, and a bare float() on a misspelled value
+    raises at IMPORT time -- before main() draws anything -- leaving a bash
+    prompt on the one window that is the console's face. Same failure the
+    game's own size vars were carrying until bg.detect_screen_size() grew
+    _env_dim() last cycle. Negative is junk too; only 0 disables (see
+    IDLE_ROTATE_SECS)."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        val = float(raw)
+    except ValueError:
+        return default
+    return val if val >= 0 else default
+
+
 SCANNER_LOG = os.path.expanduser(os.environ.get("CRT_SCANNER_LOG", "~/.crt/scanner.log"))
-IDLE_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_IDLE_SECS", "20"))
-POLL_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_POLL_SECS", "0.5"))
-WAIT_HINT_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_WAIT_HINT_SECS", "8"))
+IDLE_SECS = _env_secs("CRT_BOOK_CONSOLE_IDLE_SECS", 20.0)
+POLL_SECS = _env_secs("CRT_BOOK_CONSOLE_POLL_SECS", 0.5)
+WAIT_HINT_SECS = _env_secs("CRT_BOOK_CONSOLE_WAIT_HINT_SECS", 8.0)
+# How often the resting screen redraws itself. render_idle_screen() picks a
+# fresh caption and a fresh position every call -- see its docstring, which
+# quotes Zach on both halves -- and until 2026-07-25 main() called it once and
+# then only on a scan's timeout, so the "rotating" idle-bait was a still frame
+# from boot until somebody scanned. The thing it is there to talk them into.
+# 8s: long enough to read a 30-character enticement twice, short enough that
+# the screen is visibly alive. 0 disables (a tube that must hold one frame
+# gets to -- same escape-hatch rule as CRT_AUDIO_DEV over device-by-name).
+IDLE_ROTATE_SECS = _env_secs("CRT_BOOK_IDLE_ROTATE_SECS", 8.0)
 # Which window is the idle face, when it is not this one. Set by
 # crt-console.sh's idle-lean branch (CRT_NO_IDLE_CLAUDE=1 -> the potato
 # screensaver on window 0), by the same `if` that selects it at boot, so
@@ -129,7 +158,13 @@ def render_idle_screen(book_count, width, height, rng=None):
     the shelf art, centered; now a random row (never overlapping the
     title or the art itself) and random left/center/right alignment each
     draw, so the idle screen doesn't look frozen in the same layout
-    every single time."""
+    every single time.
+
+    "Each draw" was doing no work until 2026-07-25: main() drew this screen at
+    boot and then only when a scan timed out, so the resting screen picked one
+    caption at one position and held it -- frozen in exactly the same layout
+    every single time, which is what both paragraphs above exist to prevent.
+    CRT_BOOK_IDLE_ROTATE_SECS is what calls this again."""
     rng = rng or random
     lines = [" " * width for _ in range(height)]
     lines[0] = bg.center_text("BOOK GAME", width)
@@ -568,8 +603,12 @@ def main():
     pending_row = None   # that question's own row, kept around to redraw with the waiting hint
     hint_shown = False   # whether the cat_reading waiting hint has already fired for this question
 
+    last_idle_draw_at = 0.0
+
     def draw_idle():
+        nonlocal last_idle_draw_at
         redraw(lambda w, h: render_idle_screen(book_count(), w, h))
+        last_idle_draw_at = time.time()
 
     draw_idle()
     last_scan_at = 0.0
@@ -761,6 +800,21 @@ def main():
                 draw_idle()
                 showing_idle = True
                 release_tube()
+
+            # The resting screen, again, somewhere else. render_idle_screen()
+            # moves the caption and swaps between the book count and an
+            # enticement line on every call, and nothing ever called it twice:
+            # the console picked one layout at boot and held it until a scan
+            # landed. Idle-bait is the funnel's FIRST link and it was a
+            # photograph of itself.
+            #
+            # Guarded on showing_idle, so a question someone is reading is
+            # never painted over -- the rotation belongs to the resting screen
+            # only. draw_idle() restamps the clock, so the timeout branch above
+            # and this one cannot double-draw in the same tick.
+            elif showing_idle and IDLE_ROTATE_SECS and (
+                    time.time() - last_idle_draw_at >= IDLE_ROTATE_SECS):
+                draw_idle()
 
             # The tube's real geometry, asked again every tick (~POLL_SECS).
             # Cheap -- one ioctl, or one env read when crt-console.sh pins

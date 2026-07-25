@@ -333,6 +333,14 @@ echo "== the book window measures the tube it draws on (pty resize) =="
 python3 "$DIR/test_book_console_size.py" || fail=1
 echo
 
+# 2026-07-25 (seventeenth cycle): render_idle_screen() moves its caption and
+# swaps its text on every call, and main() called it once. The funnel's first
+# link -- the screen that talks someone into scanning a book -- was a still
+# frame from boot until somebody scanned one.
+echo "== the idle screen redraws itself (pty, nobody at the console) =="
+python3 "$DIR/test_book_idle_screen_moves.py" || fail=1
+echo
+
 echo "== crt-console.sh Book Game funnel windows (both layouts) =="
 bash "$DIR/test_console_book_game_layout.sh" || fail=1
 echo
