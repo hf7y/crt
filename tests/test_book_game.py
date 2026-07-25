@@ -180,29 +180,51 @@ class TestResponseTier(unittest.TestCase):
 
 
 class TestGrading(unittest.TestCase):
+    """grade_answer gained `options=` on 2026-07-25 (fourteenth nightly
+    cycle) -- correct_stt now asks whether the transcription landed on one
+    of the offered options, instead of comparing it to the correct answer
+    and thereby duplicating correct_content. These four kept their original
+    assertions and gained the option list the real callers pass; the axes
+    they can now disagree on are pinned in tests/test_book_game_stt_axis.py.
+    Without options= correct_stt is None (unknown), which is what the last
+    test here pins."""
+
+    OPTIONS = ["fiction", "nonfiction"]
+
     def test_exact_match_both_correct(self):
-        g = bg.grade_answer(expected="fiction", heard="fiction", correct_option="fiction")
+        g = bg.grade_answer(expected="fiction", heard="fiction",
+                            correct_option="fiction", options=self.OPTIONS)
         self.assertTrue(g["correct_stt"])
         self.assertTrue(g["correct_content"])
 
     def test_mismatch_flagged_not_fuzzy(self):
-        g = bg.grade_answer(expected="fiction", heard="friction", correct_option="fiction")
+        g = bg.grade_answer(expected="fiction", heard="friction",
+                            correct_option="fiction", options=self.OPTIONS)
         self.assertFalse(g["correct_stt"])
         self.assertFalse(g["correct_content"])
 
     def test_normalize_ignores_case_and_punctuation(self):
-        g = bg.grade_answer(expected="Fiction!", heard="fiction", correct_option="Fiction!")
+        g = bg.grade_answer(expected="Fiction!", heard="fiction",
+                            correct_option="Fiction!",
+                            options=["Fiction!", "Nonfiction!"])
         self.assertTrue(g["correct_stt"])
 
     def test_ungradeable_when_no_correct_option(self):
-        g = bg.grade_answer(expected="yes", heard="yes", correct_option=None)
+        g = bg.grade_answer(expected="yes", heard="yes", correct_option=None,
+                            options=["yes", "no"])
         self.assertIsNone(g["correct_content"])
         self.assertTrue(g["correct_stt"])
+
+    def test_no_options_means_the_stt_axis_is_unknown(self):
+        g = bg.grade_answer(expected="fiction", heard="fiction", correct_option="fiction")
+        self.assertIsNone(g["correct_stt"], "nothing to judge the transcription against")
+        self.assertTrue(g["correct_content"])
 
     def test_log_training_row_writes_jsonl(self):
         with tempfile.TemporaryDirectory() as d:
             log_path = os.path.join(d, "training.jsonl")
-            g = bg.grade_answer(expected="fiction", heard="friction", correct_option="fiction")
+            g = bg.grade_answer(expected="fiction", heard="friction",
+                                correct_option="fiction", options=self.OPTIONS)
             bg.log_training_row("123", g, log_path=log_path, timestamp="2026-07-21T00:00:00")
             with open(log_path) as f:
                 row = json.loads(f.readline())
@@ -217,7 +239,8 @@ class TestGrading(unittest.TestCase):
         blocker = os.path.join(tempfile.mkdtemp(), "not_a_dir")
         open(blocker, "w").close()
         broken_path = os.path.join(blocker, "training.jsonl")
-        g = bg.grade_answer(expected="fiction", heard="friction", correct_option="fiction")
+        g = bg.grade_answer(expected="fiction", heard="friction",
+                                correct_option="fiction", options=self.OPTIONS)
         row = bg.log_training_row("123", g, log_path=broken_path, timestamp="2026-07-21T00:00:00")
         # The row is still returned even though persisting it failed --
         # callers like crt-book-answer-listen.py's format_result_line()

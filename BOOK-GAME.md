@@ -79,6 +79,20 @@ content-answer with correct STT is a fine game round and useless
 training noise; a right content-answer with wrong STT is the valuable
 case (proves the mismatch is transcription, not the user being unsure).
 
+**How `correct_stt` is actually decided (2026-07-25, fourteenth nightly
+cycle).** It is `true` when the transcription is one of the options the
+person was just offered, `false` when it is none of them, and `null` when
+no option list was recorded, so there is nothing to judge it against.
+Nobody but the speaker knows which option they *meant*; what this side can
+honestly tell is whether whisper produced something on the list. Until
+that date `correct_stt` was `normalize(expected) == normalize(heard)`,
+and since both live callers pass the correct option as *both* `expected`
+and `correct_option`, it was a duplicate of `correct_content` — the two
+axes above could not disagree, so an honest wrong guess ("nonfiction")
+was filed as a mishear, counted against STT accuracy, and fed to
+`generate_candidate_fixups()`. See `grade_answer`'s docstring in
+`bin/crt-book-game.py` for the full account.
+
 ## Question generation: salted, cached, batched Claude calls (2026-07-21, Zach)
 
 Not a pure-template system. Direction: **deterministic templates are the

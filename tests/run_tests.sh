@@ -158,6 +158,10 @@ echo "== one scan is one graded round, not a 20s window (2026-07-25) =="
 python3 -m unittest discover -s "$DIR" -p "test_book_answer_round_closes.py" -v 2>&1 | tail -5 || fail=1
 echo
 
+echo "== correct_stt is not a second copy of correct_content (2026-07-25) =="
+python3 -m unittest discover -s "$DIR" -p "test_book_game_stt_axis.py" -v 2>&1 | tail -5 || fail=1
+echo
+
 echo "== a question for Claude is not a trivia answer (2026-07-25) =="
 python3 -m unittest discover -s "$DIR" -p "test_book_answer_wake_word.py" -v 2>&1 | tail -5 || fail=1
 echo

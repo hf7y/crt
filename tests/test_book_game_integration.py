@@ -99,7 +99,12 @@ class TestFullFunnelOfflineIntegration(unittest.TestCase):
                     "subjects": ["Science fiction"], "raw": {}}
             q = {"text": "Fiction or nonfiction?", "options": ["fiction", "nonfiction"], "correct": "fiction"}
             row = bg.register_book(conn, book, questions=[q], question_source="template")
-            grade = bg.grade_answer(expected="fiction", heard="friction", correct_option="fiction")
+            # options= since 2026-07-25: without it correct_stt is None
+            # (unknown), so nothing lands in `mismatches` and no candidate is
+            # ever generated. The real caller passes q["options"] -- see
+            # crt-book-answer-listen.py's grade_pending_answer.
+            grade = bg.grade_answer(expected="fiction", heard="friction",
+                                    correct_option="fiction", options=q["options"])
             bg.log_training_row(isbn, grade)
 
         rows = st.load_training_rows(self.training_log)

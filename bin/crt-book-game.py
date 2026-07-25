@@ -175,9 +175,19 @@ def _recent_training_stats(log_path=None):
     other way would recurse forever (each fresh bg copy would import a
     fresh stats copy which imports a fresh bg copy...). Duplicating this
     one small count-and-average is cheaper than restructuring either
-    file's import pattern for it."""
+    file's import pattern for it.
+
+    Returns (rounds_played, stt_accuracy). correct_stt is three-valued since
+    2026-07-25 (see grade_answer), so the accuracy is over the rounds where
+    it is KNOWN -- the same denominator summarize_training() uses, which is
+    the point: pick_response_tier()'s docstring says the number it takes is
+    summarize_training()["stt_accuracy"], and two readers of one file that
+    quietly disagree is the drift this project keeps finding. A None round
+    counted as a miss would hold the game in short-response mode for a
+    reason that is not a transcription failure."""
     log_path = log_path or TRAINING_LOG
     total = 0
+    stt_known = 0
     stt_correct = 0
     if not os.path.exists(log_path):
         return 0, None
@@ -191,9 +201,12 @@ def _recent_training_stats(log_path=None):
             except json.JSONDecodeError:
                 continue
             total += 1
+            if row.get("correct_stt") is None:
+                continue
+            stt_known += 1
             if row.get("correct_stt") is True:
                 stt_correct += 1
-    return total, (stt_correct / total if total else None)
+    return total, (stt_correct / stt_known if stt_known else None)
 
 
 def generate_template_question(book, rng=None, tier="short"):
@@ -399,17 +412,54 @@ def normalize(s):
     return s
 
 
-def grade_answer(expected, heard, correct_option):
-    """Exact-ish (normalize-then-compare, not fuzzy) grading against the
-    two known option strings. Returns a dict with both correctness axes
-    tracked separately per BOOK-GAME.md: correct_content (did they know
-    the fact) and correct_stt (did the transcription match what they
-    presumably said)."""
-    norm_expected = normalize(expected)
+def grade_answer(expected, heard, correct_option, options=None):
+    """Exact-ish (normalize-then-compare, not fuzzy) grading. Returns the
+    two axes BOOK-GAME.md calls for: correct_content (did they know the
+    fact) and correct_stt (did the mic hear them right).
+
+    THE TWO AXES WERE ONE AXIS UNTIL 2026-07-25 (fourteenth nightly cycle).
+    correct_stt was `normalize(expected) == normalize(heard)`, and BOTH live
+    callers pass the same string as `expected` and `correct_option`
+    (crt-book-answer-listen.py:233, this file's own --answer CLI). So the
+    two flags were computed from identical inputs and could never disagree,
+    which is exactly the disagreement BOOK-GAME.md says is the point: "a
+    wrong content-answer with correct STT is a fine game round and useless
+    training noise; a right content-answer with wrong STT is the valuable
+    case."
+
+    What that cost, concretely: someone answers "nonfiction" to a
+    fiction/nonfiction question and is simply wrong. Whisper heard them
+    perfectly. The row said correct_stt: false, so crt-book-game-stats.py
+    counted it against STT accuracy, listed it under "STT mismatches
+    (expected -> heard), the actual training data", and
+    generate_candidate_fixups() turned the second occurrence into
+    {"nonfiction": {"intent": "fiction"}} -- which crt-stt-training-merge.py
+    then auto-merges into the live bin/stt-fixups.json. The console teaching
+    itself that a word it heard correctly is a mishear, from the most
+    ordinary event in a two-option game: a wrong guess. That same corrupted
+    accuracy number also drives pick_response_tier(), so honest wrong
+    answers kept the game pinned to short responses.
+
+    THE HONEST QUESTION, and the one this can actually answer: did the
+    transcription land on one of the options the person was just offered?
+    Nobody here knows which option they *meant* -- only they do -- but a
+    heard string that is one of the offered options is not evidence of a
+    mishear, and one that is nothing on the list is. That second set is the
+    real training signal, and now it is the only thing in `mismatches`.
+
+    `options=None` (nothing to check against) yields correct_stt None --
+    unknown, not false. Callers that know the option list should pass it;
+    every question generated in this file carries one, including the
+    always-available "have you read this before" fallback, whose
+    correct=None used to make correct_stt false for every answer anyone
+    could possibly give it."""
     norm_heard = normalize(heard)
     norm_correct = normalize(correct_option) if correct_option is not None else None
-    correct_stt = norm_expected == norm_heard
     correct_content = (norm_heard == norm_correct) if norm_correct is not None else None
+    if options:
+        correct_stt = norm_heard in {normalize(o) for o in options}
+    else:
+        correct_stt = None
     return {
         "expected": expected,
         "heard": heard,
@@ -1115,7 +1165,8 @@ def main():
             print("No question on file for this book.")
             return
         q = questions[0]
-        grade = grade_answer(expected=q.get("correct"), heard=args.answer, correct_option=q.get("correct"))
+        grade = grade_answer(expected=q.get("correct"), heard=args.answer,
+                             correct_option=q.get("correct"), options=q.get("options"))
         # Closes the round for the listener too (2026-07-25): this CLI and
         # crt-book-answer-listen.py grade the same books.db, so an answer
         # typed here has to stop the next spoken utterance from being

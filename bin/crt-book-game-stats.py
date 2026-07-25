@@ -76,16 +76,25 @@ def summarize_training(rows):
     """Pure function: the actual STT-training payoff numbers -- see file
     header for why correct_stt gets top billing over correct_content.
     Returns a dict with counts and rates (None rate if there's no data
-    yet, never a divide-by-zero)."""
+    yet, never a divide-by-zero).
+
+    correct_stt is three-valued since 2026-07-25 (grade_answer gained the
+    option list; None means "no options recorded, so nothing to judge the
+    transcription against"). stt_accuracy is therefore over the rows where
+    it is KNOWN, exactly as content_accuracy already was -- dividing by
+    len(rows) would let an unjudgeable round read as a transcription
+    failure, which is the whole class of error that change fixed."""
     total = len(rows)
-    stt_correct = sum(1 for r in rows if r.get("correct_stt") is True)
+    stt_known = [r for r in rows if r.get("correct_stt") is not None]
+    stt_correct = sum(1 for r in stt_known if r.get("correct_stt") is True)
     content_known = [r for r in rows if r.get("correct_content") is not None]
     content_correct = sum(1 for r in content_known if r.get("correct_content") is True)
     mismatches = [r for r in rows if r.get("correct_stt") is False]
     return {
         "total_rounds": total,
         "stt_correct": stt_correct,
-        "stt_accuracy": (stt_correct / total) if total else None,
+        "stt_known": len(stt_known),
+        "stt_accuracy": (stt_correct / len(stt_known)) if stt_known else None,
         "content_correct": content_correct,
         "content_known": len(content_known),
         "content_accuracy": (content_correct / len(content_known)) if content_known else None,
@@ -100,9 +109,12 @@ def render_screen_summary(book_stats, training_stats, width=None):
     lines = [f"Book Game: {book_stats['total']} book(s) scanned"]
     if training_stats["total_rounds"] == 0:
         lines.append("No spoken answers graded yet.")
+    elif training_stats["stt_accuracy"] is None:
+        # Rounds exist but none of them recorded an option list to judge the
+        # transcription against (pre-2026-07-25 rows can also land here).
+        # Saying "0%" would be a lie in the direction that panics people.
+        lines.append(f"{training_stats['total_rounds']} answer(s) graded, STT accuracy n/a")
     else:
-        # total_rounds > 0 here, so stt_accuracy is never None (see
-        # summarize_training) -- no fallback branch needed.
         acc = training_stats["stt_accuracy"]
         lines.append(f"{training_stats['total_rounds']} answer(s) graded, STT accuracy {acc:.0%}")
     return [ln[:width] for ln in lines]
@@ -124,9 +136,13 @@ def render_full_report(book_stats, training_stats):
     ]
     if training_stats["total_rounds"]:
         acc = training_stats["stt_accuracy"]
-        lines.append(f"  STT accuracy (heard matched what was expected): "
-                      f"{training_stats['stt_correct']}/{training_stats['total_rounds']}"
-                      + (f" ({acc:.0%})" if acc is not None else ""))
+        # "matched what was expected" was the old, wrong wording: expected is
+        # the CORRECT option, so that phrasing described a trivia score
+        # wearing an STT label. What is actually measured is whether the
+        # transcription landed on one of the options the person was offered.
+        lines.append(f"  STT accuracy (heard was one of the offered options): "
+                      f"{training_stats['stt_correct']}/{training_stats['stt_known']}"
+                      + (f" ({acc:.0%})" if acc is not None else " (n/a)"))
         if training_stats["content_known"]:
             cacc = training_stats["content_accuracy"]
             lines.append(f"  Trivia correctness (ignoring STT errors): "
