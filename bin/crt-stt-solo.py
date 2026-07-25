@@ -18,7 +18,7 @@
 #
 # Output: transcriptions scroll; a live "MIC [####|....] 12.3% TALK" meter is
 # redrawn on the bottom line (same widget as crt-meter.py). Ctrl-C to quit.
-import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, json, re
+import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, json, re, signal
 from collections import deque
 
 # SINK: where recognized text goes.
@@ -736,6 +736,88 @@ def capture_death_report(dev, rc, stderr_text, seconds_alive):
     return "\n".join(lines)
 
 
+def reap_capture(proc, timeout=2.0):
+    """Make sure the arecord child is actually GONE, not merely signalled.
+
+    Scope note, measured 2026-07-25 so nobody re-derives it: this is DEFENSIVE,
+    not the fix for an observed leak. The suspicion was that killing this
+    process orphans arecord holding the USB capture device -- which would be
+    serious, since this process is the documented SOLE reader of the mic and
+    capture death now exits 3, so an orphan would turn one restart into a
+    supervisor restart loop blocked by the corpse of the previous run. It does
+    not happen: when this process exits, the read end of arecord's stdout pipe
+    closes and arecord dies of SIGPIPE on its next write, with or without any
+    handler. Verified against both the pre-fix and post-fix versions with a
+    fake arecord -- the child was gone within ~3s either way. (An earlier probe
+    that seemed to show an orphan was signalling `setsid`'s already-exited pid
+    rather than python's, so nothing was ever killed.)
+
+    What this adds is determinism rather than a repair: the release happens
+    because we waited for it, not because of the child's write timing. Cheap
+    insurance on the one resource this console cannot share. terminate() only
+    asks -- so wait, then SIGKILL if it did not go, then reap that too so no
+    zombie holds the fd. Best-effort throughout: a failure to clean up must
+    never mask the exit path this runs on.
+    """
+    if proc is None:
+        return
+    try:
+        if proc.poll() is not None:      # already dead; still needs reaping
+            try: proc.wait(timeout=timeout)
+            except Exception: pass
+            return
+        proc.terminate()
+        try:
+            proc.wait(timeout=timeout)
+            return
+        except Exception:
+            pass
+        proc.kill()
+        try: proc.wait(timeout=timeout)
+        except Exception: pass
+    except Exception:
+        pass
+
+
+def install_signal_handlers():
+    """Turn SIGTERM/SIGHUP into KeyboardInterrupt so main()'s existing
+    "deliberate stop" path runs -- which reaps arecord and does NOT print a
+    CAPTURE DIED report, because a human/supervisor stopping us is not a
+    failure.
+
+    Measured 2026-07-25: Python runs `finally:` on SIGINT only -- an untrapped
+    SIGTERM *or* SIGHUP skips it entirely, so before this, every teardown that
+    was not a literal Ctrl-C ran no cleanup at all. Both signals are trapped,
+    because they are two different real teardowns here:
+
+      SIGTERM -- `pkill -f crt-stt-solo.py`, `systemctl stop`, any supervisor
+        restarting just this process.
+      SIGHUP  -- what tmux actually delivers when a window/pane is destroyed
+        (verified the same day with a real `tmux kill-window`: the pane
+        process receives signal 1, not 15). Worth knowing generally: the
+        sibling handler in crt-tts.py named `tmux kill-window` as its
+        motivating case while trapping only SIGTERM, and so missed it.
+
+    See reap_capture() for why this is hardening rather than a bug fix -- the
+    mic does get released without it. What the handler buys is that the
+    release is deliberate and says so on the pane, instead of the process
+    vanishing mid-loop and leaving "did it stop or did it go deaf?" as the
+    only thing a human can tell -- the exact ambiguity this file keeps
+    getting bitten by.
+
+    SIGINT is deliberately left alone -- Python already turns it into
+    KeyboardInterrupt, which is exactly what these handlers synthesize.
+    """
+    def _bail(signum, frame):
+        raise KeyboardInterrupt
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        try:
+            signal.signal(sig, _bail)
+        except (ValueError, OSError, AttributeError):
+            # not the main thread, or a platform without SIGHUP
+            pass
+
+
 def main():
     # claude/secretary sinks: don't start feeding keystrokes/utterances until
     # the target session is up (it may still be launching `claude`), else
@@ -902,8 +984,16 @@ def main():
     except KeyboardInterrupt:
         capture_died = False       # deliberate stop, not a failure
     finally:
-        try: proc.terminate()
-        except Exception: pass
+        # Release the mic before anything else. The next crt-stt-solo.py
+        # cannot open the device until this child is gone (see reap_capture).
+        reap_capture(proc)
+        if ring_proc is not None:
+            reap_capture(ring_proc)
+    if not capture_died:
+        # Say it on the way out: a console that stops hearing should never be
+        # ambiguous about whether it stopped on purpose. Cheap, and it is the
+        # human-readable half of "the device was actually released".
+        print("\n[crt-stt] stopped; released %s" % DEV)
     if capture_died:
         try:
             proc.wait(timeout=2)
@@ -921,4 +1011,5 @@ def main():
 
 
 if __name__ == "__main__":
+    install_signal_handlers()
     main()

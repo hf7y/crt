@@ -99,6 +99,10 @@ fi
 bash "$DIR/test_capture_death_loud.sh" || fail=1
 echo
 
+echo "== crt-stt-solo.py releases the mic when stopped =="
+bash "$DIR/test_capture_release_on_signal.sh" || fail=1
+echo
+
 echo "== crt-book-game.py =="
 if [ -f "$DIR/test_book_game.py" ]; then
   python3 -m unittest discover -s "$DIR" -p "test_book_game.py" -v 2>&1 | tail -5 || fail=1
