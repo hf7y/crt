@@ -203,3 +203,17 @@ now also written directly by `crt-book-console.py`'s stdin path itself
 (`format_scan_log_line()`), so the log stays complete with or without
 that listener running -- see `tests/test_book_console.py`'s
 `TestFormatScanLogLine`.
+
+**2026-07-24 gap found and closed (via senechal's cross-project audit):**
+this retirement removed the script from the repo but never unregistered
+the actual `CrtScannerForward` Windows Scheduled Task on `dexter` itself
+-- it kept firing at every logon for 3+ days afterward, pointed at a
+script the project had already declared dead. It was also independently
+crashing on launch (same WindowsApps-execution-alias issue documented in
+`HANDOFF.md`'s `crt-whisper-server` fix entry), which is likely why no
+one noticed it was still running: nothing visibly happened. Deleted via
+`schtasks /delete /tn CrtScannerForward /f`, confirmed gone. The deployed
+files themselves (`dexter-scanner-forward.ps1`,
+`dexter-scanner-debug-wrapper.ps1`, `update_task.ps1`) are still sitting
+in `C:\Users\Zach\` untouched -- left in place since deleting files
+wasn't asked for, only unregistering the task.
