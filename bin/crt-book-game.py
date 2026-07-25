@@ -30,6 +30,7 @@
 #   CRT_GEMINI_MODEL (default gemini-2.5-flash)
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import random
@@ -41,6 +42,15 @@ import textwrap
 import time
 import urllib.parse
 import urllib.request
+
+# By path, not `import`: every caller of THIS file loads it the same way
+# (spec_from_file_location), which does not put bin/ on sys.path. Same idiom
+# crt_wake_gate.py and crt-book-answer-listen.py already use.
+_scan_spec = importlib.util.spec_from_file_location(
+    "crt_scan_line_for_book_game",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt_scan_line.py"))
+_scan_line = importlib.util.module_from_spec(_scan_spec)
+_scan_spec.loader.exec_module(_scan_line)
 
 DB_PATH = os.path.expanduser(os.environ.get("CRT_BOOKS_DB", "~/.crt/books.db"))
 TRAINING_LOG = os.path.expanduser(
@@ -1063,16 +1073,13 @@ def pick_idle_quote(conn, rng=None):
 # ---------------------------------------------------------------------------
 
 SCAN_PREFIX = "[scan] "
-ISBN_RE = re.compile(r"\d{9}[\dXx]|\d{13}")
-
-
-def is_isbn_like(text):
-    """Pure function: does `text` look like a bare ISBN-10/13 (optional
-    trailing check-digit 'X')? Shared by parse_scan_line (tmux-delivered,
-    prefixed) and crt-book-console.py (tails ~/.crt/scanner.log directly,
-    unprefixed) so the two entry points can't drift on what counts as a
-    valid scan."""
-    return bool(re.fullmatch(ISBN_RE, text.strip()))
+# Moved to bin/crt_scan_line.py (2026-07-25) and re-exported here: a third
+# process now has to agree on what a scan looks like (crt-screensaver.py
+# forwards the scans that land on the idle face), and that one must not
+# import this module -- it would drag sqlite3/urllib into the window whose
+# whole purpose is holding no brain at all. See crt_scan_line.py's header.
+ISBN_RE = _scan_line.ISBN_RE
+is_isbn_like = _scan_line.is_isbn_like
 
 
 def parse_scan_line(line):

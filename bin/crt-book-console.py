@@ -50,45 +50,25 @@ _guard_spec = importlib.util.spec_from_file_location(
 loop_guard = importlib.util.module_from_spec(_guard_spec)
 _guard_spec.loader.exec_module(loop_guard)
 
+_scan_spec = importlib.util.spec_from_file_location(
+    "crt_scan_line_for_book_console", os.path.join(BIN_DIR, "crt_scan_line.py"))
+scan_line = importlib.util.module_from_spec(_scan_spec)
+_scan_spec.loader.exec_module(scan_line)
+
 SCANNER_LOG = os.path.expanduser(os.environ.get("CRT_SCANNER_LOG", "~/.crt/scanner.log"))
 IDLE_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_IDLE_SECS", "20"))
 POLL_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_POLL_SECS", "0.5"))
 WAIT_HINT_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_WAIT_HINT_SECS", "8"))
 
 
-def parse_scanner_log_line(line):
-    """Pure function: crt-scanner-feed.py writes 'ISO_TIMESTAMP\\tTEXT'
-    per scan (unprefixed, unlike the tmux '[scan] ' delivery
-    parse_scan_line() handles) -- pulls TEXT back out, or None if the
-    line isn't tab-shaped or TEXT isn't ISBN-like."""
-    line = line.rstrip("\n")
-    if "\t" not in line:
-        return None
-    _, text = line.split("\t", 1)
-    text = text.strip()
-    return text if bg.is_isbn_like(text) else None
-
-
-def parse_stdin_scan_line(line):
-    """Pure function: a scan landing directly in this window's own stdin
-    is bare digits + Enter -- the terminal's line-discipline (cooked
-    mode) buffers the scanner's fast keystrokes and delivers them as one
-    line on Enter, the same way a human pressing Enter would, no special
-    handling needed on this end. No tab prefix to strip (unlike
-    scanner.log's shape) -- just validate it's ISBN-shaped."""
-    text = line.strip()
-    return text if bg.is_isbn_like(text) else None
-
-
-def format_scan_log_line(isbn, timestamp=None):
-    """Pure function: the exact 'ISO_TIMESTAMP\\tTEXT' shape
-    parse_scanner_log_line() expects. Used to fold stdin-sourced scans
-    into scanner.log too (2026-07-21, bare-metal/compute-stick prep --
-    crt-scanner-feed.py's network listener is no longer assumed to be
-    running, so nothing else writes this audit trail on that
-    deployment)."""
-    ts = timestamp or datetime.datetime.now().isoformat(timespec="seconds")
-    return "%s\t%s\n" % (ts, isbn)
+# The scan-line contract itself moved to bin/crt_scan_line.py (2026-07-25):
+# this window is no longer the only writer of scanner.log -- crt-screensaver.py
+# forwards the scans that land on IT (see that file's header and crt_scan_line's).
+# Re-exported under the same names rather than call sites updated: these are
+# what tests/test_book_console.py and this file's own main() already say.
+parse_scanner_log_line = scan_line.parse_scanner_log_line
+parse_stdin_scan_line = scan_line.parse_stdin_scan_line
+format_scan_log_line = scan_line.format_scan_log_line
 
 
 def _place_text(text, width, align):
