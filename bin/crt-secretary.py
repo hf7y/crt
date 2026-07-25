@@ -517,14 +517,40 @@ def capture_pane():
 
 
 def send_to_claude(text):
+    """Deliver one utterance to Claude. Returns True only if it landed.
+
+    Both halves used to discard their result (2026-07-25). On the remote
+    path that mattered most: _bridge_request() returns "" on ANY socket
+    failure, so a dropped reverse tunnel or a dead bridge on mandark made
+    this a silent no-op -- and handle() below went on to fire the
+    "thinking" earcon and sit through the full idle wait polling a socket
+    that was never going to answer, before telling the user "I sent that
+    to Claude but didn't catch a reply -- check the screen", which is
+    wrong twice over: nothing was sent, and the screen it points at is
+    blank precisely because the brain isn't there. FOCUS.md's current top
+    priority names tunnel drops as the thing to watch for; this is what
+    makes one observable instead of looking like a quiet Claude."""
     if CLAUDE_REMOTE_PORT:
         # newline-terminated single-line protocol -- a real utterance
         # never legitimately contains one (whisper output is one line),
         # but strip defensively so a stray one can't desync the protocol.
-        _bridge_request("SEND " + text.replace("\n", " "), CLAUDE_REMOTE_PORT)
-        return
-    sh(["tmux", "send-keys", "-t", "%s:%s" % (SESSION, PANE), "-l", text])
-    sh(["tmux", "send-keys", "-t", "%s:%s" % (SESSION, PANE), "Enter"])
+        reply = _bridge_request("SEND " + text.replace("\n", " "), CLAUDE_REMOTE_PORT)
+        if reply.strip() == "OK":
+            return True
+        # "" = never reached the bridge; "ERR ..." = reached it and tmux
+        # refused. Both mean not delivered; keep the distinction in the log.
+        note = reply.strip() or "no response from the bridge on port %s" % CLAUDE_REMOTE_PORT
+        log_brain_unreachable(text, note)
+        return False
+    r = sh(["tmux", "send-keys", "-t", "%s:%s" % (SESSION, PANE), "-l", text])
+    if r.returncode != 0:
+        log_brain_unreachable(text, (r.stderr or "").strip() or "tmux send-keys failed")
+        return False
+    r = sh(["tmux", "send-keys", "-t", "%s:%s" % (SESSION, PANE), "Enter"])
+    if r.returncode != 0:
+        log_brain_unreachable(text, (r.stderr or "").strip() or "tmux Enter failed")
+        return False
+    return True
 
 
 def wait_for_claude_reply(before_snapshot, on_partial=None):
@@ -616,6 +642,52 @@ def log_fallthrough(text):
         pass
 
 
+BRAIN_LOG = os.path.expanduser(
+    os.environ.get("CRT_BRAIN_LOG", "~/.crt/brain-unreachable.log"))
+
+# Short on purpose: this is spoken through a handset earpiece, and it has
+# to be distinguishable BY EAR from route_claude_reply()'s "didn't catch a
+# reply" line -- that one means Claude was reached and said nothing useful,
+# this one means the utterance never left the building.
+BRAIN_UNREACHABLE_LINE = os.environ.get(
+    "CRT_BRAIN_UNREACHABLE_LINE",
+    "I can't reach my brain right now, so that didn't go anywhere. Try again in a moment.")
+
+
+def log_brain_unreachable(text, detail):
+    """Every undelivered utterance, with why, so a tunnel drop leaves
+    evidence instead of just feeling like a quiet night. Same best-effort
+    posture as log_fallthrough: a broken log write must never become the
+    reason the user hears nothing."""
+    try:
+        d = os.path.dirname(BRAIN_LOG)
+        if d:
+            os.makedirs(d, exist_ok=True)
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(BRAIN_LOG, "a") as f:
+            f.write("%s  [%s]  %s\n" % (ts, detail, text))
+    except OSError:
+        pass
+    sys.stderr.write("[crt-secretary] NOT DELIVERED (%s): %s\n" % (detail, text))
+
+
+def report_brain_unreachable():
+    """Say so, out loud, immediately. bin/crt-wake-router.py's own design
+    note for the `none` route already states the rule this implements --
+    "the caller should give a short honest earcon/line ... NOT silence" --
+    it just had no caller on this path until now."""
+    play_earcon("oops")
+    # handle() has already switched the tube to the `mono` window by the
+    # time this runs, and mono only ever shows what reaches thoughts.log --
+    # without this the screen we just switched to would sit blank, which is
+    # the same silence in a different medium.
+    try:
+        sh([os.path.join(BIN_DIR, "crt-think.sh"), BRAIN_UNREACHABLE_LINE])
+    except OSError:
+        pass
+    speak(BRAIN_UNREACHABLE_LINE)
+
+
 def _answers_match(local_answer, claude_reply):
     """Best-effort, loose comparison between the secretary's own local
     answer and what Claude said for the same utterance -- STT-CONFIDENCE.md
@@ -651,7 +723,13 @@ def _confirm_in_background(text, local_answer):
     if not stt_confidence.should_call_claude(text, state, random):
         return
     before = capture_pane()
-    send_to_claude(text)
+    if not send_to_claude(text):
+        # Nothing was sent, so there is no call to record. Recording one
+        # anyway would have booked an unconfirmed miss against this
+        # utterance shape every time the tunnel was down -- teaching the
+        # confidence model that the local playbook disagrees with Claude,
+        # from an exchange that never happened.
+        return
     reply = wait_for_claude_reply(before)
     with _CONFIDENCE_STATE_LOCK:
         state = stt_confidence.load_state()
@@ -727,7 +805,12 @@ def handle(text):
     switch_tmux_window(CLAUDE_VIEW_WINDOW)
     touch_claude_active()
     before = capture_pane()
-    send_to_claude(text)
+    if not send_to_claude(text):
+        # Before the earcon, deliberately: "thinking" is a promise that an
+        # answer is coming, and sitting through CLAUDE_IDLE_SECS of polling
+        # a dead socket only delays the bad news.
+        report_brain_unreachable()
+        return
     play_earcon("thinking")
     reply = wait_for_claude_reply(before, on_partial=show_composing_line)
     touch_claude_active()  # the reply itself also counts as recent activity

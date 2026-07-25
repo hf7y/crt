@@ -272,7 +272,7 @@ class TestFallthroughLogging(unittest.TestCase):
         # Stub out the whole Claude-routing path -- this is about whether
         # the log write happens, not about tmux/Claude behavior.
         self.sec.capture_pane = lambda: ""
-        self.sec.send_to_claude = lambda text: None
+        self.sec.send_to_claude = lambda text: True
         self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
         self.sec.route_claude_reply = lambda reply: None
 
@@ -302,7 +302,7 @@ class TestFallthroughLogging(unittest.TestCase):
         open(blocker, "w").close()
         self.sec.FALLTHROUGH_LOG = os.path.join(blocker, "fallthrough.log")
         called = []
-        self.sec.send_to_claude = lambda text: called.append(text)
+        self.sec.send_to_claude = lambda text: (called.append(text), True)[1]
         self.sec.handle("this should still reach claude")
         self.assertEqual(called, ["this should still reach claude"])
 
@@ -384,7 +384,7 @@ class TestClaudeWindowSwitch(unittest.TestCase):
         self.sec = load_secretary()
         self.sec.FALLTHROUGH_LOG = os.path.join(tempfile.mkdtemp(), "fallthrough.log")
         self.sec.capture_pane = lambda: ""
-        self.sec.send_to_claude = lambda text: None
+        self.sec.send_to_claude = lambda text: True
         self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
         self.sec.route_claude_reply = lambda reply: None
 
@@ -426,7 +426,7 @@ class TestSpeculativeFiller(unittest.TestCase):
         self.sec = load_secretary()
         self.sec.FALLTHROUGH_LOG = os.path.join(tempfile.mkdtemp(), "fallthrough.log")
         self.sec.capture_pane = lambda: ""
-        self.sec.send_to_claude = lambda text: None
+        self.sec.send_to_claude = lambda text: True
         self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
         self.sec.route_claude_reply = lambda reply: None
 
@@ -441,7 +441,7 @@ class TestSpeculativeFiller(unittest.TestCase):
         self.sec.SPECULATE_ENABLED = True
         order = []
         self.sec.show_filler_line = lambda: order.append("filler")
-        self.sec.send_to_claude = lambda text: order.append("claude")
+        self.sec.send_to_claude = lambda text: (order.append("claude"), True)[1]
         self.sec.handle("refactor the audio pipeline please")
         self.assertEqual(order, ["filler", "claude"])
 
@@ -496,7 +496,7 @@ class TestConfidenceRouting(unittest.TestCase):
     def test_confirm_in_background_records_hit_on_match(self):
         self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
         self.sec.capture_pane = lambda: "before"
-        self.sec.send_to_claude = lambda text: None
+        self.sec.send_to_claude = lambda text: True
         self.sec.wait_for_claude_reply = lambda before, on_partial=None: "It's 3:15 PM exactly"
         self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
         state = self.sec.stt_confidence.load_state()
@@ -507,13 +507,162 @@ class TestConfidenceRouting(unittest.TestCase):
     def test_confirm_in_background_no_hit_on_mismatch(self):
         self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
         self.sec.capture_pane = lambda: "before"
-        self.sec.send_to_claude = lambda text: None
+        self.sec.send_to_claude = lambda text: True
         self.sec.wait_for_claude_reply = lambda before, on_partial=None: "completely unrelated reply"
         self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
         state = self.sec.stt_confidence.load_state()
         key = self.sec.stt_confidence.normalize_key("what time is it")
         self.assertEqual(state[key]["confirmed_hits"], 0)
         self.assertEqual(state[key]["claude_hits"], 1)
+
+
+class TestUndeliveredUtterance(unittest.TestCase):
+    """A dropped reverse tunnel used to be indistinguishable from a Claude
+    that simply had nothing to say (2026-07-25): send_to_claude() discarded
+    _bridge_request()'s result, which is "" on any socket failure, so
+    handle() fired the "thinking" earcon and sat through the full idle wait
+    before saying "I sent that to Claude but didn't catch a reply -- check
+    the screen" -- wrong twice over (nothing was sent; that screen is blank
+    because the brain isn't there). These tests pin the observable
+    behaviour, not the implementation.
+    """
+
+    def setUp(self):
+        self.sec = load_secretary()
+        self.tmp = tempfile.mkdtemp()
+        self.sec.FALLTHROUGH_LOG = os.path.join(self.tmp, "fallthrough.log")
+        self.sec.BRAIN_LOG = os.path.join(self.tmp, "brain-unreachable.log")
+        self.spoken, self.earcons, self.thought = [], [], []
+        self.sec.speak = lambda text, device="handset": self.spoken.append(text)
+        self.sec.play_earcon = lambda name: self.earcons.append(name)
+        self.sec.switch_tmux_window = lambda name: None
+        self.sec.touch_claude_active = lambda: None
+        self.sec.capture_pane = lambda: ""
+        self.sec.sh = lambda cmd, **kw: self.thought.append(cmd) or _ok()
+
+    # -- send_to_claude's return contract, remote path -------------------
+
+    def _remote(self, response):
+        self.sec.CLAUDE_REMOTE_PORT = 18993
+        self.sec._bridge_request = lambda command, port, timeout=None: response
+
+    def test_remote_ok_is_delivered(self):
+        self._remote("OK")
+        self.assertTrue(self.sec.send_to_claude("hello"))
+
+    def test_remote_silence_is_not_delivered(self):
+        """"" is what _bridge_request returns for connection-refused, i.e.
+        the tunnel is down -- the exact case this was blind to."""
+        self._remote("")
+        self.assertFalse(self.sec.send_to_claude("hello"))
+
+    def test_remote_err_is_not_delivered(self):
+        self._remote("ERR can't find session: potato-claude")
+        self.assertFalse(self.sec.send_to_claude("hello"))
+
+    def test_undelivered_utterance_is_logged_with_a_reason(self):
+        self._remote("ERR can't find session: potato-claude")
+        self.sec.send_to_claude("what did I leave in the oven")
+        with open(self.sec.BRAIN_LOG) as f:
+            line = f.read()
+        self.assertIn("what did I leave in the oven", line)
+        self.assertIn("can't find session", line)
+
+    def test_bridge_silence_logs_the_port_it_could_not_reach(self):
+        self._remote("")
+        self.sec.send_to_claude("hello")
+        with open(self.sec.BRAIN_LOG) as f:
+            self.assertIn("18993", f.read())
+
+    # -- send_to_claude's return contract, local tmux path ---------------
+
+    def test_local_send_keys_failure_is_not_delivered(self):
+        self.sec.CLAUDE_REMOTE_PORT = None
+        self.sec.sh = lambda cmd, **kw: _fail("can't find session: crt")
+        self.assertFalse(self.sec.send_to_claude("hello"))
+
+    def test_local_enter_failure_is_not_delivered(self):
+        """The literal text can land and the Enter still fail, which leaves
+        a half-typed prompt in Claude's input and no reply."""
+        self.sec.CLAUDE_REMOTE_PORT = None
+        calls = []
+
+        def fake_sh(cmd, **kw):
+            calls.append(cmd)
+            return _ok() if len(calls) == 1 else _fail("session died")
+
+        self.sec.sh = fake_sh
+        self.assertFalse(self.sec.send_to_claude("hello"))
+
+    def test_local_success_is_delivered(self):
+        self.sec.CLAUDE_REMOTE_PORT = None
+        self.sec.sh = lambda cmd, **kw: _ok()
+        self.assertTrue(self.sec.send_to_claude("hello"))
+
+    # -- what handle() does about it -------------------------------------
+
+    def test_failed_send_never_promises_a_reply(self):
+        self.sec.send_to_claude = lambda text: False
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: \
+            self.fail("must not wait on a send that never landed")
+        self.sec.handle("refactor the audio pipeline please")
+        self.assertNotIn("thinking", self.earcons)
+
+    def test_failed_send_says_so_out_loud(self):
+        self.sec.send_to_claude = lambda text: False
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
+        self.sec.handle("refactor the audio pipeline please")
+        self.assertEqual(self.spoken, [self.sec.BRAIN_UNREACHABLE_LINE])
+
+    def test_failed_send_does_not_claim_it_sent_anything(self):
+        """Distinguishable BY EAR from route_claude_reply()'s reached-Claude
+        line, which is the whole point of having a second line at all."""
+        self.sec.send_to_claude = lambda text: False
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
+        self.sec.handle("refactor the audio pipeline please")
+        self.assertNotIn("I sent that to Claude", " ".join(self.spoken))
+
+    def test_failed_send_puts_something_on_the_screen_it_switched_to(self):
+        self.sec.send_to_claude = lambda text: False
+        self.sec.handle("refactor the audio pipeline please")
+        joined = " ".join(" ".join(c) for c in self.thought)
+        self.assertIn("crt-think.sh", joined)
+
+    def test_successful_send_still_fires_the_thinking_earcon(self):
+        self.sec.send_to_claude = lambda text: True
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: "an answer"
+        self.sec.route_claude_reply = lambda reply: None
+        self.sec.handle("refactor the audio pipeline please")
+        self.assertIn("thinking", self.earcons)
+
+    # -- and what it does NOT do to the confidence model ------------------
+
+    def test_failed_send_records_no_claude_call(self):
+        """Recording one would book an unconfirmed miss against this
+        utterance every time the tunnel was down -- teaching the model that
+        the local playbook disagrees with a Claude that never answered."""
+        self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
+        recorded = []
+        self.sec.stt_confidence.record_claude_call = \
+            lambda text, state: recorded.append(text)
+        self.sec.send_to_claude = lambda text: False
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: \
+            self.fail("must not wait on a send that never landed")
+        self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
+        self.assertEqual(recorded, [])
+
+
+class _Completed(object):
+    def __init__(self, returncode, stderr=""):
+        self.returncode, self.stderr, self.stdout = returncode, stderr, ""
+
+
+def _ok():
+    return _Completed(0)
+
+
+def _fail(stderr):
+    return _Completed(1, stderr)
 
 
 if __name__ == "__main__":

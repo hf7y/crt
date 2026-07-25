@@ -79,6 +79,47 @@ class TestRemoteClaudeBridge(unittest.TestCase):
         result = self._request("BOGUS")
         self.assertEqual(result, "")
 
+    def test_send_to_a_dead_session_returns_err_not_ok(self):
+        """The regression this whole ERR path exists for (2026-07-25): the
+        handler used to write "OK" without looking at either send-keys
+        return code, so a tmux session that had died or been renamed on
+        mandark was indistinguishable, from potato, from one that took the
+        message. Its own server on its own port so nothing here can
+        disturb the shared session the other tests type into."""
+        dead = bridge.Server(("127.0.0.1", TEST_PORT + 1), bridge.Handler)
+        dead.session = "crt-test-session-that-does-not-exist"
+        t = threading.Thread(target=dead.serve_forever, daemon=True)
+        t.start()
+        time.sleep(0.2)
+        try:
+            with socket.create_connection(("127.0.0.1", TEST_PORT + 1), timeout=5) as s:
+                s.sendall(b"SEND echo nope\n")
+                s.shutdown(socket.SHUT_WR)
+                out = b""
+                while True:
+                    chunk = s.recv(65536)
+                    if not chunk:
+                        break
+                    out += chunk
+        finally:
+            dead.shutdown()
+            dead.server_close()
+        result = out.decode("utf-8", errors="replace")
+        self.assertTrue(result.startswith("ERR "), repr(result))
+        self.assertNotEqual(result, "OK")
+
+    def test_send_to_a_dead_session_reports_tmux_own_reason(self):
+        """ERR is only useful if it carries why -- an ERR with an empty
+        detail would just be a quieter silence in the log."""
+        ok, detail = bridge.send_to_claude("crt-test-session-that-does-not-exist", "hi")
+        self.assertFalse(ok)
+        self.assertTrue(detail.strip(), "ERR detail must not be empty")
+
+    def test_send_to_a_live_session_reports_ok_with_no_detail(self):
+        ok, detail = bridge.send_to_claude(TEST_SESSION, "echo live")
+        self.assertTrue(ok)
+        self.assertEqual(detail, "")
+
 
 if __name__ == "__main__":
     unittest.main()

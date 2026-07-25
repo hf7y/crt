@@ -38,8 +38,28 @@ def capture_pane(session):
 
 
 def send_to_claude(session, text):
-    subprocess.run(["tmux", "send-keys", "-t", session, "-l", text])
-    subprocess.run(["tmux", "send-keys", "-t", session, "Enter"])
+    """Type text + Enter into the session. Returns (ok, detail).
+
+    ok is True only if tmux accepted BOTH keystrokes (2026-07-25). It used
+    to ignore both return codes and the handler replied "OK" regardless, so
+    a session that had died, been renamed, or never started looked
+    identical, over the socket, to one that took the message -- and
+    potato's side then sat through a full wait for a reply that could not
+    come. `tmux send-keys` to a missing target exits non-zero with a real
+    message on stderr; that message is what the caller gets back.
+
+    The Enter is checked separately on purpose: -l delivers the literal
+    text and can succeed while the session dies before the newline, which
+    leaves a half-typed prompt sitting in Claude's input and no reply --
+    the most confusing of the failure modes, and silent under the old
+    code."""
+    for keys in (["-l", text], ["Enter"]):
+        r = subprocess.run(["tmux", "send-keys", "-t", session] + keys,
+                            capture_output=True, text=True)
+        if r.returncode != 0:
+            detail = (r.stderr or "").strip() or "tmux send-keys exit %d" % r.returncode
+            return False, detail.replace("\n", " ")[:200]
+    return True, ""
 
 
 class Handler(socketserver.StreamRequestHandler):
@@ -49,8 +69,10 @@ class Handler(socketserver.StreamRequestHandler):
         if line == "CAPTURE":
             self.wfile.write(capture_pane(session).encode("utf-8"))
         elif line.startswith("SEND "):
-            send_to_claude(session, line[len("SEND "):])
-            self.wfile.write(b"OK")
+            ok, detail = send_to_claude(session, line[len("SEND "):])
+            # "OK" is unchanged for the working case, so potato's existing
+            # client keeps working; the ERR line is additive.
+            self.wfile.write(b"OK" if ok else ("ERR " + detail).encode("utf-8"))
         else:
             self.wfile.write(b"")
 
