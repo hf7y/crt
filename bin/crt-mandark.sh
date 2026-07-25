@@ -50,8 +50,15 @@ EOF
 # Returns 0 if the bridge answered, 1 otherwise. Never blocks longer than
 # the timeout. Uses python3 (always present here) so we match the real
 # client's behavior rather than guessing with nc.
+#
+# Takes the port as $1 (2026-07-25). It used to always read $PORT -- the
+# DEFAULT -- while current_port() below read the CONFIGURED one, so
+# `CRT_MANDARK_PORT=9001 crt-mandark.sh on` followed by a plain
+# `crt-mandark.sh status` printed "config: ON (port 9001)" and then
+# reported the reachability of 8993. A status command that answers about a
+# port the console isn't using is worse than no status command.
 probe_bridge() {
-  python3 - "$PORT" <<'PY'
+  python3 - "$1" <<'PY'
 import socket, sys
 port = int(sys.argv[1])
 try:
@@ -86,7 +93,7 @@ case "$cmd" in
     write_conf "$PORT"
     echo "mandark bridge: ON (CRT_CLAUDE_REMOTE_PORT=$PORT)"
     echo "restart the stt window (or reboot) to pick it up: bin/crt-console.sh"
-    if probe_bridge; then
+    if probe_bridge "$PORT"; then
       echo "reachable now: yes"
     else
       echo "reachable now: NO -- start the bridge+tunnel on mandark first"
@@ -102,14 +109,22 @@ case "$cmd" in
     p="$(current_port)"
     if [ "$p" = "0" ]; then
       echo "config: OFF (local/onsite brain)"
+      # Nothing is configured, so there is no port the console is using.
+      # Probing the default is still the useful thing to report -- it
+      # answers "is the bridge up, if I turned this back on" -- but the
+      # line has to say that's what it did.
+      probe_port="$PORT"
+      probe_note=" (default; config is OFF, the console is not using it)"
     else
       echo "config: ON  (port $p)"
+      probe_port="$p"
+      probe_note=""
     fi
     [ -f "$CONF" ] || echo "  (no $CONF yet -- using default, treated as ON)"
-    if probe_bridge; then
-      echo "bridge reachable now: yes"
+    if probe_bridge "$probe_port"; then
+      echo "bridge reachable now: yes -- port $probe_port$probe_note"
     else
-      echo "bridge reachable now: no"
+      echo "bridge reachable now: no -- port $probe_port$probe_note"
     fi
     ;;
   *)
