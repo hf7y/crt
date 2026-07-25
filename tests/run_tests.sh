@@ -80,6 +80,11 @@ echo "== crt-stt-solo.py tells a dead recogniser apart from a silent room =="
 python3 "$DIR/test_transcribe_failure.py" 2>&1 | tail -3 || fail=1
 echo
 
+echo "== crt-stt-solo.py capture backpressure (pipe depth + stale-backlog drain) =="
+python3 "$DIR/test_capture_backpressure.py" 2>&1 | tail -3 || fail=1
+bash "$DIR/test_capture_backlog_drain.sh" || fail=1
+echo
+
 echo "== crt-stt-solo.py capture device by name =="
 python3 "$DIR/test_capture_device.py" || fail=1
 bash "$DIR/test_capture_death_loud.sh" || fail=1

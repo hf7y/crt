@@ -18,7 +18,7 @@
 #
 # Output: transcriptions scroll; a live "MIC [####|....] 12.3% TALK" meter is
 # redrawn on the bottom line (same widget as crt-meter.py). Ctrl-C to quit.
-import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, urllib.error, json, re, signal
+import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, urllib.error, json, re, signal, fcntl, termios
 from collections import deque
 
 # SINK: where recognized text goes.
@@ -486,6 +486,139 @@ def read_exact(f, n):
             break
         b += c
     return bytes(b)
+
+
+# --- Capture backpressure (2026-07-25) --------------------------------------
+#
+# transcribe() runs INSIDE this capture loop: for however long whisper takes,
+# nobody is reading arecord's stdout. The only thing holding the audio that
+# arrives meanwhile is the kernel pipe, which defaults to 65536 bytes -- at
+# 16kHz S16 mono that is 2.05 seconds. Past that arecord's own write blocks,
+# its ALSA ring overruns, and the audio is gone. Its "overrun!!!" complaints
+# go to a temp file this process only ever reads if capture DIES, so the loss
+# has been completely invisible.
+#
+# That window is exactly where a follow-up utterance lands -- the person
+# finishes a sentence, the console goes away to transcribe it, and the next
+# thing they say falls in the hole. Widening the pipe covers a normal
+# transcription; drain_capture_backlog() below bounds what widening it costs.
+CAPTURE_PIPE_BYTES = int(os.environ.get("CRT_CAPTURE_PIPE_BYTES", str(256 * 1024)))
+
+# A bigger pipe trades dropped audio for STALE audio: whatever queued up gets
+# transcribed and answered later, at its own pace, while the room has moved
+# on. So after each transcription anything older than this is discarded --
+# and said out loud, because silently dropping audio is the failure mode this
+# whole section is about. 0 disables the drain entirely (pure buffering).
+#
+# The default is not a by-ear number: it has to be comfortably longer than a
+# healthy transcription's stall (measured 1-3s against mandark, 2026-07-23
+# 07:45) so a working console never drops anything, and short enough that the
+# console never answers a question the room asked a whole conversational turn
+# ago. 3s is the smallest value that satisfies the first constraint.
+BACKLOG_MAX_SECS = float(os.environ.get("CRT_CAPTURE_BACKLOG_MAX_SECS", "3.0"))
+
+PIPE_MAX_SIZE_PATH = "/proc/sys/fs/pipe-max-size"
+F_SETPIPE_SZ = getattr(fcntl, "F_SETPIPE_SZ", 1031)
+F_GETPIPE_SZ = getattr(fcntl, "F_GETPIPE_SZ", 1032)
+
+
+def audio_seconds(nbytes):
+    """Bytes of S16_LE mono at RATE -> seconds. The one place this ratio is
+    written down; every message about buffer depth goes through it."""
+    return nbytes / 2.0 / RATE
+
+
+def widen_capture_pipe(fd, want=None):
+    """Grow the capture pipe to `want` bytes and return its real capacity.
+
+    Returns None if the kernel won't tell us the size at all (non-Linux, odd
+    fd) -- the caller reports that rather than assuming it worked. An
+    unprivileged process cannot exceed /proc/sys/fs/pipe-max-size, so the
+    request is clamped to it first: asking for more is EPERM, which would
+    lose the widening entirely instead of taking what was available."""
+    want = CAPTURE_PIPE_BYTES if want is None else want
+    try:
+        current = fcntl.fcntl(fd, F_GETPIPE_SZ)
+    except (OSError, ValueError):
+        return None
+    try:
+        with open(PIPE_MAX_SIZE_PATH) as f:
+            want = min(want, int(f.read().strip()))
+    except (OSError, ValueError):
+        pass
+    if want <= current:
+        return current
+    try:
+        fcntl.fcntl(fd, F_SETPIPE_SZ, want)
+    except OSError:
+        return current
+    try:
+        return fcntl.fcntl(fd, F_GETPIPE_SZ)
+    except (OSError, ValueError):
+        return current
+
+
+def capture_pipe_report(capacity):
+    """The startup line about how much audio can queue while whisper runs.
+    Pure string builder, like capture_death_report()."""
+    if capacity is None:
+        return ("[crt-stt] capture buffer: unknown size -- audio arriving during "
+                "a transcription may be dropped without warning.")
+    secs = audio_seconds(capacity)
+    line = "[crt-stt] capture buffer %.1fs (%d B) holds audio while whisper runs" % (
+        secs, capacity)
+    if secs < 4.0:
+        line += ("\n[crt-stt] that is less than a slow transcription takes -- "
+                 "raise CRT_CAPTURE_PIPE_BYTES or expect dropped follow-ups.")
+    return line
+
+
+def pending_bytes(fd):
+    """How much audio is queued in the capture pipe right now. None if the
+    kernel won't say."""
+    buf = array.array('i', [0])
+    try:
+        fcntl.ioctl(fd, termios.FIONREAD, buf, True)
+    except OSError:
+        return None
+    return buf[0]
+
+
+def backlog_drop_bytes(pending, keep_bytes, chunk_bytes):
+    """Pure: how many of `pending` bytes to discard so no more than
+    `keep_bytes` remain, rounded DOWN to a whole analysis chunk so the
+    reader stays frame-aligned. The newest audio is what survives -- it is
+    the half most likely to still be someone talking."""
+    if keep_bytes <= 0 or pending is None or pending <= keep_bytes:
+        return 0
+    return ((pending - keep_bytes) // chunk_bytes) * chunk_bytes
+
+
+def backlog_drop_report(dropped):
+    return ("[crt-stt] dropped %.1fs of backlogged audio -- it queued up while "
+            "whisper was running and is too old to answer now." % audio_seconds(dropped))
+
+
+def drain_capture_backlog(f, keep_bytes, chunk_bytes=None):
+    """Discard everything but the newest `keep_bytes` of queued capture.
+    Returns the number of bytes dropped (0 if nothing needed dropping).
+
+    Only safe to call BETWEEN utterances -- mid-utterance this would excise
+    the middle of what someone is saying. The one call site is right after
+    transcribe() returns, which is exactly that moment."""
+    chunk_bytes = NBYTES if chunk_bytes is None else chunk_bytes
+    try:
+        fd = f.fileno()
+    except (OSError, ValueError):
+        return 0
+    drop = backlog_drop_bytes(pending_bytes(fd), keep_bytes, chunk_bytes)
+    dropped = 0
+    while dropped < drop:
+        chunk = f.read(min(chunk_bytes, drop - dropped))
+        if not chunk:
+            break
+        dropped += len(chunk)
+    return dropped
 
 
 def meter(peak):
@@ -975,11 +1108,18 @@ def main():
     # this process cannot afford to lose it. A pipe would risk blocking on a
     # full buffer nobody is draining.
     err_f = tempfile.NamedTemporaryFile(prefix="crt-stt-arecord-", suffix=".err")
+    # bufsize=0: the kernel pipe must be the ONLY place queued audio lives.
+    # A BufferedReader in front of it would hold bytes that FIONREAD cannot
+    # see and drain_capture_backlog() cannot discard, so the backlog
+    # measurement would quietly be wrong by up to its buffer size.
+    # read_exact() already loops over short reads, which is the only
+    # difference an unbuffered fd makes here.
     proc = subprocess.Popen(
         ["arecord", "-D", DEV, "-f", "S16_LE", "-c", "1", "-r", str(RATE), "-t", "raw"],
-        stdout=subprocess.PIPE, stderr=err_f)
+        stdout=subprocess.PIPE, stderr=err_f, bufsize=0)
     print("[crt-stt] sole reader on %s  model=%s  thr=%.1f%% (peak)"
           % (DEV, os.path.basename(MODEL), THRESH * 100))
+    print(capture_pipe_report(widen_capture_pipe(proc.stdout.fileno())))
     print("-" * 40)
     set_sideband_state("listening")   # no-op unless CRT_SIDEBAND=1
 
@@ -1158,6 +1298,14 @@ def main():
                             transcribe_fails = 0
                             emit(text, utt_peak)
                         set_sideband_state("listening")
+                        # Nobody read the mic for as long as that took. Keep
+                        # the newest few seconds of what queued up (a
+                        # follow-up utterance lands exactly there) and throw
+                        # the rest away rather than answering it late.
+                        dropped = drain_capture_backlog(
+                            proc.stdout, int(BACKLOG_MAX_SECS * RATE * 2))
+                        if dropped:
+                            report_line(backlog_drop_report(dropped))
                     buf = bytearray()
     except KeyboardInterrupt:
         capture_died = False       # deliberate stop, not a failure
