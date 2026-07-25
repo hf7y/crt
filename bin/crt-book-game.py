@@ -47,11 +47,15 @@ import urllib.request
 # By path, not `import`: every caller of THIS file loads it the same way
 # (spec_from_file_location), which does not put bin/ on sys.path. Same idiom
 # crt_wake_gate.py and crt-book-answer-listen.py already use.
-_scan_spec = importlib.util.spec_from_file_location(
-    "crt_scan_line_for_book_game",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt_scan_line.py"))
-_scan_line = importlib.util.module_from_spec(_scan_spec)
-_scan_spec.loader.exec_module(_scan_line)
+def _load_sibling(name, filename):
+    spec = importlib.util.spec_from_file_location(
+        name, os.path.join(os.path.dirname(os.path.abspath(__file__)), filename))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_scan_line = _load_sibling("crt_scan_line_for_book_game", "crt_scan_line.py")
 
 DB_PATH = os.path.expanduser(os.environ.get("CRT_BOOKS_DB", "~/.crt/books.db"))
 TRAINING_LOG = os.path.expanduser(
@@ -790,137 +794,20 @@ def title_budget(width):
     return max(1, min(width or FALLBACK_WIDTH, MAX_CONTENT_WIDTH) - 2)
 
 
-def char_width(ch):
-    """Terminal columns one character occupies.
-
-    2 for East Asian Wide/Fullwidth, 0 for a combining mark, 1 otherwise.
-    East Asian *Ambiguous* counts as 1, which is what tmux and essentially
-    every non-CJK-locale terminal do with it.
-
-    Exists because this project lays out fixed-width screens for a 40-column
-    tube by counting CHARACTERS, and the two are not the same number the
-    moment anything non-Latin appears. It appears already: the idle screen's
-    own enticement lines are kaomoji ('(・∀・)  got a book nearby?'), and
-    U+30FB KATAKANA MIDDLE DOT is Wide -- so a caption measured at exactly
-    the 30-column budget was drawn 32 columns long and wrapped on the tube.
-    Book titles are the other way in: Open Library will hand back a CJK or
-    fullwidth title for a perfectly ordinary scan, and 'scan any book
-    nearby' is the entire premise of this feature."""
-    if unicodedata.combining(ch):
-        return 0
-    return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
-
-
-def display_width(text):
-    """Terminal columns `text` occupies -- see char_width()."""
-    return sum(char_width(c) for c in text)
-
-
-def cut_to_width(text, limit):
-    """`text` cut to at most `limit` terminal COLUMNS (not characters).
-
-    A wide character straddling the boundary is dropped rather than half-
-    drawn, so the result can be one column short of `limit`; callers pad."""
-    if limit <= 0:
-        return ""
-    out, w = [], 0
-    for ch in text:
-        cw = char_width(ch)
-        if w + cw > limit:
-            break
-        out.append(ch)
-        w += cw
-    return "".join(out)
-
-
-def wrap_to_width(text, limit, max_lines=None):
-    """Word-wrap `text` into lines of at most `limit` COLUMNS.
-
-    Unlike textwrap.wrap this measures in columns (see char_width) and keeps
-    the whitespace runs between words, because on this console those runs are
-    load-bearing: the enticement lines put a deliberate double space after
-    their kaomoji face.
-
-    `max_lines` folds everything past the limit back onto the last kept line
-    and elides it, so a caption that did not fit always SAYS it did not fit
-    rather than simply stopping. A single word wider than `limit` is elided
-    on its own line.
-
-    Added 2026-07-25: the idle caption was the one piece of text on these
-    screens getting a hard single-line cut while the question beside it
-    wrapped, and all six enticement lines are longer than the 30-column
-    content budget -- so every one of them lost its ending, and four of the
-    six lost the words 'scan'/'try it' entirely. The screen whose only job is
-    to ask someone to scan a book had stopped asking."""
-    if limit <= 0:
-        return [""]
-    parts = [p for p in re.split(r"(\s+)", text) if p]
-    lines, cur, gap = [], "", ""
-    for part in parts:
-        if part.isspace():
-            if cur:
-                gap = part
-            continue
-        if cur and display_width(cur + gap + part) <= limit:
-            cur = cur + gap + part
-        else:
-            if cur:
-                lines.append(cur)
-            cur = part if display_width(part) <= limit else elide(part, limit)
-        gap = ""
-    if cur:
-        lines.append(cur)
-    if not lines:
-        return [""]
-    if max_lines is not None and len(lines) > max_lines:
-        kept = lines[:max_lines]
-        # Rejoined and elided rather than dropped: the remainder guarantees
-        # the line overflows, so '..' is always what the reader sees.
-        kept[-1] = elide(" ".join([kept[-1]] + lines[max_lines:]), limit)
-        lines = kept
-    return lines
-
-
-def elide(text, limit):
-    """`text` cut to `limit` COLUMNS, ending in '..' when anything was removed.
-
-    A hard cut is indistinguishable from a broken render, which on this
-    console is a real cost: 'Nineteen Eighty-Four (PR6029' -- the closing
-    paren eaten by a 28-character title budget -- reads as a fault, not as
-    a long title. ASCII '..' rather than an ellipsis glyph, same choice
-    crt-stt-solo.py's flash makes, because this lands on a CRT through a
-    console font that may not have one.
-
-    Columns, not characters, since 2026-07-25 -- see char_width()."""
-    if limit <= 0:
-        return ""
-    if display_width(text) <= limit:
-        return text
-    if limit <= 2:
-        return cut_to_width(text, limit)
-    return cut_to_width(text, limit - 2) + ".."
-
-
-def center_text(text, width):
-    """Pure centering helper -- pads `text` with leading/trailing spaces
-    to `width`. Truncates (never wraps) text longer than width, since a
-    single over-length line is a caller bug, not something this helper
-    should silently multi-line.
-
-    Measured in COLUMNS since 2026-07-25 (see char_width): padding a
-    fullwidth book title by character count draws a line wider than the
-    pane, which wraps and pushes the screen's own bottom row off the tube."""
-    w = display_width(text)
-    if w >= width:
-        # Still padded after the cut: dropping a straddling wide character
-        # can leave the line one column short, and every caller relies on
-        # these being exactly `width` columns.
-        text = cut_to_width(text, width)
-        return text + " " * (width - display_width(text))
-    pad = width - w
-    left = pad // 2
-    right = pad - left
-    return (" " * left) + text + (" " * right)
+# Text measurement lives in bin/crt_caption.py since 2026-07-25 (eighteenth
+# cycle). It was defined here first, but crt-screensaver.py needs the same
+# column arithmetic for its own caption and deliberately holds no brain --
+# importing THIS file would drag sqlite3 and urllib into the window whose
+# whole job is not to (POTATO.md). Re-exported under the same names rather
+# than call sites rewritten: `bg.center_text` is what the rest of this file,
+# crt-book-console.py, and tests/test_book_game.py already say.
+caption = _load_sibling("crt_caption_for_book_game", "crt_caption.py")
+char_width = caption.char_width
+display_width = caption.display_width
+cut_to_width = caption.cut_to_width
+elide = caption.elide
+wrap_to_width = caption.wrap_to_width
+center_text = caption.center_text
 
 
 def render_question_screen(book_title, question, width=None, height=None):

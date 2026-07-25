@@ -106,6 +106,63 @@ class IdleScreenRedrawsTest(BookConsolePty):
         self.assertGreater(len(layouts), 1,
                            "every repaint drew the identical screen")
 
+    def test_no_repaint_ever_lands_on_the_frame_already_up(self):
+        """Not just "varies over time" -- consecutively different, in the
+        running console, which is the only place the guarantee is visible."""
+        self._wait_for_frame_count(20, timeout=12.0)
+        frames = self._frames()
+        for i in range(1, len(frames)):
+            self.assertNotEqual(
+                frames[i - 1], frames[i],
+                "repaint %d of %d redrew the frame already on the tube"
+                % (i, len(frames)))
+
+
+class IdleScreenNeverRepeatsItselfTest(unittest.TestCase):
+    """A rotation that lands back on the frame already up is a still frame.
+
+    WHY (2026-07-25, eighteenth cycle, Zach's reply on the seventeenth's
+    report -- he quoted both halves of render_idle_screen's docstring back
+    with the point bolded): "rather than just sitting static -- the actual
+    point of this feature", "so the idle screen doesn't look frozen in the
+    same layout every single time".
+
+    Each draw sampled independently, so ~1 rotation in 92 re-picked the same
+    caption at the same row and alignment (measured over 200k draws) -- about
+    once every 12 minutes of idling at the 8s cadence. A repaint of the
+    identical frame is indistinguishable from a hung window, on the screen
+    whose entire job is looking alive.
+    """
+
+    def test_consecutive_draws_are_never_the_same_frame(self):
+        rng = random.Random(5)
+        frame = None
+        for i in range(3000):
+            nxt = console.render_idle_screen(12, 40, 15, rng=rng, avoid=frame)
+            self.assertNotEqual(frame, nxt,
+                                "draw %d repainted the identical frame" % i)
+            frame = nxt
+
+    def test_the_old_behaviour_really_did_repeat(self):
+        """The guarantee is worth its code: without `avoid`, it repeats."""
+        rng = random.Random(5)
+        frame, repeats = None, 0
+        for _ in range(3000):
+            nxt = console.render_idle_screen(12, 40, 15, rng=rng)
+            repeats += (frame == nxt)
+            frame = nxt
+        self.assertGreater(repeats, 0,
+                           "independent draws never collided in 3000 tries -- "
+                           "this test's premise (and the fix's) is wrong")
+
+    def test_a_screen_with_one_possible_frame_still_draws(self):
+        """Degenerate geometry gets a frame, not an exception: `avoid` is a
+        preference the renderer tries hard to honour, not a precondition."""
+        lines = console.render_idle_screen(1, 6, 2, rng=random.Random(1))
+        again = console.render_idle_screen(1, 6, 2, rng=random.Random(1),
+                                           avoid=lines)
+        self.assertEqual(len(again), 2)
+
 
 class IdleRotationLeavesAQuestionAloneTest(BookConsolePty):
     """A question on the tube is not an idle screen, and must not be painted

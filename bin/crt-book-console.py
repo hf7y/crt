@@ -129,28 +129,22 @@ parse_stdin_scan_line = scan_line.parse_stdin_scan_line
 format_scan_log_line = scan_line.format_scan_log_line
 
 
-def _place_text(text, width, align):
-    """Pure function: like bg.center_text, but supports left/right
-    alignment too -- used to move the idle caption around the screen
-    (2026-07-21, Zach: 'move around the screen with idle bait rather
-    than render in center every time') instead of always the same
-    horizontal position.
+# Caption placement moved to bin/crt_caption.py (2026-07-25, eighteenth
+# cycle): this window is no longer the only screen that moves a caption
+# around to keep from looking frozen -- crt-screensaver.py, the OTHER resting
+# screen and the one the idle-lean layout actually boots into, now does it
+# too. Re-exported under the same private names rather than call sites
+# updated: these are what tests/test_idle_caption_fits.py already says.
+_caption_spec = importlib.util.spec_from_file_location(
+    "crt_caption_for_book_console", os.path.join(BIN_DIR, "crt_caption.py"))
+caption_lib = importlib.util.module_from_spec(_caption_spec)
+_caption_spec.loader.exec_module(caption_lib)
 
-    Measured in COLUMNS, not characters (2026-07-25, see bg.char_width):
-    the enticement lines are kaomoji, and '(・∀・)' is 7 columns of 5
-    characters -- so a caption cut to the 30-character content budget was
-    padded as if it were 30 columns and drawn 32, wrapping on the tube."""
-    text = bg.cut_to_width(text, width)
-    pad = width - bg.display_width(text)
-    if align == "left":
-        return text + " " * pad
-    if align == "right":
-        return " " * pad + text
-    left = pad // 2
-    return " " * left + text + " " * (pad - left)
+_place_text = caption_lib.place_text
+_row_runs = caption_lib.row_runs
 
 
-def render_idle_screen(book_count, width, height, rng=None):
+def render_idle_screen(book_count, width, height, rng=None, avoid=None):
     """Pure function: the resting display -- shelf art + a book count,
     per BOOK-GAME-STYLE.md's suggested 'shelf as a periodic flourish'
     use of the ASCII art library. Caption rotates between the plain
@@ -171,6 +165,28 @@ def render_idle_screen(book_count, width, height, rng=None):
     every single time, which is what both paragraphs above exist to prevent.
     CRT_BOOK_IDLE_ROTATE_SECS is what calls this again."""
     rng = rng or random
+    # `avoid` is the frame that is ON THE TUBE right now. Each draw samples
+    # independently, so roughly one rotation in eighty re-picks the same
+    # caption in the same place -- a repaint nobody can tell from a hung
+    # process, on the screen whose entire job is looking alive. Rejected and
+    # redrawn rather than left to luck; a geometry with only one possible
+    # frame (never the real tube) gets that frame rather than an exception.
+    for _ in range(IDLE_REDRAW_TRIES):
+        frame = _render_idle_frame(book_count, width, height, rng)
+        if avoid is None or list(avoid) != frame:
+            return frame
+    return frame
+
+
+# How many times a rotation may redraw looking for a frame that differs from
+# the one already up. Eight makes an accidental repeat (~1 in 80) about one
+# in 10^16; the loop exists so the guarantee doesn't depend on that number.
+IDLE_REDRAW_TRIES = 8
+
+
+def _render_idle_frame(book_count, width, height, rng):
+    """One draw of the resting screen -- see render_idle_screen, which is
+    this plus the never-the-same-frame-twice guarantee."""
     lines = [" " * width for _ in range(height)]
     lines[0] = bg.center_text("BOOK GAME", width)
     art = bg.get_ascii_art("shelf") or ""
@@ -184,7 +200,6 @@ def render_idle_screen(book_count, width, height, rng=None):
             art_rows.add(row)
 
     available_rows = [r for r in range(1, height) if r not in art_rows]
-    align = rng.choice(("left", "center", "right"))
     caption = (bg.pick_entice_line(rng=rng) if rng.random() < 0.5
                else f"{book_count} book(s) registered -- scan one!")
     # HARD RULE (2026-07-21, Zach): never more than MAX_CONTENT_WIDTH
@@ -208,12 +223,13 @@ def render_idle_screen(book_count, width, height, rng=None):
         # the art -- wrap_to_width elides what it drops, so a caption that
         # had to give something up says so.
         block = wrapped(min(CAPTION_MAX_ROWS, tallest))
-        caption_row = _pick_caption_row(runs, len(block), rng)
+        caption_row, align = caption_lib.pick_slot(runs, len(block), rng)
     else:
         # A screen too short to have any free row (never on the real tube;
         # here so a small `height` degrades instead of raising).
         block = wrapped(1)
         caption_row = min(height - 1, start + len(art_lines) + 1)
+        align = rng.choice(caption_lib.ALIGNMENTS)
     for i, l in enumerate(block):
         row = caption_row + i
         if 0 <= row < height:
@@ -225,32 +241,6 @@ def render_idle_screen(book_count, width, height, rng=None):
 # enticement line whole at a 30-column budget; a fourth would start
 # crowding a 15-row tube that also holds a title and the shelf.
 CAPTION_MAX_ROWS = 3
-
-
-def _row_runs(rows):
-    """Pure function: sorted row numbers -> lists of CONSECUTIVE rows.
-
-    A multi-row caption needs an unbroken stretch. The shelf art sits in the
-    vertical middle, so the free rows come in two blocks (above and below it)
-    and 'pick a random free row' would happily start a 3-row caption one row
-    above the art and write the other two straight through it."""
-    runs = []
-    for r in sorted(rows):
-        if runs and r == runs[-1][-1] + 1:
-            runs[-1].append(r)
-        else:
-            runs.append([r])
-    return runs
-
-
-def _pick_caption_row(runs, block_rows, rng):
-    """Pure function: a random start row with `block_rows` consecutive free
-    rows from it. Keeps the caption moving around the screen (2026-07-21,
-    Zach) without ever landing on the art. Callers size the block to the
-    tallest run first, so at least one run always fits."""
-    candidates = [run for run in runs if len(run) >= block_rows]
-    run = rng.choice(candidates or runs)
-    return rng.choice(run[:max(1, len(run) - block_rows + 1)])
 
 
 def scan_title(row, width):
@@ -659,7 +649,11 @@ def main():
         out must not come back on a resize."""
         nonlocal current_frame
         current_frame = render
-        draw(render(width, height))
+        lines = render(width, height)
+        draw(lines)
+        # Returned so a caller can remember what is actually on the tube --
+        # the idle rotation needs it to guarantee the next frame differs.
+        return lines
 
     def book_count():
         return conn.execute("SELECT COUNT(*) FROM books").fetchone()[0]
@@ -673,10 +667,22 @@ def main():
     hint_shown = False   # whether the cat_reading waiting hint has already fired for this question
 
     last_idle_draw_at = 0.0
+    last_idle_frame = None   # what the resting screen is showing RIGHT NOW
 
     def draw_idle():
-        nonlocal last_idle_draw_at
-        redraw(lambda w, h: render_idle_screen(book_count(), w, h))
+        """Repaint the resting screen, somewhere else than it is now.
+
+        The rotation exists to keep this screen from looking like a
+        photograph of itself, so it is not enough for each draw to be random
+        -- a random draw lands back on the frame already up often enough to
+        be seen (roughly one rotation in eighty), and a repaint of the
+        identical frame is exactly the still image the timer is there to
+        prevent. render_idle_screen() takes the current frame and returns a
+        different one."""
+        nonlocal last_idle_draw_at, last_idle_frame
+        last_idle_frame = redraw(
+            lambda w, h, avoid=last_idle_frame:
+                render_idle_screen(book_count(), w, h, avoid=avoid))
         last_idle_draw_at = time.time()
 
     draw_idle()
