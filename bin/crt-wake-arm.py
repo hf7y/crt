@@ -98,7 +98,17 @@ class ArmState:
         """A wake word fired. Always starts a FRESH session, including when
         one is already open -- saying the wake word again is deliberate, so
         it resets the ARM_MAX_SECS ceiling rather than being swallowed by
-        the conversation already in progress."""
+        the conversation already in progress.
+
+        CONFIRMED BY ZACH 2026-07-25, in reply to the twelfth nightly
+        cycle's report, in these words: "Always starts a FRESH session,
+        including when one is already open -- saying the wake word again is
+        deliberate, so it resets the ARM_MAX_SECS ceiling rather than being
+        swallowed by the conversation already in progress." That settles
+        the open question a9e899b raised (does the ceiling belong to a
+        conversation, or to a wake? -- to a wake). This is no longer an
+        inference from a docstring: do NOT "simplify" the re-wake branch in
+        consume_arm_with_followup() back into a plain slide."""
         now = now if now is not None else time.time()
         arm_secs = arm_secs if arm_secs is not None else ARM_SECS
         max_secs = max_secs if max_secs is not None else ARM_MAX_SECS
@@ -170,7 +180,9 @@ def consume_arm_with_followup(state, followup_text, now=None, wake_match=None,
     re-wake resets the ARM_MAX_SECS ceiling instead of being swallowed by
     the session already in progress (2026-07-25, twelfth cycle: that
     contract was only ever reachable from a disarmed state -- see the
-    caller's own note)."""
+    caller's own note). Zach confirmed that contract directly on
+    2026-07-25 -- see arm()'s docstring for his words. The re-wake branch
+    below is load-bearing, not an optimisation."""
     now = now if now is not None else time.time()
     if not state.armed or now >= state.deadline:
         return False

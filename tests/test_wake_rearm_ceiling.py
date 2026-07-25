@@ -22,6 +22,12 @@
 # The two emit()-driven tests below fail against the parent with that exact
 # symptom -- an utterance the person spoke seconds after saying the wake
 # word, never delivered -- not with an AttributeError about a missing kwarg.
+#
+# CONFIRMED BY ZACH 2026-07-25 (thirteenth cycle, replying inline on that
+# report): "saying the wake word again is deliberate, so it resets the
+# ARM_MAX_SECS ceiling rather than being swallowed by the conversation
+# already in progress." These tests are therefore pinning a decision the
+# human has made, not an inference from a docstring.
 import importlib.util
 import os
 import shutil

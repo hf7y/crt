@@ -26,22 +26,24 @@ one durable channel it actually owns.
 
 ---
 
-## Pending — for `.claude/QUESTIONS.md`
+## Answered by Zach — folded into the code, kept here for the record
 
-- **2026-07-25 (twelfth cycle): does the arm window's ceiling belong to a
-  conversation, or to a wake?** `a9e899b` made a deliberate re-wake
-  mid-conversation start a fresh session, so `CRT_WAKE_ARM_MAX_SECS` (60s)
-  is now measured from the last time someone said the wake word rather than
-  from the first. That is what `ArmState.arm()` already documented and what
-  `tests/test_wake_arm.py` already asserted; the live path simply could
-  never reach it, because an utterance arriving while armed returns from the
-  consume path before the arm call. The consequence worth your ear: a long
-  conversation with periodic re-waking can now stay armed indefinitely, one
-  wake word at a time. Each extension is a person deliberately re-addressing
-  the console, not room noise ratcheting the window open — ambient chatter
-  still slides only inside the ceiling — so I think it is right. But it is a
-  real change to how long this mic can stay open in this specific room, and
-  that is a judgement about the room, not about the code.
+- **2026-07-25 (asked in the twelfth cycle, answered same day): does the arm
+  window's ceiling belong to a conversation, or to a wake?** **To a wake.**
+  Zach's reply, inline on `~/reports/crt/LATEST.md`, in full: *"Always starts
+  a FRESH session, including when one is already open — saying the wake word
+  again is deliberate, so it resets the `ARM_MAX_SECS` ceiling rather than
+  being swallowed by the conversation already in progress."* So `a9e899b` is
+  confirmed behaviour, not a judgement call awaiting an ear. Recorded where
+  it is load-bearing rather than only here: `ArmState.arm()`'s docstring in
+  `bin/crt-wake-arm.py` now carries his words and an explicit instruction not
+  to collapse the re-wake branch of `consume_arm_with_followup()` back into a
+  plain slide, and `tests/test_wake_rearm_ceiling.py` cites the confirmation
+  in its header. **Still open, and NOT answered by this:** whether
+  `CRT_WAKE_ARM_SECS`/`CRT_WAKE_ARM_MAX_SECS` (12s/60s) are the right numbers
+  by ear in this room. That is a tuning question, still live-only.
+
+## Pending — for `.claude/QUESTIONS.md`
 
 - **2026-07-25 (twelfth cycle): should re-scanning a book ask the same
   question again, or a different one?** `bb2bd8e` made a re-scanned book
