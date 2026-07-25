@@ -3,13 +3,13 @@
 **What this is.** The unattended nightly-batch tier (the disposable clone on
 mandark, see `DEVELOPMENT-WORKFLOW.md`'s three-tier model) cannot write to
 `.claude/`. Every write to `.claude/QUESTIONS.md` and `.claude/FOCUS.md` from
-this tier has been refused as a sensitive file on **eleven consecutive
-cycles** (2026-07-24, and ten times on 2026-07-25). The `nightly-batch` skill
+this tier has been refused as a sensitive file on **twelve consecutive
+cycles** (2026-07-24, and eleven times on 2026-07-25). The `nightly-batch` skill
 nonetheless instructs this tier to keep `.claude/FOCUS.md` current and to
 append open questions to `.claude/QUESTIONS.md`, so that instruction has been
-unsatisfiable for eleven cycles running and the questions have only ever
+unsatisfiable for twelve cycles running and the questions have only ever
 reached Zach through `~/reports/crt/LATEST.md`. Tested directly again each
-cycle rather than assumed -- most recently the fourteenth cycle, 2026-07-25,
+cycle rather than assumed -- most recently the fifteenth cycle, 2026-07-25,
 by attempting a real append to `.claude/QUESTIONS.md` and being refused.
 
 **What it is not.** Not a replacement for `.claude/QUESTIONS.md` or
@@ -47,6 +47,58 @@ one durable channel it actually owns.
   same wording, nothing new to fold in; `c48ef11` already carries it.
 
 ## Pending — for `.claude/QUESTIONS.md`
+
+- **2026-07-25 (fifteenth cycle): the idle face cannot show idle-bait, for
+  exactly the reason it was eating scans.** Tonight's fix closed the funnel's
+  scan link on the idle-lean layout (`0fc83a6`, `967af9c`). The link BEFORE
+  it is still open and cannot be closed from here, because the answer is a
+  design decision, not a bug fix. `bin/crt-book-idle-bait.py` pops its book
+  quotes into `~/.crt/thoughts.log`, which is rendered by window 1 (`mono`)
+  — and the idle-lean layout never displays window 1. So on potato the
+  console's whole "pick up a book and scan it" invitation, the first step of
+  BOOK-GAME.md's funnel, is being written to a screen nobody is looking at,
+  while the tube shows a potato captioned "say 'potato' to wake me". Three
+  honest options: (a) the screensaver renders bait itself — it already has a
+  caption line, and a rotating one is a small change to a file that has no
+  database in it, (b) the idle-lean layout selects `mono` rather than the
+  screensaver as its idle face, retiring the potato art from the boot path,
+  or (c) idle-bait stays a window-1 feature and the potato is simply the
+  idle face on potato. This is a persona call as much as a wiring one.
+
+- **2026-07-25 (fifteenth cycle): when a Claude exchange goes idle, should
+  the tube return to `book` or to the idle face?**
+  `bin/crt-window-switcher.py` returns focus from `mono` to `book`, full
+  stop — written when `book` WAS the boot default and there was no other
+  candidate. In the idle-lean layout that means one conversation permanently
+  retires the screensaver: the tube sits on the book window's shelf screen
+  until the next scan happens and times out. Tonight's `CRT_IDLE_FACE_WINDOW`
+  gives the switcher a well-defined answer to point at if you want it
+  (one line, same env var), but which screen "resting" means is yours to
+  say, and the two are not obviously different in value — the shelf screen
+  is an idle face too, and was the only one for most of this project's life.
+
+- **2026-07-25 (fifteenth cycle): should the screensaver forward scans, or
+  should the idle-lean layout stop taking the keystrokes in the first
+  place?** Tonight took the first road: the scanner types into whichever
+  window has focus, the idle-lean layout gives focus to the screensaver, so
+  the screensaver hands what it catches to `scanner.log` and the `book`
+  window brings itself forward. The other road is one line — keep selecting
+  `book` at boot in both layouts, and let the screensaver be a window you
+  reach deliberately. That costs the idle face its boot-default status,
+  which was a deliberate 2026-07-23 decision, so I did not quietly undo it.
+  If the potato-on-boot matters less than the simplicity, say so and this
+  becomes a two-line revert of `0fc83a6`'s wiring (the forwarding code is
+  still correct for any future window that holds focus).
+
+- **2026-07-25 (fifteenth cycle): how long should a question hold the tube?**
+  `CRT_BOOK_CONSOLE_IDLE_SECS` (default 20) used to decide only what the
+  `book` window painted on itself. Since tonight it also decides how long
+  the scan borrows the whole screen from the idle face, which is a different
+  question with a different right answer — 20s of question-then-shelf may be
+  too short to read a question and speak an answer, and the answer window
+  (`CRT_BOOK_ANSWER_WINDOW_SECS`, also 20) is counted from the scan, not
+  from when the question appeared. Both are by-eye numbers now. Not guessed
+  at here.
 
 - **2026-07-25 (fourteenth cycle): should `stt.log` say what the engine DID
   with a line?** `2d823cc` stopped the Book Game grading an utterance that
