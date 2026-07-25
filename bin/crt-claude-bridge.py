@@ -150,7 +150,14 @@ def main():
                 sz = os.path.getsize(current)
                 if sz > pos:
                     last_growth = time.time()
-                    with open(current) as f:
+                    # errors="replace": this reads a transcript file Claude
+                    # Code is actively appending to, so a read can land
+                    # mid-character. UnicodeDecodeError is a ValueError and
+                    # the `except OSError` below would not catch it -- one
+                    # torn byte would end the process that puts Claude's
+                    # replies on window 1. A replacement char in one line
+                    # is a far smaller loss than the mirror going dark.
+                    with open(current, encoding="utf-8", errors="replace") as f:
                         f.seek(pos)
                         chunk = f.read()
                         pos = f.tell()

@@ -143,7 +143,16 @@ def main():
             if sz < pos:
                 pos = 0
             if sz > pos:
-                with open(LOG) as f:
+                # errors="replace", not strict: this read races every
+                # writer appending to thoughts.log, so it can land inside a
+                # multi-byte character (a book title's accent, an em-dash
+                # in a quote) that a writer's buffer split across two
+                # flushes. Strict decoding raises UnicodeDecodeError, which
+                # is a ValueError -- NOT caught by the `except OSError`
+                # below -- and this is window 1: the one screen every
+                # honest-failure line this project has added reports to.
+                # One torn byte must not be what takes it down.
+                with open(LOG, encoding="utf-8", errors="replace") as f:
                     f.seek(pos)
                     chunk = f.read()
                     pos = f.tell()

@@ -326,7 +326,12 @@ def tail_new_lines(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a"):
         pass  # ensure it exists, without truncating/duplicating scanner.log's own writes
-    with open(path, "r") as f:
+    # errors="replace": a barcode scanner is a keyboard-emulating device
+    # and a bad read can put arbitrary bytes into scanner.log. Raised here
+    # in the generator, a UnicodeDecodeError is outside main()'s LoopGuard
+    # (which wraps the body only), and this is the window the console boots
+    # selected -- one bad scan must not leave a bash prompt on the tube.
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
         f.seek(0, os.SEEK_END)
         while True:
             line = f.readline()
@@ -367,7 +372,7 @@ def open_training_tail(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a"):
         pass
-    f = open(path, "r")
+    f = open(path, "r", encoding="utf-8", errors="replace")   # see tail_new_lines
     f.seek(0, os.SEEK_END)
     return f
 
