@@ -27,6 +27,34 @@ one durable channel it actually owns.
 
 ## Pending — for `.claude/QUESTIONS.md`
 
+- **2026-07-25 (eleventh cycle): may a background window keep running after
+  it has skipped an iteration, or should it eventually give up loudly?**
+  `bin/crt_loop_guard.py` (`442562b`) makes `book`, `bookidle`, `bookanswer`
+  and `stttrain` survive one raising iteration and report it on window 1.
+  It cannot tell a transient hiccup from a fault that will now repeat
+  forever: it reports the first occurrence of each distinct cause, reports
+  a recovery with a count if one comes, and keeps going either way. The
+  alternative posture is a give-up threshold — N consecutive failures, then
+  stop and say so loudly. I chose to keep running, because a window that is
+  up and complaining is strictly better than the bash prompt this replaces,
+  and because a loop that stops on its own is the failure the guard exists
+  to prevent. But it is a real call, and it is the same seam as ranked
+  item 8's supervisor: a give-up threshold only makes sense once something
+  outside the process is watching for it.
+
+- **2026-07-25 (eleventh cycle): `bin/` now has two underscored modules —
+  is that the answer to the eighth cycle's shared-helper question, or
+  should it be one?** `crt_loop_guard.py` and `crt_config.py` landed this
+  cycle (`442562b`, `24a94ac`) because the alternative was copy-pasting a
+  guard into four files and an env-var lookup into three, which is exactly
+  the drift that produced the `CRT_STT_FIXUPS` / `CRT_STT_FIXUPS_PATH`
+  split in the first place. Both are loaded by `spec_from_file_location`
+  rather than plain `import`, so they work regardless of `sys.path` — the
+  same idiom the scripts already used for each other. The open question is
+  the shape, not the principle: one `crt_lib.py` holding everything shared,
+  or one small module per concern as now. See the eighth-cycle entry below,
+  which asked this before there was anything to point at.
+
 - **2026-07-25 (tenth cycle): may an `auto`-confidence fixup open the wake
   gate without a human ever seeing it?** The gate now re-reads
   `bin/stt-fixups.json` while the engine runs (`0ccdf13`) — that is what
