@@ -27,6 +27,35 @@ one durable channel it actually owns.
 
 ## Pending — for `.claude/QUESTIONS.md`
 
+- **2026-07-25 (tenth cycle): may an `auto`-confidence fixup open the wake
+  gate without a human ever seeing it?** The gate now re-reads
+  `bin/stt-fixups.json` while the engine runs (`0ccdf13`) — that is what
+  makes a calibration-game alias work the moment it is saved instead of at
+  the next reboot. It also means an entry merged unattended by the
+  `stttrain` window (`crt-stt-training-merge.py`, `confidence: "auto"`) goes
+  live without a restart, where before it waited for one. Reaching it today
+  needs a Book Game trivia answer that is literally the wake word, so it is
+  close to unreachable in practice — but `addressed_to_console()` ignores
+  the confidence tier entirely, and those tiers exist precisely so an
+  unverified entry can be told from a confirmed one. Either the gate should
+  require `confidence in {confirmed, candidate}` for wake purposes, or the
+  tier is documentation-only and should say so. Not decided unilaterally:
+  it changes which words wake the console.
+
+- **2026-07-25 (tenth cycle): should a hand-visit to window 1 ever time
+  out?** `crt-window-switcher.py` used to bounce you off `mono` back to
+  `book` within one poll whenever the last Claude exchange was older than
+  `CRT_WINDOW_SWITCHER_IDLE_SECS`, which after the first return is always
+  — so window 1 could not be read by hand at all. Fixed in `016d816` by
+  treating an exchange as spent once it has been returned from. The choice
+  inside that fix: a deliberate visit now lasts until *you* leave, with no
+  timer at all. The alternative would be to re-arm the idle timer from the
+  moment you arrive, so the tube drifts back to the book game after 30
+  quiet seconds. I picked "stay until you leave" because the surprise
+  direction matters — a screen that will not stay put is worse than one
+  that waits — but it is a feel question, and the console's idle face is
+  the book game by design.
+
 - **2026-07-25 (ninth cycle): should the mono window get a `CRT_COLS`/`CRT_ROWS`
   pin in `crt-console.sh`, the way window 0's screensaver already has?**
   `bin/crt-monologue.py` sized itself once at import, inside the detached tmux
