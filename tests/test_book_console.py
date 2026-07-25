@@ -149,6 +149,55 @@ class TestRenderScanResult(unittest.TestCase):
         self.assertTrue(any("Dune" in l for l in lines))
         self.assertFalse(any("(" in l and "Dune" in l for l in lines))
 
+    def test_a_long_title_never_leaves_a_dangling_paren(self):
+        # Found 2026-07-25 by rendering the screen and looking at it:
+        # "Nineteen Eighty-Four (PR6029" -- the closing paren eaten by the
+        # 28-character title budget, because the title and the call number
+        # were composed and THEN truncated. A half-open parenthetical on a
+        # 40-column tube reads as a broken render, not as a long title.
+        row = {"title": "Nineteen Eighty-Four", "lcc": "PR6029",
+               "questions_json": json.dumps(
+                   [{"text": "Fiction or nonfiction?",
+                     "options": ["fiction", "nonfiction"], "correct": "fiction"}])}
+        title = bc.scan_title(row, 40)
+        self.assertEqual(title.count("("), title.count(")"),
+                         "unbalanced parens in %r" % title)
+        self.assertIn("PR6029", title, "the call number is the part to protect")
+        self.assertIn("..", title, "a shortened title should say it was shortened")
+        self.assertLessEqual(len(title), bg.title_budget(40))
+
+    def test_the_rendered_screen_itself_has_no_dangling_paren(self):
+        # The same claim through the function the console actually calls,
+        # so this fails against the version that composed-then-truncated
+        # rather than only against a helper that did not exist yet.
+        row = {"title": "Nineteen Eighty-Four", "lcc": "PR6029",
+               "questions_json": json.dumps(
+                   [{"text": "Fiction or nonfiction?",
+                     "options": ["fiction", "nonfiction"], "correct": "fiction"}])}
+        lines = bc.render_scan_result(row, 40, 15)
+        for l in lines:
+            self.assertEqual(l.count("("), l.count(")"),
+                             "unbalanced parens on the tube: %r" % l)
+
+    def test_a_title_that_fits_is_left_exactly_alone(self):
+        self.assertEqual(bc.scan_title({"title": "Dune", "lcc": "PS3558"}, 40),
+                         "Dune (PS3558)")
+
+    def test_the_call_number_goes_when_it_would_eat_the_whole_title(self):
+        # '.. (QA76.73.P98)' names no book. Past that point the trade stops
+        # being worth it and the title is what survives.
+        title = bc.scan_title({"title": "The Art of Computer Programming",
+                               "lcc": "QA76.73.P98.VOLUME.III"}, 40)
+        self.assertNotIn("QA76", title)
+        self.assertTrue(title.startswith("The Art"))
+        self.assertLessEqual(len(title), bg.title_budget(40))
+
+    def test_a_long_title_with_no_call_number_still_says_it_was_cut(self):
+        title = bc.scan_title({"title": "Godel, Escher, Bach: An Eternal Golden Braid",
+                               "lcc": None}, 40)
+        self.assertTrue(title.endswith(".."))
+        self.assertLessEqual(len(title), bg.title_budget(40))
+
     def test_no_waiting_hint_by_default(self):
         row = {"title": "Dune", "questions_json": json.dumps(
             [{"text": "Fiction or nonfiction?", "options": ["fiction", "nonfiction"], "correct": "fiction"}])}

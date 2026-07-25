@@ -384,6 +384,30 @@ class TestScreenLayout(unittest.TestCase):
     def test_center_text_truncates_overlength(self):
         self.assertEqual(bg.center_text("this is way too long", 5), "this ")
 
+    def test_elide_leaves_a_fitting_string_alone(self):
+        self.assertEqual(bg.elide("Dune", 28), "Dune")
+
+    def test_elide_marks_what_it_removed(self):
+        # A hard cut is indistinguishable from a broken render on the tube,
+        # which is how "Nineteen Eighty-Four (PR6029" got noticed at all.
+        out = bg.elide("Nineteen Eighty-Four", 12)
+        self.assertEqual(len(out), 12)
+        self.assertTrue(out.endswith(".."))
+
+    def test_elide_degenerate_limits_do_not_raise(self):
+        self.assertEqual(bg.elide("Dune", 0), "")
+        self.assertEqual(bg.elide("Dune", 2), "Du")
+        self.assertEqual(bg.elide("Dune", -1), "")
+
+    def test_title_budget_matches_what_the_screen_truncates_to(self):
+        # The number a caller composing the title line needs. If these two
+        # ever disagree the composed title gets cut downstream again, which
+        # is the whole bug.
+        long_title = "x" * 200
+        q = {"text": "Q?", "options": ["a", "b"]}
+        line = bg.render_question_screen(long_title, q, width=40, height=15)[0]
+        self.assertEqual(len(line.strip()), bg.title_budget(40))
+
     def test_render_question_screen_dimensions(self):
         q = {"text": "Fiction or nonfiction?", "options": ["fiction", "nonfiction"]}
         lines = bg.render_question_screen("Dune", q, width=40, height=15)

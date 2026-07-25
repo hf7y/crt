@@ -778,6 +778,35 @@ def detect_screen_size():
     return w or cols, h or lines
 
 
+def title_budget(width):
+    """How many characters the title line gets, at `width`.
+
+    Exposed (2026-07-25) so a caller deciding what to PUT on that line asks
+    rather than re-derives it -- crt-book-console.py appends the book's LCC
+    call number, and the only way to know whether that fits is to know this
+    number. Same value render_question_screen() truncates against, by
+    construction: it calls this."""
+    return max(1, min(width or FALLBACK_WIDTH, MAX_CONTENT_WIDTH) - 2)
+
+
+def elide(text, limit):
+    """`text` cut to `limit`, ending in '..' when anything was removed.
+
+    A hard cut is indistinguishable from a broken render, which on this
+    console is a real cost: 'Nineteen Eighty-Four (PR6029' -- the closing
+    paren eaten by a 28-character title budget -- reads as a fault, not as
+    a long title. ASCII '..' rather than an ellipsis glyph, same choice
+    crt-stt-solo.py's flash makes, because this lands on a CRT through a
+    console font that may not have one."""
+    if limit <= 0:
+        return ""
+    if len(text) <= limit:
+        return text
+    if limit <= 2:
+        return text[:limit]
+    return text[:limit - 2] + ".."
+
+
 def center_text(text, width):
     """Pure centering helper -- pads `text` with leading/trailing spaces
     to `width`. Truncates (never wraps) text longer than width, since a
@@ -810,7 +839,7 @@ def render_question_screen(book_title, question, width=None, height=None):
     content_width = min(width, MAX_CONTENT_WIDTH)
     lines = [" " * width for _ in range(height)]
 
-    title_line = center_text(book_title[: content_width - 2], width)
+    title_line = center_text(elide(book_title, title_budget(width)), width)
     q_lines = textwrap.wrap(question["text"], content_width - 2) or [""]
     options_line = center_text(" / ".join(question["options"])[:content_width], width)
 

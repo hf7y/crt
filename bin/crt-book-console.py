@@ -155,6 +155,42 @@ def render_idle_screen(book_count, width, height, rng=None):
     return [bg.wrap_color(l, bg.COLOR_TITLE) for l in lines]
 
 
+def scan_title(row, width):
+    """Pure function: the title line for a scanned book -- '<title> (<lcc>)'
+    when the call number fits, a shortened title with the call number intact
+    when it doesn't, and the bare title when there isn't room for both.
+
+    Composed against bg.title_budget() rather than handed over whole and
+    truncated downstream (2026-07-25). Truncating the composed string is
+    what produced 'Nineteen Eighty-Four (PR6029' on the tube -- a dangling
+    open paren, which reads as a broken render rather than a long title.
+
+    The call number is what gets protected when something has to give: the
+    person is holding the book, so its name is the part they already know,
+    and BOOK-GAME.md's resolved v1 decision was that this screen IS how the
+    LCC gets shown at all (the physical-label option was demoted). Below
+    MIN_TITLE_CHARS of title left, that trade stops being worth it and the
+    call number goes instead -- a screen headed '.. (PR6029)' names nothing.
+    """
+    budget = bg.title_budget(width)
+    title = row["title"]
+    lcc = row.get("lcc")
+    if not lcc:
+        return bg.elide(title, budget)
+    suffix = " (%s)" % lcc
+    room = budget - len(suffix)
+    if room >= len(title):
+        return title + suffix
+    if room >= MIN_TITLE_CHARS:
+        return bg.elide(title, room) + suffix
+    return bg.elide(title, budget)
+
+
+# Below this many characters of the actual book title, keeping the LCC call
+# number costs more than it's worth -- see scan_title().
+MIN_TITLE_CHARS = 8
+
+
 def render_scan_result(row, width, height, show_waiting_hint=False):
     """Pure function: the question screen for a freshly-scanned or
     already-registered book, colored in the warm/curious register
@@ -180,8 +216,7 @@ def render_scan_result(row, width, height, show_waiting_hint=False):
     reworked here."""
     questions = json.loads(row["questions_json"] or "[]")
     question = questions[0] if questions else {"text": "(no question on file)", "options": []}
-    title = f"{row['title']} ({row['lcc']})" if row.get("lcc") else row["title"]
-    lines = bg.render_question_screen(title, question, width, height)
+    lines = bg.render_question_screen(scan_title(row, width), question, width, height)
     if show_waiting_hint:
         art_lines = (bg.get_ascii_art("cat_reading") or "").splitlines()
         start = height - len(art_lines)
