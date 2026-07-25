@@ -122,6 +122,40 @@ one durable channel it actually owns.
   from. Either retire it (`git log -- bin/crt-stt-stream.py` keeps it) or
   wire it somewhere and give it the same treatment.
 
+- **2026-07-25 (eighth cycle): when speech fails, should the console retry on
+  the other output device?** `crt-tts.py`'s `play_wav()` now reports a failed
+  aplay instead of returning `True` regardless (`3244250`), and
+  `crt-secretary.py`'s `speak()` falls back to putting the words on the tube
+  via `crt-think.sh`. Trying the TV speaker when the handset is dead is the
+  obvious next move and was deliberately not built: it doubles the latency of
+  the failure case, and if ALSA `default` is what is broken it fails twice
+  before saying anything. A real behaviour choice, not a code-correctness
+  question.
+
+- **2026-07-25 (eighth cycle): is FOCUS.md's 0.1x handset finding still
+  supported?** `bin/crt-earcon-loopback-test.py` sent sox's and aplay's exit
+  statuses to `/dev/null` until tonight (`f187a45`), so "played, and the mic
+  could not hear it" and "never played at all" produced identical output and
+  it always reported the first. The 2026-07-23 entry's reading ("this USB
+  adapter cannot play and record at once") may well be right — 0.1x is also
+  what a working-but-deafened adapter looks like, and the TV path registered
+  5.0x in the same session — but the tool could not have established it, and
+  the capture-duck work of cycles 3, 4 and `fe46ac1` rests on it. One command
+  on potato settles it, and it is written into `AUDIO-DEBUG.md` too:
+  `python3 bin/crt-earcon-loopback-test.py handset ; echo "exit $?"` —
+  `exit 3` means the measurement never happened, `exit 1` with a ratio near
+  0.1 means the finding stands.
+
+- **2026-07-25 (eighth cycle): should `bin/` grow one importable module for
+  shared helpers?** `last_line()` — three lines, "the last non-blank line of a
+  subprocess's stderr" — now exists in both `crt-stt-solo.py` and
+  `crt-earcon-loopback-test.py`, because every script in `bin/` has a hyphen
+  in its name and so cannot be imported by another. The duplication is forced
+  by the naming convention, and it is the same pressure behind
+  ranked-backlog item 1's config sprawl. An underscored `bin/crt_lib.py`
+  would fix both; renaming the executables would not (the hyphens are the
+  CLI-facing names). Small now, and worth deciding before it is not.
+
 ## Pending — for `.claude/FOCUS.md`
 
 - **The "FIRST STEP EVERY CYCLE (2026-07-21): pull from crt-vm before doing
