@@ -230,6 +230,10 @@ echo "== a console that cannot speak says so =="
 python3 "$DIR/test_speech_failure_visible.py" || fail=1
 echo
 
+echo "== a ring nobody could hear is not an unanswered call =="
+python3 "$DIR/test_ring_actually_rings.py" || fail=1
+echo
+
 echo "== capture duck released when its producer is killed =="
 bash "$DIR/test_capture_duck_signal_safety.sh" || fail=1
 echo

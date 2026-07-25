@@ -271,21 +271,140 @@ _ring_tone_path = None
 
 
 def ring_tone_path():
-    """Lazily synthesize a warbling ring tone once, cache the wav path."""
+    """Lazily synthesize a warbling ring tone once, cache the wav path.
+    Returns None if the tone could not be made -- the caller must not then
+    pretend to ring.
+
+    Why None and not a path (2026-07-25): this used to ignore sox's exit
+    status AND its stderr, and cache `path` regardless. mkstemp has already
+    created that file, so on a box with no sox -- or a sox that failed --
+    the cache held a real, existing, ZERO-BYTE wav. `os.path.exists()` said
+    yes forever after, so every ring for the life of the process handed
+    aplay an empty file, and the console reported "[ring] no answer": it
+    blamed the person for not picking up a phone that had never rung.
+    crt-earcon.sh checks for sox by name and exits 1 with a message; this
+    path, which is the one that summons someone to the handset, checked
+    nothing."""
     global _ring_tone_path
     if _ring_tone_path and os.path.exists(_ring_tone_path):
         return _ring_tone_path
     fd, path = tempfile.mkstemp(suffix="_ring.wav"); os.close(fd)
-    subprocess.run(["sox", "-n", path, "synth", str(RING_ON_SECS),
-                    "sine", "900", "tremolo", "20", "80", "vol", "-6dB"],
-                   stderr=subprocess.DEVNULL)
+    try:
+        r = subprocess.run(["sox", "-n", path, "synth", str(RING_ON_SECS),
+                            "sine", "900", "tremolo", "20", "80", "vol", "-6dB"],
+                           capture_output=True, text=True)
+        failure = ("sox exited %d: %s" % (r.returncode, last_line(r.stderr))
+                   if r.returncode != 0 else None)
+    except OSError as e:
+        failure = "could not run sox: %s" % e
+    if failure is None and os.path.getsize(path) == 0:
+        # sox can exit 0 and still leave nothing usable. The size check is
+        # the witness that matters -- it is what aplay would choke on.
+        failure = "sox produced an empty wav"
+    if failure is not None:
+        try:
+            os.unlink(path)          # never cache an unplayable tone
+        except OSError:
+            pass
+        hud, line = ring_unplayable_report(failure)
+        print("\n" + line)
+        set_hud(hud)
+        return None
     _ring_tone_path = path
     return path
-# Optional: send the WAV to a faster-whisper HTTP service running natively on
-# dexter's Ryzen host instead of invoking whisper.cpp inside the (CPU-capped)
-# guest. Same VAD/capture/denoise pipeline either way -- only the inference
-# step moves. See bin/dexter-whisper-server.py. Empty = local whisper.cpp
-# (default, unchanged behavior).
+
+
+def last_line(text):
+    """The last non-blank line of a subprocess's stderr -- the part that
+    names the cause. Pure; shared by the ring reports below."""
+    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
+    return lines[-1][:200] if lines else "no error text"
+
+
+class RingTone:
+    """One ring burst in flight: the aplay process, plus the file its stderr
+    went to. Kept together because the second is the only explanation of the
+    first's exit status -- and evidence this project collects and never reads
+    has been indistinguishable from evidence never collected three cycles
+    running."""
+
+    def __init__(self, proc, err):
+        self.proc, self.err = proc, err
+
+    # Delegates, so this stays a drop-in wherever a Popen used to be --
+    # notably reap_capture(), which the exit path hands the in-flight ring to.
+    def poll(self):
+        return self.proc.poll()
+
+    def terminate(self):
+        self.proc.terminate()
+
+    def kill(self):
+        self.proc.kill()
+
+    def wait(self, timeout=None):
+        return self.proc.wait(timeout=timeout)
+
+    def failure(self):
+        """Why this burst never reached the earpiece, or None if it is still
+        playing or played fine. Non-blocking -- poll(), never wait().
+
+        A negative exit code means a signal, which on this path is only ever
+        our own terminate() when the ring was answered. That is a ring that
+        worked, not one that failed."""
+        rc = self.proc.poll()
+        if rc is None or rc <= 0:
+            return None
+        detail = ""
+        try:
+            self.err.seek(0)
+            detail = self.err.read().decode("utf-8", "replace")
+        except (OSError, ValueError):
+            pass
+        return "aplay exited %d: %s" % (rc, last_line(detail))
+
+
+def start_ring_tone():
+    """Begin one ring burst, or return None if it could not be started.
+
+    Every caller must treat None as "the phone did not ring" -- the whole
+    point of this function existing separately from the two bare
+    subprocess.Popen calls it replaced."""
+    path = ring_tone_path()
+    if path is None:
+        return None                     # already reported by ring_tone_path
+    err = tempfile.NamedTemporaryFile(prefix="crt-stt-ring-", suffix=".err")
+    try:
+        proc = subprocess.Popen(["aplay", "-q", path],
+                                stdout=subprocess.DEVNULL, stderr=err)
+    except OSError as e:
+        hud, line = ring_unplayable_report("could not run aplay: %s" % e)
+        print("\n" + line)
+        set_hud(hud)
+        return None
+    return RingTone(proc, err)
+
+
+def ring_unplayable_report(detail):
+    """(hud, line) for a ring that could not be produced at all.
+
+    Pure string builder, same posture as capture_death_report() and
+    transcribe_failure_report(). The wording has one job: not to be mistaken
+    for an unanswered call. Those are opposite facts -- one is about the
+    person, one is about this machine -- and the console used to report the
+    second as the first."""
+    return ("! phone never rang",
+            "[ring] RANG NOTHING -- %s. The handset never made a sound, so "
+            "nobody declined to answer it. This is a fault here, not a "
+            "missed call." % detail)
+# Optional: send the WAV to a faster-whisper HTTP service on another machine
+# instead of invoking whisper.cpp on this one. Same VAD/capture/denoise
+# pipeline either way -- only the inference step moves. Live shape as of
+# 2026-07-25: potato POSTs to bin/mandark-whisper-server.py on mandark, wired
+# in crt-console.sh's stt window. (This comment named dexter's Ryzen host and
+# bin/dexter-whisper-server.py, neither of which survived the crt-vm->potato
+# move -- same stale-topology class as the STT-MECHANISM.md fix in 81d78db.)
+# Empty = local whisper.cpp (default, unchanged behavior).
 WHISPER_SERVER = os.environ.get("CRT_WHISPER_SERVER", "")   # e.g. http://192.168.0.22:8991/transcribe
 WHISPER_SERVER_TIMEOUT = float(os.environ.get("CRT_WHISPER_SERVER_TIMEOUT", "8"))
 
@@ -298,6 +417,15 @@ THR_COL   = max(0, min(WIDTH - 1, int(THRESH / MFULL * WIDTH)))
 hud_msg = ""
 hud_until = 0.0
 FLASH_SECS = float(os.environ.get("CRT_FLASH_SECS", "2.5"))
+
+
+def set_hud(msg, secs=None):
+    """Flash one line over the meter. The tube is where the person is
+    looking; a fault that only reaches this pane's scrollback has not really
+    been reported."""
+    global hud_msg, hud_until
+    hud_msg = msg[:WIDTH + 20]
+    hud_until = time.time() + (FLASH_SECS if secs is None else secs)
 
 # Predictive-text double layer (2026-07-19, opt-in, off by default): the
 # instant an utterance ends, flash a cheap local guess (bin/crt-predict.py,
@@ -1185,11 +1313,16 @@ def main():
                             if ln.startswith("ring"):
                                 parts = ln.split()
                                 n = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 4
+                                ring_proc = start_ring_tone()
+                                if ring_proc is None:
+                                    # Do NOT enter the ring state machine: it
+                                    # would run its phases in silence and then
+                                    # print "no answer", blaming the person for
+                                    # a phone that never rang.
+                                    ring_state, ring_remaining = None, 0
+                                    continue
                                 ring_state, ring_remaining = "tone", n
                                 ring_phase_until = now + RING_ON_SECS
-                                ring_proc = subprocess.Popen(
-                                    ["aplay", "-q", ring_tone_path()],
-                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                                 print("[ring] ringing (%d)" % n)
                                 continue
                             r = apply_ctl_line(ln, now)
@@ -1204,6 +1337,17 @@ def main():
                 ctl_replay = False
 
             if ring_state is not None:
+                # A burst that died on its own, before we stopped it: the
+                # earpiece stayed quiet. Checked every iteration (~100ms)
+                # rather than at the end of the phase, so the report arrives
+                # while the person is still in front of the tube.
+                ring_fault = ring_proc.failure() if ring_proc else None
+                if ring_fault:
+                    hud, line = ring_unplayable_report(ring_fault)
+                    print("\n" + line)
+                    set_hud(hud)
+                    ring_state, ring_proc, ring_remaining = None, None, 0
+                    continue
                 if ring_state == "gap" and not MUTED and peak >= THRESH:
                     if ring_proc and ring_proc.poll() is None:
                         ring_proc.terminate()
@@ -1216,11 +1360,12 @@ def main():
                     else:   # gap elapsed, unanswered
                         ring_remaining -= 1
                         if ring_remaining > 0:
+                            ring_proc = start_ring_tone()
+                            if ring_proc is None:
+                                ring_state, ring_remaining = None, 0
+                                continue
                             ring_state = "tone"
                             ring_phase_until = now + RING_ON_SECS
-                            ring_proc = subprocess.Popen(
-                                ["aplay", "-q", ring_tone_path()],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                         else:
                             ring_state, ring_proc = None, None
                             print(RING_TIMEOUT_MSG)
