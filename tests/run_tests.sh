@@ -67,13 +67,7 @@ python3 "$DIR/test_pager.py" || fail=1
 echo
 
 echo "== crt-monologue.py (the actually-live 'mono' window script) =="
-# NOTE: test_monologue_py.py was never written -- crt-monologue.py has no
-# direct python test yet (coverage gap, see FOCUS.md batch backlog).
-# Guarded like the other optional sections so a missing file can't fail
-# the whole suite (it silently did until 2026-07-23).
-if [ -f "$DIR/test_monologue_py.py" ]; then
-  python3 "$DIR/test_monologue_py.py" || fail=1
-fi
+python3 "$DIR/test_monologue_py.py" || fail=1
 echo
 
 echo "== crt-predict.py =="
