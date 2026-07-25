@@ -18,7 +18,7 @@
 #
 # Output: transcriptions scroll; a live "MIC [####|....] 12.3% TALK" meter is
 # redrawn on the bottom line (same widget as crt-meter.py). Ctrl-C to quit.
-import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, json, re, signal
+import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, urllib.error, json, re, signal
 from collections import deque
 
 # SINK: where recognized text goes.
@@ -620,9 +620,19 @@ def apply_ctl_line(line, now=None):
 
 
 def transcribe_remote(wav_path):
-    """POST the WAV to dexter's faster-whisper service; fall back to empty
-    (silently dropped, same as any other transcription failure) on any error
-    -- never block the capture loop on a flaky network call."""
+    """POST the WAV to mandark's faster-whisper service and return its text.
+
+    Returns None when we could not get an answer out of the server at all
+    (unreachable, timeout, HTTP error, unparseable body, no "text" key) and
+    "" only when the server genuinely transcribed the clip as nothing.
+    Until 2026-07-25 this returned "" for both, which made an unreachable
+    mandark indistinguishable from a silent room -- the console just stopped
+    responding, with no line anywhere saying why (FOCUS.md 2026-07-23 00:40).
+    Same sentinel convention as crt-secretary.py's capture_pane(): failure
+    gets its own value so no caller can reason confidently from it.
+
+    Still never blocks or raises: a flaky network call must not take the
+    capture loop down with it, only stop lying about what happened."""
     import json
     try:
         with open(wav_path, "rb") as f:
@@ -631,12 +641,28 @@ def transcribe_remote(wav_path):
                                       headers={"Content-Type": "audio/wav"})
         with urllib.request.urlopen(req, timeout=WHISPER_SERVER_TIMEOUT) as resp:
             result = json.loads(resp.read().decode("utf-8"))
-        return result.get("text", "")
+        if not isinstance(result, dict) or "text" not in result:
+            return None
+        text = result["text"]
+        return text if isinstance(text, str) else None
+    except urllib.error.HTTPError as e:
+        # An HTTPError is an open file-like object holding a spooled temp
+        # file. A whisper server that 500s on every utterance would leak one
+        # per utterance until the GC happens to collect them -- on a Pi with
+        # 183MB free, that is not a hypothetical.
+        try:
+            e.close()
+        except Exception:
+            pass
+        return None
     except Exception:
-        return ""
+        return None
 
 
 def transcribe(frames):
+    """Return the transcription of these frames, "" if the recogniser ran and
+    heard nothing, or None if the recognition step itself failed (see
+    transcribe_remote). The caller must not treat None as silence."""
     raw = norm = None
     try:
         fd, raw = tempfile.mkstemp(suffix=".wav"); os.close(fd)
@@ -660,16 +686,74 @@ def transcribe(frames):
                 feed = norm
         if WHISPER_SERVER:
             return transcribe_remote(feed)
-        out = subprocess.run([WBIN, "-m", MODEL, "-f", feed, "-nt", "-np"],
-                             capture_output=True, text=True).stdout
-        return " ".join(out.split())
+        run = subprocess.run([WBIN, "-m", MODEL, "-f", feed, "-nt", "-np"],
+                             capture_output=True, text=True)
+        # A whisper-cli that exits nonzero produced no transcription; its
+        # empty stdout is not a silent room either (missing model file, bad
+        # WAV, OOM on the Pi). Same reason the remote branch returns None.
+        if run.returncode != 0:
+            return None
+        return " ".join(run.stdout.split())
     except Exception:
-        return ""
+        return None
     finally:
         for p in (raw, norm):
             if p:
                 try: os.unlink(p)
                 except OSError: pass
+
+
+# How often a continuing transcription outage repeats itself on the pane.
+# The first failure always prints; after that only every Nth, so a mandark
+# that is down for an hour leaves a readable trail instead of burying the
+# capture pane -- and never goes fully quiet either.
+TRANSCRIBE_FAIL_REPEAT = int(os.environ.get("CRT_TRANSCRIBE_FAIL_REPEAT", "10"))
+
+
+def transcribe_failure_report(fails, remote_url):
+    """(hud, line) for an utterance that was heard but not transcribed.
+
+    Pure string builder, same posture as capture_death_report() above: the
+    wording is testable without a dead whisper server. `line` is None when
+    this failure is being folded into an ongoing outage rather than
+    announced again. The HUD half matters most -- the person is looking at
+    the tube, not at this pane's scrollback -- so it always says something,
+    and it says the utterance was LOST, not that nothing was heard."""
+    where = ("whisper server %s" % remote_url) if remote_url else ("local whisper %s" % WBIN)
+    hud = "! stt lost it" if fails <= 1 else "! stt lost it x%d" % fails
+    line = None
+    if fails == 1 or (TRANSCRIBE_FAIL_REPEAT > 0 and fails % TRANSCRIBE_FAIL_REPEAT == 0):
+        line = ("[crt-stt] TRANSCRIPTION FAILED (%d utterance%s in a row) -- %s "
+                "gave no answer. The mic is fine and the audio was captured; "
+                "nothing came back to say. This is NOT a silent room."
+                % (fails, "" if fails == 1 else "s", where))
+    return hud, line
+
+
+def transcribe_recovery_report(fails):
+    """The other half: say when it starts working again, so the pane never
+    ends on a failure line that has since stopped being true."""
+    if fails <= 0:
+        return None
+    return ("[crt-stt] transcription recovered after %d lost utterance%s"
+            % (fails, "" if fails == 1 else "s"))
+
+
+def report_line(line):
+    """Put a diagnostic on this pane without taking the capture loop down.
+
+    Guarded for the same reason the "stopped; released" message at the end of
+    main() is: on a `tmux kill-window` the pty is already gone, and an
+    unguarded write raises EIO. A message about a failure must not become a
+    second failure. Clears the meter line first, like emit() does, so the
+    text isn't overwritten by the next meter repaint."""
+    try:
+        sys.stdout.write('\r' + ' ' * (WIDTH + 20) + '\r')
+        sys.stdout.flush()
+        sys.stderr.write(line + "\n")
+        sys.stderr.flush()
+    except OSError:
+        pass
 
 
 def emit(text, peak=1.0):
@@ -906,6 +990,7 @@ def main():
     above = 0
     sil = 0.0
     mute_hold = 0.0       # seconds an open utterance has been frozen by a duck
+    transcribe_fails = 0  # consecutive utterances heard but not transcribed
     last_meter = 0.0
     global hud_msg, hud_until
     ctl_pos = 0
@@ -1054,7 +1139,24 @@ def main():
                         if PREDICT_FLASH:
                             predictive_flash()
                         set_sideband_state("thinking")
-                        emit(transcribe(bytes(buf)), utt_peak)
+                        text = transcribe(bytes(buf))
+                        if text is None:
+                            # Heard, captured, and then lost between here and
+                            # the recogniser. Anything that stays quiet here
+                            # is claiming the room was silent (see
+                            # transcribe_remote's None/"" split).
+                            transcribe_fails += 1
+                            hud, line = transcribe_failure_report(
+                                transcribe_fails, WHISPER_SERVER)
+                            hud_msg, hud_until = hud, time.time() + FLASH_SECS
+                            if line:
+                                report_line(line)
+                        else:
+                            rec = transcribe_recovery_report(transcribe_fails)
+                            if rec:
+                                report_line(rec)
+                            transcribe_fails = 0
+                            emit(text, utt_peak)
                         set_sideband_state("listening")
                     buf = bytearray()
     except KeyboardInterrupt:

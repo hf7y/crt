@@ -76,6 +76,10 @@ echo "== crt-stt-solo.py helper functions (fixups/classify/hud/ctl-line) =="
 python3 "$DIR/test_stt_solo_helpers.py" || fail=1
 echo
 
+echo "== crt-stt-solo.py tells a dead recogniser apart from a silent room =="
+python3 "$DIR/test_transcribe_failure.py" 2>&1 | tail -3 || fail=1
+echo
+
 echo "== crt-stt-solo.py capture device by name =="
 python3 "$DIR/test_capture_device.py" || fail=1
 bash "$DIR/test_capture_death_loud.sh" || fail=1
