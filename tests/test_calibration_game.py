@@ -54,6 +54,12 @@ class CalibrationGameTestCase(unittest.TestCase):
         self._env = dict(os.environ)
         os.environ["CRT_STT_FIXUPS"] = self.fixups
         os.environ["CRT_STT_LOG"] = os.path.join(self.tmp, "stt.log")
+        # Every path this module resolves at import is pinned inside tmp,
+        # INCLUDING the defaults. Writing a real ~/.crt/earcon-routing.jsonl
+        # from the suite is the thing cycle 20 caught the hard way -- and it
+        # happened again while this file was being written, which is why the
+        # pin is here in the base class rather than in the cases that write.
+        os.environ["CRT_EARCON_ROUTING_LOG"] = os.path.join(self.tmp, "default-routing.jsonl")
         self.game = _load("crt_calibration_game_under_test", "crt-calibration-game.py")
         self.gate = _load("crt_wake_gate_under_test", "crt_wake_gate.py")
 
@@ -201,6 +207,112 @@ class TheListDoesNotRaceTheTailer(CalibrationGameTestCase):
         candidates = self.game.save_candidates(seen, "claude")
         seen["clawed"] = 0.66
         self.assertEqual([w for w, _ in candidates], ["cloud"])
+
+
+class TheEarconRound(CalibrationGameTestCase):
+    """The round exists so device routing can be re-checked without a
+    hands-on session. Two things stopped it being one: it could not tell a
+    tone that failed to play from a tone nobody heard -- and it asked a
+    HUMAN to render that verdict -- and the answer it called "logged" was
+    never written anywhere.
+
+    crt-earcon.sh is driven for real here (it is a real script, and on a box
+    with no sox it really does exit 1), rather than stubbed."""
+
+    def setUp(self):
+        super().setUp()
+        self.routing = os.path.join(self.tmp, "earcon-routing.jsonl")
+
+    def run_round(self, answers):
+        old_stdin = sys.stdin
+        sys.stdin = io.StringIO("\n".join(answers) + "\n")
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                self.game.earcon_round(self.routing)
+        finally:
+            sys.stdin = old_stdin
+        return buf.getvalue()
+
+    def rows(self):
+        if not os.path.exists(self.routing):
+            return []
+        with open(self.routing) as f:
+            return [json.loads(ln) for ln in f if ln.strip()]
+
+    def test_a_failed_play_is_reported_not_asked_about(self):
+        """No sox on this box, so the real crt-earcon.sh exits 1. The round
+        must say so and must NOT ask whether it was heard."""
+        played, detail = self.game.play_earcon("addressed", "tv")
+        if played:
+            self.skipTest("this box can actually play audio; see the loopback test")
+        out = self.run_round(["", ""])          # two Enters, no verdicts typed
+        self.assertIn("nothing played", out)
+        self.assertNotIn("Did you hear it", out)
+        self.assertEqual([r["played"] for r in self.rows()], [False, False])
+        self.assertEqual([r["intended"] for r in self.rows()], ["tv", "handset"])
+        for row in self.rows():
+            self.assertIsNone(row["reported"])
+            self.assertTrue(row["detail"], "a failure with no reason is the old behaviour")
+
+    def test_play_earcon_reports_the_reason(self):
+        """Whatever crt-earcon.sh said on its way out, not just a code. Which
+        reason depends on the box (no sox here, "unknown name" where there
+        is one) -- both carry the script's own prefix, and both used to go
+        to /dev/null."""
+        played, detail = self.game.play_earcon("no-such-earcon", "tv")
+        self.assertFalse(played)
+        self.assertIn("crt-earcon", detail)
+
+    def test_play_earcon_survives_a_missing_script(self):
+        self.game.EARCON_BIN = os.path.join(self.tmp, "not-here.sh")
+        played, detail = self.game.play_earcon("addressed", "tv")
+        self.assertFalse(played)
+        self.assertTrue(detail)
+
+    def test_a_verdict_is_written_down(self):
+        self.assertTrue(self.game.record_routing("tv", True, "handset", "",
+                                                 self.routing))
+        row, = self.rows()
+        self.assertEqual(row["intended"], "tv")
+        self.assertEqual(row["reported"], "handset")
+        self.assertTrue(row["played"])
+        self.assertTrue(row["at"])
+
+    def test_verdicts_accumulate_rather_than_replace(self):
+        self.game.record_routing("tv", True, "tv", "", self.routing)
+        self.game.record_routing("handset", True, "nowhere", "", self.routing)
+        self.assertEqual([r["intended"] for r in self.rows()], ["tv", "handset"])
+
+    def test_a_bare_filename_is_a_path_too(self):
+        """os.makedirs("") raises, so a relative CRT_EARCON_ROUTING_LOG
+        would have reported "could not write" for no reason."""
+        cwd = os.getcwd()
+        os.chdir(self.tmp)
+        try:
+            self.assertTrue(self.game.record_routing("tv", True, "tv", "",
+                                                     "bare.jsonl"))
+        finally:
+            os.chdir(cwd)
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, "bare.jsonl")))
+
+    def test_a_log_it_cannot_write_is_not_called_logged(self):
+        unwritable = os.path.join(self.tmp, "a-file", "routing.jsonl")
+        open(os.path.join(self.tmp, "a-file"), "w").close()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            ok = self.game.record_routing("tv", True, "tv", "", unwritable)
+        self.assertFalse(ok)
+        self.assertIn("could not write", buf.getvalue())
+
+
+class RecordRoutingDefaultPath(CalibrationGameTestCase):
+    def test_the_default_is_env_overridable(self):
+        """So the suite -- and anything else -- can never append to the live
+        console's own ~/.crt. Cycle 20 caught the same class the hard way."""
+        os.environ["CRT_EARCON_ROUTING_LOG"] = os.path.join(self.tmp, "elsewhere.jsonl")
+        game = _load("crt_calibration_game_env", "crt-calibration-game.py")
+        self.assertEqual(game.ROUTING_LOG, os.path.join(self.tmp, "elsewhere.jsonl"))
 
 
 if __name__ == "__main__":

@@ -19,7 +19,12 @@
 #               you to confirm (by typing, not voice -- avoids a circular
 #               "did the mic hear the beep" dependency) which device it
 #               came from, so device routing can be re-verified any time
-#               the hardware changes without a hands-on SSH session.
+#               the hardware changes without a hands-on SSH session. Each
+#               verdict is appended to CRT_EARCON_ROUTING_LOG (default
+#               ~/.crt/earcon-routing.jsonl) -- the answer is the point of
+#               the round, and it used to live only in the scrollback. A
+#               tone that fails to PLAY is reported as that, and not put to
+#               you as a question you cannot honestly answer.
 #
 # Reads ~/.crt/stt.log the same way crt-monologue.py does -- tails new
 # lines, doesn't touch the live capture process at all (crt-stt-solo.py
@@ -30,6 +35,7 @@
 # never 31/32/34/91/92/94.
 import difflib
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -56,6 +62,9 @@ _store_spec.loader.exec_module(fixups_store)
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 FIXUPS_PATH = crt_config.fixups_path()   # both spellings, one answer
 EARCON_BIN = os.path.join(BIN_DIR, "crt-earcon.sh")
+# Where the earcon round's verdicts go, so they outlive the tmux scrollback.
+ROUTING_LOG = os.path.expanduser(
+    os.environ.get("CRT_EARCON_ROUTING_LOG", "~/.crt/earcon-routing.jsonl"))
 
 # CRT-safe palette only -- see CLAUDE.md's hard rule (never 31/32/34/91/92/94).
 DIM, BRIGHT, RESET = "\033[2m", "\033[1m", "\033[0m"
@@ -104,11 +113,74 @@ def tail_new_lines(path, from_pos):
     return lines, pos
 
 
+def last_line(text):
+    """The last non-blank line of a subprocess's stderr -- the part a person
+    can act on ("sox not installed", "unknown name"), without the rest."""
+    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
+    return lines[-1] if lines else ""
+
+
 def play_earcon(name, device=None):
+    """Returns (played, detail).
+
+    crt-earcon.sh runs under `set -euo pipefail` and ends on aplay, so its
+    exit status is a real answer to "did a tone come out of that device" --
+    it is 1 for a missing sox, 1 for an ALSA device that will not open, 2 for
+    an unknown earcon name. This threw all of that at /dev/null and returned
+    nothing, which is the same defect f187a45 fixed in the sibling tool
+    (crt-earcon-loopback-test.py, where a tone that never played and a tone
+    the mic could not hear produced identical output).
+
+    It matters more here, because here the verdict is rendered by a HUMAN:
+    the round asked "did you hear it, and where" about a tone that had
+    provably never sounded, and an honest "nowhere" then reads as broken
+    routing. That is a wrong conclusion about the hardware, arrived at
+    carefully -- the worst kind for a tool whose whole purpose is
+    re-verifying routing without a hands-on session."""
     cmd = [EARCON_BIN, name]
     if device:
         cmd += ["--device", device]
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        proc = subprocess.run(cmd, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.PIPE, text=True)
+    except OSError as exc:                      # crt-earcon.sh missing/not +x
+        return False, str(exc)
+    if proc.returncode == 0:
+        return True, ""
+    return False, last_line(proc.stderr) or "exit %d" % proc.returncode
+
+
+def record_routing(device, played, reported, detail, path=None):
+    """Append one device-routing verdict. Returns True if it really landed.
+
+    The round printed "-> logged: intended=tv, reported=nowhere" and logged
+    nothing anywhere -- the whole session evaporated with the tmux scrollback,
+    though this script's own header says the point is re-verifying routing
+    "any time the hardware changes without a hands-on SSH session". A verdict
+    nobody can read tomorrow is not a re-verification.
+
+    JSONL, appended, one line per device, next to the other things this
+    console writes down about itself."""
+    path = os.path.expanduser(path or ROUTING_LOG)
+    row = {
+        "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "intended": device,
+        "played": played,
+        "reported": reported,
+        "detail": detail,
+    }
+    try:
+        parent = os.path.dirname(path)
+        if parent:                      # a bare filename has none, and
+            os.makedirs(parent, exist_ok=True)   # makedirs("") raises
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(row, sort_keys=True) + "\n")
+    except OSError as exc:
+        # Say so. Claiming "logged" while failing to log is the defect this
+        # function was written to fix, one level up.
+        print("%s[!] could not write %s -- %s%s" % (DIM + WHITE, path, exc, RESET))
+        return False
+    return True
 
 
 class Tailer:
@@ -245,14 +317,25 @@ def save_fixup(fragment, target, similarity, path):
     return fixups_store.update(path, add)
 
 
-def earcon_round():
+def earcon_round(path=None):
     print("\n%sEARCON ROUND%s -- confirming device routing by hand." % (BRIGHT + CYAN, RESET))
     print("(typed answers only -- can't use the mic to confirm the mic's own output path)\n")
     for device in ("tv", "handset"):
         input("Press Enter to play a tone on %r..." % device)
-        play_earcon("addressed", device)
+        played, detail = play_earcon("addressed", device)
+        if not played:
+            # Don't ask. A "nowhere" about a tone that never played is a
+            # human being talked into a wrong finding about the hardware.
+            print("%s[!] nothing played on %r -- %s%s" % (BRIGHT + MAGENTA, device, detail, RESET))
+            print("    Not asking whether you heard it: there was no tone.")
+            record_routing(device, False, None, detail, path)
+            print("-> logged: intended=%s, played=no (%s)\n" % (device, detail))
+            continue
         heard = input("Did you hear it, and where (tv/handset/nowhere)? ").strip().lower()
-        print("-> logged: intended=%s, reported=%s\n" % (device, heard or "no answer"))
+        if record_routing(device, True, heard or None, "", path):
+            print("-> logged: intended=%s, reported=%s\n" % (device, heard or "no answer"))
+        else:
+            print("-> NOT logged: intended=%s, reported=%s\n" % (device, heard or "no answer"))
 
 
 def main():
