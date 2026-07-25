@@ -993,7 +993,17 @@ def main():
         # Say it on the way out: a console that stops hearing should never be
         # ambiguous about whether it stopped on purpose. Cheap, and it is the
         # human-readable half of "the device was actually released".
-        print("\n[crt-stt] stopped; released %s" % DEV)
+        #
+        # Guarded, because the single most likely reason we are here is
+        # `tmux kill-window` -- which delivers SIGHUP precisely BECAUSE the
+        # pty went away, so this write can fail with EIO/EPIPE. Unguarded it
+        # would raise at the very end of a clean shutdown and exit 1, turning
+        # the deliberate stop back into something a supervisor reads as a
+        # crash -- the exact thing this message exists to prevent.
+        try:
+            print("\n[crt-stt] stopped; released %s" % DEV)
+        except OSError:
+            pass
     if capture_died:
         try:
             proc.wait(timeout=2)

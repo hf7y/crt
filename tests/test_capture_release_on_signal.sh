@@ -144,4 +144,38 @@ for sig in TERM HUP; do
   kill -9 "$py_pid" 2>/dev/null
 done
 
+# --- the real `tmux kill-window` shape: the pty goes away FIRST -------------
+# The loop above signals a process whose stdout is a plain file, which is the
+# `systemctl stop` / `pkill` case. It is NOT the tmux case, and the difference
+# is load-bearing: tmux delivers SIGHUP *because* it destroyed the pty, so by
+# the time the handler runs, every write to stdout fails with EIO. An
+# unguarded farewell print at the end of a clean shutdown then raises, and the
+# process that just shut down perfectly exits 1 -- which a supervisor reads as
+# a crash, the exact confusion the message was added to remove.
+#
+# Caught by stress-testing the fix rather than by the fix's own first test,
+# which is why it is pinned here: closing the pty master reproduces it in
+# isolation, no tmux binary required.
+cat > "$WORK/pty_hangup.py" <<'PY'
+import os, pty, sys, time
+bindir, fakebin = sys.argv[1], sys.argv[2]
+pid, fd = pty.fork()
+if pid == 0:
+    os.environ.update(PATH=fakebin + ":" + os.environ["PATH"],
+                      CRT_STT_SINK="stdout", CRT_AUDIO_DEV="plughw:9,9")
+    os.execvp("python3", ["python3", "-u", bindir + "/crt-stt-solo.py"])
+time.sleep(2.5)
+os.close(fd)        # pane destroyed; the kernel hangs up the fg process group
+_, status = os.waitpid(pid, 0)
+print(os.WEXITSTATUS(status) if os.WIFEXITED(status)
+      else 128 + os.WTERMSIG(status))
+PY
+pty_rc="$(python3 "$WORK/pty_hangup.py" "$BIN_DIR" "$FAKE_BIN" 2>/dev/null | tail -1)"
+if [ "$pty_rc" = "0" ]; then
+  echo "ok - a destroyed pty (tmux kill-window) still exits 0, not EIO-on-print"
+else
+  echo "FAIL - pty hangup exited $pty_rc; the farewell print raised on a dead tty"
+  fail=1
+fi
+
 exit "$fail"
