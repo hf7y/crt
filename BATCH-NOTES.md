@@ -27,6 +27,32 @@ one durable channel it actually owns.
 
 ## Pending — for `.claude/QUESTIONS.md`
 
+- **2026-07-25 (ninth cycle): should the mono window get a `CRT_COLS`/`CRT_ROWS`
+  pin in `crt-console.sh`, the way window 0's screensaver already has?**
+  `bin/crt-monologue.py` sized itself once at import, inside the detached tmux
+  session `crt-console.sh` builds before its final `exec tmux attach` — tmux
+  sizes a detached session 80x24, so window 1 has been drawing 24 rows into a
+  15-row pane and scrolling its own top away every frame. Fixed in `6aecc39` by
+  resolving the size per frame (the fix `crt-screensaver.py` already got), which
+  self-corrects within one 0.5s refresh of the client attaching. **The open
+  half:** the screensaver *also* gets an explicit `CRT_COLS=40 CRT_ROWS=15` pin
+  in `crt-console.sh` so its frames are right even before attach. Adding the
+  same pin here would fix the handful of pre-attach frames, at the cost of
+  overriding a differently-sized terminal you attach from for debugging. Not
+  added unilaterally — it changes live boot behaviour, which is Zach's call
+  under this project's own rule.
+
+- **2026-07-25 (ninth cycle): should something watch `crt-monologue.py`?** Nine
+  cycles have now routed the console's honest-failure reports to
+  `~/.crt/thoughts.log` for window 1 to render — capture death, a dead whisper
+  server, an unspoken reply, a phone that never rang, and (this cycle) an
+  utterance nothing handled. Every one of those assumes the process doing the
+  rendering is alive, and nothing checks. `crt-console.sh` runs it as
+  `./crt-monologue.py; exec bash`, so a crash leaves a bash prompt on the tube
+  and every later report goes to a file nobody is drawing — the same
+  silent-degradation shape those reports exist to prevent, one level up. This is
+  ranked-backlog item 8's supervisor territory; not built unasked.
+
 - **2026-07-25 (fifth cycle): this tier does not run on mandark. It runs on
   dexter, and that changes what the `ssh potato` ask actually is.** Four
   cycles have reported "`ssh potato` blocked, add a `Host` block / authorize
