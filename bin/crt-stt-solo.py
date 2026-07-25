@@ -1343,8 +1343,27 @@ def emit(text, peak=1.0):
         # repeating the wake word. When disarmed/expired/disabled this is
         # a no-op and every line below is completely unaffected -- the
         # existing gate logic is untouched otherwise.
+        #
+        # The consume path is handed this utterance's OWN wake
+        # classification, because the re-wake case can only be resolved
+        # here: an utterance arriving while armed returns below and never
+        # reaches the arm() call at the bottom of this function, so before
+        # 2026-07-25 a deliberate re-wake mid-conversation slid inside the
+        # OLD session's ARM_MAX_SECS ceiling instead of starting a fresh
+        # one. arm()'s documented "always starts a FRESH session" was
+        # unreachable from the only state where it meant anything.
+        #
+        # Classified at most once per utterance either way (it costs an
+        # os.stat of stt-fixups.json, same as the gate below): only when
+        # already armed here, and reused rather than recomputed at the arm
+        # call below.
+        arm_match = None
+        if WAKE_ARM_ENABLED and not is_control and ARM_STATE.armed:
+            arm_match = classify_wake_match(text)
+
         if WAKE_ARM_ENABLED and not is_control and \
-                wake_arm.consume_arm_with_followup(ARM_STATE, text):
+                wake_arm.consume_arm_with_followup(ARM_STATE, text,
+                                                   wake_match=arm_match):
             if STT_DEBUG_PERSIST:
                 print("%s  (arm follow-up) %s" % (ts, text))
             log_user_thought(text)
@@ -1371,7 +1390,8 @@ def emit(text, peak=1.0):
         elif EARCON_ON_ADDRESSED and not is_control:
             play_earcon("addressed")
         if WAKE_ARM_ENABLED and not is_control:
-            kind, source, word = classify_wake_match(text)
+            kind, source, word = (arm_match if arm_match is not None
+                                  else classify_wake_match(text))
             if kind:
                 ARM_STATE.arm(text, kind, source, word)
         label = "(key %s)" % CONTROL[key] if is_control else "->"

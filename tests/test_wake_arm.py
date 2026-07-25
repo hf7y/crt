@@ -108,6 +108,10 @@ class TestConsumeArmWithFollowup(unittest.TestCase):
 
     def test_wake_word_again_starts_a_fresh_session(self):
         # A deliberate re-wake resets the ceiling; only follow-ups are capped.
+        # NOTE (2026-07-25): this reaches arm() by calling it, which the LIVE
+        # path could not do from an armed state -- see
+        # tests/test_wake_rearm_ceiling.py, which drives the same claim
+        # through crt-stt-solo.py's real emit().
         state = wa.ArmState()
         state.arm("Potato", "exact", matched_word="potato",
                   now=100.0, arm_secs=12.0, max_secs=30.0)

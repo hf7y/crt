@@ -190,6 +190,10 @@ echo "== crt-wake-arm.py (arm-window state machine, 2026-07-23) =="
 python3 -m unittest discover -s "$DIR" -p "test_wake_arm.py" -v 2>&1 | tail -5 || fail=1
 echo
 
+echo "== a re-wake starts a fresh session, through the live emit() path (2026-07-25) =="
+python3 -m unittest discover -s "$DIR" -p "test_wake_rearm_ceiling.py" -v 2>&1 | tail -5 || fail=1
+echo
+
 echo "== crt-wake-pool-tally.py (near-miss tally, pulled from crt-vm) =="
 python3 -m unittest discover -s "$DIR" -p "test_wake_pool_tally.py" -v 2>&1 | tail -5 || fail=1
 echo

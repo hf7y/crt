@@ -154,23 +154,38 @@ def spawn_judge(outcome, trigger_text, match_kind, match_source=None,
         pass
 
 
-def consume_arm_with_followup(state, followup_text, now=None):
+def consume_arm_with_followup(state, followup_text, now=None, wake_match=None,
+                              arm_secs=None, max_secs=None):
     """A real follow-up utterance arrived while armed -- strong evidence
     the wake was wanted (WAKE-TUNING-STATE.md's ground-truth rule).
     Disarms and spawns the judge with outcome=consumed. Returns True if
     there was actually anything armed to consume -- callers use this to
     decide whether to treat followup_text as implicitly addressed,
-    bypassing the normal wake-word gate for just this one utterance."""
+    bypassing the normal wake-word gate for just this one utterance.
+
+    `wake_match` is the caller's (kind, source, matched_word) classification
+    of followup_text ITSELF -- crt-stt-solo.py's classify_wake_match(). When
+    it carries a kind, this follow-up is a deliberate re-wake, and the whole
+    point of arm()'s "always starts a FRESH session" contract is that such a
+    re-wake resets the ARM_MAX_SECS ceiling instead of being swallowed by
+    the session already in progress (2026-07-25, twelfth cycle: that
+    contract was only ever reachable from a disarmed state -- see the
+    caller's own note)."""
     now = now if now is not None else time.time()
     if not state.armed or now >= state.deadline:
         return False
     spawn_judge("consumed", state.trigger_text, state.match_kind,
                 state.match_source, state.matched_word, followup_text)
+    if wake_match and wake_match[0]:
+        kind, source, word = wake_match
+        state.arm(followup_text, kind, source, word, now=now,
+                  arm_secs=arm_secs, max_secs=max_secs)
+        return True
     # Slide, don't close: the live 2026-07-23 bug was FOUR follow-ups in one
     # breath, and a window that shuts after the first still drops three of
     # them -- the same complaint, one utterance later. Capped by
     # ARM_MAX_SECS so a sliding window can't become an always-on mic.
-    if not state.slide(followup_text, now):
+    if not state.slide(followup_text, now, arm_secs=arm_secs):
         state.disarm()
     return True
 
