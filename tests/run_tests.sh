@@ -321,6 +321,15 @@ echo "== crt-screensaver.py forwards the scans that land on the idle face =="
 python3 "$DIR/test_screensaver_forwards_scans.py" || fail=1
 echo
 
+# 2026-07-25 (eighteenth cycle): and the OTHER half of that same window. The
+# idle-lean layout boots into the screensaver, so on potato this is the screen
+# the tube actually holds -- and its caption was one fixed string in one fixed
+# spot from boot to shutdown, measured in characters on a screen sold in
+# columns, in a frame one line taller than the tube.
+echo "== crt-screensaver.py's caption moves, and fits (running process) =="
+python3 "$DIR/test_screensaver_caption_moves.py" || fail=1
+echo
+
 echo "== a scan reaches the tube (book window takes focus, hands it back) =="
 python3 "$DIR/test_scan_reaches_the_tube.py" || fail=1
 echo

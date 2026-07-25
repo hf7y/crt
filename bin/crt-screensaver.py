@@ -15,6 +15,17 @@
 #   real tube. The potato is dim cyan; the caption is dim yellow.
 # - "Breathing" is just alternating dim/normal on the same frame, cheap
 #   and calm -- not a flashy animation. This is a screensaver, not a demo.
+# - The CAPTION MOVES (2026-07-25, eighteenth cycle,
+#   CRT_SCREENSAVER_CAPTION_MOVE_SECS, 0 pins it). The breath proves this
+#   PROCESS is alive; it says nothing about the screen, which was one fixed
+#   layout -- same caption, same row, same alignment -- from boot to
+#   shutdown. The sibling resting screen (crt-book-console.py's shelf) was
+#   fixed for exactly this last cycle, and in the idle-lean layout THIS is
+#   the screen the tube boots into, so this is the one that was frozen in
+#   front of anybody. Zach on that feature, quoted twice in his reply:
+#   "rather than just sitting static -- the actual point of this feature",
+#   "so the idle screen doesn't look frozen in the same layout every single
+#   time".
 #
 # IT ALSO CATCHES SCANS (2026-07-25, fifteenth nightly cycle). The barcode
 # scanner is a USB HID keyboard: it types into whichever tmux window has
@@ -47,10 +58,38 @@ DEFAULT_ART = os.path.join(BIN_DIR, "..", "potato-small.txt")
 # crt-book-game.py to reuse the same two functions would drag sqlite3 and
 # urllib into the window whose entire reason for existing is holding no
 # brain on a 1GB Pi (POTATO.md / ARCHITECTURE-REVIEW-2026-07-23.md).
-_scan_spec = importlib.util.spec_from_file_location(
-    "crt_scan_line_for_screensaver", os.path.join(BIN_DIR, "crt_scan_line.py"))
-scan_line = importlib.util.module_from_spec(_scan_spec)
-_scan_spec.loader.exec_module(scan_line)
+def _load_sibling(name, filename):
+    spec = importlib.util.spec_from_file_location(name, os.path.join(BIN_DIR, filename))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+scan_line = _load_sibling("crt_scan_line_for_screensaver", "crt_scan_line.py")
+# The second light one (2026-07-25): column measurement and caption placement,
+# shared with crt-book-console.py's resting screen so both idle faces answer
+# "how wide is this, and where does it go" the same way. stdlib-only, same
+# reason as above -- see bin/crt_caption.py's header.
+caption_lib = _load_sibling("crt_caption_for_screensaver", "crt_caption.py")
+
+def _env_secs(name, default):
+    """A seconds-valued env var, junk-tolerant.
+
+    These names are set by crt-console.sh, i.e. by shell. A bare float() on a
+    misspelled value raises inside argparse's defaults -- before a single
+    frame is drawn -- and leaves a bash prompt on the window that IS the
+    console's face in the idle-lean layout. Same failure crt-book-console.py
+    shed last cycle and bg.detect_screen_size() the cycle before. Negative is
+    junk too; only 0 disables."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        val = float(raw)
+    except ValueError:
+        return default
+    return val if val >= 0 else default
+
 
 SCANNER_LOG = os.path.expanduser(os.environ.get("CRT_SCANNER_LOG", "~/.crt/scanner.log"))
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
@@ -98,37 +137,73 @@ def resolve_size():
         return 40, 15
 
 
-def render_frame(art, width, height, caption, color, dim):
-    """Build one full-screen frame string: cleared, art centered
-    horizontally and vertically, caption on the last row."""
+def art_layout(art, width, height):
+    """Where the art actually lands: (clipped lines, first row).
+
+    Split out (2026-07-25) so the caption can be placed anywhere the art
+    ISN'T, without a second copy of this arithmetic deciding where that is.
+    """
     art = art[: max(1, height - 2)]  # leave a row for the caption
     # Never let a rendered line exceed the width, or it wraps on the tube
     # (the bug that made the potato look broken): if the art is wider than
     # the screen, drop leading cells rather than pad it off the edge.
-    art = [line[:width] if _display_len(line) > width else line for line in art]
-    pad_top = max(0, (height - len(art) - 1) // 2)
-    out = ["\x1b[H\x1b[2J"]
+    art = [caption_lib.cut_to_width(line, width) for line in art]
+    return art, max(0, (height - len(art) - 1) // 2)
+
+
+def caption_runs(art, width, height):
+    """The runs of rows a caption may use, best first.
+
+    Rows the art occupies are out. So is the strip ABOVE the art whenever
+    there is any room below it: the top row of this tube is the most
+    overscan-exposed edge (`~/.crt/display.conf`'s safe margin, which this
+    window does not consume yet -- .claude/FOCUS.md backlog 5b), and the
+    caption is the one line here that has to stay readable. It is the only
+    thing on screen that says how to wake the console."""
+    lines, top = art_layout(art, width, height)
+    used = set(range(top, min(height, top + len(lines))))
+    below = [r for r in range(height) if r not in used and r > max(used or {-1})]
+    free = below or [r for r in range(height) if r not in used]
+    return caption_lib.row_runs(free) or [[max(0, height - 1)]]
+
+
+def pick_caption_slot(art, width, height, rng=None, avoid=None):
+    """A (row, align) for the caption -- never the one it is in now."""
+    return caption_lib.pick_slot(caption_runs(art, width, height),
+                                 1, rng=rng, avoid=avoid)
+
+
+def render_frame(art, width, height, caption, color, dim, slot=None):
+    """Build one full-screen frame string: cleared, art centered
+    horizontally and vertically, caption at `slot` -- (row, alignment) --
+    or on the last row, centered, when no slot is given.
+
+    Exactly `height` lines, the clear sequence riding on the first one
+    rather than taking a line of its own: emitting height+1 lines scrolled
+    the tube by a row on every single frame, so the whole picture jumped up
+    and back twice a breath."""
+    lines, top = art_layout(art, width, height)
+    rows = [""] * max(1, height)
     style = (DIM if dim else "") + "\x1b[%sm" % color
-    for _ in range(pad_top):
-        out.append("")
-    for line in art:
+    for i, line in enumerate(lines):
+        row = top + i
+        if row >= len(rows):
+            break
         # clamp so leftpad + line can never exceed width (no wrap)
-        left = max(0, min((width - _display_len(line)) // 2, width - _display_len(line)))
-        out.append(" " * left + style + line + RESET)
+        w = caption_lib.display_width(line)
+        rows[row] = " " * max(0, min((width - w) // 2, width - w)) + style + line + RESET
     if caption:
-        cap = caption[:width]
-        left = max(0, (width - len(cap)) // 2)
-        # blank-fill down to the last row, then the caption
-        for _ in range(max(0, height - len(art) - pad_top - 1)):
-            out.append("")
-        out.append(" " * left + DIM + "\x1b[%sm" % YELLOW + cap + RESET)
-    return "\n".join(out)
-
-
-def _display_len(s):
-    # Braille cells are single-width; this is just len() but kept as a seam
-    # in case wider glyphs ever get used in the art.
-    return len(s)
+        row, align = slot or (len(rows) - 1, "center")
+        row = min(max(0, row), len(rows) - 1)
+        # Columns, not characters (bin/crt_caption.py): a caption cut and
+        # centered by len() is drawn wider than the tube the moment it holds
+        # anything East Asian Wide, and wraps. CRT_SCREENSAVER_CAPTION is a
+        # free-text env var -- nothing stops one.
+        cap = caption_lib.cut_to_width(caption, width)
+        pad = width - caption_lib.display_width(cap)
+        left = 0 if align == "left" else pad if align == "right" else pad // 2
+        rows[row] = " " * left + DIM + "\x1b[%sm" % YELLOW + cap + RESET
+    return "\x1b[H\x1b[2J" + "\n".join(rows)
 
 
 def forward_scan(isbn, log_path=None):
@@ -204,7 +279,10 @@ def main(argv=None):
     p.add_argument("--caption", default=os.environ.get("CRT_SCREENSAVER_CAPTION",
                                                         "say 'potato' to wake me"))
     p.add_argument("--interval", type=float,
-                    default=float(os.environ.get("CRT_SCREENSAVER_INTERVAL", "2.5")))
+                    default=_env_secs("CRT_SCREENSAVER_INTERVAL", 2.5))
+    p.add_argument("--caption-move-secs", type=float,
+                    default=_env_secs("CRT_SCREENSAVER_CAPTION_MOVE_SECS", 8.0),
+                    help="how often the caption moves to a new spot; 0 pins it")
     p.add_argument("--once", action="store_true",
                     help="render a single frame and exit (for tests/preview)")
     args = p.parse_args(argv)
@@ -228,9 +306,28 @@ def main(argv=None):
     # window created detached defaults to 80x24 and only resizes to the
     # real 40x15 once the client attaches. Reading once at boot cached 80
     # and centered for it, so lines wrapped on the tube. Cheap to redo.
+    slot, move_at = None, 0.0
     for dim in itertools.cycle([True, False]):
         cols, rows = resolve_size()
-        sys.stdout.write(render_frame(art, cols, rows, args.caption, CYAN, dim=dim))
+        # The caption moves (2026-07-25, eighteenth cycle). The breathing
+        # proves this process is alive; it does not stop the SCREEN from
+        # being one fixed layout from boot until someone speaks, which is
+        # what the sibling resting screen was just fixed for -- and in the
+        # idle-lean layout THIS is the screen the tube boots into, so it is
+        # the one that was actually frozen in front of anybody. Zach, on the
+        # book console's version of this, twice: "rather than just sitting
+        # static -- the actual point of this feature", "so the idle screen
+        # doesn't look frozen in the same layout every single time".
+        #
+        # Its own cadence, not the breath's: 8s reads as a screen with
+        # something going on, 2.5s reads as a twitch. 0 pins it where it has
+        # always been (last row, centered) -- an automatic behaviour keeps
+        # its manual escape hatch, same rule as CRT_BOOK_IDLE_ROTATE_SECS.
+        if args.caption_move_secs and time.time() >= move_at:
+            slot = pick_caption_slot(art, cols, rows, avoid=slot)
+            move_at = time.time() + args.caption_move_secs
+        sys.stdout.write(render_frame(art, cols, rows, args.caption, CYAN,
+                                      dim=dim, slot=slot))
         sys.stdout.flush()
         time.sleep(args.interval)
     return 0
