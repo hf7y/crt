@@ -16,6 +16,14 @@
 # "Potato, this is Zach" woke the console, but four follow-up utterances
 # in the same breath right after all got silently gate-dropped.
 #
+# 2026-07-25: a consumed follow-up SLIDES the window forward rather than
+# closing it. As first written, the window was single-shot -- which would
+# have let follow-up #1 of that live report through and still dropped
+# #2/#3/#4, i.e. the same complaint one utterance later. Sliding is
+# bounded by CRT_WAKE_ARM_MAX_SECS (default 60s) so that in this
+# specifically noisy room it can't ratchet itself into an always-on mic;
+# saying the wake word again starts a fresh session with a fresh ceiling.
+#
 # Pure functions except spawn_judge()'s subprocess call -- covered by
 # tests/test_wake_arm.py.
 #
@@ -35,6 +43,16 @@ BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 JUDGE_BIN = os.path.join(BIN_DIR, "crt-wake-judge.py")
 
 ARM_SECS = float(os.environ.get("CRT_WAKE_ARM_SECS", "12"))
+# Hard ceiling on one sticky conversation (2026-07-25). A consumed follow-up
+# SLIDES the window forward -- the live bug this exists for was four
+# follow-ups in one breath, of which a single-shot window would still have
+# dropped three -- but sliding with no ceiling is dangerous in this
+# specific room: CLAUDE.md's premise is ambient chatter and a noisy mic, and
+# an unbounded window would let room noise keep re-arming itself until the
+# console is effectively always listening. The wake word can always start a
+# fresh session (a deliberate re-wake resets this ceiling); what it can't do
+# is drift into always-on.
+ARM_MAX_SECS = float(os.environ.get("CRT_WAKE_ARM_MAX_SECS", "60"))
 JUDGE_ENABLED = os.environ.get("CRT_WAKE_JUDGE_ENABLED", "0") == "1"
 
 
@@ -65,20 +83,51 @@ class ArmState:
         self.match_kind = None
         self.match_source = None
         self.matched_word = None
+        # Ceiling for the whole conversation, set by the wake word itself and
+        # NOT pushed back by follow-ups (see ARM_MAX_SECS).
+        self.session_deadline = 0.0
+        # True once the window has been slid by a consumed follow-up. Such a
+        # window closing is a conversation ending normally, not a wake that
+        # went unanswered -- reporting it to the judge as a timeout would
+        # teach it the wake word was unwanted, when a follow-up already
+        # proved the opposite.
+        self.continuation = False
 
     def arm(self, text, match_kind, match_source=None, matched_word=None,
-            now=None, arm_secs=None):
+            now=None, arm_secs=None, max_secs=None):
+        """A wake word fired. Always starts a FRESH session, including when
+        one is already open -- saying the wake word again is deliberate, so
+        it resets the ARM_MAX_SECS ceiling rather than being swallowed by
+        the conversation already in progress."""
         now = now if now is not None else time.time()
         arm_secs = arm_secs if arm_secs is not None else ARM_SECS
+        max_secs = max_secs if max_secs is not None else ARM_MAX_SECS
         self.armed = True
         self.deadline = now + arm_secs
+        self.session_deadline = now + max(arm_secs, max_secs)
+        self.continuation = False
         self.trigger_text = text
         self.match_kind = match_kind
         self.match_source = match_source
         self.matched_word = matched_word
 
+    def slide(self, followup_text, now=None, arm_secs=None):
+        """Extend an open window after a consumed follow-up, capped at the
+        session ceiling. Returns False when the ceiling is reached, meaning
+        the caller should close the window instead."""
+        now = now if now is not None else time.time()
+        arm_secs = arm_secs if arm_secs is not None else ARM_SECS
+        new_deadline = min(now + arm_secs, self.session_deadline)
+        if new_deadline <= now:
+            return False
+        self.deadline = new_deadline
+        self.continuation = True
+        self.trigger_text = followup_text
+        return True
+
     def disarm(self):
         self.armed = False
+        self.continuation = False
 
 
 def spawn_judge(outcome, trigger_text, match_kind, match_source=None,
@@ -117,7 +166,12 @@ def consume_arm_with_followup(state, followup_text, now=None):
         return False
     spawn_judge("consumed", state.trigger_text, state.match_kind,
                 state.match_source, state.matched_word, followup_text)
-    state.disarm()
+    # Slide, don't close: the live 2026-07-23 bug was FOUR follow-ups in one
+    # breath, and a window that shuts after the first still drops three of
+    # them -- the same complaint, one utterance later. Capped by
+    # ARM_MAX_SECS so a sliding window can't become an always-on mic.
+    if not state.slide(followup_text, now):
+        state.disarm()
     return True
 
 
@@ -132,6 +186,12 @@ def check_arm_timeout(state, now=None):
     now = now if now is not None else time.time()
     if not state.armed or now < state.deadline:
         return False
+    if state.continuation:
+        # A conversation that ran its course, not a wake nobody answered --
+        # the consumed follow-up already told the judge this wake was
+        # wanted. Filing a timeout here would argue the opposite.
+        state.disarm()
+        return True
     outcome = ("timeout-with-leftover"
                if has_leftover_content(state.trigger_text, state.matched_word)
                else "timeout-empty")

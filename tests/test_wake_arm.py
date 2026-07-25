@@ -67,10 +67,68 @@ class TestConsumeArmWithFollowup(unittest.TestCase):
         state.arm("Potato", "exact", matched_word="potato", now=100.0, arm_secs=12.0)
         consumed = wa.consume_arm_with_followup(state, "run the tests", now=105.0)
         self.assertTrue(consumed)
-        self.assertFalse(state.armed)
         self.assertEqual(len(self.judge_calls), 1)
         args = self.judge_calls[0][0]
         self.assertEqual(args[0], "consumed")
+
+    def test_window_slides_forward_instead_of_closing_after_one_followup(self):
+        # The live 2026-07-23 bug was FOUR follow-ups in one breath. A window
+        # that closes on the first still drops the other three -- the same
+        # complaint, one utterance later.
+        state = wa.ArmState()
+        state.arm("Potato, this is Zach", "exact", matched_word="potato",
+                  now=100.0, arm_secs=12.0, max_secs=60.0)
+        for i, (text, t) in enumerate([("we made some updates", 105.0),
+                                       ("routed off-site", 112.0),
+                                       ("to the model", 120.0),
+                                       ("does that make sense", 128.0)]):
+            self.assertTrue(wa.consume_arm_with_followup(state, text, now=t),
+                            "follow-up %d was dropped" % (i + 1))
+            self.assertTrue(state.armed)
+        self.assertEqual(len(self.judge_calls), 4)
+
+    def test_sliding_is_capped_by_the_session_ceiling(self):
+        # Sliding with no ceiling would let ambient room chatter keep a mic
+        # armed indefinitely -- the failure mode this room's noise floor
+        # makes real.
+        state = wa.ArmState()
+        state.arm("Potato", "exact", matched_word="potato",
+                  now=100.0, arm_secs=12.0, max_secs=30.0)   # ceiling t=130
+        self.assertTrue(wa.consume_arm_with_followup(state, "one", now=110.0))
+        self.assertEqual(state.deadline, 122.0)              # slid normally
+        self.assertTrue(wa.consume_arm_with_followup(state, "two", now=121.0))
+        self.assertEqual(state.deadline, 130.0)              # clamped, not 133
+        self.assertTrue(wa.consume_arm_with_followup(state, "three", now=129.0))
+        self.assertEqual(state.deadline, 130.0)              # still clamped
+        # At the ceiling the window closes and stays closed: more chatter
+        # can't reopen it, only the wake word can.
+        self.assertTrue(wa.check_arm_timeout(state, now=130.0))
+        self.assertFalse(state.armed)
+        self.assertFalse(wa.consume_arm_with_followup(state, "four", now=131.0))
+
+    def test_wake_word_again_starts_a_fresh_session(self):
+        # A deliberate re-wake resets the ceiling; only follow-ups are capped.
+        state = wa.ArmState()
+        state.arm("Potato", "exact", matched_word="potato",
+                  now=100.0, arm_secs=12.0, max_secs=30.0)
+        wa.consume_arm_with_followup(state, "one", now=105.0)
+        state.arm("Potato", "exact", matched_word="potato",
+                  now=125.0, arm_secs=12.0, max_secs=30.0)
+        self.assertEqual(state.session_deadline, 155.0)
+        self.assertFalse(state.continuation)
+
+    def test_continuation_timeout_is_not_reported_as_an_unanswered_wake(self):
+        # The follow-up already proved the wake was wanted. Filing a timeout
+        # when the conversation later ends would teach the judge the
+        # opposite, poisoning WAKE-TUNING-STATE.md's ground truth.
+        state = wa.ArmState()
+        state.arm("Potato, what's AGM?", "exact", matched_word="potato",
+                  now=100.0, arm_secs=12.0)
+        wa.consume_arm_with_followup(state, "the battery kind", now=105.0)
+        self.judge_calls.clear()
+        self.assertTrue(wa.check_arm_timeout(state, now=200.0))
+        self.assertFalse(state.armed)
+        self.assertEqual(self.judge_calls, [])
 
     def test_does_not_consume_when_not_armed(self):
         state = wa.ArmState()
