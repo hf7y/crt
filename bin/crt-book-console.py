@@ -134,9 +134,14 @@ def _place_text(text, width, align):
     alignment too -- used to move the idle caption around the screen
     (2026-07-21, Zach: 'move around the screen with idle bait rather
     than render in center every time') instead of always the same
-    horizontal position."""
-    text = text[:width]
-    pad = width - len(text)
+    horizontal position.
+
+    Measured in COLUMNS, not characters (2026-07-25, see bg.char_width):
+    the enticement lines are kaomoji, and '(・∀・)' is 7 columns of 5
+    characters -- so a caption cut to the 30-character content budget was
+    padded as if it were 30 columns and drawn 32, wrapping on the tube."""
+    text = bg.cut_to_width(text, width)
+    pad = width - bg.display_width(text)
     if align == "left":
         return text + " " * pad
     if align == "right":
@@ -179,15 +184,73 @@ def render_idle_screen(book_count, width, height, rng=None):
             art_rows.add(row)
 
     available_rows = [r for r in range(1, height) if r not in art_rows]
-    caption_row = rng.choice(available_rows) if available_rows else min(height - 1, start + len(art_lines) + 1)
     align = rng.choice(("left", "center", "right"))
     caption = (bg.pick_entice_line(rng=rng) if rng.random() < 0.5
                else f"{book_count} book(s) registered -- scan one!")
     # HARD RULE (2026-07-21, Zach): never more than MAX_CONTENT_WIDTH
-    # (30) characters of actual text, even on a wider screen -- entice
+    # (30) columns of actual text, even on a wider screen -- entice
     # lines especially can run well past that.
-    lines[caption_row] = _place_text(caption[:bg.MAX_CONTENT_WIDTH], width, align)
+    #
+    # WRAPPED, not cut, since 2026-07-25. Every one of the six enticement
+    # lines is longer than 30 columns, so a single-line cut took the end off
+    # all six -- and with it the words "scan one", "try it?", "scan it" from
+    # four of them. The resting screen's entire job is to ask for a scan and
+    # it had been asking "( closed book ) -> ( scanner )". The question
+    # screen beside it has wrapped its text all along (bg.render_question_
+    # screen's textwrap call); this was the one line still being guillotined.
+    def wrapped(rows):
+        return bg.wrap_to_width(caption, bg.MAX_CONTENT_WIDTH, max_lines=rows)
+
+    runs = _row_runs(available_rows)
+    tallest = max((len(r) for r in runs), default=0)
+    if tallest:
+        # Shortened to the room actually available rather than written over
+        # the art -- wrap_to_width elides what it drops, so a caption that
+        # had to give something up says so.
+        block = wrapped(min(CAPTION_MAX_ROWS, tallest))
+        caption_row = _pick_caption_row(runs, len(block), rng)
+    else:
+        # A screen too short to have any free row (never on the real tube;
+        # here so a small `height` degrades instead of raising).
+        block = wrapped(1)
+        caption_row = min(height - 1, start + len(art_lines) + 1)
+    for i, l in enumerate(block):
+        row = caption_row + i
+        if 0 <= row < height:
+            lines[row] = _place_text(l, width, align)
     return [bg.wrap_color(l, bg.COLOR_TITLE) for l in lines]
+
+
+# The caption gets at most this many rows. Three covers the longest
+# enticement line whole at a 30-column budget; a fourth would start
+# crowding a 15-row tube that also holds a title and the shelf.
+CAPTION_MAX_ROWS = 3
+
+
+def _row_runs(rows):
+    """Pure function: sorted row numbers -> lists of CONSECUTIVE rows.
+
+    A multi-row caption needs an unbroken stretch. The shelf art sits in the
+    vertical middle, so the free rows come in two blocks (above and below it)
+    and 'pick a random free row' would happily start a 3-row caption one row
+    above the art and write the other two straight through it."""
+    runs = []
+    for r in sorted(rows):
+        if runs and r == runs[-1][-1] + 1:
+            runs[-1].append(r)
+        else:
+            runs.append([r])
+    return runs
+
+
+def _pick_caption_row(runs, block_rows, rng):
+    """Pure function: a random start row with `block_rows` consecutive free
+    rows from it. Keeps the caption moving around the screen (2026-07-21,
+    Zach) without ever landing on the art. Callers size the block to the
+    tallest run first, so at least one run always fits."""
+    candidates = [run for run in runs if len(run) >= block_rows]
+    run = rng.choice(candidates or runs)
+    return rng.choice(run[:max(1, len(run) - block_rows + 1)])
 
 
 def scan_title(row, width):
@@ -213,8 +276,14 @@ def scan_title(row, width):
     if not lcc:
         return bg.elide(title, budget)
     suffix = " (%s)" % lcc
-    room = budget - len(suffix)
-    if room >= len(title):
+    # Columns, not characters (2026-07-25): a CJK title is half as many
+    # characters as it is columns, so len() said it fit, the composed line
+    # went to center_text over-wide, and got cut -- reproducing the dangling
+    # 'Nineteen Eighty-Four (PR6029' fragment this function exists to prevent,
+    # for exactly the books whose titles this console cannot re-read at a
+    # glance. Open Library returns them for perfectly ordinary scans.
+    room = budget - bg.display_width(suffix)
+    if room >= bg.display_width(title):
         return title + suffix
     if room >= MIN_TITLE_CHARS:
         return bg.elide(title, room) + suffix

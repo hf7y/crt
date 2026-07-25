@@ -40,6 +40,7 @@ import sqlite3
 import sys
 import textwrap
 import time
+import unicodedata
 import urllib.parse
 import urllib.request
 
@@ -789,32 +790,134 @@ def title_budget(width):
     return max(1, min(width or FALLBACK_WIDTH, MAX_CONTENT_WIDTH) - 2)
 
 
+def char_width(ch):
+    """Terminal columns one character occupies.
+
+    2 for East Asian Wide/Fullwidth, 0 for a combining mark, 1 otherwise.
+    East Asian *Ambiguous* counts as 1, which is what tmux and essentially
+    every non-CJK-locale terminal do with it.
+
+    Exists because this project lays out fixed-width screens for a 40-column
+    tube by counting CHARACTERS, and the two are not the same number the
+    moment anything non-Latin appears. It appears already: the idle screen's
+    own enticement lines are kaomoji ('(・∀・)  got a book nearby?'), and
+    U+30FB KATAKANA MIDDLE DOT is Wide -- so a caption measured at exactly
+    the 30-column budget was drawn 32 columns long and wrapped on the tube.
+    Book titles are the other way in: Open Library will hand back a CJK or
+    fullwidth title for a perfectly ordinary scan, and 'scan any book
+    nearby' is the entire premise of this feature."""
+    if unicodedata.combining(ch):
+        return 0
+    return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+
+
+def display_width(text):
+    """Terminal columns `text` occupies -- see char_width()."""
+    return sum(char_width(c) for c in text)
+
+
+def cut_to_width(text, limit):
+    """`text` cut to at most `limit` terminal COLUMNS (not characters).
+
+    A wide character straddling the boundary is dropped rather than half-
+    drawn, so the result can be one column short of `limit`; callers pad."""
+    if limit <= 0:
+        return ""
+    out, w = [], 0
+    for ch in text:
+        cw = char_width(ch)
+        if w + cw > limit:
+            break
+        out.append(ch)
+        w += cw
+    return "".join(out)
+
+
+def wrap_to_width(text, limit, max_lines=None):
+    """Word-wrap `text` into lines of at most `limit` COLUMNS.
+
+    Unlike textwrap.wrap this measures in columns (see char_width) and keeps
+    the whitespace runs between words, because on this console those runs are
+    load-bearing: the enticement lines put a deliberate double space after
+    their kaomoji face.
+
+    `max_lines` folds everything past the limit back onto the last kept line
+    and elides it, so a caption that did not fit always SAYS it did not fit
+    rather than simply stopping. A single word wider than `limit` is elided
+    on its own line.
+
+    Added 2026-07-25: the idle caption was the one piece of text on these
+    screens getting a hard single-line cut while the question beside it
+    wrapped, and all six enticement lines are longer than the 30-column
+    content budget -- so every one of them lost its ending, and four of the
+    six lost the words 'scan'/'try it' entirely. The screen whose only job is
+    to ask someone to scan a book had stopped asking."""
+    if limit <= 0:
+        return [""]
+    parts = [p for p in re.split(r"(\s+)", text) if p]
+    lines, cur, gap = [], "", ""
+    for part in parts:
+        if part.isspace():
+            if cur:
+                gap = part
+            continue
+        if cur and display_width(cur + gap + part) <= limit:
+            cur = cur + gap + part
+        else:
+            if cur:
+                lines.append(cur)
+            cur = part if display_width(part) <= limit else elide(part, limit)
+        gap = ""
+    if cur:
+        lines.append(cur)
+    if not lines:
+        return [""]
+    if max_lines is not None and len(lines) > max_lines:
+        kept = lines[:max_lines]
+        # Rejoined and elided rather than dropped: the remainder guarantees
+        # the line overflows, so '..' is always what the reader sees.
+        kept[-1] = elide(" ".join([kept[-1]] + lines[max_lines:]), limit)
+        lines = kept
+    return lines
+
+
 def elide(text, limit):
-    """`text` cut to `limit`, ending in '..' when anything was removed.
+    """`text` cut to `limit` COLUMNS, ending in '..' when anything was removed.
 
     A hard cut is indistinguishable from a broken render, which on this
     console is a real cost: 'Nineteen Eighty-Four (PR6029' -- the closing
     paren eaten by a 28-character title budget -- reads as a fault, not as
     a long title. ASCII '..' rather than an ellipsis glyph, same choice
     crt-stt-solo.py's flash makes, because this lands on a CRT through a
-    console font that may not have one."""
+    console font that may not have one.
+
+    Columns, not characters, since 2026-07-25 -- see char_width()."""
     if limit <= 0:
         return ""
-    if len(text) <= limit:
+    if display_width(text) <= limit:
         return text
     if limit <= 2:
-        return text[:limit]
-    return text[:limit - 2] + ".."
+        return cut_to_width(text, limit)
+    return cut_to_width(text, limit - 2) + ".."
 
 
 def center_text(text, width):
     """Pure centering helper -- pads `text` with leading/trailing spaces
     to `width`. Truncates (never wraps) text longer than width, since a
     single over-length line is a caller bug, not something this helper
-    should silently multi-line."""
-    if len(text) >= width:
-        return text[:width]
-    pad = width - len(text)
+    should silently multi-line.
+
+    Measured in COLUMNS since 2026-07-25 (see char_width): padding a
+    fullwidth book title by character count draws a line wider than the
+    pane, which wraps and pushes the screen's own bottom row off the tube."""
+    w = display_width(text)
+    if w >= width:
+        # Still padded after the cut: dropping a straddling wide character
+        # can leave the line one column short, and every caller relies on
+        # these being exactly `width` columns.
+        text = cut_to_width(text, width)
+        return text + " " * (width - display_width(text))
+    pad = width - w
     left = pad // 2
     right = pad - left
     return (" " * left) + text + (" " * right)
@@ -840,8 +943,18 @@ def render_question_screen(book_title, question, width=None, height=None):
     lines = [" " * width for _ in range(height)]
 
     title_line = center_text(elide(book_title, title_budget(width)), width)
-    q_lines = textwrap.wrap(question["text"], content_width - 2) or [""]
-    options_line = center_text(" / ".join(question["options"])[:content_width], width)
+    # wrap_to_width, not textwrap.wrap (2026-07-25): textwrap measures in
+    # characters, and this screen is sold in columns. Everything else here
+    # moved to column arithmetic in the same pass; leaving the question --
+    # the one piece of text the whole funnel exists to show someone -- on the
+    # character count would be exactly the half-wired state this project keeps
+    # paying for. Also elides an over-long single token instead of breaking
+    # it mid-word, which on a 40-column tube reads as a fault.
+    q_lines = wrap_to_width(question["text"], content_width - 2)
+    # elide, not a bare cut: options that do not fit used to simply stop, so
+    # 'before / after' truncated to 'before / af' looked like a render fault
+    # rather than a long option pair.
+    options_line = center_text(elide(" / ".join(question["options"]), content_width), width)
 
     block = [center_text(l, width) for l in q_lines] + [" " * width, options_line]
     block_start = max(0, (height - len(block)) // 2)

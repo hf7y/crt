@@ -341,6 +341,14 @@ echo "== the idle screen redraws itself (pty, nobody at the console) =="
 python3 "$DIR/test_book_idle_screen_moves.py" || fail=1
 echo
 
+# 2026-07-25 (seventeenth cycle): the same caption, measured in characters on
+# a screen sold in columns, and cut where the budget ran out -- so the kaomoji
+# line was drawn 42 columns into a 40-column pane, and four of six enticements
+# lost the word "scan".
+echo "== the idle caption fits the tube and still asks for a book =="
+python3 "$DIR/test_idle_caption_fits.py" || fail=1
+echo
+
 echo "== crt-console.sh Book Game funnel windows (both layouts) =="
 bash "$DIR/test_console_book_game_layout.sh" || fail=1
 echo
