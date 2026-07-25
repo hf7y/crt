@@ -3,12 +3,13 @@
 **What this is.** The unattended nightly-batch tier (the disposable clone on
 mandark, see `DEVELOPMENT-WORKFLOW.md`'s three-tier model) cannot write to
 `.claude/`. Every write to `.claude/QUESTIONS.md` and `.claude/FOCUS.md` from
-this tier has been refused as a sensitive file on **four consecutive cycles**
-(2026-07-24, and three times on 2026-07-25). The `nightly-batch` skill
+this tier has been refused as a sensitive file on **nine consecutive cycles**
+(2026-07-24, and eight times on 2026-07-25). The `nightly-batch` skill
 nonetheless instructs this tier to keep `.claude/FOCUS.md` current and to
 append open questions to `.claude/QUESTIONS.md`, so that instruction has been
-unsatisfiable for four cycles running and the questions have only ever reached
-Zach through `~/reports/crt/LATEST.md`.
+unsatisfiable for nine cycles running and the questions have only ever reached
+Zach through `~/reports/crt/LATEST.md`. Tested directly again each cycle
+rather than assumed -- most recently the twelfth cycle, 2026-07-25.
 
 **What it is not.** Not a replacement for `.claude/QUESTIONS.md` or
 `.claude/FOCUS.md` — those stay the source of truth. This is a *staging area*:
@@ -26,6 +27,32 @@ one durable channel it actually owns.
 ---
 
 ## Pending — for `.claude/QUESTIONS.md`
+
+- **2026-07-25 (twelfth cycle): does the arm window's ceiling belong to a
+  conversation, or to a wake?** `a9e899b` made a deliberate re-wake
+  mid-conversation start a fresh session, so `CRT_WAKE_ARM_MAX_SECS` (60s)
+  is now measured from the last time someone said the wake word rather than
+  from the first. That is what `ArmState.arm()` already documented and what
+  `tests/test_wake_arm.py` already asserted; the live path simply could
+  never reach it, because an utterance arriving while armed returns from the
+  consume path before the arm call. The consequence worth your ear: a long
+  conversation with periodic re-waking can now stay armed indefinitely, one
+  wake word at a time. Each extension is a person deliberately re-addressing
+  the console, not room noise ratcheting the window open — ambient chatter
+  still slides only inside the ceiling — so I think it is right. But it is a
+  real change to how long this mic can stay open in this specific room, and
+  that is a judgement about the room, not about the code.
+
+- **2026-07-25 (twelfth cycle): should re-scanning a book ask the same
+  question again, or a different one?** `bb2bd8e` made a re-scanned book
+  answerable at all — it was not, see that commit. It deliberately kept
+  `register_book`'s cache, so the second scan puts the SAME question on the
+  tube as the first. For STT training that is arguably the ideal: the same
+  expected string, spoken again by the same person in the same room, is a
+  repeated measurement rather than a new one. For a game it is repetitive.
+  `questions_json` is already a list and rotating through it is a small
+  change, so this is not a cost question — it is a question about what the
+  Book Game is primarily for, which is yours to answer.
 
 - **2026-07-25 (eleventh cycle): may a background window keep running after
   it has skipped an iteration, or should it eventually give up loudly?**
