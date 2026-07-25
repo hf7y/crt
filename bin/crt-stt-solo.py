@@ -670,7 +670,131 @@ def load_fixups(path):
     return {k: v for k, v in data.items() if not k.startswith("_")}
 
 
-FIXUPS = load_fixups(FIXUPS_PATH)
+def fixups_signature(path):
+    """(inode, mtime_ns, size) for `path`, or None when it isn't there.
+    Three fields rather than mtime alone: crt-stt-training-merge.py lands
+    this file with os.replace(), which brings a whole new inode, and a hand
+    edit can rewrite it inside a single filesystem timestamp tick."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return (st.st_ino, st.st_mtime_ns, st.st_size)
+
+
+def fixups_change_report(added, removed, wake_word=WAKE_WORD, max_named=3):
+    """One short line for a 40-column tube saying what just changed in
+    stt-fixups.json. `added` is {key: info}, `removed` a list of keys.
+    Names the added entries whose intent IS the wake word, because those
+    are the only ones that change what this gate does -- the rest are
+    plumbing for a consumer that doesn't exist yet (see
+    crt-stt-training-merge.py's own honest-scope note)."""
+    counts = []
+    if added:
+        counts.append("+%d" % len(added))
+    if removed:
+        counts.append("-%d" % len(removed))
+    line = "fixups reloaded (%s)" % ", ".join(counts or ["no change"])
+    wake_new = sorted(k for k, info in added.items()
+                      if (info or {}).get("intent") == wake_word)
+    if wake_new:
+        named = ", ".join(repr(k) for k in wake_new[:max_named])
+        if len(wake_new) > max_named:
+            named += ", +%d more" % (len(wake_new) - max_named)
+        line += " -- now wakes me: %s" % named
+    return line
+
+
+def fixups_error_report(err, kept):
+    """The line for a fixups file that is there but unreadable. Says which
+    set is actually in force, because the two cases differ in what the room
+    will experience: a stale-but-good set still opens the gate on every
+    alias it knew, an empty one silently narrows the gate to the exact wake
+    word and nothing else."""
+    if kept:
+        held = "keeping the %d I already had" % len(kept)
+    else:
+        held = "exact %r only until it parses" % WAKE_WORD
+    return "fixups unreadable: %s -- %s" % (err, held)
+
+
+class FixupsFile:
+    """The wake gate's live view of stt-fixups.json, re-read when it changes.
+
+    Until 2026-07-25 this was a single module-level `FIXUPS =
+    load_fixups(...)` evaluated at import, which `addressed_to_console` then
+    bound as a *default argument* -- two separate reasons a later edit could
+    never reach the gate. Three things write this file while the engine is
+    running: crt-stt-training-merge.py's `stttrain` window (--loop, every
+    CRT_STT_TRAINING_MERGE_INTERVAL_SECS), crt-calibration-game.py's wake
+    round (a live human confirming a mishear by ear -- the strongest
+    evidence this project ever collects), and a person with an editor. The
+    file's only consumer read it once at boot, and this console stays up for
+    days, so every one of those wrote to a file that changed nothing until
+    the next restart. The learning loop was open at its last inch.
+
+    A failed re-read keeps the last good set rather than falling back to
+    {}: an aliased wake word that stops working is exactly the failure this
+    room cannot tell apart from being misheard.
+    """
+
+    # "no failure recorded yet" cannot be None: None is what
+    # fixups_signature() returns for a file that isn't there, and a deleted
+    # fixups file is a failure that must be reported, not the one state the
+    # de-duplication silently swallows. (Caught by
+    # tests/test_fixups_reload.py before it ever ran on the tube.)
+    NEVER_FAILED = object()
+
+    def __init__(self, path, on_change=None, on_error=None):
+        self.path = path
+        self.fixups = {}
+        self.signature = None
+        self.loaded = False
+        self.failed_signature = self.NEVER_FAILED
+        self._on_change = on_change
+        self._on_error = on_error
+
+    def current(self):
+        """The fixups in force right now. One os.stat per call -- called
+        once per utterance from the gate, not per audio chunk."""
+        sig = fixups_signature(self.path)
+        if self.loaded and sig == self.signature:
+            return self.fixups
+        try:
+            with open(self.path) as f:
+                data = json.load(f)
+        except (OSError, ValueError) as e:
+            # Report once per distinct bad state, not once per utterance:
+            # a file left malformed would otherwise fill window 1 with the
+            # same line and push the person's own words off the top.
+            if sig != self.failed_signature or not self.loaded:
+                self.failed_signature = sig
+                if self._on_error:
+                    self._on_error(fixups_error_report(e, self.fixups))
+            return self.fixups
+        fresh = {k: v for k, v in data.items() if not k.startswith("_")}
+        added = {k: v for k, v in fresh.items() if k not in self.fixups}
+        removed = [k for k in self.fixups if k not in fresh]
+        was_loaded, self.loaded = self.loaded, True
+        self.fixups, self.signature = fresh, sig
+        self.failed_signature = self.NEVER_FAILED
+        # Silent at boot: the first load is not news, it is the baseline.
+        if was_loaded and (added or removed) and self._on_change:
+            self._on_change(fixups_change_report(added, removed))
+        return fresh
+
+
+def _report_fixups_note(line):
+    """Same three surfaces as a dispatch failure, for the same reason --
+    whichever one the person happens to be looking at."""
+    print("\n[crt-stt] " + line)
+    set_hud(line)
+    log_console_thought(line)
+
+
+FIXUPS_FILE = FixupsFile(FIXUPS_PATH,
+                         on_change=_report_fixups_note,
+                         on_error=_report_fixups_note)
 
 
 def _log_thought(tag, text, log_path=None, timestamp=None):
@@ -713,7 +837,7 @@ def _contains_phrase(words, phrase):
     return any(words[i:i + n] == phrase_words for i in range(len(words) - n + 1))
 
 
-def addressed_to_console(text, wake_word=WAKE_WORD, fixups=FIXUPS):
+def addressed_to_console(text, wake_word=WAKE_WORD, fixups=None):
     """True if `text` was actually addressed to the console: the wake word
     appears as a whole word, or a stt-fixups.json fragment whose learned
     intent IS the wake word appears (e.g. "slide" -> confirmed mishear of
@@ -721,7 +845,13 @@ def addressed_to_console(text, wake_word=WAKE_WORD, fixups=FIXUPS):
     for the gate, not just a documentation note for a human reader.
     Whisper output rarely carries reliable punctuation, but a stray comma
     ("hey claude, run the tests") shouldn't defeat the match -- tokenize on
-    word characters only rather than plain str.split()."""
+    word characters only rather than plain str.split().
+
+    `fixups=None` means the live file (FIXUPS_FILE.current(), re-read when
+    stt-fixups.json changes on disk); an explicit dict still wins, for
+    tests and for any caller holding a deliberate snapshot."""
+    if fixups is None:
+        fixups = FIXUPS_FILE.current()
     words = re.findall(r"[a-z0-9']+", text.lower())
     if wake_word in words:
         return True
@@ -729,7 +859,7 @@ def addressed_to_console(text, wake_word=WAKE_WORD, fixups=FIXUPS):
                 for fragment, info in fixups.items())
 
 
-def classify_wake_match(text, wake_word=WAKE_WORD, fixups=FIXUPS):
+def classify_wake_match(text, wake_word=WAKE_WORD, fixups=None):
     """Only called when WAKE_ARM_ENABLED -- identifies WHICH word/fragment
     made addressed_to_console() true, so the arm-window has enough detail
     to hand crt-wake-judge.py a real match-kind/matched-word. Deliberately
@@ -740,7 +870,11 @@ def classify_wake_match(text, wake_word=WAKE_WORD, fixups=FIXUPS):
     shared-code regression in the existing gate for this. Returns
     ("exact", None, matched_word) or (None, None, None); no pool/fuzzy
     kind yet -- crt-wake-pool.py isn't wired into the gate itself yet,
-    see FOCUS.md."""
+    see FOCUS.md. Same `fixups=None` -> live file convention as
+    addressed_to_console, so the arm window can never disagree with the
+    gate that just opened for it."""
+    if fixups is None:
+        fixups = FIXUPS_FILE.current()
     words = re.findall(r"[a-z0-9']+", text.lower())
     if wake_word in words:
         return "exact", None, wake_word

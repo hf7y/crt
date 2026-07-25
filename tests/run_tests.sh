@@ -68,6 +68,10 @@ echo "== crt-stt-solo.py STT gate =="
 python3 "$DIR/test_stt_gate.py" || fail=1
 echo
 
+echo "== crt-stt-solo.py re-reads stt-fixups.json when it changes =="
+python3 "$DIR/test_fixups_reload.py" 2>&1 | tail -3 || fail=1
+echo
+
 echo "== crt-stt-solo.py secretary sink =="
 python3 -m unittest discover -s "$DIR" -p "test_stt_secretary_sink.py" -v 2>&1 | tail -5 || fail=1
 echo

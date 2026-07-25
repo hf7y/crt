@@ -179,10 +179,29 @@ def offer_to_save(seen, target):
         "note": "confirmed live via crt-calibration-game.py, %.0f%% similarity"
                 % (seen[choice] * 100),
     }
-    with open(FIXUPS_PATH, "w") as f:
+    save_fixups(data, FIXUPS_PATH)
+    print("Saved %r -> %r in %s" % (choice, target, FIXUPS_PATH))
+    print("The wake gate picks this up on its next utterance -- "
+          "crt-stt-solo.py re-reads this file when it changes.")
+
+
+def save_fixups(data, path):
+    """Write via a temp file + os.replace, the same way
+    crt-stt-training-merge.py's own merge pass does.
+
+    Two reasons, one of them new as of 2026-07-25. The old reason:
+    `open(path, "w")` truncates the real file first, so a crash or a full
+    disk mid-dump destroys every hand-authored "confirmed" entry in a file
+    that is tracked in git and holds human judgments this project cannot
+    re-derive. The new one: crt-stt-solo.py now re-reads this file live
+    while capture is running, so a reader can genuinely land inside the
+    window where it is half-written -- os.replace() makes that window not
+    exist rather than relying on the reader's tolerance for the wreckage."""
+    tmp_path = path + ".tmp"
+    with open(tmp_path, "w") as f:
         json.dump(data, f, indent=4, sort_keys=True)
         f.write("\n")
-    print("Saved %r -> %r in %s" % (choice, target, FIXUPS_PATH))
+    os.replace(tmp_path, path)
 
 
 def earcon_round():
