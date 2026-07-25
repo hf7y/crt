@@ -314,6 +314,13 @@ echo "== crt-screensaver.py potato art =="
 python3 "$DIR/test_screensaver.py" || fail=1
 echo
 
+# 2026-07-25: the scanner types into whichever tmux window has FOCUS, and the
+# idle-lean layout gives focus to the screensaver -- so the idle face had been
+# eating every scan on potato.
+echo "== crt-screensaver.py forwards the scans that land on the idle face =="
+python3 "$DIR/test_screensaver_forwards_scans.py" || fail=1
+echo
+
 echo "== crt-console.sh Book Game funnel windows (both layouts) =="
 bash "$DIR/test_console_book_game_layout.sh" || fail=1
 echo
