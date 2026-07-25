@@ -23,12 +23,25 @@
 # has not yet been watched working against a real scan. Tailing/parsing/
 # rendering are pure functions covered by tests/test_book_console.py.
 #
+# FOCUS (2026-07-25): this window brings ITSELF to the front when a scan
+# lands, and hands the tube back to the idle face when the question times
+# out. It used to assume it always had focus -- true only while `book` was
+# the boot-default window. The idle-lean layout (CRT_NO_IDLE_CLAUDE=1, live
+# on potato) boots with the screensaver selected instead, so a scan drew
+# its question onto a window nobody was looking at.
+#
 # Usage: crt-book-console.py   (run as its own tmux window, see
 #   crt-console.sh's `book` window, now also the boot-default window)
 # Env:
 #   CRT_SCANNER_LOG (default ~/.crt/scanner.log)
 #   CRT_BOOK_CONSOLE_IDLE_SECS (default 20) -- how long a scan result
 #     stays on screen before falling back to the idle shelf display
+#   CRT_TMUX_SESSION / CRT_BOOK_WINDOW_NAME -- read via
+#     crt-window-switcher.py, so both processes agree on which window this
+#     is
+#   CRT_IDLE_FACE_WINDOW -- the window to hand focus back to when a
+#     question times out (set by crt-console.sh's idle-lean branch; empty
+#     means this window is itself the idle face, and focus stays here)
 import collections
 import datetime
 import importlib.util
@@ -55,10 +68,26 @@ _scan_spec = importlib.util.spec_from_file_location(
 scan_line = importlib.util.module_from_spec(_scan_spec)
 _scan_spec.loader.exec_module(scan_line)
 
+# Loaded for its tmux-focus helpers, not its polling loop (which never runs
+# here): that file is where this project keeps the "which window is which,
+# and how do you move focus to it" knowledge, and a second copy of
+# select-window-and-check-the-exit-status is exactly the drift the last two
+# cycles have been paying off elsewhere.
+_ws_spec = importlib.util.spec_from_file_location(
+    "crt_window_switcher_for_book_console", os.path.join(BIN_DIR, "crt-window-switcher.py"))
+window_switcher = importlib.util.module_from_spec(_ws_spec)
+_ws_spec.loader.exec_module(window_switcher)
+
 SCANNER_LOG = os.path.expanduser(os.environ.get("CRT_SCANNER_LOG", "~/.crt/scanner.log"))
 IDLE_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_IDLE_SECS", "20"))
 POLL_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_POLL_SECS", "0.5"))
 WAIT_HINT_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_WAIT_HINT_SECS", "8"))
+# Which window is the idle face, when it is not this one. Set by
+# crt-console.sh's idle-lean branch (CRT_NO_IDLE_CLAUDE=1 -> the potato
+# screensaver on window 0), by the same `if` that selects it at boot, so
+# the index is written once. Empty = this window IS the idle face (the
+# historical layout), and there is nothing to hand the tube back to.
+IDLE_FACE_WINDOW = os.environ.get("CRT_IDLE_FACE_WINDOW", "").strip()
 
 
 # The scan-line contract itself moved to bin/crt_scan_line.py (2026-07-25):
@@ -362,6 +391,22 @@ def open_training_tail(path):
     return f
 
 
+def announce(line, log_path=None):
+    """Best-effort append to ~/.crt/thoughts.log -- the channel
+    crt-monologue.py renders on window 1, the one background window
+    CLAUDE.md says is meant to be looked at. Same convention as every other
+    logging write here: a broken log write must never stop the loop that is
+    already dealing with a bigger problem. Written in the clipped/
+    COLOR_WRONG register (a real problem, not a game event)."""
+    log_path = log_path or THOUGHT_LOG
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a") as f:
+            f.write(bg.wrap_color("  " + line, bg.COLOR_WRONG) + "\n")
+    except OSError:
+        pass
+
+
 def warn_stdin_dead():
     """Surfaces the otherwise-invisible stdin_reader death (see its own
     docstring) on ~/.crt/thoughts.log -- the same channel crt-monologue.sh
@@ -377,6 +422,41 @@ def warn_stdin_dead():
                 "restart the book window to recover.", bg.COLOR_WRONG) + "\n")
     except OSError:
         pass
+
+
+def book_window_target():
+    """'session:window' for this window itself, from the same two env vars
+    crt-window-switcher.py resolves them from -- so "which window is the
+    book window" has one answer across both processes."""
+    return "%s:%s" % (window_switcher.SESSION, window_switcher.BOOK_WINDOW)
+
+
+def should_release_tube(active_window, holding, idle_face_window=None,
+                        book_window=None):
+    """Pure function: may this window hand focus back to the idle face now
+    that its question has timed out?
+
+    Three conditions, and the middle one is the point. `idle_face_window`
+    empty means this window IS the idle face (the historical layout) --
+    there is nowhere to hand it back to. `holding` false means this window
+    never took focus for the scan in the first place, so it has nothing to
+    give. And `active_window` must still be this window: if someone walked
+    up and switched to `mono` or `bookanswer` by hand mid-question, taking
+    the tube off them would be exactly the yank crt-window-switcher.py's
+    own decision function refuses to do."""
+    idle_face_window = IDLE_FACE_WINDOW if idle_face_window is None else idle_face_window
+    book_window = window_switcher.BOOK_WINDOW if book_window is None else book_window
+    if not idle_face_window or not holding:
+        return False
+    return active_window == book_window
+
+
+def focus_failure_report(target, detail):
+    """Pure string builder, so the wording is testable without a tmux
+    server. This is the honest version of the failure it describes: the
+    question (or the answer screen) really did render, on a window nobody
+    is looking at. Short -- it lands on a 40-column tube."""
+    return "[!] scanned, but can't bring %s to the screen: %s" % (target, detail)
 
 
 def stdin_reader(q):
@@ -428,6 +508,53 @@ def main():
     draw(render_idle_screen(book_count(), width, height))
     last_scan_at = 0.0
     showing_idle = True
+    holding_tube = False   # did THIS window take focus for the scan on screen?
+    focus_reported = None  # last take-focus failure announced, once per cause
+
+    def take_tube():
+        """Bring this window to the front, because a scan just landed and
+        the question is about to be drawn on it.
+
+        The funnel assumed this could never be needed: `book` was the
+        boot-default window, so it always had focus (crt-console.sh's own
+        2026-07-21 note). The idle-lean layout (CRT_NO_IDLE_CLAUDE=1, live
+        on potato) selects the screensaver instead, and nothing put the
+        tube back -- so a scan drew its question onto a window nobody was
+        looking at, and the tube kept showing a sleeping potato. Focus is
+        also one hand-switch away from `mono` in EITHER layout.
+
+        Not a yank: a scan is a deliberate physical act by the person
+        standing at the console, and showing them the question is the thing
+        they just asked for. Same posture crt-secretary.py already takes
+        when an utterance escalates to Claude."""
+        nonlocal holding_tube, focus_reported
+        target = book_window_target()
+        ok, detail = window_switcher.select_window(target)
+        if ok:
+            holding_tube = True
+            focus_reported = None
+        elif detail != focus_reported:
+            # Once per distinct cause, not once per scan: this is the line
+            # that tells someone their scan DID register and they simply
+            # cannot see it, which is worth saying -- and worth saying only
+            # once, since window 1 fades the person's own words out from
+            # the top.
+            focus_reported = detail
+            announce(focus_failure_report(target, detail))
+
+    def release_tube():
+        """Hand the tube back to the idle face once the question has timed
+        out, if this window took it and still holds it (see
+        should_release_tube). A failed release is deliberately not
+        announced: the consequence is that the tube stays on this window's
+        own idle shelf screen, which is a perfectly good idle face and was
+        the only one for most of this project's life -- nothing is lost or
+        invisible, unlike a failed take."""
+        nonlocal holding_tube
+        if should_release_tube(window_switcher.get_active_window(), holding_tube):
+            window_switcher.select_window("%s:%s" % (window_switcher.SESSION,
+                                                     IDLE_FACE_WINDOW))
+        holding_tube = False
 
     def show_scan(isbn):
         nonlocal last_scan_at, showing_idle, pending_isbn, pending_row, hint_shown
@@ -442,6 +569,10 @@ def main():
             pending_isbn = isbn
             pending_row = row
             hint_shown = False
+        # After the draw either way -- a failed lookup ("couldn't find that
+        # book") is just as invisible on an unfocused window as a question,
+        # and leaves the person waiting on a tube that never changed.
+        take_tube()
         last_scan_at = time.time()
         showing_idle = False
 
@@ -562,6 +693,7 @@ def main():
             if not showing_idle and time.time() - last_scan_at >= IDLE_SECS:
                 draw(render_idle_screen(book_count(), width, height))
                 showing_idle = True
+                release_tube()
 
 
 if __name__ == "__main__":

@@ -107,14 +107,19 @@ def get_active_window(session=None):
         return None
 
 
-def switch_to_book_window():
-    """Returns (ok, detail). The old version discarded tmux's exit status
-    and its stderr, so a select-window that could never work -- no such
-    window, session renamed, the server gone -- looked exactly like one
-    that did, and the only symptom was a tube that stayed on `mono`
-    forever. Same distinction the rest of this console has been learning
-    to make: 'it did not happen' is not 'nothing to do'."""
-    target = "%s:%s" % (SESSION, BOOK_WINDOW)
+def select_window(target):
+    """Move tmux's focus to `target` ('session:window'). Returns
+    (ok, detail). The old version discarded tmux's exit status and its
+    stderr, so a select-window that could never work -- no such window,
+    session renamed, the server gone -- looked exactly like one that did,
+    and the only symptom was a tube that stayed on `mono` forever. Same
+    distinction the rest of this console has been learning to make: 'it did
+    not happen' is not 'nothing to do'.
+
+    Generic since 2026-07-25: crt-book-console.py brings the `book` window
+    to the front when a scan lands on it, and hands the tube back to the
+    idle face afterwards, and a second copy of this exit-status handling in
+    that file would be one more place to forget it."""
     try:
         r = subprocess.run(["tmux", "select-window", "-t", target],
                            capture_output=True, text=True)
@@ -125,6 +130,11 @@ def switch_to_book_window():
                        if ln.strip()), "tmux exited %d" % r.returncode)
         return False, detail
     return True, None
+
+
+def switch_to_book_window():
+    """This loop's own move: back to `book` after an idle Claude exchange."""
+    return select_window("%s:%s" % (SESSION, BOOK_WINDOW))
 
 
 def switch_failure_report(target, detail):

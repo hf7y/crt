@@ -107,6 +107,12 @@ fi
 # so nothing regresses unless this is deliberately turned on and
 # live-verified. crt-wake-router.py is the decision brain either way.
 if [ "${CRT_NO_IDLE_CLAUDE:-0}" = "1" ]; then
+  # Which window is the idle face, written ONCE: the same value selects it
+  # at boot (bottom of this file) and tells crt-book-console.py where to
+  # hand the tube back after a question times out. Exported before any
+  # window is created, so every window inherits it (the CRT_CTL_FILE bug of
+  # 2026-07-24 was exactly this, forgotten).
+  export CRT_IDLE_FACE_WINDOW="${CRT_IDLE_FACE_WINDOW:-0}"
   # CRT_COLS/ROWS pinned to the tube's real geometry so the screensaver
   # centers correctly even before the tmux client attaches (a detached
   # window is 80x24 until then -- the cause of the earlier line-wrap).
@@ -271,12 +277,19 @@ tmux set-option -t "$SESSION" status off
 # survive a respawn/reboot) -- `claude` stays one `prefix+0` away, and
 # voice/STT already covers claude-facing interaction without needing
 # window 0's focus.
-# Boot-default window. In the idle-lean layout the screensaver (window 0)
-# IS the idle face, so select it. Otherwise keep `book` as the default
-# (the 2026-07-21 scanner-keystroke-focus decision above) -- `claude`/
-# screensaver stays one prefix+0 away either way.
+# Boot-default window. In the idle-lean layout the screensaver
+# (CRT_IDLE_FACE_WINDOW, exported above) IS the idle face, so select it.
+# Otherwise keep `book` as the default (the 2026-07-21
+# scanner-keystroke-focus decision above) -- `claude`/screensaver stays one
+# prefix+0 away either way.
+#
+# 2026-07-25: selecting the screensaver here also takes the scanner's
+# keystrokes away from `book`, since the scanner types into whatever window
+# has focus. That is now handled at both ends rather than by this choice:
+# crt-screensaver.py forwards a scan it catches to scanner.log, and
+# crt-book-console.py brings itself to the front when one lands.
 if [ "${CRT_NO_IDLE_CLAUDE:-0}" = "1" ]; then
-  tmux select-window -t "${SESSION}:0"
+  tmux select-window -t "${SESSION}:${CRT_IDLE_FACE_WINDOW}"
 else
   tmux select-window -t "${SESSION}:book"
 fi
