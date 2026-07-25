@@ -44,8 +44,13 @@ _wp_spec = importlib.util.spec_from_file_location("crt_wake_pool", os.path.join(
 wake_pool = importlib.util.module_from_spec(_wp_spec)
 _wp_spec.loader.exec_module(wake_pool)
 
+_cfg_spec = importlib.util.spec_from_file_location(
+    "crt_config_for_calibration_game", os.path.join(BIN_DIR, "crt_config.py"))
+crt_config = importlib.util.module_from_spec(_cfg_spec)
+_cfg_spec.loader.exec_module(crt_config)
+
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
-FIXUPS_PATH = os.environ.get("CRT_STT_FIXUPS", os.path.join(BIN_DIR, "stt-fixups.json"))
+FIXUPS_PATH = crt_config.fixups_path()   # both spellings, one answer
 EARCON_BIN = os.path.join(BIN_DIR, "crt-earcon.sh")
 
 # CRT-safe palette only -- see CLAUDE.md's hard rule (never 31/32/34/91/92/94).

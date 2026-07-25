@@ -19,7 +19,16 @@
 # Output: transcriptions scroll; a live "MIC [####|....] 12.3% TALK" meter is
 # redrawn on the bottom line (same widget as crt-meter.py). Ctrl-C to quit.
 import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, urllib.error, json, re, signal, fcntl, termios
+import importlib.util
 from collections import deque
+
+# Loaded by path, not by plain `import`: the tests load this file with
+# spec_from_file_location, which does not put bin/ on sys.path.
+_cfg_spec = importlib.util.spec_from_file_location(
+    "crt_config_for_stt_solo",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt_config.py"))
+crt_config = importlib.util.module_from_spec(_cfg_spec)
+_cfg_spec.loader.exec_module(crt_config)
 
 # SINK: where recognized text goes.
 #   stdout (default) -- scroll transcriptions; standalone STT/debug view.
@@ -636,8 +645,11 @@ HALLU = set("you thankyou thanks thankyouforwatching bye music musicplaying "
 GATE       = os.environ.get("CRT_STT_GATE", "0") != "0"
 WAKE_WORD  = os.environ.get("CRT_WAKE_WORD", "claude").lower()
 GATE_LOG   = os.environ.get("CRT_STT_GATE_LOG", os.path.expanduser("~/.crt/thoughts.log"))
-FIXUPS_PATH = os.environ.get("CRT_STT_FIXUPS",
-                              os.path.join(os.path.dirname(os.path.abspath(__file__)), "stt-fixups.json"))
+# Resolved through bin/crt_config.py rather than read here, so this gate
+# and the two scripts that WRITE stt-fixups.json can no longer be pointed
+# at different files by setting one env var (crt-stt-training-merge.py
+# spelled it CRT_STT_FIXUPS_PATH; see that module's header).
+FIXUPS_PATH = crt_config.fixups_path()
 
 # Arm-window / wake-judge wiring (2026-07-23, see bin/crt-wake-arm.py's
 # own header for the full story -- this is the "sticky conversation

@@ -37,7 +37,9 @@
 # Usage: crt-stt-training-merge.py          # one merge pass, then exit
 #        crt-stt-training-merge.py --loop    # repeat every MERGE_INTERVAL_SECS
 # Env:
-#   CRT_STT_FIXUPS_PATH (default bin/stt-fixups.json, next to this script)
+#   CRT_STT_FIXUPS (canonical) or CRT_STT_FIXUPS_PATH (legacy, still
+#     honoured) -- default bin/stt-fixups.json, next to this script.
+#     Resolved in bin/crt_config.py so the readers cannot disagree.
 #   CRT_STT_TRAINING_MIN_REPEATS (default 2, same as generate_candidate_fixups)
 #   CRT_STT_TRAINING_MERGE_INTERVAL_SECS (default 600, only used with --loop)
 import importlib.util
@@ -56,7 +58,15 @@ _guard_spec = importlib.util.spec_from_file_location(
 loop_guard = importlib.util.module_from_spec(_guard_spec)
 _guard_spec.loader.exec_module(loop_guard)
 
-FIXUPS_PATH = os.environ.get("CRT_STT_FIXUPS_PATH", os.path.join(BIN_DIR, "stt-fixups.json"))
+_cfg_spec = importlib.util.spec_from_file_location(
+    "crt_config_for_training_merge", os.path.join(BIN_DIR, "crt_config.py"))
+crt_config = importlib.util.module_from_spec(_cfg_spec)
+_cfg_spec.loader.exec_module(crt_config)
+
+# Was os.environ.get("CRT_STT_FIXUPS_PATH", ...) -- its own spelling, which
+# no reader of this file used. Both spellings now resolve here, canonical
+# first; see bin/crt_config.py.
+FIXUPS_PATH = crt_config.fixups_path()
 MIN_REPEATS = int(os.environ.get("CRT_STT_TRAINING_MIN_REPEATS", "2"))
 MERGE_INTERVAL_SECS = float(os.environ.get("CRT_STT_TRAINING_MERGE_INTERVAL_SECS", "600"))
 
