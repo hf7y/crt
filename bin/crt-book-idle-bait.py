@@ -48,11 +48,26 @@ _guard_spec = importlib.util.spec_from_file_location(
 loop_guard = importlib.util.module_from_spec(_guard_spec)
 _guard_spec.loader.exec_module(loop_guard)
 
+_cfg_spec = importlib.util.spec_from_file_location(
+    "crt_config_for_book_idle", os.path.join(BIN_DIR, "crt_config.py"))
+crt_config = importlib.util.module_from_spec(_cfg_spec)
+_cfg_spec.loader.exec_module(crt_config)
+
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
-IDLE_SECS = int(os.environ.get("CRT_BOOK_IDLE_BAIT_SECS", "180"))
-POLL_SECS = int(os.environ.get("CRT_BOOK_IDLE_BAIT_POLL", "10"))
-ENTICE_RATE = float(os.environ.get("CRT_BOOK_ENTICE_RATE", "0.4"))
+# Junk-tolerant since 2026-07-25 (twentieth cycle). These were bare
+# int()/float() calls at module scope, so one typo in a value crt-console.sh
+# passes from shell raised at IMPORT -- taking down the funnel's FIRST link
+# before it ever ran, with `; exec bash` leaving a prompt in its place and no
+# bait, no scan, no question and no training row after it. The two windows
+# further down the funnel were fixed for exactly this in earlier cycles; this
+# is the one that was still carrying it. See bin/crt_config.py's env_number.
+IDLE_SECS = crt_config.env_number("CRT_BOOK_IDLE_BAIT_SECS", 180.0)
+# A positive floor, not 0: this one is a POLL interval, and zero here is not
+# an escape hatch, it is a hot while-True on a 1GB Pi that is also the sole
+# mic reader's box. Nothing else in this file has that shape.
+POLL_SECS = crt_config.env_number("CRT_BOOK_IDLE_BAIT_POLL", 10.0, minimum=0.1)
+ENTICE_RATE = crt_config.env_number("CRT_BOOK_ENTICE_RATE", 0.4)
 
 
 def pick_and_format_line(conn, rng=None):

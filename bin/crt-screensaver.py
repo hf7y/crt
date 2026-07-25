@@ -74,23 +74,18 @@ scan_line = _load_sibling("crt_scan_line_for_screensaver", "crt_scan_line.py")
 caption_lib = _load_sibling("crt_caption_for_screensaver", "crt_caption.py")
 
 
-def _env_secs(name, default):
-    """A seconds-valued env var, junk-tolerant.
-
-    These names are set by crt-console.sh, i.e. by shell. A bare float() on a
-    misspelled value raises inside argparse's defaults -- before a single
-    frame is drawn -- and leaves a bash prompt on the window that IS the
-    console's face in the idle-lean layout. Same failure crt-book-console.py
-    shed last cycle and bg.detect_screen_size() the cycle before. Negative is
-    junk too; only 0 disables."""
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    try:
-        val = float(raw)
-    except ValueError:
-        return default
-    return val if val >= 0 else default
+# A seconds-valued env var, junk-tolerant. These names are set by
+# crt-console.sh, i.e. by shell. A bare float() on a misspelled value raises
+# inside argparse's defaults -- before a single frame is drawn -- and leaves a
+# bash prompt on the window that IS the console's face in the idle-lean
+# layout. Negative is junk too; only 0 disables.
+#
+# One copy since 2026-07-25 (twentieth cycle): this was byte-for-byte
+# identical to crt-book-console.py's, docstring included. bin/crt_config.py
+# holds it now. Third light stdlib-only sibling loaded here, same rule as the
+# two above.
+crt_config = _load_sibling("crt_config_for_screensaver", "crt_config.py")
+_env_secs = crt_config.env_number
 
 
 SCANNER_LOG = os.path.expanduser(os.environ.get("CRT_SCANNER_LOG", "~/.crt/scanner.log"))

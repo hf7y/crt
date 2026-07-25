@@ -35,6 +35,70 @@ FIXUPS_DEFAULT = os.path.join(BIN_DIR, "stt-fixups.json")
 FIXUPS_ENV = "CRT_STT_FIXUPS"
 FIXUPS_ENV_LEGACY = "CRT_STT_FIXUPS_PATH"
 
+
+# THE THIRD INSTANCE (2026-07-25, twentieth cycle): "what number did the shell
+# put in this env var, and what if it isn't one?"
+#
+# Every tunable in bin/ is read as a bare int()/float() of an env var, and
+# every one of those is set by crt-console.sh -- i.e. by shell, where a value
+# is just text and nothing checks it. A typo raises ValueError at IMPORT,
+# before the window has drawn anything, and crt-console.sh wraps each window
+# in `; exec bash`: the window does not close, it becomes a bash prompt where
+# the console's face used to be. Nothing anywhere says why.
+#
+# Two windows already grew a private `_env_secs` for exactly this --
+# crt-book-console.py (the question screen) and crt-screensaver.py (the face
+# the idle-lean layout boots into), each with its own copy of the same seven
+# lines and the same docstring. This is that helper, once, so the funnel's
+# remaining windows can have it without a third copy.
+#
+# NOT a sweep of all ~80 call sites: .claude/FOCUS.md's milestone parks the
+# refactor sweep, and the ones that matter here are the ones that take a
+# console window down at boot.
+def env_number(name, default, env=None, minimum=0.0):
+    """A numeric env var, junk-tolerant. Returns `default` for unset, for
+    anything float() refuses, and for anything below `minimum`.
+
+    `minimum` defaults to 0, which accepts zero -- several of these use 0 as
+    "disable" (CRT_BOOK_IDLE_ROTATE_SECS, CRT_SCREENSAVER_CAPTION_MOVE_SECS),
+    and an automatic behaviour keeping its manual escape hatch is a rule this
+    project applies everywhere. Pass a positive minimum where zero is not an
+    escape hatch but a hot loop.
+
+    Returns a float. Callers that need an int convert at the point of use --
+    nothing here is an index, and every current caller feeds time.sleep or
+    arithmetic."""
+    raw = (os.environ if env is None else env).get(name)
+    if raw is None:
+        return default
+    try:
+        val = float(raw)
+    except (TypeError, ValueError):
+        return default
+    return val if val >= minimum else default
+
+
+def env_flag(name, default=False, env=None):
+    """An on/off env var, junk-tolerant, for the same reason env_number is.
+
+    '1'/'true'/'yes'/'on' (any case) are on, '0'/'false'/'no'/'off' are off,
+    and ANYTHING else -- including the empty string -- is `default`. The
+    generous vocabulary is the point: the one flag this was written for
+    (CRT_LOOP_GUARD_TRACEBACK) is a debugging switch a person sets by hand
+    while chasing a window that keeps dying, and `int()` of the perfectly
+    reasonable `CRT_LOOP_GUARD_TRACEBACK=true` raised -- killing all four
+    guarded windows at once, from inside the module whose entire job is
+    keeping them alive."""
+    raw = (os.environ if env is None else env).get(name)
+    if raw is None:
+        return default
+    val = raw.strip().lower()
+    if val in ("1", "true", "yes", "on"):
+        return True
+    if val in ("0", "false", "no", "off"):
+        return False
+    return default
+
 # THE SECOND INSTANCE (2026-07-25, nineteenth cycle): "is the tmux pane this
 # console types into a Claude brain, or the idle face?"
 #

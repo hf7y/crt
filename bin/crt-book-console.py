@@ -80,22 +80,23 @@ _ws_spec = importlib.util.spec_from_file_location(
 window_switcher = importlib.util.module_from_spec(_ws_spec)
 _ws_spec.loader.exec_module(window_switcher)
 
-def _env_secs(name, default):
-    """A seconds-valued env var, junk-tolerant. These names are set by
-    crt-console.sh, i.e. by shell, and a bare float() on a misspelled value
-    raises at IMPORT time -- before main() draws anything -- leaving a bash
-    prompt on the one window that is the console's face. Same failure the
-    game's own size vars were carrying until bg.detect_screen_size() grew
-    _env_dim() last cycle. Negative is junk too; only 0 disables (see
-    IDLE_ROTATE_SECS)."""
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    try:
-        val = float(raw)
-    except ValueError:
-        return default
-    return val if val >= 0 else default
+# A seconds-valued env var, junk-tolerant. These names are set by
+# crt-console.sh, i.e. by shell, and a bare float() on a misspelled value
+# raises at IMPORT time -- before main() draws anything -- leaving a bash
+# prompt on the one window that is the console's face. Negative is junk too;
+# only 0 disables (see IDLE_ROTATE_SECS).
+#
+# Moved to bin/crt_config.py 2026-07-25 (twentieth cycle) and re-exported
+# under this name rather than updating the call sites below. crt-screensaver.py
+# had grown a byte-for-byte copy of this function, docstring included, and
+# crt-book-idle-bait.py needed a third -- which is the point at which a helper
+# stops being local. Same move parse_scanner_log_line and _place_text made.
+_cfg_spec = importlib.util.spec_from_file_location(
+    "crt_config_for_book_console", os.path.join(BIN_DIR, "crt_config.py"))
+crt_config = importlib.util.module_from_spec(_cfg_spec)
+_cfg_spec.loader.exec_module(crt_config)
+
+_env_secs = crt_config.env_number
 
 
 SCANNER_LOG = os.path.expanduser(os.environ.get("CRT_SCANNER_LOG", "~/.crt/scanner.log"))

@@ -41,9 +41,19 @@
 #   CRT_LOOP_GUARD_TRACEBACK (default 0) -- 1 to also dump full frames to
 #     the window's own pane. Off by default because one of these windows
 #     (`book`) has the tube itself for a pane.
+import importlib.util
 import os
 import time
 import traceback
+
+# For env_flag alone. Loaded the spec way rather than imported, because this
+# module is itself loaded that way by every one of its callers, which does not
+# put bin/ on sys.path. crt_config.py is stdlib-only (os).
+_cfg_spec = importlib.util.spec_from_file_location(
+    "crt_config_for_loop_guard",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt_config.py"))
+crt_config = importlib.util.module_from_spec(_cfg_spec)
+_cfg_spec.loader.exec_module(crt_config)
 
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
 
@@ -128,7 +138,15 @@ class LoopGuard:
         # already carries the exception type and message; set
         # CRT_LOOP_GUARD_TRACEBACK=1 when you are attached to a window and
         # want the frames.
-        self.verbose = bool(int(os.environ.get("CRT_LOOP_GUARD_TRACEBACK", "0"))) \
+        #
+        # Junk-tolerant since 2026-07-25: `int()` of a value a person actually
+        # types -- CRT_LOOP_GUARD_TRACEBACK=true, =yes, =on -- raised
+        # ValueError right here, in the constructor every guarded window calls
+        # before its loop starts. All four of them (book, bookanswer,
+        # bookidle, stttrain) would have dropped to a bash prompt at once,
+        # from inside the module written to stop a window dying, triggered by
+        # the flag someone sets while investigating a window that keeps dying.
+        self.verbose = crt_config.env_flag("CRT_LOOP_GUARD_TRACEBACK") \
             if verbose is None else verbose
 
     def _default_report(self, line):
