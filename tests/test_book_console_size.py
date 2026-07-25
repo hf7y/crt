@@ -147,7 +147,7 @@ class ResizeRepaintTest(unittest.TestCase):
         })
         self.proc = subprocess.Popen(
             [sys.executable, os.path.join(BIN_DIR, "crt-book-console.py")],
-            env=env, stdin=subprocess.DEVNULL, stdout=self.slave,
+            env=env, stdin=subprocess.PIPE, stdout=self.slave,
             stderr=subprocess.DEVNULL, close_fds=True)
         os.close(self.slave)          # so a dead child gives us EOF, not a hang
 
@@ -161,6 +161,7 @@ class ResizeRepaintTest(unittest.TestCase):
     def tearDown(self):
         self.proc.kill()
         self.proc.wait(timeout=10)
+        self.proc.stdin.close()
         try:
             os.close(self.master)
         except OSError:
@@ -238,6 +239,36 @@ class ResizeRepaintTest(unittest.TestCase):
         # 15 rows of content, not 24 scrolling their own top away.
         self.assertLessEqual(len(frame), 16,
                              "frame is taller than the pane it is drawn into")
+
+    def test_a_question_already_on_the_tube_is_repainted_too(self):
+        """The screen that actually matters. A resize while a question is up
+        must correct the question, not just the shelf it fell back to -- and
+        must not bring back a screen that has since been replaced."""
+        self._wait_for_frame_width(80)
+        self.proc.stdin.write((ISBN + "\n").encode())
+        self.proc.stdin.flush()
+        # The question, drawn at the size this process was born believing.
+        self._wait_for_text("Nineteen Eighty-Four")
+        self._resize(40, 15)
+        self._wait_for_frame_width(40)
+        frame = self._frames()[-1]
+        joined = " ".join(frame)
+        self.assertIn("Nineteen Eighty-Four", joined,
+                      "the resize repainted something other than the question "
+                      "that was on the tube")
+        self.assertIn("fiction", joined, "the options went missing on repaint")
+        self.assertTrue(all(len(ln) <= 40 for ln in frame if ln))
+
+    def _wait_for_text(self, needle, timeout=15.0):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.proc.poll() is not None:
+                self.fail("book console exited early (rc=%s)" % self.proc.poll())
+            for frame in self._frames():
+                if needle in " ".join(frame):
+                    return True
+            time.sleep(0.2)
+        self.fail("never saw %r on any frame after %.0fs" % (needle, timeout))
 
 
 if __name__ == "__main__":
