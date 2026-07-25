@@ -3,13 +3,14 @@
 **What this is.** The unattended nightly-batch tier (the disposable clone on
 mandark, see `DEVELOPMENT-WORKFLOW.md`'s three-tier model) cannot write to
 `.claude/`. Every write to `.claude/QUESTIONS.md` and `.claude/FOCUS.md` from
-this tier has been refused as a sensitive file on **nine consecutive cycles**
-(2026-07-24, and eight times on 2026-07-25). The `nightly-batch` skill
+this tier has been refused as a sensitive file on **ten consecutive cycles**
+(2026-07-24, and nine times on 2026-07-25). The `nightly-batch` skill
 nonetheless instructs this tier to keep `.claude/FOCUS.md` current and to
 append open questions to `.claude/QUESTIONS.md`, so that instruction has been
-unsatisfiable for nine cycles running and the questions have only ever reached
+unsatisfiable for ten cycles running and the questions have only ever reached
 Zach through `~/reports/crt/LATEST.md`. Tested directly again each cycle
-rather than assumed -- most recently the twelfth cycle, 2026-07-25.
+rather than assumed -- most recently the thirteenth cycle, 2026-07-25, by
+attempting a real append to `.claude/QUESTIONS.md` and being refused.
 
 **What it is not.** Not a replacement for `.claude/QUESTIONS.md` or
 `.claude/FOCUS.md` — those stay the source of truth. This is a *staging area*:
@@ -44,6 +45,33 @@ one durable channel it actually owns.
   by ear in this room. That is a tuning question, still live-only.
 
 ## Pending — for `.claude/QUESTIONS.md`
+
+- **2026-07-25 (thirteenth cycle): should a wrong trivia answer get a second
+  try?** `2776f99` made a scan open ONE graded round rather than a 20-second
+  grading window, because everything said inside that window was being graded
+  against the same question and written to `book-game-training.jsonl`. The
+  round therefore closes on the FIRST graded utterance, right or wrong. For a
+  wrong answer that felt clearly right to me: `format_result_line()` has
+  already announced *"nope, it was fiction"* on the tube, so a retry would be
+  grading someone reading the answer off the screen — worse than useless as
+  STT training data, since the whole value of a row is that `expected` is what
+  the person actually tried to say. But a game that says "nope" and moves on
+  is a different feel from one that lets you have another go, and the feel is
+  yours. If you want retries, the shape is a retry budget on the round rather
+  than reopening it wholesale, and the announcement would have to stop
+  revealing the answer until the budget is spent.
+
+- **2026-07-25 (thirteenth cycle): `_now_iso()`'s one-second resolution now
+  decides a round, in one narrow case.** A round is closed when
+  `last_answered >= last_scanned`, both stamped by `_now_iso()`
+  (`'%Y-%m-%dT%H:%M:%S'`, no sub-second field). So re-scanning a book in the
+  *same second* as answering it leaves the two equal and the re-scan does not
+  re-open the round. I chose `>=` over `>` deliberately: the other direction
+  means anyone who answers within the same second as the scan gets the
+  original bug back, and a missed grade is recoverable by scanning again
+  while a mislabelled training row is not. Worth knowing rather than acting
+  on — the fix, if it ever matters, is sub-second timestamps throughout
+  `books.db`, not a comparison tweak.
 
 - **2026-07-25 (twelfth cycle): should re-scanning a book ask the same
   question again, or a different one?** `bb2bd8e` made a re-scanned book
