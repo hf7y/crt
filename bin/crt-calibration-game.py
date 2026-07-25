@@ -59,6 +59,11 @@ _store_spec = importlib.util.spec_from_file_location(
 fixups_store = importlib.util.module_from_spec(_store_spec)
 _store_spec.loader.exec_module(fixups_store)
 
+_guard_spec = importlib.util.spec_from_file_location(
+    "crt_loop_guard_for_calibration_game", os.path.join(BIN_DIR, "crt_loop_guard.py"))
+loop_guard = importlib.util.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(loop_guard)
+
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 FIXUPS_PATH = crt_config.fixups_path()   # both spellings, one answer
 EARCON_BIN = os.path.join(BIN_DIR, "crt-earcon.sh")
@@ -101,9 +106,27 @@ def color_for_ratio(ratio):
 
 def tail_new_lines(path, from_pos):
     """Returns (new_lines, new_pos). Missing file -> ([], from_pos),
-    tolerant same as every other log reader in this project."""
+    tolerant same as every other log reader in this project.
+
+    errors="replace", not strict. This races crt-stt-solo.py appending, so
+    it can land inside a multi-byte character a writer's buffer split across
+    two flushes -- and what it reads is TRANSCRIBED SPEECH, so accented
+    names and whisper's smart quotes are ordinary content here, not an edge
+    case. Strict decoding raises UnicodeDecodeError, a ValueError, NOT
+    caught by the `except OSError` below; raised in Tailer's thread it kills
+    the thread and nothing else, so the game goes on prompting while it has
+    stopped listening (measured: one torn byte, and every later word is
+    lost, "Nothing worth saving", round over). ae54ef4 fixed exactly this
+    for window 1 and swept four readers; this one reads the same stt.log the
+    same way and was missed.
+
+    A file that SHRANK is a file that was replaced or truncated: seek back
+    to the start rather than sit past the new end forever, the same one line
+    crt-monologue.py's loop has."""
     try:
-        with open(path) as f:
+        if os.path.getsize(path) < from_pos:
+            from_pos = 0
+        with open(path, encoding="utf-8", errors="replace") as f:
             f.seek(from_pos)
             chunk = f.read()
             pos = f.tell()
@@ -202,19 +225,29 @@ class Tailer:
             self.pos = 0
 
     def run(self):
+        # Guarded, because this thread going quiet is invisible: the game
+        # keeps prompting, the round still "ends", offer_to_save() still says
+        # "Nothing worth saving", and the person is still saying the word into
+        # a mic nothing is reading. An iteration that raises now says so on
+        # this screen and on window 1, and the next one carries on -- which is
+        # the whole reason crt_loop_guard.py exists. echo=True: unlike the four
+        # background windows, someone is looking at this pane.
+        guard = loop_guard.LoopGuard("calibration-game")
+
         def loop():
             while not self._stop:
-                lines, self.pos = tail_new_lines(os.path.expanduser(STT_LOG), self.pos)
-                for line in lines:
-                    for word in line.lower().split():
-                        word = "".join(c for c in word if c.isalnum())
-                        if len(word) < 3:
-                            continue
-                        ratio = difflib.SequenceMatcher(None, word, self.target).ratio()
-                        color = color_for_ratio(ratio)
-                        pad = " " * (int(ratio * 12))
-                        print("%s%s%-16s%s (%.0f%%)" % (pad, color, word, RESET, ratio * 100))
-                        self.seen[word] = max(self.seen.get(word, 0.0), ratio)
+                with guard:
+                    lines, self.pos = tail_new_lines(os.path.expanduser(STT_LOG), self.pos)
+                    for line in lines:
+                        for word in line.lower().split():
+                            word = "".join(c for c in word if c.isalnum())
+                            if len(word) < 3:
+                                continue
+                            ratio = difflib.SequenceMatcher(None, word, self.target).ratio()
+                            color = color_for_ratio(ratio)
+                            pad = " " * (int(ratio * 12))
+                            print("%s%s%-16s%s (%.0f%%)" % (pad, color, word, RESET, ratio * 100))
+                            self.seen[word] = max(self.seen.get(word, 0.0), ratio)
                 time.sleep(0.5)
         self._thread = threading.Thread(target=loop, daemon=True)
         self._thread.start()

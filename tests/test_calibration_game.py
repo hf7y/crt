@@ -28,6 +28,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import threading
 import unittest
 from contextlib import redirect_stdout
@@ -60,6 +61,7 @@ class CalibrationGameTestCase(unittest.TestCase):
         # happened again while this file was being written, which is why the
         # pin is here in the base class rather than in the cases that write.
         os.environ["CRT_EARCON_ROUTING_LOG"] = os.path.join(self.tmp, "default-routing.jsonl")
+        os.environ["CRT_THOUGHT_LOG"] = os.path.join(self.tmp, "thoughts.log")
         self.game = _load("crt_calibration_game_under_test", "crt-calibration-game.py")
         self.gate = _load("crt_wake_gate_under_test", "crt_wake_gate.py")
 
@@ -304,6 +306,98 @@ class TheEarconRound(CalibrationGameTestCase):
             ok = self.game.record_routing("tv", True, "tv", "", unwritable)
         self.assertFalse(ok)
         self.assertIn("could not write", buf.getvalue())
+
+
+class TheTailerKeepsListening(CalibrationGameTestCase):
+    """What it reads is TRANSCRIBED SPEECH -- accented names and whisper's
+    smart quotes are ordinary content, not an edge case -- and it reads it
+    while crt-stt-solo.py appends. Landing inside a multi-byte character
+    raised UnicodeDecodeError, a ValueError, which the `except OSError`
+    around the read does not catch. In a thread that kills the thread and
+    nothing else: the game goes on prompting, the round still ends, and
+    "Nothing worth saving" is what a person gets for standing at the mic.
+
+    ae54ef4 swept four readers of this class. This one reads the same
+    ~/.crt/stt.log the same way and was not among them."""
+
+    def setUp(self):
+        super().setUp()
+        self.log = os.environ["CRT_STT_LOG"]
+        with open(self.log, "wb") as f:
+            f.write(b"12:00:00  potato\n")
+
+    def append(self, raw):
+        with open(self.log, "ab") as f:
+            f.write(raw)
+
+    def start(self, target="potato"):
+        tailer = self.game.Tailer(target)
+        tailer.pos = 0
+        buf = io.StringIO()
+        self._redirect = redirect_stdout(buf)
+        self._redirect.__enter__()
+        self.addCleanup(tailer.stop)
+        self.addCleanup(self._redirect.__exit__, None, None, None)
+        tailer.run()
+        self.buf = buf
+        return tailer
+
+    def settle(self, tailer, want, tries=40):
+        for _ in range(tries):
+            if want in tailer.seen:
+                return True
+            time.sleep(0.1)
+        return want in tailer.seen
+
+    def test_a_torn_character_does_not_end_the_thread(self):
+        tailer = self.start()
+        self.assertTrue(self.settle(tailer, "potato"))
+        self.append(b"12:00:01  caf\xc3")           # partial two-byte char
+        time.sleep(0.8)
+        self.append(b"\xa9\n12:00:02  potater\n")   # writer's next flush
+        self.assertTrue(self.settle(tailer, "potater"),
+                        "the tailer stopped hearing after one torn byte")
+        self.assertTrue(tailer._thread.is_alive())
+
+    def test_tail_new_lines_does_not_raise_on_bad_bytes(self):
+        self.append(b"12:00:01  \xff\xfe raw scanner bytes\n")
+        lines, pos = self.game.tail_new_lines(self.log, 0)
+        self.assertTrue(lines)
+        self.assertGreater(pos, 0)
+
+    def test_a_truncated_log_is_read_from_the_start(self):
+        """A reader sitting past the end of a replaced file is deaf for the
+        rest of the session -- the same one line crt-monologue.py has."""
+        self.append(b"12:00:01  a good deal more log than what replaces it\n")
+        _, pos = self.game.tail_new_lines(self.log, 0)
+        with open(self.log, "wb") as f:                 # truncate + one line
+            f.write(b"12:00:09  tomato\n")
+        self.assertGreater(pos, os.path.getsize(self.log))
+        lines, _ = self.game.tail_new_lines(self.log, pos)
+        self.assertEqual(lines, ["tomato"])
+
+    def test_an_iteration_that_raises_is_reported_and_the_loop_goes_on(self):
+        """Decoding is fixed, but a dead tailer is invisible whatever killed
+        it. crt_loop_guard.py is this project's answer to that, and it is
+        what the thread now runs inside."""
+        real = self.game.tail_new_lines
+        calls = []
+
+        def once_bad(path, pos):
+            calls.append(1)
+            if len(calls) == 2:
+                raise RuntimeError("a bad poll")
+            return real(path, pos)
+
+        self.game.tail_new_lines = once_bad
+        tailer = self.start()
+        self.assertTrue(self.settle(tailer, "potato"))
+        self.append(b"12:00:02  potater\n")
+        self.assertTrue(self.settle(tailer, "potater"),
+                        "one raised iteration ended the tailer")
+        self.assertIn("a bad poll", self.buf.getvalue())
+        with open(os.environ["CRT_THOUGHT_LOG"]) as f:
+            self.assertIn("calibration-game", f.read())
 
 
 class RecordRoutingDefaultPath(CalibrationGameTestCase):
