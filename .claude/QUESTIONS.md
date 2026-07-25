@@ -101,3 +101,34 @@ something from this file.
   `vaporwave-reports` (was missing as of the 2026-07-23 report). Removed
   the stale question above about it; confirmed writable with a real
   touch+rm this cycle.
+
+- **2026-07-24 (nightly-batch, this cycle): `ssh potato` unchanged --
+  still auth-rejected, not offline.** Same result as cycle 7:
+  `192.168.0.0/24` is routable from here, but `vkv@192.168.0.45` returns
+  `Permission denied (publickey,password)`. No progress possible from
+  this side without a human action -- either add this account's
+  `~/.ssh/id_ed25519.pub` to potato's `authorized_keys` for user `vkv`,
+  or tell this account the right user/key/IdentityFile to put in
+  `~/.ssh/config`'s `Host potato` block (currently no `IdentityFile`
+  line at all, so it's trying the default key). This is now blocking
+  live verification of all 4 stability-milestone bar items across many
+  consecutive cycles today -- worth prioritizing over anything else open
+  in this file.
+
+- **2026-07-24 (nightly-batch, this cycle): offline-safe backlog appears
+  exhausted for now.** Checked every item in `.claude/FOCUS.md`'s
+  "PRIORITIZED BATCH BACKLOG" and the stability-milestone bar itself:
+  all 4 bar items are code-complete and blocked only on the `ssh potato`
+  question above; ranked-backlog items 1/2/3/5/5b/6 are explicitly
+  PARKED by the milestone; item 5c (test-coverage gaps) and item 7
+  (handset 3-pin switch writeup) both landed earlier today
+  (`e8d6aba`/`550b70c`, `9cc07a1`); the 2026-07-24 16:12 "audio tests
+  outputting to mandark card" note was also already fixed today
+  (`108406f`). The remaining scheduler notes at the top of FOCUS.md
+  (potato-game-as-boot-mode, column-width investigation, passwordless
+  sudo, textart.sh potato-art scrape) are all either `[hw]` or outside
+  the declared stability-milestone focus, so left deferred per this
+  skill's own scoping instruction rather than implemented as
+  easy-but-off-focus wins. If this keeps recurring, worth either
+  broadening the milestone bar or registering a new offline-safe batch
+  item explicitly.
