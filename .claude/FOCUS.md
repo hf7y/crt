@@ -13,6 +13,23 @@ Ideas beyond this bar are PARKED by default (see realisateur/STABILITY-MILESTONE
 
 # crt — focus & backlog
 
+- **2026-07-24 (realisateur, parked):** split Book Game's library/catalog
+  half into its own "bibliothecaire" program — designed to eventually know
+  book contents, relationships, citations, further reading (a real
+  knowledge graph, not just ISBN→title/author/LCC). Raised via
+  `/ideate crt` and explicitly parked by Zach (not split now): the current
+  DECLARED milestone above still has the Book Game funnel itself as an
+  unmet bar item, and this feature is deliberately embedded in crt as the
+  byproduct-first STT-training instrument (see `../BOOK-GAME.md`'s "Why
+  this exists") — a 2026-07-22 entry already declined to scaffold this
+  same feature as a separate project for the same reason. Revisit once
+  the funnel is confirmed live end-to-end on potato; when it is, the
+  three options from that session are still open: split now as a new
+  scheduler-registered project, park further, or split scope-only (a
+  wholly separate greenfield program that never forks crt's existing
+  scan/grade/STT-log code, sharing at most `books.db`'s data). See
+  realisateur's own `.claude/QUESTIONS.md` for the mirror entry.
+
 - **2026-07-24 16:12 (via `scheduler -i`):** batch run audio tests are outputting to mandark card, not pi
 
 - **2026-07-23 13:41 (via `scheduler -i`):** reduce this to a simple potato game where the user either says or doesn't say potato on prompt, earcon and visual feedback, designed to train the stt. could be the core default on-boot mode with a toggle switch until we get this calibration right
