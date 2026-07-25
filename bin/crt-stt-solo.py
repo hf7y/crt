@@ -69,6 +69,79 @@ def send_to_claude(text, key):
     subprocess.run(["tmux", "send-keys", "-t", target, "Enter"])
 
 
+# Fire-and-forget must not mean nobody-ever-looks (2026-07-25). In the live
+# boot config this is THE destination for every utterance that gets past the
+# wake gate -- crt-console.sh runs this engine with CRT_STT_SINK=secretary --
+# and both of the child's streams went to /dev/null with its exit status read
+# nowhere. crt-secretary.py exec_module()s three other bin/ scripts at import
+# time, so any one of them failing takes it down before main() runs; the
+# console's answer to that was an "addressed" earcon and then nothing, which
+# is exactly what a gate drop looks like from the room.
+#
+# So: keep the handle, send stderr to a file, and let the capture loop read
+# the status once it is there (reap_dispatches, called every ~100ms chunk).
+# Nothing blocks -- poll(), never wait() -- because this runs inside the sole
+# mic reader and an unmatched request can hold crt-secretary.py for
+# CRT_SECRETARY_MAX_WAIT seconds.
+DISPATCH_MAX_TRACKED = int(os.environ.get("CRT_DISPATCH_MAX_TRACKED", "8"))
+DISPATCH_ERR_TAIL = 8192          # bytes of a chatty child's stderr worth keeping
+_dispatches = []
+
+
+class Dispatch:
+    """One utterance handed to crt-secretary.py, still in flight: the process,
+    the file its stderr went to, and the words themselves. Same shape as
+    RingTone below, for the same reason -- an exit status with no stderr beside
+    it names no cause, and this project has now spent several cycles on
+    evidence it collected and never read."""
+
+    def __init__(self, text, proc, err):
+        self.text, self.proc, self.err = text, proc, err
+
+    def failure(self):
+        """Why this utterance was never acted on, or None if the secretary is
+        still working or finished cleanly. Non-blocking -- poll(), never
+        wait()."""
+        rc = self.proc.poll()
+        if rc is None or rc == 0:
+            return None
+        detail = ""
+        try:
+            size = os.fstat(self.err.fileno()).st_size
+            self.err.seek(max(0, size - DISPATCH_ERR_TAIL))
+            detail = self.err.read().decode("utf-8", "replace")
+        except (OSError, ValueError):
+            pass
+        how = "killed by signal %d" % -rc if rc < 0 else "exited %d" % rc
+        return "crt-secretary.py %s: %s" % (how, last_line(detail))
+
+    def close(self):
+        try:
+            self.err.close()
+        except OSError:
+            pass
+
+
+def dispatch_failure_report(text, detail):
+    """(hud, line) for an utterance that reached crt-secretary.py and died
+    there. Pure string builder, same posture as capture_death_report() and
+    ring_unplayable_report(). The distinction it exists to protect: a gate drop
+    and a dead secretary are the same silence in the room, and only one of them
+    is this machine's fault."""
+    return ("! nothing handled that",
+            "[stt] DISPATCH FAILED -- %s. \"%s\" got past the wake gate, so the "
+            "earcon said it had been heard, and then nothing acted on it. The "
+            "fault is here, not in what you said." % (detail, text[:120]))
+
+
+def dispatch_untracked_line(reason):
+    """Said when an utterance is dispatched without a handle to read later. The
+    utterance still goes through -- never drop one to keep a diagnostic -- but
+    a failure from here on is invisible again, so it does not pass unremarked."""
+    return ("[stt] handing this utterance over untracked -- %s. If it fails, "
+            "nothing here will say so." % reason)
+
+
 def send_to_secretary(text):
     """Fire-and-forget: hands the utterance to crt-secretary.py's local-
     playbook-first router (SECRETARY.md) instead of typing straight into
@@ -76,10 +149,61 @@ def send_to_secretary(text):
     Popen, not run/check_call -- must never block this capture loop on
     crt-secretary.py's own Claude-escalation wait (up to
     CRT_SECRETARY_MAX_WAIT seconds for an unmatched request)."""
-    subprocess.Popen(
-        ["python3", os.path.join(BIN_DIR, "crt-secretary.py"), text],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    err, untracked = None, None
+    if len(_dispatches) >= DISPATCH_MAX_TRACKED:
+        untracked = "%d already in flight" % len(_dispatches)
+    else:
+        try:
+            err = tempfile.NamedTemporaryFile(prefix="crt-stt-dispatch-",
+                                              suffix=".err")
+        except OSError as e:
+            untracked = "no file to keep its stderr in: %s" % e
+    try:
+        proc = subprocess.Popen(
+            ["python3", os.path.join(BIN_DIR, "crt-secretary.py"), text],
+            stdout=subprocess.DEVNULL,
+            stderr=err if err is not None else subprocess.DEVNULL,
+        )
+    except OSError as e:
+        # Spawning can fail for reasons that have nothing to do with the words:
+        # ENOMEM on a 905MB Pi already running whisper and ten tmux windows is
+        # the realistic one. This used to raise straight out of the capture
+        # loop, so a moment of memory pressure cost the console its hearing
+        # rather than one utterance.
+        if err is not None:
+            err.close()
+        _report_dispatch_failure(text, "could not start it: %s" % e)
+        return
+    if err is None:
+        print("\n" + dispatch_untracked_line(untracked))
+        return
+    _dispatches.append(Dispatch(text, proc, err))
+
+
+def _report_dispatch_failure(text, detail):
+    """Three surfaces, because the person may be looking at any of them: the
+    pane, the meter line, and window 1 (where their own utterance was just
+    echoed as '[you] ...' -- this lands right under it)."""
+    hud, line = dispatch_failure_report(text, detail)
+    print("\n" + line)
+    set_hud(hud)
+    log_console_thought(hud)
+
+
+def reap_dispatches():
+    """Read the exit status of every dispatch that has finished, report the
+    ones that failed, and stop tracking them. Non-blocking, so the capture loop
+    can call this on every chunk."""
+    still = []
+    for d in _dispatches:
+        if d.proc.poll() is None:
+            still.append(d)
+            continue
+        fault = d.failure()
+        d.close()
+        if fault:
+            _report_dispatch_failure(d.text, fault)
+    _dispatches[:] = still
 
 
 # Earcon feedback added 2026-07-23 live-tuning session, per Zach's direct
@@ -549,21 +673,34 @@ def load_fixups(path):
 FIXUPS = load_fixups(FIXUPS_PATH)
 
 
-def log_user_thought(text, log_path=None, timestamp=None):
-    """Writes a '[you] ...' line to the same log crt-monologue.py already
-    tails for Claude's own replies (crt-claude-bridge.py's thoughts.log) --
-    the window-1 gap flagged repeatedly ("no visual signal of the USER's
-    own speech"). Best-effort, same convention as every other logging
-    write in this project (a broken write here must never block the real
-    STT->secretary/claude routing that follows it)."""
+def _log_thought(tag, text, log_path=None, timestamp=None):
+    """Best-effort append to the log crt-monologue.py renders on window 1.
+    Same convention as every other logging write in this project: a broken
+    write here must never block the real STT->secretary/claude routing that
+    follows it."""
     log_path = log_path or GATE_LOG
     ts = timestamp or time.strftime("%H:%M:%S")
     try:
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         with open(log_path, "a") as f:
-            f.write("%s  [you] %s\n" % (ts, text))
+            f.write("%s  %s %s\n" % (ts, tag, text))
     except OSError:
         pass
+
+
+def log_user_thought(text, log_path=None, timestamp=None):
+    """Writes a '[you] ...' line to the same log crt-monologue.py already
+    tails for Claude's own replies (crt-claude-bridge.py's thoughts.log) --
+    the window-1 gap flagged repeatedly ("no visual signal of the USER's
+    own speech")."""
+    _log_thought("[you]", text, log_path, timestamp)
+
+
+def log_console_thought(text, log_path=None, timestamp=None):
+    """The console's own bad news, on the same window 1 as the '[you]' line it
+    is usually answering. A failure printed only to the stt pane is a failure
+    nobody standing at the tube can see."""
+    _log_thought("[!]", text, log_path, timestamp)
 
 
 def _contains_phrase(words, phrase):
@@ -1286,6 +1423,11 @@ def main():
             peak = (max(abs(x) for x in a) / FULL) if a else 0.0
 
             now = time.time()
+
+            # Anything handed to crt-secretary.py that has since exited badly.
+            # Before the ring branch's `continue`, so a dispatch that died
+            # while the phone was ringing is still reported.
+            reap_dispatches()
 
             # Watchdog on a leaked capture duck (see MUTE_MAX_SECS). Runs
             # before the CTL read so a stuck mute clears even if nothing is

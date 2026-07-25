@@ -242,6 +242,10 @@ echo "== an earcon that never sounded leaves a trace =="
 python3 "$DIR/test_earcon_failure_is_visible.py" || fail=1
 echo
 
+echo "== an utterance nothing handled is not an utterance never made =="
+python3 "$DIR/test_dispatch_failure_visible.py" || fail=1
+echo
+
 echo "== capture duck released when its producer is killed =="
 bash "$DIR/test_capture_duck_signal_safety.sh" || fail=1
 echo
