@@ -48,6 +48,37 @@ one durable channel it actually owns.
 
 ## Pending — for `.claude/QUESTIONS.md`
 
+- **2026-07-25 (twenty-first cycle): is 45% the right floor for a
+  confirm-saved mishear, and should there be an in-game way past it?**
+  `810d935` made `bin/crt-calibration-game.py` accept only the words it
+  actually offered, because it had been accepting any word the tailer ever
+  heard — typing "about" (18% similar to the wake word, never on the list)
+  wrote it into `bin/stt-fixups.json` at `"confidence": "confirmed"`, and the
+  console then woke on "what is this book about". That the bound exists is
+  not in question; **where it sits is**. 0.45 was already in the code as the
+  display filter and is now load-bearing, and nobody has ever calibrated it
+  against this room. A genuinely useful alias could sit below it — whisper
+  turning "claude" into "lloyd" scores 0.44 — and the refusal now points at
+  editing `bin/stt-fixups.json` by hand as the way through. That is the
+  reviewable path (it is tracked in git), but it is also the path that needs
+  a keyboard and a text editor, which is exactly what this game exists to
+  avoid. Options: leave the hatch where it is; lower the floor; or add a
+  second confirmation in the game for a below-floor word ("that is only 18%
+  similar — type it again to confirm"). I did not guess at a number.
+
+- **2026-07-25 (twenty-first cycle): should the earcon round's verdicts feed
+  anything, or just be readable later?** `96c75a5` gave the round a real log
+  (`CRT_EARCON_ROUTING_LOG`, default `~/.crt/earcon-routing.jsonl`) because it
+  printed "-> logged:" and logged nothing — the whole output of the round
+  lived in the tmux scrollback. Now that the verdicts persist, there is an
+  obvious next move I deliberately did not make: `bin/crt-audio-doctor.sh` and
+  `crt-earcon-loopback-test.py` both answer questions about the same devices
+  from the machine's side, and this file is the same question answered by an
+  ear. Whether they should be one report (ranked-backlog item 6's
+  `crt-calibrate` suite) is a design call. Related: nothing rotates or caps
+  this file, same as the bridge's journal noted in FOCUS.md's 2026-07-23 18:00
+  entry — a line per device per session is tiny, but it is unbounded.
+
 - **2026-07-25 (twentieth cycle): may a sticky follow-up ANSWER the question
   on the tube, instead of going to Claude?** `e220168` stopped
   `crt-book-answer-listen.py` grading an utterance that the engine had already
@@ -562,8 +593,40 @@ one durable channel it actually owns.
   ranked-backlog item 1's config sprawl. An underscored `bin/crt_lib.py`
   would fix both; renaming the executables would not (the hyphens are the
   CLI-facing names). Small now, and worth deciding before it is not.
+  **Third copy, 2026-07-25 (twenty-first cycle):** `96c75a5` needed the same
+  three lines in `crt-calibration-game.py`, to report why a tone failed to
+  play. Written locally again rather than pre-empting the decision — but the
+  count is now three files in thirteen cycles, and the two most recent are
+  both "say what the subprocess said before it died", which is a shape this
+  project keeps needing precisely because it keeps fixing silent failures.
 
 ## Pending — for `.claude/FOCUS.md`
+
+- **2026-07-25 (twenty-first cycle): the top-priority item "live-test
+  `bin/crt-calibration-game.py` on potato" was pointing at a game that could
+  not be trusted to run the test.** FOCUS.md's 08:20 list has it at #2, noting
+  its continuous-tailing bug "was fixed but never actually re-played live
+  end-to-end". Three more defects were sitting in it, all found offline, all
+  fixed tonight (`810d935`, `96c75a5`, `ee1037b`) — a confirm prompt that
+  accepted any word ever heard into the live wake gate at the highest
+  confidence tier, an earcon round that asked a human to judge a tone that had
+  never played and then logged the answer nowhere, and a stt.log reader that
+  died on one torn multi-byte character and left the game prompting at a
+  person it had stopped listening to. **The live re-play is still [hw] and
+  still worth doing** — that has not changed — but the version to run it with
+  is `ee1037b`, not what was on potato. Worth noting in the item itself: the
+  file had no test at all until tonight, which is why "fixed but never
+  re-played" had no way to become anything else.
+
+- **2026-07-25 (twenty-first cycle): ranked-backlog item 5c is one file
+  shorter, and the torn-byte sweep was one file short.** `crt-calibration-game.py`
+  now has `tests/test_calibration_game.py` (27 cases). Separately, worth
+  recording where the class went: `ae54ef4`'s strict-decoding sweep covered
+  `crt-monologue.py`, `crt-book-answer-listen.py`, `crt-book-console.py` (×2)
+  and `crt-claude-bridge.py` — `tests/test_log_reader_decoding.py` names
+  exactly those — and missed this one, which reads the same `~/.crt/stt.log`
+  the same way. A reader-of-a-live-log inventory would have caught it; there
+  isn't one.
 
 - **The "FIRST STEP EVERY CYCLE (2026-07-21): pull from crt-vm before doing
   anything else" section is dead and should be removed.** It instructs every
