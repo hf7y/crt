@@ -246,6 +246,10 @@ echo "== an utterance nothing handled is not an utterance never made =="
 python3 "$DIR/test_dispatch_failure_visible.py" || fail=1
 echo
 
+echo "== window 1 fits the pane it is actually in =="
+python3 "$DIR/test_monologue_viewport.py" || fail=1
+echo
+
 echo "== capture duck released when its producer is killed =="
 bash "$DIR/test_capture_duck_signal_safety.sh" || fail=1
 echo

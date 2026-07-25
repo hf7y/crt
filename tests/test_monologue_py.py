@@ -21,30 +21,37 @@ import unittest
 BIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin")
 
 
-def load_monologue(env=None):
-    old_env = dict(os.environ)
-    try:
-        if env is not None:
-            os.environ.clear()
-            os.environ.update(env)
-        spec = importlib.util.spec_from_file_location(
-            "crt_monologue_under_test", os.path.join(BIN_DIR, "crt-monologue.py"))
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
-    finally:
-        os.environ.clear()
-        os.environ.update(old_env)
+def load_monologue():
+    spec = importlib.util.spec_from_file_location(
+        "crt_monologue_under_test", os.path.join(BIN_DIR, "crt-monologue.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 class RenderTest(unittest.TestCase):
+    # The env stays applied for the whole test, not just for the import
+    # (2026-07-25): size is now resolved per frame rather than frozen at
+    # import, which is the point -- this window is created inside a DETACHED
+    # tmux session and only learns the tube's real geometry once a client
+    # attaches. CRT_DISPLAY_CONF points at nothing on purpose, so these assert
+    # against a known margin instead of whatever the host has calibrated.
+    ENV = {
+        "CRT_PAGER_WIDTH": "10",
+        "CRT_MONO_HEIGHT": "4",
+        "CRT_MONO_STALE_SECS": "6",
+        "CRT_MONO_DROP_SECS": "45",
+        "CRT_DISPLAY_CONF": "/nonexistent/crt-test/display.conf",
+    }
+
     def setUp(self):
-        self.mod = load_monologue({
-            "CRT_PAGER_WIDTH": "10",
-            "CRT_MONO_HEIGHT": "4",
-            "CRT_MONO_STALE_SECS": "6",
-            "CRT_MONO_DROP_SECS": "45",
-        })
+        for k, v in self.ENV.items():
+            old = os.environ.get(k)
+            self.addCleanup(
+                os.environ.__setitem__ if old is not None else
+                (lambda key, _v: os.environ.pop(key, None)), k, old)
+            os.environ[k] = v
+        self.mod = load_monologue()
 
     def render(self, buf):
         buf_out = io.StringIO()
