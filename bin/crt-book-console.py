@@ -45,6 +45,11 @@ _spec = importlib.util.spec_from_file_location("crt_book_game", os.path.join(BIN
 bg = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bg)
 
+_guard_spec = importlib.util.spec_from_file_location(
+    "crt_loop_guard_for_book_console", os.path.join(BIN_DIR, "crt_loop_guard.py"))
+loop_guard = importlib.util.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(loop_guard)
+
 SCANNER_LOG = os.path.expanduser(os.environ.get("CRT_SCANNER_LOG", "~/.crt/scanner.log"))
 IDLE_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_IDLE_SECS", "20"))
 POLL_SECS = float(os.environ.get("CRT_BOOK_CONSOLE_POLL_SECS", "0.5"))
@@ -504,47 +509,69 @@ def main():
             pass
 
     stdin_alive = True
+    # tail_new_lines' own docstring points at "main()'s crash-log wrapper
+    # below" as the fix for a traceback scrolling off this 15-row pane.
+    # There was no such wrapper -- grep it, the comment outlived whatever
+    # was meant to satisfy it. This is it, and it does two jobs at once on
+    # the one window that IS the console's face (crt-console.sh boots with
+    # `book` selected): the loop no longer ends on a single raising scan,
+    # and the cause goes to window 1 in one short line instead of a
+    # traceback nobody can read here.
+    #
+    # Everything reachable below can raise for reasons that are entirely
+    # transient: book_count()/handle_scan()/get_book() all hit sqlite,
+    # check_training_log() parses a file another process is appending to,
+    # and draw() writes to a terminal. Losing the whole window to one of
+    # those is much worse than losing one scan.
+    # echo=False: draw() owns this pane's stdout (it homes the cursor and
+    # clears, then paints), and a report printed into the middle of that
+    # frame would sit on the tube until the next draw -- which, once the
+    # idle screen is already up, may not come for a long time. The line
+    # still reaches window 1, the window CLAUDE.md says is meant to be
+    # looked at.
+    guard = loop_guard.LoopGuard("book", echo=False)
     for line in tail_new_lines(SCANNER_LOG):
-        check_training_log()
-        maybe_show_waiting_hint()
-        # Drain any stdin-sourced scans first, non-blocking -- stdin is
-        # the primary path in practice now (see file header), scanner.log
-        # is the fallback, so neither should starve the other.
-        while stdin_alive:
-            try:
-                stdin_line = stdin_q.get_nowait()
-            except queue.Empty:
-                break
-            if stdin_line is STDIN_DEAD:
-                warn_stdin_dead()
-                stdin_alive = False
-                break
-            isbn = parse_stdin_scan_line(stdin_line)
-            if isbn is not None:
-                log_stdin_scan(isbn)
-                show_scan(isbn)
-            elif showing_idle:
-                # A non-ISBN-shaped line (bad scan, stray keystrokes, a
-                # library-card barcode, whatever) still gets echoed to the
-                # pane by the terminal's own cooked-mode echo -- draw()
-                # only runs on a recognized scan or the idle-timeout tick,
-                # so without this the stray text just sits there forever
-                # under the idle screen with no self-healing redraw. Only
-                # while idle: an unmatched line during an active question
-                # screen shouldn't interrupt it.
-                draw(render_idle_screen(book_count(), width, height))
-
-        if line is not None:
-            if line in self_written_lines:
-                self_written_lines.remove(line)
-            else:
-                isbn = parse_scanner_log_line(line)
+        with guard:
+            check_training_log()
+            maybe_show_waiting_hint()
+            # Drain any stdin-sourced scans first, non-blocking -- stdin is
+            # the primary path in practice now (see file header), scanner.log
+            # is the fallback, so neither should starve the other.
+            while stdin_alive:
+                try:
+                    stdin_line = stdin_q.get_nowait()
+                except queue.Empty:
+                    break
+                if stdin_line is STDIN_DEAD:
+                    warn_stdin_dead()
+                    stdin_alive = False
+                    break
+                isbn = parse_stdin_scan_line(stdin_line)
                 if isbn is not None:
+                    log_stdin_scan(isbn)
                     show_scan(isbn)
+                elif showing_idle:
+                    # A non-ISBN-shaped line (bad scan, stray keystrokes, a
+                    # library-card barcode, whatever) still gets echoed to the
+                    # pane by the terminal's own cooked-mode echo -- draw()
+                    # only runs on a recognized scan or the idle-timeout tick,
+                    # so without this the stray text just sits there forever
+                    # under the idle screen with no self-healing redraw. Only
+                    # while idle: an unmatched line during an active question
+                    # screen shouldn't interrupt it.
+                    draw(render_idle_screen(book_count(), width, height))
 
-        if not showing_idle and time.time() - last_scan_at >= IDLE_SECS:
-            draw(render_idle_screen(book_count(), width, height))
-            showing_idle = True
+            if line is not None:
+                if line in self_written_lines:
+                    self_written_lines.remove(line)
+                else:
+                    isbn = parse_scanner_log_line(line)
+                    if isbn is not None:
+                        show_scan(isbn)
+
+            if not showing_idle and time.time() - last_scan_at >= IDLE_SECS:
+                draw(render_idle_screen(book_count(), width, height))
+                showing_idle = True
 
 
 if __name__ == "__main__":

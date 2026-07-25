@@ -51,6 +51,14 @@ _secretary_spec = importlib.util.spec_from_file_location(
 secretary = importlib.util.module_from_spec(_secretary_spec)
 _secretary_spec.loader.exec_module(secretary)
 
+# Loaded the same way as the two above rather than by plain `import`: this
+# file is itself loaded by spec_from_file_location from tests, which does
+# not put BIN_DIR on sys.path.
+_guard_spec = importlib.util.spec_from_file_location(
+    "crt_loop_guard_for_book_answer", os.path.join(BIN_DIR, "crt_loop_guard.py"))
+loop_guard = importlib.util.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(loop_guard)
+
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
 ANSWER_WINDOW_SECS = float(os.environ.get("CRT_BOOK_ANSWER_WINDOW_SECS", "20"))
@@ -209,17 +217,29 @@ def announce(line):
 
 def main():
     conn = bg.get_db()
+    # This is the LAST link of the Book Game funnel and a stability-bar
+    # item. Before 2026-07-25 one raising utterance ended it for the rest
+    # of the console's uptime: grade_pending_answer() reaches sqlite (a
+    # locked or corrupt books.db), json.loads (a malformed questions_json
+    # row), and log_training_row's own write. Any of those took the whole
+    # window down silently, and the only symptom was that answering a
+    # trivia question stopped doing anything ever again.
+    #
+    # Guarding the body, not the tail: new lines only arrive as fast as
+    # someone speaks, so a body that fails every time cannot spin.
+    guard = loop_guard.LoopGuard("bookanswer")
     for line in tail_new_lines(STT_LOG):
         if line is None:
             continue
-        text = parse_stt_log_line(line)
-        if text is None:
-            continue
-        grade = grade_pending_answer(conn, text)
-        if grade is not None:
-            print(f"[book-answer] heard={grade['heard']!r} "
-                  f"correct_content={grade['correct_content']} correct_stt={grade['correct_stt']}")
-            announce(format_result_line(grade))
+        with guard:
+            text = parse_stt_log_line(line)
+            if text is None:
+                continue
+            grade = grade_pending_answer(conn, text)
+            if grade is not None:
+                print(f"[book-answer] heard={grade['heard']!r} "
+                      f"correct_content={grade['correct_content']} correct_stt={grade['correct_stt']}")
+                announce(format_result_line(grade))
 
 
 if __name__ == "__main__":

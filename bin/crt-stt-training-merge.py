@@ -51,6 +51,11 @@ _spec = importlib.util.spec_from_file_location("crt_book_game_stats", os.path.jo
 stats = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(stats)
 
+_guard_spec = importlib.util.spec_from_file_location(
+    "crt_loop_guard_for_training_merge", os.path.join(BIN_DIR, "crt_loop_guard.py"))
+loop_guard = importlib.util.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(loop_guard)
+
 FIXUPS_PATH = os.environ.get("CRT_STT_FIXUPS_PATH", os.path.join(BIN_DIR, "stt-fixups.json"))
 MIN_REPEATS = int(os.environ.get("CRT_STT_TRAINING_MIN_REPEATS", "2"))
 MERGE_INTERVAL_SECS = float(os.environ.get("CRT_STT_TRAINING_MERGE_INTERVAL_SECS", "600"))
@@ -108,13 +113,35 @@ def run_merge_pass(fixups_path=None, training_log_path=None, min_repeats=None):
 
 def main():
     loop = "--loop" in sys.argv
+    # The two modes want OPPOSITE failure behaviour, and before 2026-07-25
+    # both got the one-shot's:
+    #   - one-shot (a person or a script ran it): a raising pass must exit
+    #     non-zero. Swallowing it would be an exit-0 no-op, which this
+    #     project's build discipline names first.
+    #   - --loop (the `stttrain` tmux window, every MERGE_INTERVAL_SECS for
+    #     as long as the console is up): a raising pass must NOT end the
+    #     loop. run_merge_pass() writes bin/stt-fixups.json, so ENOSPC on a
+    #     Pi's SD card -- the realistic one -- used to end unattended STT
+    #     learning for the rest of the console's uptime, silently, leaving
+    #     a bash prompt in that window.
+    # Since 0ccdf13 the wake gate re-reads that file live, so a merge that
+    # keeps running now actually reaches the gate without a restart, which
+    # is exactly why this loop surviving is worth more than it used to be.
+    guard = loop_guard.LoopGuard("stttrain") if loop else None
     while True:
-        added = run_merge_pass()
-        if added:
-            print(f"[crt-stt-training-merge] auto-merged {len(added)} candidate(s): {', '.join(added)}")
+        if guard is None:
+            report_merge(run_merge_pass())
+        else:
+            with guard:
+                report_merge(run_merge_pass())
         if not loop:
             break
         time.sleep(MERGE_INTERVAL_SECS)
+
+
+def report_merge(added):
+    if added:
+        print(f"[crt-stt-training-merge] auto-merged {len(added)} candidate(s): {', '.join(added)}")
 
 
 if __name__ == "__main__":

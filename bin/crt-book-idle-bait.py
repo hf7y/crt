@@ -43,6 +43,11 @@ _spec = importlib.util.spec_from_file_location("crt_book_game", os.path.join(BIN
 bg = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bg)
 
+_guard_spec = importlib.util.spec_from_file_location(
+    "crt_loop_guard_for_book_idle", os.path.join(BIN_DIR, "crt_loop_guard.py"))
+loop_guard = importlib.util.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(loop_guard)
+
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 IDLE_SECS = int(os.environ.get("CRT_BOOK_IDLE_BAIT_SECS", "180"))
@@ -85,14 +90,26 @@ def append_thought_line(line):
 
 def main():
     conn = bg.get_db()
+    # append_thought_line() above already learned this lesson for ONE line
+    # of this loop; the rest of the body never got it. Still unguarded
+    # until 2026-07-25: pick_and_format_line() reaches sqlite through
+    # pick_idle_quote(), and the getmtime() below is a plain
+    # exists-then-stat race -- stt.log removed between the two raises
+    # FileNotFoundError. Either one ended idle-bait, which is step ONE of
+    # the funnel: no bait, no scan, no question, no training row.
+    # The loop's own POLL_SECS sleep is deliberately INSIDE the guard's
+    # reach only in the sense that it runs first -- pacing is unchanged
+    # whether the body raises or not.
+    guard = loop_guard.LoopGuard("bookidle")
     while True:
         time.sleep(POLL_SECS)
-        last = os.path.getmtime(STT_LOG) if os.path.exists(STT_LOG) else 0
-        if time.time() - last < IDLE_SECS:
-            continue
-        line = pick_and_format_line(conn)
-        append_thought_line(line)
-        time.sleep(IDLE_SECS)
+        with guard:
+            last = os.path.getmtime(STT_LOG) if os.path.exists(STT_LOG) else 0
+            if time.time() - last < IDLE_SECS:
+                continue
+            line = pick_and_format_line(conn)
+            append_thought_line(line)
+            time.sleep(IDLE_SECS)
 
 
 if __name__ == "__main__":
