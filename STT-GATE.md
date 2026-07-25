@@ -63,10 +63,17 @@ landed; `.claude/FOCUS.md` is the source of truth for what's still open
   risk (say a real command without "claude" in it and it's silently
   dropped) that only a human on the handset can actually evaluate. That's
   why it ships default-off.
-- **Not turned on anywhere** — `CRT_STT_GATE` is not set in any of
-  `bin/crt-console.sh`, `bin/crt-console-solo.sh`, or any systemd/tmux
-  launch config. A human needs to opt in (set the env var for a live
-  session) before this does anything on the real console.
+- ~~**Not turned on anywhere**~~ — **STALE, and it was stale for four
+  days.** `bin/crt-console.sh:193` has launched the `stt` window with
+  `CRT_STT_GATE=1` since 2026-07-21 (that file's own comment block above
+  the line records why: `SINK=secretary` alone still escalated nearly
+  every utterance to Claude, because casual room speech matches no
+  playbook). So this gate is the live boot default on potato, not an
+  opt-in a human has yet to take. Corrected 2026-07-25, fourteenth
+  nightly cycle, while establishing that a wake-word utterance really
+  does go to Claude — the premise `bin/crt_wake_gate.py` rests on. It is
+  still true that `bin/crt-console-solo.sh` does not set it, and that
+  `crt-stt-solo.py`'s own default is `0`.
 - **The long-term replacement (a real local text-handling/intent service
   that escalates to Claude only when it doesn't know what to do, per the
   original FOCUS.md item's point 2) is NOT started.** This is only the

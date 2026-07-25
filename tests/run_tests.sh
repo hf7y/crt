@@ -158,6 +158,10 @@ echo "== one scan is one graded round, not a 20s window (2026-07-25) =="
 python3 -m unittest discover -s "$DIR" -p "test_book_answer_round_closes.py" -v 2>&1 | tail -5 || fail=1
 echo
 
+echo "== a question for Claude is not a trivia answer (2026-07-25) =="
+python3 -m unittest discover -s "$DIR" -p "test_book_answer_wake_word.py" -v 2>&1 | tail -5 || fail=1
+echo
+
 echo "== crt_loop_guard.py (background windows survive one bad iteration) =="
 python3 "$DIR/test_loop_guard.py" 2>&1 | tail -3 || fail=1
 echo

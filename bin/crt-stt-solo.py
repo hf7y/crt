@@ -30,6 +30,14 @@ _cfg_spec = importlib.util.spec_from_file_location(
 crt_config = importlib.util.module_from_spec(_cfg_spec)
 _cfg_spec.loader.exec_module(crt_config)
 
+# The wake-word rule itself, shared with crt-book-answer-listen.py so the
+# Book Game's grader can tell "an answer" from "a question for Claude".
+_wg_spec = importlib.util.spec_from_file_location(
+    "crt_wake_gate_for_stt_solo",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt_wake_gate.py"))
+wake_gate = importlib.util.module_from_spec(_wg_spec)
+_wg_spec.loader.exec_module(wake_gate)
+
 # SINK: where recognized text goes.
 #   stdout (default) -- scroll transcriptions; standalone STT/debug view.
 #   claude           -- type into the tmux Claude Code pane + voice-control keys,
@@ -843,10 +851,14 @@ def _contains_phrase(words, phrase):
     """Whole-word containment check: `phrase` (space-separated) must appear
     as a contiguous run of whole words in `words`, not as a bare substring
     -- else a fixup fragment like "slide" would false-positive inside an
-    unrelated word like "landslide"."""
-    phrase_words = phrase.split()
-    n = len(phrase_words)
-    return any(words[i:i + n] == phrase_words for i in range(len(words) - n + 1))
+    unrelated word like "landslide".
+
+    Delegates to bin/crt_wake_gate.py since 2026-07-25: crt-book-answer-
+    listen.py has to ask this same question about the same stt.log lines,
+    and a second copy of the wake-word rule living in the Book Game is
+    exactly the drift the find_playbook() reuse was meant to avoid. Kept as
+    a name here because classify_wake_match() and the tests use it."""
+    return wake_gate.contains_phrase(words, phrase)
 
 
 def addressed_to_console(text, wake_word=WAKE_WORD, fixups=None):
@@ -861,14 +873,16 @@ def addressed_to_console(text, wake_word=WAKE_WORD, fixups=None):
 
     `fixups=None` means the live file (FIXUPS_FILE.current(), re-read when
     stt-fixups.json changes on disk); an explicit dict still wins, for
-    tests and for any caller holding a deliberate snapshot."""
+    tests and for any caller holding a deliberate snapshot.
+
+    The matching itself moved to bin/crt_wake_gate.py (2026-07-25) so the
+    Book Game's grader can ask this exact question about the exact same
+    utterance -- see that module's header. The live-file default stays
+    HERE, because FIXUPS_FILE is more than a read: it reports what changed
+    on window 1, and only the engine has a screen to report to."""
     if fixups is None:
         fixups = FIXUPS_FILE.current()
-    words = re.findall(r"[a-z0-9']+", text.lower())
-    if wake_word in words:
-        return True
-    return any(info.get("intent") == wake_word and _contains_phrase(words, fragment)
-                for fragment, info in fixups.items())
+    return wake_gate.addressed_to_console(text, wake_word, fixups)
 
 
 def classify_wake_match(text, wake_word=WAKE_WORD, fixups=None):

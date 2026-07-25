@@ -38,6 +38,12 @@
 #     and crt-idle-teaser.sh already write to)
 #   CRT_BOOK_ANSWER_WINDOW_SECS (default 20) -- how long after a scan an
 #     utterance still counts as "the answer to that question"
+#   CRT_WAKE_WORD (default claude) and CRT_STT_FIXUPS -- read only to
+#     recognize an utterance addressed to the console and leave it alone;
+#     both resolved exactly as crt-stt-solo.py's gate resolves them, via
+#     bin/crt_wake_gate.py. crt-console.sh hands every window one
+#     environment, so the two cannot disagree unless someone sets one of
+#     them for a single tmux window.
 import calendar
 import importlib.util
 import json
@@ -61,6 +67,15 @@ _guard_spec = importlib.util.spec_from_file_location(
     "crt_loop_guard_for_book_answer", os.path.join(BIN_DIR, "crt_loop_guard.py"))
 loop_guard = importlib.util.module_from_spec(_guard_spec)
 _guard_spec.loader.exec_module(loop_guard)
+
+# The wake gate's own question, not a second opinion about it -- see
+# bin/crt_wake_gate.py's header. Deliberately NOT an import of
+# crt-stt-solo.py: that module runs `arecord -l` at import time and pulls in
+# the whole capture engine, neither of which belongs in this window.
+_wg_spec = importlib.util.spec_from_file_location(
+    "crt_wake_gate_for_book_answer", os.path.join(BIN_DIR, "crt_wake_gate.py"))
+wake_gate = importlib.util.module_from_spec(_wg_spec)
+_wg_spec.loader.exec_module(wake_gate)
 
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
@@ -187,8 +202,29 @@ def grade_pending_answer(conn, spoken_text, window_secs=ANSWER_WINDOW_SECS, now=
     same as "nothing pending") for any utterance crt-secretary.py's own
     playbook dispatcher would recognize as a command -- reuses
     find_playbook() so this can never drift out of sync with what
-    actually counts as a command elsewhere in the project."""
+    actually counts as a command elsewhere in the project.
+
+    THE SAME SHAPE, THE OTHER HALF, FIXED 2026-07-25 (fourteenth cycle): an
+    utterance carrying the WAKE WORD is a request to Claude, and was being
+    graded as a trivia answer for exactly the same reason commands were.
+    "claude, what is this book about?" is an ordinary thing to say to a
+    console that has just put a question on the tube, and it is not a
+    command -- no playbook matches it, it falls through to Claude. So the
+    tube announced "nope, it was fiction", a row went into
+    book-game-training.jsonl whose `heard` was never an answer attempt, and
+    once the round started closing on the first graded utterance (2776f99)
+    the person's real answer a second later was silently not graded at all.
+    Asked through bin/crt_wake_gate.py, which is the gate's own rule
+    including its learned aliases -- the same anti-drift move find_playbook()
+    is above. Checked BEFORE the pending-question lookup: whether this was
+    addressed to the console has nothing to do with whether a book is open.
+
+    Not covered, and open in BATCH-NOTES.md: an arm-window follow-up
+    (CRT_WAKE_ARM_ENABLED) carries no wake word by design and still looks
+    like an answer from here."""
     if secretary.find_playbook(spoken_text)[0] is not None:
+        return None
+    if wake_gate.addressed_to_console(spoken_text):
         return None
     pending = get_pending_question(conn, window_secs, now=now)
     if pending is None:
