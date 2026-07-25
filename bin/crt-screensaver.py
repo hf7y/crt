@@ -53,11 +53,12 @@ import time
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_ART = os.path.join(BIN_DIR, "..", "potato-small.txt")
 
-# The one import, and deliberately the light one: crt_scan_line.py pulls in
-# `re` and `datetime` and nothing else. Loading crt-book-console.py or
-# crt-book-game.py to reuse the same two functions would drag sqlite3 and
-# urllib into the window whose entire reason for existing is holding no
-# brain on a 1GB Pi (POTATO.md / ARCHITECTURE-REVIEW-2026-07-23.md).
+# Two imports, both deliberately light: crt_scan_line.py pulls in `re` and
+# `datetime`, crt_caption.py `re`, `random` and `unicodedata`, and nothing
+# else. Loading crt-book-console.py or crt-book-game.py to reuse the same
+# functions would drag sqlite3 and urllib into the window whose entire reason
+# for existing is holding no brain on a 1GB Pi (POTATO.md /
+# ARCHITECTURE-REVIEW-2026-07-23.md).
 def _load_sibling(name, filename):
     spec = importlib.util.spec_from_file_location(name, os.path.join(BIN_DIR, filename))
     mod = importlib.util.module_from_spec(spec)
@@ -71,6 +72,7 @@ scan_line = _load_sibling("crt_scan_line_for_screensaver", "crt_scan_line.py")
 # "how wide is this, and where does it go" the same way. stdlib-only, same
 # reason as above -- see bin/crt_caption.py's header.
 caption_lib = _load_sibling("crt_caption_for_screensaver", "crt_caption.py")
+
 
 def _env_secs(name, default):
     """A seconds-valued env var, junk-tolerant.
