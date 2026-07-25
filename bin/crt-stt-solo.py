@@ -196,6 +196,32 @@ MUTED   = False
 # Also makes crt-midi-knobs.py's manual mute toggle compose correctly with
 # an in-flight duck instead of racing it.
 MUTE_COUNT = 0
+# Safety net on that reference count (2026-07-25). Ref-counting made
+# overlapping ducks compose, but it also removed the old flag's accidental
+# self-healing: with last-write-wins, ANY later "mute 0" restored capture,
+# so a duck whose producer died mid-playback (aplay SIGKILLed, crt-tts.py
+# killed before its finally:, crt-earcon.sh's EXIT trap skipped on an
+# untrapped fatal signal) got cleaned up by the next sound that played.
+# With a counter, that leaked increment never comes back down and the
+# console goes permanently deaf -- exactly this project's worst failure
+# class (silent, no error, looks like the mic died). So: a mute is held for
+# at most CRT_CTL_MUTE_MAX_SECS of wall clock, then force-cleared LOUDLY.
+# Longer than any real handset duck (a tone is <1s, a spoken reply a few
+# seconds); 0 disables the watchdog. Clearing early only risks VAD hearing
+# our own playback -- which this adapter can barely record anyway (0.1x,
+# the measurement that motivated the duck) -- so the safe direction is
+# unmuting, not staying muted.
+MUTE_MAX_SECS = float(os.environ.get("CRT_CTL_MUTE_MAX_SECS", "45"))
+MUTE_SINCE = 0.0
+# Control lines that are MOMENTARY (an edge/command owned by a live
+# producer) rather than a LEVEL that should persist. The CTL file is an
+# append-only log and main() replays it from byte 0 on startup, which is
+# deliberate for levels -- a threshold tuned by knob survives a restart.
+# Replaying momentary commands is nonsense and was actively harmful: one
+# leaked "mute 1" left in the history muted capture on EVERY subsequent
+# start (and stayed leaked, since the file is never truncated), and a
+# stale "ring 4" re-rang the phone at every boot.
+MOMENTARY_CTL = ("mute", "ring")
 # "Ring" the phone: play a bursty tone N times; if the handset is picked up
 # (voice detected) it stops immediately; if all rings finish unanswered, a
 # message is printed (shows up on whatever screen this pane is on -- the
@@ -455,21 +481,50 @@ def hud_bar(name, shown, lo, hi, unit):
     return "%-5s[%s] %5.2f%s" % (name.upper(), bar, shown, unit)
 
 
-def apply_ctl_line(line):
+def is_momentary_ctl(line):
+    """True if this control line is a one-shot command (see MOMENTARY_CTL)
+    rather than a level to restore. Used to skip such lines while replaying
+    the CTL file's existing history at startup."""
+    parts = line.split()
+    return bool(parts) and parts[0].lower() in MOMENTARY_CTL
+
+
+def check_mute_timeout(now):
+    """Force-clear a mute that has been held past MUTE_MAX_SECS -- a duck
+    whose producer died without writing its matching 'mute 0'. Returns a
+    warning string when it fires (caller prints/HUDs it), else None."""
+    global MUTED, MUTE_COUNT, MUTE_SINCE
+    if not MUTED or MUTE_MAX_SECS <= 0:
+        return None
+    held = now - MUTE_SINCE
+    if held < MUTE_MAX_SECS:
+        return None
+    stuck = MUTE_COUNT
+    MUTE_COUNT, MUTED, MUTE_SINCE = 0, False, 0.0
+    return ("[crt-stt] WARNING: capture mute stuck %.0fs (%d unreleased duck%s) "
+            "-- force-unmuting; a handset duck leaked its 'mute 0'"
+            % (held, stuck, "" if stuck == 1 else "s"))
+
+
+def apply_ctl_line(line, now=None):
     """Parse a '<param> <value>' control line, clamp+apply, return a HUD string.
     Values are given in display units (vad in %, trail/min in s, nr 0-0.3).
     Special: 'mute 1|0'."""
-    global THRESH, NR_AMT, TRAIL, MINUTT, MUTED, MUTE_COUNT
+    global THRESH, NR_AMT, TRAIL, MINUTT, MUTED, MUTE_COUNT, MUTE_SINCE
     parts = line.split()
     if len(parts) < 2:
         return None
     name, raw = parts[0].lower(), parts[1]
     if name == "mute":
         if raw not in ("0", "off", "false"):
+            if MUTE_COUNT == 0:
+                MUTE_SINCE = time.time() if now is None else now
             MUTE_COUNT += 1
         else:
             MUTE_COUNT = max(0, MUTE_COUNT - 1)
         MUTED = MUTE_COUNT > 0
+        if not MUTED:
+            MUTE_SINCE = 0.0
         return "MUTE  %s" % ("ON" if MUTED else "off")
     if name not in CTL_MAP:
         return None
@@ -654,6 +709,7 @@ def main():
     last_meter = 0.0
     global hud_msg, hud_until
     ctl_pos = 0
+    ctl_replay = True     # first CTL read is the file's history, not live input
     ring_state = None     # None | "tone" | "gap"
     ring_remaining = 0
     ring_phase_until = 0.0
@@ -668,19 +724,36 @@ def main():
 
             now = time.time()
 
+            # Watchdog on a leaked capture duck (see MUTE_MAX_SECS). Runs
+            # before the CTL read so a stuck mute clears even if nothing is
+            # writing to the control file any more -- the exact case where
+            # the producer that owed us a "mute 0" is already dead.
+            warn = check_mute_timeout(now)
+            if warn:
+                print("\n" + warn)
+                hud_msg, hud_until = "MUTE  force-cleared", now + 1.6
+
             # Live-tune: a knob/MIDI writer appends "<param> <value>" to CTL.
             # On change, apply it and flash the level bar over the meter.
             if CTL:
                 try:
                     sz = os.path.getsize(CTL)
                     if sz < ctl_pos:          # file truncated/rotated -> restart
-                        ctl_pos = 0
+                        ctl_pos, ctl_replay = 0, True
                     if sz > ctl_pos:
                         with open(CTL) as fh:
                             fh.seek(ctl_pos)
                             chunk = fh.read()
                             ctl_pos = fh.tell()
-                        for ln in chunk.splitlines():   # apply every new line once
+                        lines = chunk.splitlines()
+                        if ctl_replay:
+                            # Catching up on the file's existing history, not
+                            # reacting live: restore levels, drop one-shots
+                            # (see MOMENTARY_CTL -- a stale "mute 1" here used
+                            # to deafen capture on every restart, a stale
+                            # "ring" re-rang the phone at boot).
+                            lines = [l for l in lines if not is_momentary_ctl(l)]
+                        for ln in lines:               # apply every new line once
                             if ln.startswith("ring"):
                                 parts = ln.split()
                                 n = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 4
@@ -691,11 +764,16 @@ def main():
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                                 print("[ring] ringing (%d)" % n)
                                 continue
-                            r = apply_ctl_line(ln)
+                            r = apply_ctl_line(ln, now)
                             if r:
                                 hud_msg, hud_until = r, now + 1.6
                 except OSError:
                     pass
+                # One catch-up pass only, cleared whether or not the file
+                # existed/had content this iteration -- otherwise a console
+                # that boots before anything creates the CTL file would treat
+                # the first LIVE duck as replayable history and drop it.
+                ctl_replay = False
 
             if ring_state is not None:
                 if ring_state == "gap" and not MUTED and peak >= THRESH:

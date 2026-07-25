@@ -248,6 +248,10 @@ if [ -f "$DIR/test_tts_capture_duck.py" ]; then
 fi
 echo
 
+echo "== capture duck released when its producer is killed =="
+bash "$DIR/test_capture_duck_signal_safety.sh" || fail=1
+echo
+
 echo "== crt-mandark.sh on/off/status toggle =="
 bash "$DIR/test_mandark_toggle.sh" || fail=1
 echo

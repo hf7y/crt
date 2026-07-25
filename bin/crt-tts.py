@@ -38,7 +38,7 @@
 # is a shortcut onto EXPRESSIVE-TONE.md's register table; --pitch-semitones/
 # --rate-mult/--volume-mult (or the speak() kwargs) override individually.
 # No flags at all = byte-identical behavior to before this existed.
-import sys, os, subprocess, shlex, tempfile, urllib.request
+import sys, os, signal, subprocess, shlex, tempfile, urllib.request
 
 DEXTER_URL = os.environ.get("CRT_AUDIO_OUT_URL")  # unset = no dexter, use local ALSA below
 DEXTER_DEVICES = ("tv", "handset")
@@ -326,5 +326,23 @@ def main():
     sys.exit(0 if ok else 1)
 
 
+def install_term_handler():
+    """Turn SIGTERM into a normal exception-driven exit so play_wav()'s
+    finally: still runs. Measured 2026-07-25: Python skips finally blocks
+    entirely on an untrapped SIGTERM (bash's EXIT trap, which crt-earcon.sh
+    relies on for the same job, does NOT), so `tmux kill-window`/pkill on a
+    mid-playback crt-tts.py left its "mute 1" duck unreleased and capture
+    deaf. crt-stt-solo.py's MUTE_MAX_SECS watchdog is the backstop for the
+    cases this can't cover (SIGKILL, power loss); this closes the common
+    one cleanly instead of waiting the watchdog out."""
+    def _bail(signum, frame):
+        raise SystemExit(143)      # 128 + SIGTERM, the usual shell convention
+    try:
+        signal.signal(signal.SIGTERM, _bail)
+    except (ValueError, OSError):  # not the main thread / no signal support
+        pass
+
+
 if __name__ == "__main__":
+    install_term_handler()
     main()

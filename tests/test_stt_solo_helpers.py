@@ -111,7 +111,7 @@ class ApplyCtlLineTest(unittest.TestCase):
         # can't leak state into each other or into a later test module that
         # imports the same file fresh (importlib caches by spec name, but
         # keep this test file self-contained regardless).
-        self._saved = {k: getattr(stt_solo, k) for k in ("THRESH", "NR_AMT", "TRAIL", "MINUTT", "MUTED", "MUTE_COUNT")}
+        self._saved = {k: getattr(stt_solo, k) for k in ("THRESH", "NR_AMT", "TRAIL", "MINUTT", "MUTED", "MUTE_COUNT", "MUTE_SINCE", "MUTE_MAX_SECS")}
 
     def tearDown(self):
         for k, v in self._saved.items():
@@ -172,6 +172,91 @@ class ApplyCtlLineTest(unittest.TestCase):
         self.assertEqual(stt_solo.MUTE_COUNT, 0)
         stt_solo.apply_ctl_line("mute 1")
         self.assertTrue(stt_solo.MUTED)
+
+
+class MuteWatchdogTest(unittest.TestCase):
+    """A leaked duck (producer killed before writing its 'mute 0') must not
+    deafen capture forever -- ref-counting removed the old flag's accidental
+    self-healing, so MUTE_MAX_SECS puts a hard ceiling on any held mute."""
+
+    def setUp(self):
+        self._saved = {k: getattr(stt_solo, k) for k in ("MUTED", "MUTE_COUNT", "MUTE_SINCE", "MUTE_MAX_SECS")}
+        stt_solo.MUTED, stt_solo.MUTE_COUNT, stt_solo.MUTE_SINCE = False, 0, 0.0
+        stt_solo.MUTE_MAX_SECS = 45.0
+
+    def tearDown(self):
+        for k, v in self._saved.items():
+            setattr(stt_solo, k, v)
+
+    def test_unmuted_is_a_no_op(self):
+        self.assertIsNone(stt_solo.check_mute_timeout(1000.0))
+
+    def test_mute_within_window_is_held(self):
+        stt_solo.apply_ctl_line("mute 1", now=1000.0)
+        self.assertIsNone(stt_solo.check_mute_timeout(1040.0))
+        self.assertTrue(stt_solo.MUTED)
+
+    def test_stuck_mute_is_force_cleared_and_warns(self):
+        stt_solo.apply_ctl_line("mute 1", now=1000.0)
+        warn = stt_solo.check_mute_timeout(1046.0)
+        self.assertIsNotNone(warn)
+        self.assertIn("WARNING", warn)      # fails loud, not silently
+        self.assertFalse(stt_solo.MUTED)
+        self.assertEqual(stt_solo.MUTE_COUNT, 0)
+
+    def test_force_clear_drops_every_leaked_ref_not_just_one(self):
+        # Two leaked ducks: clearing one at a time would leave capture dead.
+        stt_solo.apply_ctl_line("mute 1", now=1000.0)
+        stt_solo.apply_ctl_line("mute 1", now=1001.0)
+        stt_solo.check_mute_timeout(1050.0)
+        self.assertEqual(stt_solo.MUTE_COUNT, 0)
+        self.assertFalse(stt_solo.MUTED)
+
+    def test_hold_clock_starts_at_first_duck_not_the_nested_one(self):
+        # A long-held outer duck must not have its deadline pushed back by a
+        # short inner duck starting and finishing inside it.
+        stt_solo.apply_ctl_line("mute 1", now=1000.0)
+        stt_solo.apply_ctl_line("mute 1", now=1040.0)
+        stt_solo.apply_ctl_line("mute 0", now=1041.0)
+        self.assertIsNotNone(stt_solo.check_mute_timeout(1046.0))
+
+    def test_clean_release_resets_the_clock_for_the_next_duck(self):
+        stt_solo.apply_ctl_line("mute 1", now=1000.0)
+        stt_solo.apply_ctl_line("mute 0", now=1001.0)
+        stt_solo.apply_ctl_line("mute 1", now=1002.0)   # new, unrelated duck
+        self.assertIsNone(stt_solo.check_mute_timeout(1040.0))
+
+    def test_zero_disables_the_watchdog(self):
+        stt_solo.MUTE_MAX_SECS = 0.0
+        stt_solo.apply_ctl_line("mute 1", now=1000.0)
+        self.assertIsNone(stt_solo.check_mute_timeout(99999.0))
+        self.assertTrue(stt_solo.MUTED)
+
+
+class MomentaryCtlTest(unittest.TestCase):
+    """main() replays the CTL file from byte 0 on startup so knob-tuned
+    LEVELS survive a restart. One-shot COMMANDS must be skipped in that
+    replay: a leaked 'mute 1' left in the append-only history would
+    otherwise mute capture on every single start (and never age out, since
+    the file isn't truncated), and a stale 'ring 4' would re-ring the
+    phone at boot."""
+
+    def test_mute_and_ring_are_momentary(self):
+        self.assertTrue(stt_solo.is_momentary_ctl("mute 1"))
+        self.assertTrue(stt_solo.is_momentary_ctl("mute 0"))
+        self.assertTrue(stt_solo.is_momentary_ctl("ring 4"))
+
+    def test_levels_are_not_momentary(self):
+        for line in ("vad 4.0", "nr 0.2", "trail 0.8", "min 0.4"):
+            self.assertFalse(stt_solo.is_momentary_ctl(line), line)
+
+    def test_case_and_whitespace_tolerant(self):
+        self.assertTrue(stt_solo.is_momentary_ctl("  MUTE 1  "))
+        self.assertTrue(stt_solo.is_momentary_ctl("Ring"))
+
+    def test_blank_line_is_not_momentary(self):
+        self.assertFalse(stt_solo.is_momentary_ctl(""))
+        self.assertFalse(stt_solo.is_momentary_ctl("   "))
 
 
 class LogUserThoughtTest(unittest.TestCase):
