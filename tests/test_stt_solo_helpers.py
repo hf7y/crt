@@ -276,5 +276,108 @@ class LogUserThoughtTest(unittest.TestCase):
             stt_solo.log_user_thought("hello", log_path=bad_path)  # must not raise
 
 
+class UttChunkTest(unittest.TestCase):
+    """utt_chunk() -- what one capture chunk does to an ALREADY-OPEN utterance.
+
+    The mute cases are the reason this function was extracted from main()'s
+    loop (2026-07-25): before it, the VAD checked MUTED only when STARTING an
+    utterance, so a duck arriving mid-utterance recorded our own handset
+    playback into the middle of the speaker's sentence. The silence/cap cases
+    are regression guards -- they describe behaviour that was already correct
+    and must survive the extraction unchanged.
+    """
+
+    def setUp(self):
+        self._saved = {k: getattr(stt_solo, k) for k in
+                       ("THRESH", "TRAIL", "MAXUTT", "MUTE_UTT_MAX_SECS", "CHUNK_DUR")}
+        stt_solo.THRESH = 0.10
+        stt_solo.TRAIL = 0.8
+        stt_solo.MAXUTT = 20.0
+        stt_solo.MUTE_UTT_MAX_SECS = 2.0
+        stt_solo.CHUNK_DUR = 0.1
+
+    def tearDown(self):
+        for k, v in self._saved.items():
+            setattr(stt_solo, k, v)
+
+    # -- unmuted: unchanged pre-existing behaviour ------------------------
+
+    def test_loud_chunk_is_kept_and_resets_the_silence_timer(self):
+        keep, ended, sil, hold = stt_solo.utt_chunk(False, 0.5, 0.7, 0.0, 1.0)
+        self.assertTrue(keep)
+        self.assertFalse(ended)
+        self.assertEqual(sil, 0.0)
+
+    def test_quiet_chunks_accumulate_silence_and_end_at_trail(self):
+        sil, hold, ended, chunks = 0.0, 0.0, False, 0
+        while not ended and chunks < 20:
+            keep, ended, sil, hold = stt_solo.utt_chunk(False, 0.01, sil, hold, 1.0)
+            self.assertTrue(keep)             # trailing silence is still buffered
+            chunks += 1
+        self.assertTrue(ended)
+        # 8 chunks is TRAIL exactly; float accumulation of 0.1s makes it 9.
+        self.assertIn(chunks, (8, 9))
+
+    def test_hard_cap_ends_the_utterance_even_while_speech_continues(self):
+        stt_solo.MAXUTT = 2.0
+        keep, ended, sil, hold = stt_solo.utt_chunk(False, 0.9, 0.0, 0.0, 1.9)
+        self.assertTrue(keep)
+        self.assertTrue(ended)                # 1.9 + 0.1 >= MAXUTT
+
+    # -- muted: the fix ---------------------------------------------------
+
+    def test_ducked_chunk_is_dropped_not_buffered(self):
+        # THE regression: a loud chunk during a duck is our own playback.
+        # Before the fix this returned "buffer it" and whisper transcribed
+        # the console's earcon/reply as the speaker's words.
+        keep, ended, sil, hold = stt_solo.utt_chunk(True, 0.9, 0.0, 0.0, 1.0)
+        self.assertFalse(keep)
+
+    def test_duck_does_not_advance_the_silence_timer(self):
+        # A duck must not end the utterance by looking like trailing silence
+        # either -- the whole point is that the frames are not evidence about
+        # the speaker in either direction.
+        sil = 0.7                             # one chunk short of TRAIL
+        for _ in range(5):
+            keep, ended, sil, hold = stt_solo.utt_chunk(True, 0.0, sil, 0.0, 1.0)
+            self.assertFalse(ended)
+        self.assertEqual(sil, 0.7)
+
+    def test_a_duck_that_outlasts_the_bound_ends_the_utterance(self):
+        hold, ended, chunks = 0.0, False, 0
+        while not ended and chunks < 30:
+            keep, ended, sil, hold = stt_solo.utt_chunk(True, 0.0, 0.0, hold, 1.0)
+            chunks += 1
+            if chunks == 10:                  # 1.0s in, still inside the bound
+                self.assertFalse(ended)
+        self.assertTrue(ended)
+        self.assertIn(chunks, (20, 21))       # MUTE_UTT_MAX_SECS / CHUNK_DUR
+
+    def test_bound_of_zero_freezes_indefinitely(self):
+        stt_solo.MUTE_UTT_MAX_SECS = 0.0
+        hold = 0.0
+        for _ in range(200):                  # 20 seconds of duck
+            keep, ended, sil, hold = stt_solo.utt_chunk(True, 0.0, 0.0, hold, 1.0)
+            self.assertFalse(ended)
+
+    def test_unducking_clears_the_hold(self):
+        keep, ended, sil, hold = stt_solo.utt_chunk(True, 0.0, 0.0, 1.5, 1.0)
+        self.assertAlmostEqual(hold, 1.6)
+        keep, ended, sil, hold = stt_solo.utt_chunk(False, 0.9, 0.0, hold, 1.0)
+        self.assertEqual(hold, 0.0)           # a later short duck starts over
+
+    def test_short_earcon_is_excised_and_speech_either_side_survives(self):
+        # The reachable case end-to-end: speaker talking, CRT_EARCON_ON_THRESHOLD
+        # fires a ~0.3s "heard" beep, speaker keeps going. Expect: the three
+        # ducked chunks dropped, the utterance still open, everything else kept.
+        script = [(False, 0.9)] * 5 + [(True, 0.9)] * 3 + [(False, 0.9)] * 5
+        sil, hold, kept, ended = 0.0, 0.0, 0, False
+        for muted, peak in script:
+            keep, ended, sil, hold = stt_solo.utt_chunk(muted, peak, sil, hold, 1.0)
+            kept += 1 if keep else 0
+        self.assertEqual(kept, 10)
+        self.assertFalse(ended)
+
+
 if __name__ == "__main__":
     unittest.main()

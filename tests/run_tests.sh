@@ -99,6 +99,10 @@ fi
 bash "$DIR/test_capture_death_loud.sh" || fail=1
 echo
 
+echo "== crt-stt-solo.py excises a duck that lands mid-utterance =="
+bash "$DIR/test_duck_midutterance_excision.sh" || fail=1
+echo
+
 echo "== crt-stt-solo.py releases the mic when stopped =="
 bash "$DIR/test_capture_release_on_signal.sh" || fail=1
 echo

@@ -235,6 +235,20 @@ MUTE_COUNT = 0
 # unmuting, not staying muted.
 MUTE_MAX_SECS = float(os.environ.get("CRT_CTL_MUTE_MAX_SECS", "45"))
 MUTE_SINCE = 0.0
+# How long an ALREADY-OPEN utterance may stay frozen by a duck that arrived
+# mid-utterance before we give up and close it out (2026-07-25). See
+# utt_chunk() for what "frozen" means and why the duck is not simply ignored
+# once speech has started. 0 = never close on a duck alone (freeze until it
+# lifts, with MUTE_MAX_SECS above as the only backstop).
+#
+# 2.0s default: the reachable mid-utterance duck today is one short earcon
+# (~0.3s), so this never fires in normal use; it exists for the long case --
+# a multi-sentence spoken reply, where each sentence ducks separately and the
+# speaker can start talking in a gap between them. Once playback has covered
+# two seconds of an open utterance, whatever was being said is over as far as
+# this buffer is concerned, and holding it open only delays the transcription
+# of the speech we DID capture.
+MUTE_UTT_MAX_SECS = float(os.environ.get("CRT_MUTE_UTT_MAX_SECS", "2.0"))
 # Control lines that are MOMENTARY (an edge/command owned by a live
 # producer) rather than a LEVEL that should persist. The CTL file is an
 # append-only log and main() replays it from byte 0 on startup, which is
@@ -526,6 +540,51 @@ def check_mute_timeout(now):
     return ("[crt-stt] WARNING: capture mute stuck %.0fs (%d unreleased duck%s) "
             "-- force-unmuting; a handset duck leaked its 'mute 0'"
             % (held, stuck, "" if stuck == 1 else "s"))
+
+
+def utt_chunk(muted, peak, sil, mute_hold, dur):
+    """Decide what one 100ms capture chunk does to an ALREADY-OPEN utterance.
+
+    Pure; main()'s loop owns the actual byte buffer. Returns
+    ``(keep, ended, sil, mute_hold)`` -- keep the chunk's audio or drop it,
+    and whether the utterance is over after it.
+
+    `dur` is the buffered duration BEFORE this chunk (the MAXUTT cap is
+    checked against what the buffer becomes if the chunk is kept).
+
+    The mute half is the point of this function (2026-07-25, from Zach's note
+    on the previous cycle's report). The VAD's start gate has always checked
+    MUTED -- `if not MUTED and peak >= THRESH` -- so an utterance never BEGINS
+    during handset playback. Nothing checked it again afterwards, so a duck
+    arriving mid-utterance did not stop the buffering, and our own playback
+    was recorded into the middle of the speaker's sentence and sent to
+    whisper as if they had said it.
+
+    Three behaviours were possible and this is why it is the middle one:
+
+      buffer it (what it did) -- whisper transcribes our own earcon/reply as
+        words in the user's utterance. Worst of the three.
+      close the utterance at the duck -- truncates. With
+        CRT_EARCON_ON_THRESHOLD=1 the "heard" earcon fires at the very
+        instant of onset, so this would cut EVERY utterance to nothing.
+      freeze and excise (this) -- ducked chunks are dropped, and the silence
+        timer does not advance while they are, so playback neither enters the
+        buffer nor ends the utterance. Speech either side of a short duck is
+        spliced. A duck that outlasts MUTE_UTT_MAX_SECS ends the utterance
+        normally, so a long reply cannot hold one open indefinitely.
+
+    Excising can drop real speech if the speaker talks straight through the
+    duck. That is accepted deliberately: this adapter records its own
+    playback at ~0.1x (the measurement the duck exists for), so those frames
+    are mostly playback anyway, and a short splice is far kinder to whisper
+    than a beep or half a spoken reply sitting inside the sentence. Whether
+    the 2.0s bound is right is a by-ear call for a live potato session.
+    """
+    if muted:
+        mute_hold += CHUNK_DUR
+        return False, (0 < MUTE_UTT_MAX_SECS <= mute_hold), sil, mute_hold
+    sil = sil + CHUNK_DUR if peak < THRESH else 0.0
+    return True, (sil >= TRAIL or dur + CHUNK_DUR >= MAXUTT), sil, 0.0
 
 
 def apply_ctl_line(line, now=None):
@@ -846,6 +905,7 @@ def main():
     buf = bytearray()
     above = 0
     sil = 0.0
+    mute_hold = 0.0       # seconds an open utterance has been frozen by a duck
     last_meter = 0.0
     global hud_msg, hud_until
     ctl_pos = 0
@@ -962,18 +1022,21 @@ def main():
                         in_utt = True
                         buf = bytearray(b"".join(pre)); pre.clear()
                         sil = 0.0
+                        mute_hold = 0.0
                         utt_peak = peak
                         if EARCON_ON_THRESHOLD:
                             play_earcon("heard")
                 else:
                     above = 0
             else:
-                buf += data
-                utt_peak = max(utt_peak, peak)
-                sil = sil + CHUNK_DUR if peak < THRESH else 0.0
+                keep, ended, sil, mute_hold = utt_chunk(
+                    MUTED, peak, sil, mute_hold, len(buf) / 2 / RATE)
+                if keep:
+                    buf += data
+                    utt_peak = max(utt_peak, peak)
                 dur = len(buf) / 2 / RATE
-                if sil >= TRAIL or dur >= MAXUTT:
-                    in_utt = False; above = 0
+                if ended:
+                    in_utt = False; above = 0; mute_hold = 0.0
                     if dur >= MINUTT:
                         if PREDICT_FLASH:
                             predictive_flash()

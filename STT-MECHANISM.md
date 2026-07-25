@@ -16,6 +16,18 @@ reason about *why* a given transcription got garbled the way it did.
    or speech with a soft/trailing consonant, can get its tail clipped early**
    if it dips below threshold mid-word. A word cut short is a likely
    explanation for some garbling, not just whisper mishearing.
+
+   **The capture duck can also punch a hole in an utterance.** While the
+   handset is playing something (a TTS reply, an earcon), capture is "ducked"
+   via the control file, and those chunks are *dropped from the buffer* — the
+   silence timer freezes, and speech either side of the duck is spliced
+   together (`utt_chunk()` in `crt-stt-solo.py`; before 2026-07-25 the
+   console's own playback was buffered into the sentence instead, which is
+   worse). So a second explanation for a mangled word: the console started
+   talking over the speaker, and the word straddling that moment lost its
+   middle. If the duck outlasts `CRT_MUTE_UTT_MAX_SECS` (2s) the utterance is
+   closed and transcribed as-is, so a long reply can also cut a sentence in
+   half rather than clipping a word.
 3. **Denoise** (optional, currently on): a sox chain — highpass filter, then
    `noisered` against a captured noise profile (`~/crt/noise.prof`, built
    from a sample of the room's AC hum), then peak normalize. This tames
