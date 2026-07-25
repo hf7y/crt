@@ -3,14 +3,14 @@
 **What this is.** The unattended nightly-batch tier (the disposable clone on
 mandark, see `DEVELOPMENT-WORKFLOW.md`'s three-tier model) cannot write to
 `.claude/`. Every write to `.claude/QUESTIONS.md` and `.claude/FOCUS.md` from
-this tier has been refused as a sensitive file on **ten consecutive cycles**
-(2026-07-24, and nine times on 2026-07-25). The `nightly-batch` skill
+this tier has been refused as a sensitive file on **eleven consecutive
+cycles** (2026-07-24, and ten times on 2026-07-25). The `nightly-batch` skill
 nonetheless instructs this tier to keep `.claude/FOCUS.md` current and to
 append open questions to `.claude/QUESTIONS.md`, so that instruction has been
-unsatisfiable for ten cycles running and the questions have only ever reached
-Zach through `~/reports/crt/LATEST.md`. Tested directly again each cycle
-rather than assumed -- most recently the thirteenth cycle, 2026-07-25, by
-attempting a real append to `.claude/QUESTIONS.md` and being refused.
+unsatisfiable for eleven cycles running and the questions have only ever
+reached Zach through `~/reports/crt/LATEST.md`. Tested directly again each
+cycle rather than assumed -- most recently the fourteenth cycle, 2026-07-25,
+by attempting a real append to `.claude/QUESTIONS.md` and being refused.
 
 **What it is not.** Not a replacement for `.claude/QUESTIONS.md` or
 `.claude/FOCUS.md` — those stay the source of truth. This is a *staging area*:
@@ -43,8 +43,54 @@ one durable channel it actually owns.
   in its header. **Still open, and NOT answered by this:** whether
   `CRT_WAKE_ARM_SECS`/`CRT_WAKE_ARM_MAX_SECS` (12s/60s) are the right numbers
   by ear in this room. That is a tuning question, still live-only.
+  **Re-affirmed verbatim** on the thirteenth cycle's report (2026-07-25) --
+  same wording, nothing new to fold in; `c48ef11` already carries it.
 
 ## Pending — for `.claude/QUESTIONS.md`
+
+- **2026-07-25 (fourteenth cycle): should `stt.log` say what the engine DID
+  with a line?** `2d823cc` stopped the Book Game grading an utterance that
+  carries the wake word, because that utterance is a request to Claude, not
+  a trivia answer. The other half is not closeable from here. With
+  `CRT_WAKE_ARM_ENABLED=1` — which potato's `~/.bash_profile` actually sets
+  — a follow-up spoken inside the arm window carries **no wake word by
+  design**, and from `crt-book-answer-listen.py` it is indistinguishable
+  from an answer. The arm state lives in `crt-stt-solo.py`'s memory and
+  nothing writes it down. There is a near-miss already: `emit()` writes
+  `[you] <text>` to `thoughts.log` for every utterance it routes, including
+  arm follow-ups — but it writes `stt.log` *first*, so a reader tailing
+  `stt.log` can see the line before the marker exists. Closing this properly
+  means the engine recording its decision **before** or **inside** the
+  `stt.log` write, which changes a log format three programs read. That is
+  yours: either a routed-marker in `stt.log` itself, or a small state file
+  the grader can consult, or accept that a follow-up mid-round gets graded.
+
+- **2026-07-25 (fourteenth cycle): a mishear candidate still guesses that
+  the speaker was RIGHT.** `85e1dfc` cleaned the input to
+  `generate_candidate_fixups()`: `mismatches` now holds only transcriptions
+  that matched none of the offered options, instead of every wrong guess.
+  What it did not touch is the mapping. A row's `expected` is the CORRECT
+  option, so a mishear of a *wrong* answer — someone says "nonfiction", it
+  comes out "nonfriction" — becomes the candidate `nonfriction -> fiction`,
+  a mapping to a word they never said. Two occurrences and
+  `crt-stt-training-merge.py` merges it live at confidence `auto`. The
+  honest options are (a) only generate a candidate when the heard string is
+  a near-miss of exactly one option (edit distance, which this project has
+  no fuzzy matcher for yet and deliberately grades "close to literal"),
+  (b) log both options and let a human pick during a calibration round, or
+  (c) leave it and rely on `auto` never being treated as confirmed — which
+  is only safe if the tenth cycle's question 7 below is answered "no".
+
+- **2026-07-25 (fourteenth cycle): what should happen to training rows
+  written before `85e1dfc`?** Their `correct_stt` means "matched the correct
+  answer"; rows after it mean "was one of the offered options". Nothing in
+  the row distinguishes the two, so any mixed file quietly averages two
+  different measurements. Every STATUS note in this subsystem says no real
+  scan has ever been graded, which would make this moot — but potato is
+  unreachable from this tier and that is unverified for the live file. One
+  command settles it: `ssh potato "wc -l ~/.crt/book-game-training.jsonl"`.
+  If it is non-empty, the cheap fix is to move it aside rather than migrate
+  it; the rows predate any real calibration anyway.
 
 - **2026-07-25 (thirteenth cycle): should a wrong trivia answer get a second
   try?** `2776f99` made a scan open ONE graded round rather than a 20-second
