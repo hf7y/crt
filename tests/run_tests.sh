@@ -98,6 +98,10 @@ echo "== the pane behind the idle face is not a brain (stt-solo + secretary) =="
 python3 "$DIR/test_idle_face_is_not_a_brain.py" 2>&1 | tail -3 || fail=1
 echo
 
+echo "== a remote brain's reply reaches window 1, not just the earpiece =="
+python3 "$DIR/test_reply_reaches_window_one.py" 2>&1 | tail -3 || fail=1
+echo
+
 echo "== crt-stt-solo.py excises a duck that lands mid-utterance =="
 bash "$DIR/test_duck_midutterance_excision.sh" || fail=1
 echo

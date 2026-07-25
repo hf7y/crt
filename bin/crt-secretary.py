@@ -744,15 +744,59 @@ def wait_for_claude_reply(before_snapshot, on_partial=None):
     return reply.strip(), "ok"
 
 
+# Does anything else put Claude's reply on window 1? (2026-07-25)
+#
+# With the brain LOCAL, yes: bin/crt-claude-bridge.py tails Claude Code's own
+# session transcript under ~/.claude/projects/ and forwards its marked lines
+# to thoughts.log, which is what window 1 renders. Mirroring here too would
+# double every reply -- and every reply at all, once that bridge's
+# no-marked-line fallback kicks in.
+#
+# With the brain on mandark (CRT_CLAUDE_REMOTE_PORT, potato's live config
+# since 2026-07-23) that transcript is on mandark. potato's bridge window
+# tails a directory the remote Claude never writes to, so it forwards
+# nothing, and NOTHING else on the success path writes the answer down:
+# handle() switches the tube to `mono` to show the exchange, log_user_thought
+# puts "[you] ..." there, the earpiece says the answer, and the screen the
+# console just switched to stays exactly as it was. That is the same blank
+# window _report_bad_news() was written to avoid on the failure path -- the
+# migration moved the brain and left this half behind, the same way it left
+# the scan path behind (0fc83a6) and the CTL file behind (fe46ac1).
+MIRROR_REPLY_TO_TUBE = CLAUDE_REMOTE_PORT is not None
+
+
+def show_reply_line(text):
+    """Put what the earpiece just said onto window 1, via the same
+    crt-think.sh -> thoughts.log path show_composing_line() and
+    _report_bad_news() already use. Best-effort, like every other write to
+    that log: a broken mirror must not cost the person the spoken answer.
+
+    Mirrors what is SPOKEN, not the full reply: window 1 is 40x15 and fades
+    from the top, and dumping a long answer there is precisely the flooding
+    crt-claude-bridge.py's marker filter exists to prevent. The long case is
+    already handled -- it goes to the printer."""
+    if not MIRROR_REPLY_TO_TUBE:
+        return
+    try:
+        sh([os.path.join(BIN_DIR, "crt-think.sh"), text])
+    except OSError:
+        pass
+
+
 def route_claude_reply(reply):
     if not reply:
-        speak("I sent that to Claude but didn't catch a reply -- check the screen.")
+        line = "I sent that to Claude but didn't catch a reply -- check the screen."
+        show_reply_line(line)
+        speak(line)
         return
     clean = re.sub(r"\s+", " ", reply).strip()
     if len(clean) <= SHORT_ANSWER_CHARS:
+        show_reply_line(clean)
         speak(clean)
     else:
-        speak(clean[:160].rsplit(" ", 1)[0] + "... printing the rest.")
+        summary = clean[:160].rsplit(" ", 1)[0] + "... printing the rest."
+        show_reply_line(summary)
+        speak(summary)
         print_full(reply)
 
 
