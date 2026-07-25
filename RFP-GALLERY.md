@@ -122,41 +122,44 @@ This is exactly the kind of call that should wait for a real venue/budget
 (same "don't over-invest before this is answered" note as before) — but
 now it's a three-way creative choice, not an engineering default.
 
-## Open questions (need the artist/curator, not guessed here)
+## Open questions (ANSWERED 2026-07-24 — see BLOCKERS.md's crt Gallery
+entry in "Recently resolved" for the cross-project record; kept here
+verbatim as the source writeup)
 1. **Which architecture — A2 (autonomous Pis) or B (POTS+switcher)?**
    See the possibilities writeup above. This is still the single
    highest-leverage decision — settle it before any hardware is bought.
-   > A2 is best. Park B for now. Okay to reference in later docs when
-   > moments relevant to B emerge (B would do this idea more cleanly,
-   > B would need x, y, z to implement that) for future reference.
+   > **ANSWERED:** A2 is best. Park B for now. Okay to reference in later
+   > docs when moments relevant to B emerge (B would do this idea more
+   > cleanly, B would need x, y, z to implement that) for future
+   > reference.
 
 2. Does a visitor ever get an AI-generated reply, or is this pure
    human-to-human (visitor leaves a message, another visitor hears it,
    nothing synthetic in between)? Pure human-to-human is simpler, more
    reliable, and arguably a stronger piece — but "sometimes something
    answers back" has its own appeal. Pick one on purpose.
-   > Pure human-to-human is simpler. In fact, the project should uphold
-   > the princple that humans only ever hear real human speech, never
-   > true AI generation. should aim for high compliance on this but 
-   > leave the door open to some AI processing of speech for cleanliness,
-   > explitive filtering, pacing etc.
+   > **ANSWERED:** Pure human-to-human is simpler. In fact, the project
+   > should uphold the principle that humans only ever hear real human
+   > speech, never true AI generation. Should aim for high compliance on
+   > this but leave the door open to some AI processing of speech for
+   > cleanliness, expletive filtering, pacing etc.
 
 3. Content moderation — a public gallery phone that records strangers is
    a real liability/consent question (recording anonymous visitors' voices
    in a public space). Needs a real answer (signage? opt-in? no raw-audio
    retention, transcript only? auto-delete after the show?) before this
    is buildable, not an afterthought.
-   > We'll go with signage: explicit disclaimer that one is being recorded
-   > along with auto-delete promises. Voice recordings are bound to the
-   > show's duration.
+   > **ANSWERED:** We'll go with signage: explicit disclaimer that one is
+   > being recorded along with auto-delete promises. Voice recordings are
+   > bound to the show's duration.
 
 4. Physical: real vintage handsets (charm, but fragile/expensive/hard to
    source N of) vs. reproduction/3D-printed shells (cheap, consistent,
    less charm) — budget-dependent, revisit once N and venue are known.
-   > This will be budget dependent based on actual funding. Let's develop
-   > independent from this with paralell solutions for now. End result
-   > may be a mix of both. Cheap solution needs to exist as fall back
-   > but POTS version is aspiration.
+   > **ANSWERED:** This will be budget dependent based on actual funding.
+   > Let's develop independent from this with parallel solutions for now.
+   > End result may be a mix of both. Cheap solution needs to exist as
+   > fallback but the POTS version is aspiration.
 
 ## Explicitly out of scope for v1
 - Any AI personality/secretary behavior (that's the personal `crt`'s job).
@@ -165,7 +168,9 @@ now it's a three-way creative choice, not an engineering default.
 - Payment/token mechanics (that's `RFP-PAYPHONE.md`, a separate concept).
 
 ## Status
-Design brief only. No venue, no budget, no build started. Revisit once an
-actual installation opportunity exists — don't over-invest in hardware
-sourcing before question 1 (centralized vs. independent) is answered, it
-changes the entire bill of materials.
+Design brief only. No venue, no budget, no build started. **All four open
+questions answered 2026-07-24** (architecture: A2; AI-reply: none, pure
+human-to-human; moderation: signage + auto-delete; handsets: parallel
+cheap/aspirational tracks) — see each question above for the full
+answer. Revisit once an actual installation opportunity exists; don't
+over-invest in hardware sourcing before then.
