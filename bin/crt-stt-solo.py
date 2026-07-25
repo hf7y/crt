@@ -137,17 +137,29 @@ def resolve_capture_device_by_name(arecord_l_output, name_pattern=DEV_NAME_PATTE
                                     fallback=DEV_FALLBACK):
     """Pure string parse of `arecord -l` CAPTURE-device listing output --
     returns 'plughw:<card>,<device>' for the first card whose bracketed name
-    contains name_pattern (case-insensitive), or fallback if none match /
-    output is empty. Does not touch hardware itself; callers pass in the
-    already-captured `arecord -l` text so this stays unit-testable."""
+    contains name_pattern (case-insensitive). If nothing matches by name but
+    the listing DOES name capture cards, returns the first one listed rather
+    than `fallback`: every card in this listing can at least be opened for
+    capture, whereas the hardcoded fallback index is exactly what broke on
+    potato (plughw:0,0 there is the onboard playback-only card, absent from
+    this listing entirely -- arecord on it exits instantly with no capture).
+    `fallback` is only for a listing with no cards at all. Does not touch
+    hardware itself; callers pass in the already-captured `arecord -l` text
+    so this stays unit-testable."""
     if not arecord_l_output:
         return fallback
     needle = name_pattern.lower()
+    first = None
     for line in arecord_l_output.splitlines():
         m = ARECORD_CARD_RE.match(line.strip())
-        if m and needle in m.group(2).lower():
-            return "plughw:%s,%s" % (m.group(1), m.group(3))
-    return fallback
+        if not m:
+            continue
+        dev = "plughw:%s,%s" % (m.group(1), m.group(3))
+        if needle in m.group(2).lower():
+            return dev
+        if first is None:
+            first = dev
+    return first if first else fallback
 
 
 def _detect_capture_device():
@@ -163,7 +175,17 @@ def _detect_capture_device():
                               text=True, timeout=5).stdout
     except Exception:
         return DEV_FALLBACK
-    return resolve_capture_device_by_name(out)
+    dev = resolve_capture_device_by_name(out)
+    # Say so when we didn't get what we asked for. Guessing a device is a
+    # legitimate degraded mode, but doing it silently is how "the console
+    # just stopped hearing anything" turns into an evening of debugging.
+    if DEV_NAME_PATTERN.lower() not in (out or "").lower():
+        sys.stderr.write(
+            "[crt-stt] WARNING: no capture card matching %r in `arecord -l`; "
+            "falling back to %s. Set CRT_AUDIO_DEV to pin one explicitly, or "
+            "CRT_AUDIO_DEV_NAME to match this box's adapter.\n"
+            % (DEV_NAME_PATTERN, dev))
+    return dev
 
 
 DEV    = _detect_capture_device()   # single reader; NOT dsnoop
@@ -683,6 +705,37 @@ def emit(text, peak=1.0):
         print("%s  %s" % (ts, text))
 
 
+def capture_death_report(dev, rc, stderr_text, seconds_alive):
+    """The message printed when the arecord that feeds this whole console
+    stops producing audio (2026-07-23 07:10 note, still open until now: the
+    process "restarted silently exits (no error, no capture) rather than
+    failing loudly" -- resolving the device by name fixed one CAUSE of that,
+    never the silence itself). Pure string builder so the wording is
+    testable without killing a real capture. Exit code, not just a print:
+    a dead-and-gone process is visible to a supervisor/`tmux respawn-pane
+    -k`; a live process that hears nothing forever is not."""
+    lines = ["", "[crt-stt] CAPTURE DIED -- no more audio from %s" % dev]
+    if seconds_alive is not None and seconds_alive < 2.0:
+        lines.append("[crt-stt] it never produced any audio at all (%.1fs) -- "
+                     "that device probably can't be opened for capture."
+                     % seconds_alive)
+        lines.append("[crt-stt] check `arecord -l`; pin a known-good one with "
+                     "CRT_AUDIO_DEV=plughw:<card>,<device>.")
+    else:
+        lines.append("[crt-stt] ran %s before dying (USB replug? device grabbed "
+                     "by another reader?)."
+                     % ("%.0fs" % seconds_alive if seconds_alive is not None else "a while"))
+    if rc is not None:
+        lines.append("[crt-stt] arecord exit code: %s" % rc)
+    err = (stderr_text or "").strip()
+    if err:
+        for ln in err.splitlines()[-4:]:
+            lines.append("[crt-stt] arecord: %s" % ln)
+    else:
+        lines.append("[crt-stt] arecord said nothing on stderr.")
+    return "\n".join(lines)
+
+
 def main():
     # claude/secretary sinks: don't start feeding keystrokes/utterances until
     # the target session is up (it may still be launching `claude`), else
@@ -692,9 +745,14 @@ def main():
         while subprocess.run(["tmux", "has-session", "-t", SESSION],
                              stderr=subprocess.DEVNULL).returncode != 0:
             time.sleep(1)
+    # arecord's stderr goes to a temp file rather than /dev/null: it is the
+    # ONLY explanation of why capture died (see capture_death_report), and
+    # this process cannot afford to lose it. A pipe would risk blocking on a
+    # full buffer nobody is draining.
+    err_f = tempfile.NamedTemporaryFile(prefix="crt-stt-arecord-", suffix=".err")
     proc = subprocess.Popen(
         ["arecord", "-D", DEV, "-f", "S16_LE", "-c", "1", "-r", str(RATE), "-t", "raw"],
-        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        stdout=subprocess.PIPE, stderr=err_f)
     print("[crt-stt] sole reader on %s  model=%s  thr=%.1f%% (peak)"
           % (DEV, os.path.basename(MODEL), THRESH * 100))
     print("-" * 40)
@@ -714,10 +772,13 @@ def main():
     ring_remaining = 0
     ring_phase_until = 0.0
     ring_proc = None
+    started = time.time()
+    capture_died = False
     try:
         while True:
             data = read_exact(proc.stdout, NBYTES)
             if len(data) < NBYTES:
+                capture_died = True
                 break
             a = array.array('h'); a.frombytes(data)
             peak = (max(abs(x) for x in a) / FULL) if a else 0.0
@@ -839,10 +900,24 @@ def main():
                         set_sideband_state("listening")
                     buf = bytearray()
     except KeyboardInterrupt:
-        pass
+        capture_died = False       # deliberate stop, not a failure
     finally:
         try: proc.terminate()
         except Exception: pass
+    if capture_died:
+        try:
+            proc.wait(timeout=2)
+        except Exception:
+            pass
+        try:
+            err_f.seek(0)
+            err_text = err_f.read().decode("utf-8", "replace")
+        except Exception:
+            err_text = ""
+        sys.stderr.write(capture_death_report(
+            DEV, proc.poll(), err_text, time.time() - started) + "\n")
+        sys.stderr.flush()
+        sys.exit(3)
 
 
 if __name__ == "__main__":

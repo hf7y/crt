@@ -61,10 +61,17 @@ class TestResolveCaptureDeviceByName(unittest.TestCase):
             stt_solo.resolve_capture_device_by_name(POTATO_ARECORD_L, name_pattern="usb audio"),
             "plughw:1,0")
 
-    def test_no_match_falls_back(self):
+    def test_no_name_match_prefers_a_real_capture_card_over_the_hardcoded_index(self):
+        # DEV_FALLBACK (plughw:0,0) is precisely the device that broke live on
+        # potato -- card 0 there is playback-only and absent from this listing,
+        # so falling back to it guarantees silent no-capture. Any card that
+        # appears in a CAPTURE listing can at least be opened.
         self.assertEqual(
             stt_solo.resolve_capture_device_by_name(MULTI_CARD_ARECORD_L, name_pattern="nonexistent card"),
-            stt_solo.DEV_FALLBACK)
+            "plughw:0,0")   # first LISTED capture card here, which is a real one
+        self.assertEqual(
+            stt_solo.resolve_capture_device_by_name(RENUMBERED_ARECORD_L, name_pattern="nonexistent card"),
+            "plughw:2,0")   # not DEV_FALLBACK's plughw:0,0 -- no such capture card
 
     def test_empty_output_falls_back(self):
         self.assertEqual(stt_solo.resolve_capture_device_by_name(""), stt_solo.DEV_FALLBACK)
@@ -88,6 +95,41 @@ class TestExplicitOverrideWins(unittest.TestCase):
         finally:
             os.environ.clear()
             os.environ.update(original)
+
+
+class TestCaptureDeathReport(unittest.TestCase):
+    """The 2026-07-23 07:10 note's actual complaint -- "the process restarted
+    silently exits (no error, no capture) rather than failing loudly" -- was
+    about the SILENCE, not just the wrong card index. Resolving by name fixed
+    one cause; this covers the report that now gets printed (and the nonzero
+    exit that goes with it) whenever capture stops for any reason."""
+
+    def test_instant_death_names_the_likely_cause_and_the_escape_hatch(self):
+        msg = stt_solo.capture_death_report(
+            "plughw:0,0", 1,
+            "arecord: main:830: audio open error: No such file or directory", 0.2)
+        self.assertIn("CAPTURE DIED", msg)
+        self.assertIn("plughw:0,0", msg)
+        self.assertIn("never produced any audio", msg)
+        self.assertIn("CRT_AUDIO_DEV", msg)          # how to fix it, on screen
+        self.assertIn("audio open error", msg)       # arecord's own words
+
+    def test_death_after_running_a_while_is_described_differently(self):
+        msg = stt_solo.capture_death_report("plughw:1,0", 0, "", 4200.0)
+        self.assertNotIn("never produced any audio", msg)
+        self.assertIn("USB replug", msg)
+        self.assertIn("arecord said nothing on stderr", msg)
+
+    def test_long_stderr_is_trimmed_for_a_40_column_screen(self):
+        noisy = "\n".join("line %d" % i for i in range(50))
+        msg = stt_solo.capture_death_report("plughw:1,0", 1, noisy, 0.1)
+        self.assertIn("line 49", msg)                # keeps the most recent
+        self.assertNotIn("line 40", msg)             # but not all 50
+        self.assertLessEqual(len(msg.splitlines()), 10)
+
+    def test_unknown_exit_code_and_runtime_are_tolerated(self):
+        msg = stt_solo.capture_death_report("plughw:1,0", None, None, None)
+        self.assertIn("CAPTURE DIED", msg)
 
 
 if __name__ == "__main__":

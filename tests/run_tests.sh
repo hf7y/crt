@@ -96,6 +96,7 @@ echo "== crt-stt-solo.py capture device by name =="
 if [ -f "$DIR/test_capture_device.py" ]; then
   python3 "$DIR/test_capture_device.py" || fail=1
 fi
+bash "$DIR/test_capture_death_loud.sh" || fail=1
 echo
 
 echo "== crt-book-game.py =="
