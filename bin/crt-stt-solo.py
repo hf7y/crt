@@ -104,10 +104,17 @@ EARCON_DEVICE = os.environ.get("CRT_EARCON_DEVICE", "handset")
 
 
 def play_earcon(name):
+    # stderr is INHERITED, not discarded (2026-07-25). crt-earcon.sh is silent
+    # on success -- it only writes to stderr to say sox is missing, the name is
+    # unknown, or (via set -e) that aplay failed -- so letting it through costs
+    # nothing when things work and is the only evidence when they do not. It
+    # stays fire-and-forget: this is the sole mic reader's loop and an earcon
+    # must never add latency to it, so nothing waits on the exit status. That
+    # is why the stderr has to be readable somewhere instead.
     try:
         subprocess.Popen(
             [os.path.join(BIN_DIR, "crt-earcon.sh"), name, "--device", EARCON_DEVICE],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
         )
     except OSError:
         pass

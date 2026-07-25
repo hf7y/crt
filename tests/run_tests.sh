@@ -238,6 +238,10 @@ echo "== loopback test: three verdicts, not two =="
 python3 "$DIR/test_loopback_verdict.py" || fail=1
 echo
 
+echo "== an earcon that never sounded leaves a trace =="
+python3 "$DIR/test_earcon_failure_is_visible.py" || fail=1
+echo
+
 echo "== capture duck released when its producer is killed =="
 bash "$DIR/test_capture_duck_signal_safety.sh" || fail=1
 echo

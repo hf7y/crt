@@ -892,11 +892,18 @@ def confidence_route(text, action):
 
 def play_earcon(name):
     """Fire-and-forget (Popen, not sh()/run) -- an earcon must never add
-    its own latency on top of the real wait it's meant to paper over."""
+    its own latency on top of the real wait it's meant to paper over.
+
+    stderr is inherited rather than discarded (2026-07-25): crt-earcon.sh
+    says nothing on success, so this is free when it works, and since
+    nothing waits on the exit status its stderr is the only way a chime
+    that never sounded can be noticed at all. The "oops" earcon in
+    _report_bad_news is the one that matters -- an inaudible apology for an
+    inaudible answer."""
     try:
         subprocess.Popen(
             [os.path.join(BIN_DIR, "crt-earcon.sh"), name],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
         )
     except OSError:
         pass
