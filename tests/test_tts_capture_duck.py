@@ -45,6 +45,24 @@ class TestCaptureDuck(unittest.TestCase):
         tts.play_wav(self.wav, "tv")
         self.assertEqual(self._ctl_lines(), [])
 
+    def test_handset_named_by_alsa_device_still_ducks(self):
+        # The duck used to be `device == "handset"`, so naming the very same
+        # hardware by its ALSA name skipped it entirely.
+        tts.play_wav(self.wav, tts.LOCAL_HANDSET_DEVICE)
+        self.assertEqual(self._ctl_lines(), ["mute 1", "mute 0"])
+
+    def test_unspecified_device_ducks(self):
+        # crt-stt-speakback.sh / crt-secretary.py / crt-idle-teaser.sh all
+        # called in with no device at all and fell through to ALSA `default`.
+        # Nothing establishes that `default` is not the capture hardware, so
+        # the unknown case ducks -- see ducks_capture()'s docstring.
+        tts.play_wav(self.wav, "")
+        self.assertEqual(self._ctl_lines(), ["mute 1", "mute 0"])
+
+    def test_an_explicitly_named_other_device_does_not_duck(self):
+        tts.play_wav(self.wav, tts.LOCAL_TV_DEVICE)
+        self.assertEqual(self._ctl_lines(), [])
+
     def test_handset_unmutes_even_if_aplay_raises(self):
         def boom(*a, **k):
             raise OSError("no such device")

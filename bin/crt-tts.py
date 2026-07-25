@@ -154,9 +154,53 @@ def _capture_mute(muted):
         pass
 
 
+def resolve_alsa_device(device):
+    """The ALSA device this playback will actually come out of."""
+    if device == "tv":
+        return LOCAL_TV_DEVICE
+    if device == "handset":
+        return LOCAL_HANDSET_DEVICE
+    return device or DEV
+
+
+def ducks_capture(device):
+    """Should this playback suppress crt-stt-solo.py's VAD?
+
+    Keyed on the HARDWARE the audio comes out of, not on the caller
+    happening to use the word "handset" (2026-07-25). The original check was
+    a literal `device == "handset"`, and this project's whole audio history
+    is devices identified by the wrong name: three real callers never name a
+    device at all and fell through to ALSA `default`, silently skipping the
+    duck --
+
+      bin/crt-stt-speakback.sh   `crt-tts.py "heard: ..."` (no --device)
+      bin/crt-secretary.py       play_earcon() (no --device)
+      bin/crt-idle-teaser.sh     chime() (no --device)
+
+    -- and `--device plughw:1,0`, naming the handset outright, skipped it too.
+
+    Unknown (`default`/empty) ducks. This reverses the previous intent, which
+    was "only the literal handset touches the CTL file": nothing anywhere
+    establishes what ALSA `default` resolves to on potato, and the two
+    outcomes are not symmetric. A duck that was not needed costs one earcon's
+    worth of suppressed VAD, self-healing at the end of playback and again at
+    CRT_CTL_MUTE_MAX_SECS. A duck that was needed and did not happen puts the
+    console's own voice into the mic, which is the failure this whole
+    mechanism exists to prevent. Naming the device explicitly always wins
+    over this guess.
+    """
+    if device == "handset":
+        return True
+    resolved = resolve_alsa_device(device)
+    return resolved == LOCAL_HANDSET_DEVICE or resolved in ("", "default")
+
+
 def play_wav(wav, device):
     _sideband_mute(True)
-    if device == "handset":
+    # Decided once, so the unmute in `finally:` can never disagree with the
+    # mute above it and leave the reference count unbalanced.
+    duck = ducks_capture(device)
+    if duck:
         _capture_mute(True)
     try:
         if device in DEXTER_DEVICES and DEXTER_URL:
@@ -172,17 +216,11 @@ def play_wav(wav, device):
             except Exception as e:
                 sys.stderr.write("[crt-tts] dexter audio-out failed: %s\n" % e)
                 return False
-        if device == "tv":
-            alsa_device = LOCAL_TV_DEVICE
-        elif device == "handset":
-            alsa_device = LOCAL_HANDSET_DEVICE
-        else:
-            alsa_device = device or DEV
-        subprocess.run(["aplay", "-D", alsa_device, "-q", wav])
+        subprocess.run(["aplay", "-D", resolve_alsa_device(device), "-q", wav])
         return True
     finally:
         _sideband_mute(False)
-        if device == "handset":
+        if duck:
             _capture_mute(False)
 
 

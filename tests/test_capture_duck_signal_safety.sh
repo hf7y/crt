@@ -89,28 +89,42 @@ for sig in $SIGNALS; do
 done
 
 # --- crt-earcon.sh, killed mid-playback -------------------------------------
-if command -v sox >/dev/null 2>&1; then
-  for sig in $SIGNALS; do
-    CTL2="$WORK/ctl-earcon-$sig"
-    CRT_CTL_FILE="$CTL2" PATH="$FAKE_BIN:$PATH" \
-      bash "$BIN_DIR/crt-earcon.sh" ack --device handset >/dev/null 2>&1 &
-    ear_pid=$!
-    for _ in $(seq 1 50); do
-      [ -s "$CTL2" ] && break
-      sleep 0.1
-    done
-    kill -"$sig" "$ear_pid" 2>/dev/null
-    wait "$ear_pid" 2>/dev/null
+# sox is faked, not required. It used to be `if command -v sox`, with an
+# `else echo skip` -- and this runner has no sox, so the crt-earcon.sh half of
+# this file had never actually executed here despite the report that landed
+# alongside it claiming both producers were covered (found 2026-07-25). The
+# duck under test is the CTL file's, not the synth's.
+cat > "$FAKE_BIN/sox" <<'EOF'
+#!/usr/bin/env bash
+for a in "$@"; do
+  case "$a" in *.wav) : > "$a" ;; esac
+done
+exit 0
+EOF
+chmod +x "$FAKE_BIN/sox"
 
-    if [ "$(mute_balance "$CTL2")" -eq 0 ]; then
-      echo "ok - crt-earcon.sh released its capture duck when SIG$sig'd mid-playback"
-    else
-      echo "FAIL - crt-earcon.sh leaked a capture duck on SIG$sig (CTL: $(tr '\n' '/' < "$CTL2"))"
-      fail=1
-    fi
+for sig in $SIGNALS; do
+  CTL2="$WORK/ctl-earcon-$sig"
+  CRT_CTL_FILE="$CTL2" PATH="$FAKE_BIN:$PATH" \
+    bash "$BIN_DIR/crt-earcon.sh" ack --device handset >/dev/null 2>&1 &
+  ear_pid=$!
+  for _ in $(seq 1 50); do
+    [ -s "$CTL2" ] && break
+    sleep 0.1
   done
-else
-  echo "skip - sox not installed (crt-earcon.sh half)"
-fi
+  if [ "$(mute_balance "$CTL2")" -ne 1 ]; then
+    echo "FAIL - crt-earcon.sh handset playback never opened a duck (CTL: $(cat "$CTL2" 2>/dev/null))"
+    fail=1
+  fi
+  kill -"$sig" "$ear_pid" 2>/dev/null
+  wait "$ear_pid" 2>/dev/null
+
+  if [ "$(mute_balance "$CTL2")" -eq 0 ]; then
+    echo "ok - crt-earcon.sh released its capture duck when SIG$sig'd mid-playback"
+  else
+    echo "FAIL - crt-earcon.sh leaked a capture duck on SIG$sig (CTL: $(cat "$CTL2" 2>/dev/null | tr '\n' '/'))"
+    fail=1
+  fi
+done
 
 exit "$fail"

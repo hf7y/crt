@@ -25,6 +25,11 @@ python3 ./crt-stt-solo.py 2>&1 | while IFS= read -r line; do
   esac
   if [[ "$line" =~ ^[0-9]{2}:[0-9]{2}:[0-9]{2}\ \ (.+)$ ]]; then
     spoken="${BASH_REMATCH[1]}"
-    [ -n "$spoken" ] && python3 ./crt-tts.py "heard: $spoken"
+    # --device handset is not decoration: this script's whole point is the
+    # earpiece (see the header), and without it crt-tts.py plays to ALSA
+    # `default` -- which until 2026-07-25 also meant it skipped the capture
+    # duck, so the speak-back of what you just said was played straight back
+    # into the live mic undicked.
+    [ -n "$spoken" ] && python3 ./crt-tts.py --device handset "heard: $spoken"
   fi
 done

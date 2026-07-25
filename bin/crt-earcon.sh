@@ -232,16 +232,24 @@ capture_mute() {
 # skip a plain post-aplay "capture_mute 0" and leave capture muted forever.
 trap 'rm -rf "$TMP"; unduck; [ "$CAPTURE_MUTED" = 1 ] && capture_mute 0; true' EXIT
 
+# Resolve the device FIRST, then decide about the duck from what the audio
+# actually comes out of -- not from the caller having used the word
+# "handset". See ducks_capture() in crt-tts.py for the full reasoning; the
+# short version is that crt-idle-teaser.sh's chime() and crt-secretary.py's
+# play_earcon() both call this script with no --device at all, landed in the
+# `*)` branch below, and so played into the console's own mic without ever
+# ducking it. An unknown device (`default`) now ducks: an unnecessary duck
+# costs one chime's worth of suppressed VAD and clears itself, a missing one
+# feeds our own tone back into whisper.
 case "$DEVICE" in
-  tv)
-    aplay -D "$TV_DEVICE" -q "$TMP/out.wav"
-    ;;
-  handset)
-    CAPTURE_MUTED=1
-    capture_mute 1
-    aplay -D "$HANDSET_DEVICE" -q "$TMP/out.wav"
-    ;;
-  *)
-    aplay -D "${DEVICE:-default}" -q "$TMP/out.wav"
-    ;;
+  tv)      ALSA_DEVICE="$TV_DEVICE" ;;
+  handset) ALSA_DEVICE="$HANDSET_DEVICE" ;;
+  *)       ALSA_DEVICE="${DEVICE:-default}" ;;
 esac
+
+if [ "$DEVICE" = "handset" ] || [ "$ALSA_DEVICE" = "$HANDSET_DEVICE" ] \
+   || [ "$ALSA_DEVICE" = "default" ]; then
+  CAPTURE_MUTED=1
+  capture_mute 1
+fi
+aplay -D "$ALSA_DEVICE" -q "$TMP/out.wav"

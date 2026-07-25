@@ -6,11 +6,22 @@ set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0
 
-command -v sox >/dev/null 2>&1 || { echo "skip - sox not installed"; exit 0; }
-
 FAKE_BIN="$(mktemp -d)"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$FAKE_BIN" "$TMPDIR"' EXIT
+
+# sox faked rather than required -- what is under test is the mute FLAG FILE's
+# lifetime around playback, not the synth. This file used to skip itself
+# wholesale on a runner without sox, which is every runner this batch tier has
+# (2026-07-25).
+cat > "$FAKE_BIN/sox" <<'EOF'
+#!/usr/bin/env bash
+for a in "$@"; do
+  case "$a" in *.wav) : > "$a" ;; esac
+done
+exit 0
+EOF
+chmod +x "$FAKE_BIN/sox"
 
 MUTE_FILE="$TMPDIR/sideband.mute"
 OBSERVED="$TMPDIR/observed"
