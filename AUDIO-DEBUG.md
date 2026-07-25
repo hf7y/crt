@@ -134,6 +134,38 @@ session with real speech.
 
 ---
 
+## The handset "0.1x above baseline" measurement should be re-run (2026-07-25)
+
+FOCUS.md's 2026-07-23 entry records the strongest audio finding this project
+has: a tone played on the handset device (`plughw:1,0`) while capture was
+running showed **0.1x above baseline** in the recording, read as "this USB
+adapter cannot reliably play and record at once — a hardware/driver limit,
+not a routing bug." The whole CTL-file capture-duck feature (cycles 3, 4 and
+`fe46ac1`) was built on that reading, and stability-bar item 2 is waiting on a
+re-run of the tool to confirm it.
+
+`bin/crt-earcon-loopback-test.py` could not have established it. Until
+2026-07-25 it sent sox's and aplay's exit status **and** stderr to
+`/dev/null`, so "played, and the mic could not hear it" and "never played at
+all" produced byte-identical output and it always reported the first. Those
+two indict opposite things — a USB adapter versus a device name — and this
+project's audio history is overwhelmingly the second (`plughw:0,0` with no
+capture stream, the dead dexter earcon URL, the `:8992` default).
+
+The tool now has a third verdict (`INCONCLUSIVE`) and exits 3 for it, so the
+re-run answers the question either way. **Nothing here overturns the original
+reading** — 0.1x is also exactly what a working-but-deafened adapter looks
+like, and the tone did register on the TV path in the same session, which
+argues aplay was working at least there. It is one command's worth of
+uncertainty that no longer has to be carried:
+
+    python3 bin/crt-earcon-loopback-test.py handset ; echo "exit $?"
+
+`exit 3` means the measurement never happened and the finding is unsupported.
+`exit 1` with a ratio near 0.1 means the finding stands and the duck is right.
+
+---
+
 ## How the overnight batch should use this
 Advance approaches marked `[idea]`/`[partial]` toward `[code]`, or harden the
 `[code]` ones (edge cases, logging, a test harness). Do **not** claim any of them

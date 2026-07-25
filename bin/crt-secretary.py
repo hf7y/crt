@@ -176,6 +176,10 @@ def speak(text, device="handset"):
     route_claude_reply's "didn't catch a reply" -- is delivered through this
     function. A dead output device therefore silenced the reports about the
     silence, which is the worst possible place for this defect to sit."""
+    if not (text or "").strip():
+        # crt-tts.py exits 1 on empty input, which is correct there and is
+        # not a fault to report here: nothing was meant to be said.
+        return False
     r = sh(["python3", os.path.join(BIN_DIR, "crt-tts.py"), "--device", device, text])
     if r.returncode != 0:
         report_unspoken(text, r)
