@@ -48,6 +48,41 @@ one durable channel it actually owns.
 
 ## Pending — for `.claude/QUESTIONS.md`
 
+- **2026-07-25 (twentieth cycle): may a sticky follow-up ANSWER the question
+  on the tube, instead of going to Claude?** `e220168` stopped
+  `crt-book-answer-listen.py` grading an utterance that the engine had already
+  routed to Claude through an open arm window — it was writing a training row
+  whose `heard` was never an answer attempt, and closing the round so the real
+  answer that followed went ungraded. That fix is not in question; what it
+  exposes is. With `CRT_WAKE_ARM_ENABLED=1`, saying "claude, are you there?"
+  after a scan means the next thing you say goes to Claude even if it is
+  literally "fiction" — the answer to the question still on the screen. Three
+  shapes: leave it (a conversation owns the mic until it closes); let an
+  utterance that exactly matches one of the two offered options answer the
+  question instead of continuing the conversation; or have the wake word close
+  any open trivia round outright, so the tube stops asking. The middle one is
+  the most useful and the most surprising, which is why it is a question.
+
+- **2026-07-25 (twentieth cycle): should a trivia round's answer window pause
+  while a conversation is open?** Found while testing the above, not fixed. A
+  round is pending for `CRT_BOOK_ANSWER_WINDOW_SECS` (20) after the scan, and
+  that clock keeps running while the person is talking to Claude — so a
+  twenty-second exchange eats the whole round, and the answer afterwards is
+  not graded because nothing is pending any more. Pre-existing, orthogonal to
+  `e220168`, and only reachable with the arm window on. Options: pause the
+  answer window while an arm window is open (the published deadline
+  `e220168` added is already sitting right there), lengthen the answer
+  window, or accept that a conversation ends the round.
+
+- **2026-07-25 (twentieth cycle): was I right to give idle-bait's poll a
+  floor?** `9500958` made `CRT_BOOK_IDLE_BAIT_POLL` reject 0, where every
+  other seconds-valued var in this project treats 0 as the manual disable
+  hatch. My reasoning: this one is a poll interval inside `while True`, so 0
+  is not "off", it is a hot loop on the box that also runs the sole mic
+  reader. But it does break the one-rule-everywhere pattern, and if you ever
+  wanted idle-bait switched off, 0 was the obvious way to ask. The
+  alternative is a separate `CRT_BOOK_IDLE_BAIT_ENABLED`.
+
 - **2026-07-25 (nineteenth cycle): should a control word do anything at all in
   the idle-lean layout?** `0d97295` stopped `crt-stt-solo.py` from typing
   single-word CONTROL utterances ("yes"/"no"/"next"/"clear"...) into
