@@ -88,6 +88,10 @@ if [ -f "$DIR/test_stt_secretary_sink.py" ]; then
 fi
 echo
 
+echo "== crt-stt-solo.py helper functions (fixups/classify/hud/ctl-line) =="
+python3 "$DIR/test_stt_solo_helpers.py" || fail=1
+echo
+
 echo "== crt-stt-solo.py capture device by name =="
 if [ -f "$DIR/test_capture_device.py" ]; then
   python3 "$DIR/test_capture_device.py" || fail=1
