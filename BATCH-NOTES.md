@@ -48,6 +48,43 @@ one durable channel it actually owns.
 
 ## Pending — for `.claude/QUESTIONS.md`
 
+- **2026-07-25 (nineteenth cycle): should a control word do anything at all in
+  the idle-lean layout?** `0d97295` stopped `crt-stt-solo.py` from typing
+  single-word CONTROL utterances ("yes"/"no"/"next"/"clear"...) into
+  `crt-screensaver.py`'s stdin, which is what `CRT_TMUX_PANE=0.0` names in the
+  layout potato boots. They now reach nothing, which is honest but empty. Three
+  open shapes, all real: leave it; give `bin/crt-remote-claude-bridge.py` a
+  `KEY` verb so keys reach the brain on mandark the way text already does (a
+  mandark-side deploy, not an unattended change); or let control words fall
+  through to `crt-secretary.py` as ordinary text in that layout. Not a guess to
+  make from here.
+
+- **2026-07-25 (nineteenth cycle): silence, or an `oops`, when a keystroke has
+  nowhere to land?** Same commit suppressed the `control` earcon in that case,
+  on the grounds that an earcon is how this console says "done" and nothing had
+  been done. The room now hears nothing at all for an ambient "okay" (the
+  reason lands on window 1, once per process, and on the stt pane every time).
+  An honest `oops` beep may beat silence — but it would fire on every stray
+  single word in a noisy room, which is why I did not choose it unattended.
+
+- **2026-07-25 (nineteenth cycle): what should `crt-mandark.sh off` mean in the
+  idle-lean layout?** Its own help says "keep the brain local/onsite (or none)",
+  and in that layout there is no local brain -- window 0 is the potato. Before
+  `0d97295` that setting typed every escalation into the screensaver and then
+  read its moving caption back as Claude's reply. It now refuses honestly, but
+  the command still promises something the layout cannot provide. Should it
+  refuse/warn at the point of use, or is `off` exactly the trigger for the
+  on-demand onsite brain the wake supervisor was meant to spin up (POTATO.md's
+  remaining live wiring)?
+
+- **2026-07-25 (nineteenth cycle): should a playbook answer reach window 1
+  too?** `c2473b4` mirrors a remote Claude's spoken reply onto window 1, because
+  `handle()` switches the tube to `mono` for that path and was leaving it blank.
+  A playbook (`what time is it`, `book game stats`) answers without moving the
+  tube, so nothing is blank -- but it is also the only kind of answer this
+  console gives that never appears in writing anywhere. Deliberately left alone
+  as a taste call rather than widened unattended.
+
 - **2026-07-25 (eighteenth cycle): should the potato screensaver's caption
   move at all?** Zach's 2026-07-21 ask, quoted in `render_idle_screen()`'s
   docstring and re-quoted in his reply on the seventeenth cycle's report, is
