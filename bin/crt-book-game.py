@@ -552,7 +552,8 @@ def _init_schema(conn, retries=5):
                     quote TEXT,
                     label_printed INTEGER DEFAULT 0,
                     first_scanned TEXT,
-                    last_scanned TEXT
+                    last_scanned TEXT,
+                    last_answered TEXT
                 )
             """)
             existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(books)")}
@@ -564,6 +565,12 @@ def _init_schema(conn, retries=5):
             # which is exactly right for potato's existing books.db.
             if "last_scanned" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN last_scanned TEXT")
+            # Added 2026-07-25 (thirteenth cycle). Same no-backfill
+            # reasoning as last_scanned: NULL means "never answered since
+            # this column existed", which readers treat exactly as the
+            # pre-column behaviour -- the round is still open.
+            if "last_answered" not in existing_cols:
+                conn.execute("ALTER TABLE books ADD COLUMN last_answered TEXT")
             conn.commit()
             return
         except sqlite3.OperationalError:
@@ -617,6 +624,30 @@ def touch_scan(conn, isbn, timestamp=None):
     Scanning is the event; registering is a side effect of the first one.
     This separates them."""
     conn.execute("UPDATE books SET last_scanned = ? WHERE isbn = ?",
+                 (timestamp or _now_iso(), isbn))
+    conn.commit()
+    return get_book(conn, isbn)
+
+
+def mark_answered(conn, isbn, timestamp=None):
+    """Record that `isbn`'s open round has now been graded, closing it.
+
+    The counterpart to touch_scan(): a scan OPENS a round, this CLOSES it.
+    Without it, "a question is pending" is derived from the scan timestamp
+    alone, so the round stays open for the whole of
+    CRT_BOOK_ANSWER_WINDOW_SECS no matter how many utterances get graded
+    inside it -- and crt-stt-solo.py writes EVERY recognized utterance to
+    stt.log, before the wake gate, so in this room that is not a
+    hypothetical second answer, it is whatever anyone says next (2026-07-25,
+    thirteenth cycle).
+
+    A later scan re-opens the round: readers compare this against the
+    book's own scan timestamp rather than against the clock, so a re-scan
+    (which moves last_scanned forward) is pending again with no need to
+    clear anything here. That keeps the twelfth cycle's re-scan fix intact.
+
+    Returns the refreshed row (None if that ISBN isn't registered)."""
+    conn.execute("UPDATE books SET last_answered = ? WHERE isbn = ?",
                  (timestamp or _now_iso(), isbn))
     conn.commit()
     return get_book(conn, isbn)
@@ -1085,6 +1116,11 @@ def main():
             return
         q = questions[0]
         grade = grade_answer(expected=q.get("correct"), heard=args.answer, correct_option=q.get("correct"))
+        # Closes the round for the listener too (2026-07-25): this CLI and
+        # crt-book-answer-listen.py grade the same books.db, so an answer
+        # typed here has to stop the next spoken utterance from being
+        # graded against the question it just answered.
+        mark_answered(conn, isbn)
         log_training_row(isbn, grade)
         print(f"correct_content={grade['correct_content']} correct_stt={grade['correct_stt']}")
 

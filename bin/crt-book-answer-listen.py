@@ -102,18 +102,41 @@ def get_pending_question(conn, window_secs, now=None):
     console exists to fill.
 
     COALESCE, not a backfill: rows written before that column existed have
-    last_scanned NULL and still answer for their first scan."""
+    last_scanned NULL and still answer for their first scan.
+
+    A round is also CLOSED once it has been graded (2026-07-25, thirteenth
+    cycle): last_answered at or after this book's own scan means the answer
+    already happened, so the next utterance is not a second attempt at the
+    same question. It is compared against the SCAN, not against the clock,
+    so re-scanning the book re-opens the round without anything having to
+    clear the column.
+
+    The answered check deliberately happens AFTER `LIMIT 1`, not as a WHERE
+    clause. Filtering in SQL would make a closed round fall through to the
+    second-most-recently-scanned book, which may still be inside its own
+    window -- and grading an utterance against a book that is not the one
+    on the tube is exactly the corrupted training row the twelfth cycle
+    fixed. The most recent scan is the question on screen; if that one is
+    closed, nothing is pending."""
     now = now if now is not None else time.time()
     row = conn.execute(
         "SELECT isbn, title, questions_json, "
-        "COALESCE(last_scanned, first_scanned) AS scanned FROM books "
-        "ORDER BY scanned DESC LIMIT 1"
+        "COALESCE(last_scanned, first_scanned) AS scanned, last_answered "
+        "FROM books ORDER BY scanned DESC LIMIT 1"
     ).fetchone()
     if row is None:
         return None
-    isbn, title, questions_json, scanned = row
+    isbn, title, questions_json, scanned, last_answered = row
     scanned_at = _parse_iso_utc(scanned)
     if scanned_at is None or now - scanned_at > window_secs:
+        return None
+    answered_at = _parse_iso_utc(last_answered)
+    # >= not >: _now_iso() has one-second resolution, so an answer graded in
+    # the same second as the scan that opened it is indistinguishable from
+    # one graded just before it. Treating equal as closed errs toward
+    # silence for a sub-second re-scan; treating it as open would reopen
+    # this whole bug for anyone who answers quickly.
+    if answered_at is not None and answered_at >= scanned_at:
         return None
     questions = json.loads(questions_json or "[]")
     if not questions:
@@ -134,6 +157,14 @@ def _parse_iso_utc(ts):
         return calendar.timegm(time.strptime(ts, "%Y-%m-%dT%H:%M:%S"))
     except ValueError:
         return None
+
+
+def _iso_utc(epoch):
+    """Inverse of _parse_iso_utc: crt-book-game.py's _now_iso() format from
+    a Unix epoch. Exists so that a caller passing an explicit `now` closes
+    the round at THAT instant rather than at the wall clock -- otherwise
+    the two halves of one graded round disagree about when it happened."""
+    return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(epoch))
 
 
 def grade_pending_answer(conn, spoken_text, window_secs=ANSWER_WINDOW_SECS, now=None):
@@ -164,6 +195,15 @@ def grade_pending_answer(conn, spoken_text, window_secs=ANSWER_WINDOW_SECS, now=
         return None
     q = pending["question"]
     grade = bg.grade_answer(expected=q.get("correct"), heard=spoken_text, correct_option=q.get("correct"))
+    # Close the round BEFORE logging it. If this UPDATE fails, the round
+    # stays open and the very next thing anyone says gets graded against
+    # the same question -- so failing here must not leave a training row
+    # already written behind it. books.db is WAL with a 10s busy timeout
+    # (get_db), so contention is not the realistic failure; a raise here
+    # reaches main()'s LoopGuard and is reported on window 1 rather than
+    # silently double-grading.
+    bg.mark_answered(conn, pending["isbn"],
+                     timestamp=None if now is None else _iso_utc(now))
     bg.log_training_row(pending["isbn"], grade)
     grade["title"] = pending["title"]
     return grade
