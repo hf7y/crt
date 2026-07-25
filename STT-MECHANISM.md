@@ -7,8 +7,31 @@ reason about *why* a given transcription got garbled the way it did.
 ## The pipeline
 1. **Capture**: `bin/crt-stt-solo.py` is the sole mic reader (deliberately —
    two readers on the emulated capture device starve each other, see
-   AUDIO-DEBUG.md). It reads a continuous raw PCM stream from ALSA device
-   `crtmic` (a dsnoop wrapper, 16kHz mono).
+   AUDIO-DEBUG.md). It reads a continuous raw PCM stream (16kHz mono S16) from
+   one `arecord` it keeps open for the life of the process. The device is
+   resolved by NAME from `arecord -l` (`CRT_AUDIO_DEV_NAME`, default "USB
+   Audio") with `CRT_AUDIO_DEV` as a hard override — potato pins
+   `plughw:1,0`. (Older notes here said `crtmic`, a dsnoop wrapper; that was
+   the crt-vm era and is gone.)
+
+   **Capture pauses while whisper runs, and that is where follow-ups go to
+   die.** Step 4 happens *inside* this same loop, so for the 1–3s a
+   transcription takes, nobody is reading `arecord`. What arrives meanwhile
+   sits in the kernel pipe, which held 2.05 seconds of audio by default —
+   less than a transcription takes, after which the audio was simply lost,
+   invisibly. Since 2026-07-25 the pipe is widened to
+   `CRT_CAPTURE_PIPE_BYTES` (256 KiB ≈ 8.2s) and the startup line prints the
+   real depth in seconds. So: **an utterance spoken in the second or two
+   right after another one may have no audio at all behind it** — if a
+   follow-up seems to have been ignored rather than misheard, this is a
+   likelier cause than the wake gate, and it predates every gate/arm-window
+   change made for that symptom.
+
+   Whatever queued during that pause is also *old* by the time it is read, so
+   anything older than `CRT_CAPTURE_BACKLOG_MAX_SECS` (3s) is dropped —
+   newest audio kept — and the pane says `dropped N.Ns of backlogged audio`
+   when it happens. If you are reconstructing a session from `stt.log` and a
+   gap does not line up with a silence, check the pane for that line.
 2. **VAD (voice activity detection)**: peak-based, not RMS/average — checked
    every 100ms chunk. Speech starts once peak crosses `CRT_VAD_THRESHOLD`
    (percent of full scale) for a couple consecutive chunks, and ends after
@@ -46,13 +69,29 @@ reason about *why* a given transcription got garbled the way it did.
    high-frequency consonants — if you notice a pattern of dropped/garbled
    consonants specifically at the start or end of words, this filter chain
    is a likely contributor, not just whisper itself.
-4. **Transcription**: either local `whisper.cpp` (`base.en`) inside this VM,
-   or (when `CRT_WHISPER_SERVER` is set) a POST to `faster-whisper` running
-   natively on `dexter`'s Ryzen host (see `bin/dexter-whisper-server.py`) —
-   same model family either way, `beam_size=1` (greedy, fastest, but more
-   prone to a locally-plausible-but-wrong word than a wider beam search
-   would be — if inference is still poor, a larger beam size is a real lever
-   available in `dexter-whisper-server.py`, currently not exposed as a knob).
+4. **Transcription**: either local `whisper.cpp` (`base.en`) on the console
+   itself, or (when `CRT_WHISPER_SERVER` is set — potato's boot default,
+   `crt-console.sh`) a POST to `faster-whisper` running on mandark (see
+   `bin/mandark-whisper-server.py`) — same model family either way,
+   `beam_size=1` (greedy, fastest, but more prone to a
+   locally-plausible-but-wrong word than a wider beam search would be — if
+   inference is still poor, a larger beam size is a real lever available in
+   `mandark-whisper-server.py`, currently not exposed as a knob).
+
+   **A failure here is not a silence, and since 2026-07-25 it no longer
+   pretends to be one.** `transcribe_remote()` returns `None` when it could
+   not get an answer out of the server at all (unreachable, timeout, HTTP
+   error, unparseable body) and `""` only when the server genuinely heard
+   nothing. Before that it returned `""` for both, so an unreachable mandark
+   made the console go completely silent with nothing anywhere saying why —
+   if you are reading `stt.log` from before this date and a stretch of a
+   session is simply *missing*, a dead whisper server is a live candidate,
+   not just a quiet room. Now: `! stt lost it` flashes on the tube every time
+   it happens, and the pane carries a `TRANSCRIPTION FAILED` line on the
+   first failure of a run and every tenth after it, plus one when it
+   recovers. What the console should *do* about a dead server — fall back to
+   local whisper.cpp, or just say so — is still an open decision
+   (`BATCH-NOTES.md`).
 5. **Filtering before it reaches you**: a hardcoded set of whisper's known
    noise-hallucination outputs get dropped entirely (`HALLU` in
    `crt-stt-solo.py` — things like "thank you", "music playing"), as does
@@ -75,6 +114,12 @@ reason about *why* a given transcription got garbled the way it did.
   utterance boundaries specifically; (b) tends to lose/soften sibilants
   anywhere; (a) tends to substitute a whole different (but phonetically
   similar) word or homophone.
+- A *missing* transcription is a different question from a garbled one, and
+  it has its own three causes, all documented above: the wake gate dropped it
+  (nothing wrong with the audio), capture was busy transcribing the previous
+  utterance (step 1), or the recogniser itself failed (step 4). Only the
+  first is about what was said. Check the pane before assuming the mic or the
+  room is at fault.
 - `~/.crt/stt.log` has every raw utterance, unfiltered by your own judgment —
   useful for spotting a recurring pattern across many utterances rather than
   reasoning from just the one in front of you.

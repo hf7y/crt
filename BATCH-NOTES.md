@@ -91,18 +91,36 @@ one durable channel it actually owns.
   bless this file and drop the `.claude/FOCUS.md` upkeep instruction from the
   `nightly-batch` skill so it stops asking for something that cannot happen.
 
-- **2026-07-25 (sixth cycle): `transcribe_remote()` in `bin/crt-stt-solo.py`
-  needs a decision, and it's the last instance of tonight's defect class.** It
-  returns `""` on any error talking to `CRT_WHISPER_SERVER`, so an unreachable
-  whisper server is indistinguishable from a silent room — the same shape as
-  `capture_pane()` before `931c0d9` and `send_to_claude()` before `9eeccc3`.
-  FOCUS.md's own 2026-07-23 00:40 note already flags it and wants a
-  local-whisper fallback. **Not fixed unattended**, and deliberately so: unlike
-  the secretary cases, `""` here is genuinely ambiguous — whisper legitimately
-  returns nothing for silence — so a sentinel alone doesn't settle it, and the
-  fallback it points at (local `whisper-cli` on a Pi 3B+, measured at ~1x
-  realtime) may cost more than the silence does. The question: honest failure
-  signal only, or signal plus local fallback?
+- **2026-07-25 (sixth cycle, half-answered in the seventh): what should
+  `transcribe_remote()` do when the whisper server is unreachable?** It
+  returned `""` on any error talking to `CRT_WHISPER_SERVER`, so an
+  unreachable whisper server was indistinguishable from a silent room — the
+  same shape as `capture_pane()` before `931c0d9` and `send_to_claude()`
+  before `9eeccc3`. FOCUS.md's own 2026-07-23 00:40 note flags it and wants a
+  local-whisper fallback.
+  **The signal half is now done (`ba33791`)**: failure returns `None`, real
+  silence still returns `""`, and the console says so on the tube and on the
+  pane instead of going quiet. That half needed no decision — it is decidable
+  from the code.
+  **The fallback half is still open and still Zach's call.** When mandark is
+  unreachable, should potato fall back to local `whisper-cli` (measured at
+  ~1x realtime on a Pi 3B+ — a 6s utterance costs ~6s, and it costs that
+  while capture is stalled, see `106dcbc`), or just report the outage and
+  drop the utterance? The measurement now exists to make it a real choice
+  rather than a guess.
+
+- **2026-07-25 (seventh cycle): `bin/crt-stt-stream.py` carries its own copy
+  of both defects fixed tonight, and nothing launches it.** It has a private
+  `transcribe_remote()`/`transcribe()` pair with the same `return ""`-on-error
+  shape (`crt-stt-stream.py:126`/`:157`), and its callers do
+  `transcribe(...).split()`, so it cannot simply inherit the `None` fix
+  without changing them too. Deliberately left alone: `crt-console.sh` never
+  starts it (only `crt-stt-stream-view.sh` mentions it), so patching it would
+  be changing code nothing runs, on a night when the same defect was live on
+  the boot path. **The decision it needs is whether it should exist at all** —
+  it predates the mandark offload and duplicates the engine it was forked
+  from. Either retire it (`git log -- bin/crt-stt-stream.py` keeps it) or
+  wire it somewhere and give it the same treatment.
 
 ## Pending — for `.claude/FOCUS.md`
 
