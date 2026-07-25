@@ -150,6 +150,10 @@ echo "== crt-book-answer-listen.py =="
 python3 -m unittest discover -s "$DIR" -p "test_book_answer_listen.py" -v 2>&1 | tail -5 || fail=1
 echo
 
+echo "== a re-scanned book can be answered again (2026-07-25) =="
+python3 -m unittest discover -s "$DIR" -p "test_book_rescan_pending.py" -v 2>&1 | tail -5 || fail=1
+echo
+
 echo "== crt_loop_guard.py (background windows survive one bad iteration) =="
 python3 "$DIR/test_loop_guard.py" 2>&1 | tail -3 || fail=1
 echo

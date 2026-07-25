@@ -15,10 +15,13 @@
 # import, quote-column migration) -- avoids colliding with that work.
 #
 # "Pending question" is derived, not stored as new shared state: the
-# most recently *registered* book (MAX(first_scanned)) counts as pending
-# only while CRT_BOOK_ANSWER_WINDOW_SECS hasn't elapsed since its scan --
-# after that, the next STT utterance is assumed to be unrelated chatter,
-# not a trivia answer, and is left alone (not graded, not consumed).
+# most recently SCANNED book (MAX of last_scanned, falling back to
+# first_scanned) counts as pending only while
+# CRT_BOOK_ANSWER_WINDOW_SECS hasn't elapsed since that scan -- after
+# that, the next STT utterance is assumed to be unrelated chatter, not a
+# trivia answer, and is left alone (not graded, not consumed). Until
+# 2026-07-25 this read first_scanned alone, which meant a book could only
+# ever be answered the very first time it was scanned.
 #
 # STATUS: NOT hardware-verified. Timestamp math and the tail-follow/grade
 # logic are pure functions covered by tests/test_book_answer_listen.py
@@ -83,21 +86,33 @@ def parse_stt_log_line(line):
 
 
 def get_pending_question(conn, window_secs, now=None):
-    """Returns {"isbn", "title", "question"} for the most recently
-    registered book if it was scanned within `window_secs` of `now`
-    (default: real time), else None -- no separate 'pending' flag/state
-    needed, this is entirely derived from books.db's own first_scanned
-    column, so it can never drift out of sync with what actually got
-    registered."""
+    """Returns {"isbn", "title", "question"} for the most recently SCANNED
+    book if that scan was within `window_secs` of `now` (default: real
+    time), else None -- no separate 'pending' flag/state needed, this is
+    entirely derived from books.db's own timestamps, so it can never drift
+    out of sync with what actually got scanned.
+
+    Ordered by last_scanned, not first_scanned (2026-07-25): re-scanning a
+    book already on the shelf leaves first_scanned exactly where it was --
+    register_book() caches, deliberately -- so this used to see no scan at
+    all and drop the spoken answer, or worse, pick some *other* book that
+    happened to be registered inside the window and grade the answer
+    against ITS question, writing a training row whose "expected" belongs
+    to a different book. That is a corrupted row in the file this whole
+    console exists to fill.
+
+    COALESCE, not a backfill: rows written before that column existed have
+    last_scanned NULL and still answer for their first scan."""
     now = now if now is not None else time.time()
     row = conn.execute(
-        "SELECT isbn, title, questions_json, first_scanned FROM books "
-        "ORDER BY first_scanned DESC LIMIT 1"
+        "SELECT isbn, title, questions_json, "
+        "COALESCE(last_scanned, first_scanned) AS scanned FROM books "
+        "ORDER BY scanned DESC LIMIT 1"
     ).fetchone()
     if row is None:
         return None
-    isbn, title, questions_json, first_scanned = row
-    scanned_at = _parse_iso_utc(first_scanned)
+    isbn, title, questions_json, scanned = row
+    scanned_at = _parse_iso_utc(scanned)
     if scanned_at is None or now - scanned_at > window_secs:
         return None
     questions = json.loads(questions_json or "[]")

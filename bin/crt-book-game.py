@@ -551,12 +551,19 @@ def _init_schema(conn, retries=5):
                     lcc TEXT,
                     quote TEXT,
                     label_printed INTEGER DEFAULT 0,
-                    first_scanned TEXT
+                    first_scanned TEXT,
+                    last_scanned TEXT
                 )
             """)
             existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(books)")}
             if "quote" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN quote TEXT")
+            # Added 2026-07-25. Deliberately NOT backfilled from
+            # first_scanned: every reader COALESCEs to first_scanned, so a
+            # NULL here means "never re-scanned since this column existed",
+            # which is exactly right for potato's existing books.db.
+            if "last_scanned" not in existing_cols:
+                conn.execute("ALTER TABLE books ADD COLUMN last_scanned TEXT")
             conn.commit()
             return
         except sqlite3.OperationalError:
@@ -576,19 +583,43 @@ def register_book(conn, book, questions=None, question_source=None, timestamp=No
     if existing is not None:
         return existing
     lcc = compute_lcc(book.get("subjects"))
+    scanned_at = timestamp or _now_iso()
     conn.execute(
         "INSERT INTO books (isbn, title, authors, year, subjects, raw_json, "
-        "questions_json, question_source, lcc, quote, label_printed, first_scanned) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+        "questions_json, question_source, lcc, quote, label_printed, "
+        "first_scanned, last_scanned) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
         (
             book["isbn"], book["title"], json.dumps(book.get("authors")),
             book.get("year"), json.dumps(book.get("subjects")),
             json.dumps(book.get("raw", {})), json.dumps(questions or []),
-            question_source, lcc, quote, timestamp or _now_iso(),
+            question_source, lcc, quote, scanned_at, scanned_at,
         ),
     )
     conn.commit()
     return get_book(conn, book["isbn"])
+
+
+def touch_scan(conn, isbn, timestamp=None):
+    """Record that `isbn` was scanned NOW, and return the refreshed row
+    (None if that ISBN isn't registered).
+
+    register_book() caches: a re-scan returns the existing row untouched,
+    on purpose -- the question, the quote and the LCC are all computed once
+    and kept. But `first_scanned` was the only time this table carried, so
+    nothing anywhere recorded that a scan had happened AGAIN, and
+    crt-book-answer-listen.py's whole notion of a pending question is
+    derived from a timestamp (2026-07-25, twelfth cycle). The last link of
+    the funnel therefore worked exactly once per book: scan a book already
+    on the shelf, get its question on the tube, answer it aloud, and the
+    answer was graded against nothing and logged nowhere.
+
+    Scanning is the event; registering is a side effect of the first one.
+    This separates them."""
+    conn.execute("UPDATE books SET last_scanned = ? WHERE isbn = ?",
+                 (timestamp or _now_iso(), isbn))
+    conn.commit()
+    return get_book(conn, isbn)
 
 
 def get_book(conn, isbn):
@@ -1043,6 +1074,9 @@ def main():
             print(f"Q: {questions[0]['text']} [{' / '.join(questions[0]['options'])}]")
         return
 
+    # Same reason as crt-book-console.py's re-scan branch: a re-scan is a
+    # scan, and the answer listener has no other way to know one happened.
+    existing = touch_scan(conn, isbn) or existing
     print(f"Already registered: {existing['title']}")
     if args.answer:
         questions = json.loads(existing["questions_json"])
