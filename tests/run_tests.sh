@@ -325,6 +325,14 @@ echo "== a scan reaches the tube (book window takes focus, hands it back) =="
 python3 "$DIR/test_scan_reaches_the_tube.py" || fail=1
 echo
 
+# 2026-07-25: crt-console.sh builds every window detached (tmux sizes those
+# 80x24) and attaches last, so a window that measures once is wrong forever.
+# The screensaver and window 1 were already fixed; the window that draws the
+# question was not.
+echo "== the book window measures the tube it draws on (pty resize) =="
+python3 "$DIR/test_book_console_size.py" || fail=1
+echo
+
 echo "== crt-console.sh Book Game funnel windows (both layouts) =="
 bash "$DIR/test_console_book_game_layout.sh" || fail=1
 echo

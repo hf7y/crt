@@ -492,7 +492,35 @@ def stdin_reader(q):
 
 def main():
     conn = bg.get_db()
+    # Re-measured every tick below, not once here. crt-console.sh creates this
+    # window with `tmux new-window -d` and only runs `exec tmux attach` at the
+    # very end, after every window exists -- so this process starts inside a
+    # DETACHED session, which tmux sizes 80x24 whatever the tube actually is.
+    # Sizing once at startup cached that 80x24 for the life of the process, so
+    # every screen this window draws (the shelf, the question, the graded
+    # answer, a failed lookup) was laid out 80 wide and 24 tall and wrapped
+    # itself into unreadable ribbon on the 40x15 tube -- and never recovered,
+    # because nothing measured again.
+    #
+    # Third window to have this exact bug and the last one still holding it:
+    # crt-screensaver.py was fixed on 2026-07-23 (re-read every frame) and
+    # crt-monologue.py in 6aecc39. This is the one that draws the question.
     width, height = bg.detect_screen_size()
+    # How to draw the screen currently on the tube, again, at whatever size
+    # the tube turns out to be. Set by redraw() at every draw site; called
+    # again when the measurement changes.
+    current_frame = None
+
+    def redraw(render):
+        """Draw a frame and remember how to draw it at a different size.
+
+        `render` takes (width, height) and returns the lines. Anything else
+        it needs is bound at the call site as a default argument, not read
+        from this scope on the repaint -- a question that has since timed
+        out must not come back on a resize."""
+        nonlocal current_frame
+        current_frame = render
+        draw(render(width, height))
 
     def book_count():
         return conn.execute("SELECT COUNT(*) FROM books").fetchone()[0]
@@ -505,7 +533,10 @@ def main():
     pending_row = None   # that question's own row, kept around to redraw with the waiting hint
     hint_shown = False   # whether the cat_reading waiting hint has already fired for this question
 
-    draw(render_idle_screen(book_count(), width, height))
+    def draw_idle():
+        redraw(lambda w, h: render_idle_screen(book_count(), w, h))
+
+    draw_idle()
     last_scan_at = 0.0
     showing_idle = True
     holding_tube = False   # did THIS window take focus for the scan on screen?
@@ -561,11 +592,11 @@ def main():
         try:
             row = handle_scan(conn, isbn)
         except ScanLookupFailed:
-            draw(render_scan_error(isbn, width, height))
+            redraw(lambda w, h, i=isbn: render_scan_error(i, w, h))
             pending_isbn = None
             pending_row = None
         else:
-            draw(render_scan_result(row, width, height))
+            redraw(lambda w, h, r=row: render_scan_result(r, w, h))
             pending_isbn = isbn
             pending_row = row
             hint_shown = False
@@ -591,7 +622,7 @@ def main():
                 continue
             title_row = bg.get_book(conn, row["isbn"])
             title = title_row["title"] if title_row else row["isbn"]
-            draw(render_answer_result(title, row, width, height))
+            redraw(lambda w, h, t=title, r=row: render_answer_result(t, r, w, h))
             last_scan_at = time.time()
             pending_isbn = None  # only react once per active question
             pending_row = None
@@ -607,7 +638,8 @@ def main():
         nonlocal hint_shown
         if (pending_isbn is not None and not hint_shown
                 and time.time() - last_scan_at >= WAIT_HINT_SECS):
-            draw(render_scan_result(pending_row, width, height, show_waiting_hint=True))
+            redraw(lambda w, h, r=pending_row:
+                   render_scan_result(r, w, h, show_waiting_hint=True))
             hint_shown = True
 
     # Tracks scanner.log lines THIS process just wrote for a stdin-sourced
@@ -680,7 +712,7 @@ def main():
                     # under the idle screen with no self-healing redraw. Only
                     # while idle: an unmatched line during an active question
                     # screen shouldn't interrupt it.
-                    draw(render_idle_screen(book_count(), width, height))
+                    draw_idle()
 
             if line is not None:
                 if line in self_written_lines:
@@ -691,9 +723,23 @@ def main():
                         show_scan(isbn)
 
             if not showing_idle and time.time() - last_scan_at >= IDLE_SECS:
-                draw(render_idle_screen(book_count(), width, height))
+                draw_idle()
                 showing_idle = True
                 release_tube()
+
+            # The tube's real geometry, asked again every tick (~POLL_SECS).
+            # Cheap -- one ioctl, or one env read when crt-console.sh pins
+            # CRT_COLS/CRT_ROWS -- and the only thing that ever corrects the
+            # 80x24 this process was born believing. Repainting on the change
+            # rather than only at the next draw matters because there may not
+            # BE a next draw: in the historical layout `book` is the boot
+            # default and its idle shelf screen is what the tube holds until
+            # somebody scans something.
+            size = bg.detect_screen_size()
+            if size != (width, height):
+                width, height = size
+                if current_frame is not None:
+                    draw(current_frame(width, height))
 
 
 if __name__ == "__main__":

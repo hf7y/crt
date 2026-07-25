@@ -739,16 +739,43 @@ FALLBACK_HEIGHT = 15
 MAX_CONTENT_WIDTH = 30
 
 
+def _env_dim(name):
+    """A positive integer from the environment, or 0 for unset/empty/junk.
+
+    Tolerant on purpose (it used to be a bare int(), which raised): these
+    names are set by shell, and a typo in crt-console.sh must degrade to
+    auto-detection, not kill the window that draws the question."""
+    try:
+        v = int(os.environ.get(name, "") or 0)
+    except ValueError:
+        return 0
+    return v if v > 0 else 0
+
+
 def detect_screen_size():
-    env_w = os.environ.get("CRT_BOOK_GAME_WIDTH")
-    env_h = os.environ.get("CRT_BOOK_GAME_HEIGHT")
-    if env_w and env_h:
-        return int(env_w), int(env_h)
+    """This game's own env override > crt-console.sh's tube pins >
+    the real terminal > CLAUDE.md's 40x15.
+
+    CRT_COLS/CRT_ROWS added 2026-07-25 (sixteenth nightly cycle): those are
+    the project-wide pins for the tube's real geometry -- crt-console.sh
+    writes them, crt-monologue.py's viewport() and crt-screensaver.py's
+    resolve_size() both honor them, and this renderer did not. A pin that
+    fixes two of the three windows that draw a full screen, and is silently
+    inert in the third, is this project's signature bug (CRT_CTL_FILE,
+    CRT_IDLE_FACE_WINDOW), not a gap worth leaving open.
+
+    Same precedence order as crt-monologue.py's viewport(), and each
+    dimension resolves independently -- a pin for one and auto-detect for
+    the other is a legitimate combination, not a reason to ignore both."""
+    w = _env_dim("CRT_BOOK_GAME_WIDTH") or _env_dim("CRT_COLS")
+    h = _env_dim("CRT_BOOK_GAME_HEIGHT") or _env_dim("CRT_ROWS")
+    if w and h:
+        return w, h
     try:
         cols, lines = shutil.get_terminal_size(fallback=(FALLBACK_WIDTH, FALLBACK_HEIGHT))
     except OSError:
         cols, lines = FALLBACK_WIDTH, FALLBACK_HEIGHT
-    return int(env_w) if env_w else cols, int(env_h) if env_h else lines
+    return w or cols, h or lines
 
 
 def center_text(text, width):

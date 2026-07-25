@@ -39,10 +39,29 @@ already treats that as **two tunable variables, not a hardcoded
 constant** — `crt-book-game.py` follows the exact same convention:
 
 ```
-CRT_BOOK_GAME_WIDTH / CRT_BOOK_GAME_HEIGHT   # env override, wins if both set
-shutil.get_terminal_size()                    # real terminal, if no override
+CRT_BOOK_GAME_WIDTH / CRT_BOOK_GAME_HEIGHT   # this game's own override
+CRT_COLS / CRT_ROWS                           # crt-console.sh's tube pins
+shutil.get_terminal_size()                    # real terminal
 40 x 15                                       # CLAUDE.md fallback, last resort
 ```
+
+Each dimension resolves down that chain on its own — a pin for width and
+auto-detect for height is a legitimate combination.
+
+**And it is asked again every tick, not once at startup** (2026-07-25).
+`crt-console.sh` creates every window with `tmux new-window -d` and runs
+`exec tmux attach` only at the very end, so these processes are born inside
+a detached session that tmux sizes 80x24 whatever the tube is. A renderer
+that measures once caches that 80x24 for its whole life and wraps itself
+into ribbon on the real 40x15 — the bug `crt-screensaver.py` was fixed for
+on 2026-07-23, `crt-monologue.py` in `6aecc39`, and `crt-book-console.py`
+in the sixteenth nightly cycle. `crt-book-console.py` repaints the screen
+currently on the tube when the measurement changes, because in the
+historical layout `book` is the boot-default window and its idle shelf
+screen is what the tube holds until somebody scans something — there may
+not be a next draw to correct itself on. Proof:
+`tests/test_book_console_size.py` runs the real console on a real pty and
+resizes it underneath.
 
 `detect_screen_size()` in `crt-book-game.py` implements this precisely
 the way `crt-pager.py`'s `detect_size()` does — deliberately not a new
