@@ -18,8 +18,9 @@
 #   CRT_WD_KEEPALIVE=1 bin/crt-capture-watchdog.sh     # proactively re-assert mixer periodically (Approach C)
 #
 # Tunables (env):
-#   CRT_WD_DEV            capture device to monitor (default plughw:0,0; use a
-#                         dsnoop device like 'crtmic' if the console shares one)
+#   CRT_WD_DEV            capture device to monitor (default: resolved by
+#                         name, see CRT_AUDIO_DEV_NAME below; use a dsnoop
+#                         device like 'crtmic' if the console shares one)
 #   CRT_WD_FLAT_SECS      seconds of flatline before declaring stale (default 8)
 #   CRT_WD_FLAT_PEAK      peak (fraction) below which a chunk counts as "flat"
 #                         -- i.e. dead, not speech (default 0.004 = 0.4%)
@@ -27,21 +28,30 @@
 #   CRT_WD_KEEPALIVE      1 = periodically re-assert mixer even when healthy
 #   CRT_WD_KEEPALIVE_SECS keep-alive interval (default 60)
 #   CRT_WD_RESTART_STT    1 = on staleness, respawn the 'stt' window in $CRT_TMUX_SESSION
-#   CRT_ALSA_CARD         mixer card (default 0)
+#   CRT_ALSA_CARD         mixer card (default: resolved by name, see below)
 #   CRT_INPUT_SOURCE      capture source to re-assert (default Line)
+#   CRT_AUDIO_DEV_NAME    name substring to match in `arecord -l` when
+#                         CRT_WD_DEV/CRT_ALSA_CARD aren't set (default
+#                         "USB Audio" -- otherwise this defaulted to card 0,
+#                         which is a different device on every box. See
+#                         crt-lib-audio-device.sh.)
 set -uo pipefail
 
-DEV="${CRT_WD_DEV:-plughw:0,0}"
+BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./crt-lib-audio-device.sh
+source "$BIN_DIR/crt-lib-audio-device.sh"
+
+ARECORD_L="$(arecord -l 2>/dev/null || true)"
+DEV="${CRT_WD_DEV:-$(crt_resolve_capture_device_by_name "$ARECORD_L")}"
 FLAT_SECS="${CRT_WD_FLAT_SECS:-8}"
 FLAT_PEAK="${CRT_WD_FLAT_PEAK:-0.004}"
 COOLDOWN="${CRT_WD_COOLDOWN:-15}"
 KEEPALIVE="${CRT_WD_KEEPALIVE:-0}"
 KEEPALIVE_SECS="${CRT_WD_KEEPALIVE_SECS:-60}"
 RESTART_STT="${CRT_WD_RESTART_STT:-0}"
-CARD="${CRT_ALSA_CARD:-0}"
+CARD="${CRT_ALSA_CARD:-$(crt_resolve_capture_card_by_name "$ARECORD_L")}"
 INPUT_SOURCE="${CRT_INPUT_SOURCE:-Line}"
 SESSION="${CRT_TMUX_SESSION:-claude}"
-BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 LOGDIR="$HOME/.crt"
 mkdir -p "$LOGDIR"

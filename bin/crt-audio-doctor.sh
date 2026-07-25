@@ -13,15 +13,25 @@
 #   CRT_DOC_DEV=crtmic bin/crt-audio-doctor.sh check
 #
 # Tunables (env):
-#   CRT_DOC_DEV        capture device (default plughw:0,0)
+#   CRT_DOC_DEV        capture device (default: resolved by name, see below)
 #   CRT_DOC_SECS       sample window per reading, seconds (default 3 for check, 2 for monitor)
 #   CRT_DOC_INTERVAL   monitor: seconds between samples (default 10)
 #   CRT_DOC_DEAD_PEAK  check: peak below this => "dead" exit code (default 0.004)
-#   CRT_ALSA_CARD      mixer card (default 0)
+#   CRT_ALSA_CARD      mixer card (default: resolved by name, see below)
+#   CRT_AUDIO_DEV_NAME name substring to match in `arecord -l` when CRT_DOC_DEV/
+#                      CRT_ALSA_CARD aren't set (default "USB Audio", same
+#                      lookup crt-stt-solo.py uses -- otherwise this defaulted
+#                      to card 0, which is potato's USB mic but mandark's own
+#                      onboard card. See crt-lib-audio-device.sh.)
 set -uo pipefail
 
-DEV="${CRT_DOC_DEV:-plughw:0,0}"
-CARD="${CRT_ALSA_CARD:-0}"
+BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./crt-lib-audio-device.sh
+source "$BIN_DIR/crt-lib-audio-device.sh"
+
+ARECORD_L="$(arecord -l 2>/dev/null || true)"
+DEV="${CRT_DOC_DEV:-$(crt_resolve_capture_device_by_name "$ARECORD_L")}"
+CARD="${CRT_ALSA_CARD:-$(crt_resolve_capture_card_by_name "$ARECORD_L")}"
 DEAD_PEAK="${CRT_DOC_DEAD_PEAK:-0.004}"
 LOGDIR="$HOME/.crt"
 CSV="$LOGDIR/liveness.csv"
@@ -59,7 +69,7 @@ case "$cmd" in
     secs="${CRT_DOC_SECS:-3}"
     echo "== crt audio doctor: check =="
     echo "device : $DEV"
-    echo "cards  :"; arecord -l 2>/dev/null | sed 's/^/  /' || echo "  (arecord -l failed)"
+    echo "cards  :"; printf '%s\n' "$ARECORD_L" | sed 's/^/  /'
     echo "mixer  : $(mixer_line)"
     read -r rms peak < <(sample "$secs")
     printf 'signal : %ss  rms=%.3f%%  peak=%.3f%%\n' "$secs" \

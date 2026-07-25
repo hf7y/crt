@@ -52,6 +52,10 @@ if [ -f "$DIR/test_audio_doctor.sh" ]; then
 fi
 echo
 
+echo "== crt-lib-audio-device.sh by-name device resolution (bash tools) =="
+bash "$DIR/test_audio_device_lib.sh" || fail=1
+echo
+
 echo "== crt-mic-footer.sh status-bar rendering =="
 if [ -f "$DIR/test_mic_footer.sh" ]; then
   bash "$DIR/test_mic_footer.sh" || fail=1
