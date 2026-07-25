@@ -273,7 +273,7 @@ class TestFallthroughLogging(unittest.TestCase):
         # the log write happens, not about tmux/Claude behavior.
         self.sec.capture_pane = lambda: ""
         self.sec.send_to_claude = lambda text: True
-        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ("", "ok")
         self.sec.route_claude_reply = lambda reply: None
 
     def test_matched_playbook_does_not_log(self):
@@ -385,7 +385,7 @@ class TestClaudeWindowSwitch(unittest.TestCase):
         self.sec.FALLTHROUGH_LOG = os.path.join(tempfile.mkdtemp(), "fallthrough.log")
         self.sec.capture_pane = lambda: ""
         self.sec.send_to_claude = lambda text: True
-        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ("", "ok")
         self.sec.route_claude_reply = lambda reply: None
 
     def test_fallthrough_switches_to_claude_view_window(self):
@@ -427,7 +427,7 @@ class TestSpeculativeFiller(unittest.TestCase):
         self.sec.FALLTHROUGH_LOG = os.path.join(tempfile.mkdtemp(), "fallthrough.log")
         self.sec.capture_pane = lambda: ""
         self.sec.send_to_claude = lambda text: True
-        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ("", "ok")
         self.sec.route_claude_reply = lambda reply: None
 
     def test_disabled_by_default_no_filler_call(self):
@@ -497,7 +497,7 @@ class TestConfidenceRouting(unittest.TestCase):
         self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
         self.sec.capture_pane = lambda: "before"
         self.sec.send_to_claude = lambda text: True
-        self.sec.wait_for_claude_reply = lambda before, on_partial=None: "It's 3:15 PM exactly"
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ("It's 3:15 PM exactly", "ok")
         self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
         state = self.sec.stt_confidence.load_state()
         key = self.sec.stt_confidence.normalize_key("what time is it")
@@ -508,7 +508,7 @@ class TestConfidenceRouting(unittest.TestCase):
         self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
         self.sec.capture_pane = lambda: "before"
         self.sec.send_to_claude = lambda text: True
-        self.sec.wait_for_claude_reply = lambda before, on_partial=None: "completely unrelated reply"
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ("completely unrelated reply", "ok")
         self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
         state = self.sec.stt_confidence.load_state()
         key = self.sec.stt_confidence.normalize_key("what time is it")
@@ -610,7 +610,7 @@ class TestUndeliveredUtterance(unittest.TestCase):
 
     def test_failed_send_says_so_out_loud(self):
         self.sec.send_to_claude = lambda text: False
-        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ("", "ok")
         self.sec.handle("refactor the audio pipeline please")
         self.assertEqual(self.spoken, [self.sec.BRAIN_UNREACHABLE_LINE])
 
@@ -618,7 +618,7 @@ class TestUndeliveredUtterance(unittest.TestCase):
         """Distinguishable BY EAR from route_claude_reply()'s reached-Claude
         line, which is the whole point of having a second line at all."""
         self.sec.send_to_claude = lambda text: False
-        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ""
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ("", "ok")
         self.sec.handle("refactor the audio pipeline please")
         self.assertNotIn("I sent that to Claude", " ".join(self.spoken))
 
@@ -630,7 +630,7 @@ class TestUndeliveredUtterance(unittest.TestCase):
 
     def test_successful_send_still_fires_the_thinking_earcon(self):
         self.sec.send_to_claude = lambda text: True
-        self.sec.wait_for_claude_reply = lambda before, on_partial=None: "an answer"
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ("an answer", "ok")
         self.sec.route_claude_reply = lambda reply: None
         self.sec.handle("refactor the audio pipeline please")
         self.assertIn("thinking", self.earcons)
@@ -648,6 +648,151 @@ class TestUndeliveredUtterance(unittest.TestCase):
         self.sec.send_to_claude = lambda text: False
         self.sec.wait_for_claude_reply = lambda before, on_partial=None: \
             self.fail("must not wait on a send that never landed")
+        self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
+        self.assertEqual(recorded, [])
+
+
+class TestUnobservedReply(unittest.TestCase):
+    """A send that lands and an answer nobody could read (2026-07-25).
+
+    These inject at the real failure boundary -- what the bridge socket
+    returns -- rather than stubbing capture_pane(), because the defect WAS
+    capture_pane() collapsing failure into "". Stubbing it would have
+    reproduced neither bug.
+
+    Both cases are measured against the pre-fix code in the report; the
+    control case below is what pins that the fix didn't just make everything
+    say "unobserved".
+    """
+
+    PANE = "\n".join("scrollback line %d: an old exchange about audio" % i
+                     for i in range(200))
+
+    def setUp(self):
+        self.sec = load_secretary()
+        self.tmp = tempfile.mkdtemp()
+        self.sec.BRAIN_LOG = os.path.join(self.tmp, "brain-unreachable.log")
+        self.sec.FALLTHROUGH_LOG = os.path.join(self.tmp, "fallthrough.log")
+        self.sec.CLAUDE_REMOTE_PORT = 18993     # the live deployment shape
+        self.sec.CLAUDE_POLL = 0.01
+        self.sec.CLAUDE_IDLE_SECS = 0.02
+        self.sec.CLAUDE_MAX_WAIT = 2
+        self.spoken, self.printed, self.earcons = [], [], []
+        self.sec.speak = lambda text, device="handset": self.spoken.append(text)
+        self.sec.print_full = lambda text: self.printed.append(text)
+        self.sec.play_earcon = lambda name: self.earcons.append(name)
+        self.sec.switch_tmux_window = lambda name: None
+        self.sec.touch_claude_active = lambda: None
+        self.sec.sh = lambda cmd, **kw: _ok()
+
+    def _bridge(self, capture_responses):
+        """capture_responses: what CAPTURE returns, in order; the last value
+        repeats. "" is _bridge_request's real value for a dropped tunnel or a
+        bridge whose tmux target is gone. SEND always succeeds here -- the
+        point is what happens AFTER the utterance has landed."""
+        seq = list(capture_responses)
+
+        def request(command, port, timeout=None):
+            if command.startswith("SEND"):
+                return "OK"
+            return seq.pop(0) if len(seq) > 1 else seq[0]
+
+        self.sec._bridge_request = request
+
+    def test_no_baseline_does_not_read_the_scrollback_aloud(self):
+        """The baseline capture failing used to make every line on the pane
+        "new": 160 characters of an old exchange spoken into the earpiece."""
+        self._bridge(["", self.PANE])
+        self.sec.handle("what did I leave in the oven")
+        self.assertNotIn("scrollback line", " ".join(self.spoken))
+
+    def test_no_baseline_does_not_print_the_scrollback(self):
+        """...and the rest of it handed to print_full(), which is a Phomemo
+        M02 thermal receipt printer (bin/crt-print.sh)."""
+        self._bridge(["", self.PANE])
+        self.sec.handle("what did I leave in the oven")
+        self.assertEqual(self.printed, [])
+
+    def test_no_baseline_says_it_lost_the_answer(self):
+        self._bridge(["", self.PANE])
+        self.sec.handle("what did I leave in the oven")
+        self.assertEqual(self.spoken, [self.sec.REPLY_UNOBSERVED_LINE])
+
+    def test_drop_after_send_does_not_blame_claude_for_being_quiet(self):
+        """The other half of FOCUS.md's named top-priority failure: the
+        tunnel dropping once the utterance is already gone. It used to
+        produce the same "didn't catch a reply -- check the screen" sentence
+        that send_to_claude()'s own fix was about."""
+        self._bridge([self.PANE, ""])
+        self.sec.handle("what did I leave in the oven")
+        self.assertNotIn("didn't catch a reply", " ".join(self.spoken))
+        self.assertEqual(self.spoken, [self.sec.REPLY_UNOBSERVED_LINE])
+
+    def test_drop_after_send_leaves_evidence(self):
+        self._bridge([self.PANE, ""])
+        self.sec.handle("what did I leave in the oven")
+        with open(self.sec.BRAIN_LOG) as f:
+            logged = f.read()
+        self.assertIn("what did I leave in the oven", logged)
+        self.assertIn("unreadable", logged)
+        # ...and it must not say the opposite of what happened. The utterance
+        # WAS delivered; only the answer went missing.
+        self.assertIn("DELIVERED, REPLY UNOBSERVED", logged)
+        self.assertNotIn("NOT DELIVERED", logged)
+
+    def test_unobserved_reply_is_audible_not_silent(self):
+        self._bridge([self.PANE, ""])
+        self.sec.handle("what did I leave in the oven")
+        self.assertIn("oops", self.earcons)
+
+    def test_a_transient_miss_does_not_end_the_wait(self):
+        """One unreadable capture is a hiccup on the tunnel, not a verdict --
+        the real answer still arrives on the next poll."""
+        answer = self.PANE + "\nthere is a casserole in the oven"
+        self._bridge([self.PANE, "", answer])
+        self.sec.handle("what did I leave in the oven")
+        self.assertEqual(self.spoken, ["there is a casserole in the oven"])
+
+    def test_a_working_exchange_is_unchanged(self):
+        """The control. Byte-identical to the pre-fix behaviour, which is
+        what makes the two failure assertions above mean anything."""
+        answer = self.PANE + "\nthere is a casserole in the oven"
+        self._bridge([self.PANE, answer])
+        self.sec.handle("what did I leave in the oven")
+        self.assertEqual(self.spoken, ["there is a casserole in the oven"])
+        self.assertEqual(self.earcons, ["thinking"])
+
+    # -- capture_pane's own contract: None (unreadable) vs "" (read, empty) --
+
+    def test_remote_empty_capture_is_unreadable_not_empty(self):
+        self.sec._bridge_request = lambda command, port, timeout=None: ""
+        self.assertIsNone(self.sec.capture_pane())
+
+    def test_remote_real_capture_comes_back_as_text(self):
+        self.sec._bridge_request = lambda command, port, timeout=None: "hello"
+        self.assertEqual(self.sec.capture_pane(), "hello")
+
+    def test_local_capture_failure_is_unreadable(self):
+        self.sec.CLAUDE_REMOTE_PORT = None
+        self.sec.sh = lambda cmd, **kw: _fail("can't find pane")
+        self.assertIsNone(self.sec.capture_pane())
+
+    def test_local_empty_pane_is_not_a_failure(self):
+        """A local tmux capture that succeeds with no output is a genuinely
+        empty pane, and its diff is meaningful. Only the remote path treats
+        empty as unreadable, and only because "" is all a dead bridge gives."""
+        self.sec.CLAUDE_REMOTE_PORT = None
+        self.sec.sh = lambda cmd, **kw: _Completed(0)
+        self.assertEqual(self.sec.capture_pane(), "")
+
+    def test_unobserved_reply_records_no_confidence_hit(self):
+        """The same defect one step later than send_to_claude()'s: an answer
+        nobody could read is not an answer that disagreed."""
+        self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
+        recorded = []
+        self.sec.stt_confidence.record_claude_call = \
+            lambda text, state: recorded.append(text)
+        self._bridge([self.PANE, ""])
         self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
         self.assertEqual(recorded, [])
 

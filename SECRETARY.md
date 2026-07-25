@@ -70,3 +70,32 @@ Rather than every utterance being typed verbatim into Claude's terminal input
   `crt-secretary.py` per utterance is the next step, deliberately not done
   automatically this session since it changes the live default pipeline
   and nobody could watch it run.
+
+## The three outcomes of a Claude escalation, and why they are three (2026-07-25)
+
+Once Claude Code moved off potato onto mandark behind a reverse tunnel, an
+escalation stopped having two possible endings and started having three.
+They were collapsed into one spoken line for a while, in both directions,
+and each collapse was a separate bug:
+
+| outcome | what actually happened | the line |
+|---|---|---|
+| **answered** | it landed, a reply was read | the reply itself |
+| **never sent** | the tunnel/bridge was down, or tmux refused the keys | `BRAIN_UNREACHABLE_LINE` — "I can't reach my brain right now, so that didn't go anywhere" |
+| **sent, reply unobserved** | it landed; `capture_pane()` couldn't be read afterwards | `REPLY_UNOBSERVED_LINE` — "I sent that to Claude, but I lost my view of the answer partway through" |
+
+The rule this encodes: **the console may only report what it observed.**
+"I sent that to Claude but didn't catch a reply — check the screen" is
+reserved for the one case where all three of its claims are true — it was
+sent, a reply was genuinely watched for, and the screen has whatever came.
+Using it for the other two was wrong twice each: nothing was sent, or
+nothing was watched.
+
+Mechanically, this rests on `capture_pane()` returning `None` (unreadable)
+rather than `""` (read, empty). Anything that collapses those two again
+re-opens both bugs — the second one loudly: with no baseline to diff
+against, every line on the pane counts as new, so 200 lines of scrollback
+get spoken into the earpiece and printed on the Phomemo. Covered by
+`tests/test_secretary.py`'s `TestUnobservedReply`, which injects at the
+bridge socket rather than stubbing `capture_pane()`, because stubbing it
+reproduces neither failure.

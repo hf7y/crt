@@ -104,6 +104,14 @@ CLAUDE_IDLE_SECS = float(os.environ.get("CRT_SECRETARY_IDLE_SECS", "1.5"))
 CLAUDE_MAX_WAIT = float(os.environ.get("CRT_SECRETARY_MAX_WAIT", "120"))
 CLAUDE_POLL = float(os.environ.get("CRT_SECRETARY_POLL", "1"))
 
+# How many consecutive unreadable captures wait_for_claude_reply() tolerates
+# before it stops waiting and says so. Not a guess that needs an ear: one or
+# two misses is a tunnel hiccup worth riding out, and once the pane has been
+# unreadable for CAPTURE_MISS_TOLERANCE * CLAUDE_POLL seconds there is
+# nothing left to wait for -- burning the remaining CLAUDE_MAX_WAIT (120s)
+# only delays the same answer.
+CAPTURE_MISS_TOLERANCE = int(os.environ.get("CRT_SECRETARY_CAPTURE_MISSES", "3"))
+
 # Window-switch on Claude escalation (2026-07-21, Zach's direct call):
 # send_to_claude()/capture_pane() above type into and read from window
 # 0's pane directly, regardless of which tmux window is actually
@@ -510,10 +518,21 @@ def _bridge_request(command, port, timeout=None):
 
 
 def capture_pane():
+    """The pane's text, or None if it could not be read (2026-07-25).
+
+    None vs. "" is the whole point. Both paths used to collapse failure into
+    "", which wait_for_claude_reply() then diffed against as if it were a
+    real, empty pane -- see its docstring for what that cost. On the remote
+    path an empty response IS the failure signal: _bridge_request() returns
+    "" for a dropped tunnel or a stopped bridge, and mandark's own
+    capture_pane() returns "" when its tmux target is gone. A live Claude
+    Code pane is never legitimately empty, so nothing is lost by refusing to
+    trust an empty one, and no bridge-side change is needed to tell them
+    apart."""
     if CLAUDE_REMOTE_PORT:
-        return _bridge_request("CAPTURE", CLAUDE_REMOTE_PORT)
+        return _bridge_request("CAPTURE", CLAUDE_REMOTE_PORT) or None
     r = sh(["tmux", "capture-pane", "-t", "%s:%s" % (SESSION, PANE), "-p", "-S", "-200"])
-    return r.stdout if r.returncode == 0 else ""
+    return r.stdout if r.returncode == 0 else None
 
 
 def send_to_claude(text):
@@ -555,10 +574,37 @@ def send_to_claude(text):
 
 def wait_for_claude_reply(before_snapshot, on_partial=None):
     """Poll capture-pane until it stops changing for CLAUDE_IDLE_SECS, or
-    CLAUDE_MAX_WAIT elapses. Returns the pane lines added since before_snapshot
-    (best-effort -- a real terminal UI has spinners/prompt redraws that a
-    plain diff can't fully distinguish from genuine new content; this is a
-    first draft, not a robust terminal parser).
+    CLAUDE_MAX_WAIT elapses. Returns (reply, status): the pane lines added
+    since before_snapshot (best-effort -- a real terminal UI has spinners/
+    prompt redraws that a plain diff can't fully distinguish from genuine new
+    content; this is a first draft, not a robust terminal parser), and "ok"
+    or "unobserved".
+
+    "unobserved" means the send landed but this function could not watch the
+    answer arrive, which is NOT the same as Claude having nothing to say
+    (2026-07-25). It used to be, in two measured ways -- both with
+    capture_pane() collapsing failure into "":
+
+      - **No baseline.** handle()'s `before` capture failing, then the pane
+        reading fine, made every line on it "new". A 200-line scrollback came
+        back as the reply, so route_claude_reply() spoke the first 160
+        characters of an old exchange into the earpiece and handed the rest
+        to print_full() -- 200 lines onto a Phomemo thermal receipt printer.
+      - **A drop after the send.** The tunnel going down mid-answer made
+        every later capture "", so the diff came out empty and the console
+        said "I sent that to Claude but didn't catch a reply -- check the
+        screen" -- the same sentence, and the same two lies, that
+        send_to_claude()'s own fix earlier today was about. FOCUS.md's top
+        priority names tunnel drops specifically; this is the half of that
+        failure that happens after the utterance is already gone.
+
+    A failed capture is also no longer mistaken for pane growth (it used to
+    reset the stability timer and fire on_partial, putting "...composing" on
+    the tube on the way to reporting a reply that was never seen). Transient
+    misses are tolerated up to CAPTURE_MISS_TOLERANCE consecutive polls,
+    because a hiccup on the tunnel should not end a real wait; past that
+    there is nothing to wait for, and returning early beats spending
+    CLAUDE_MAX_WAIT to reach the same answer.
 
     Grace-check (added 2026-07-23 alongside lowering CLAUDE_IDLE_SECS 3->1.5):
     right before finalizing on an apparent idle break, one extra poll
@@ -574,13 +620,24 @@ def wait_for_claude_reply(before_snapshot, on_partial=None):
     foothold for a future streaming/'thinking' preview in window 1 (see
     FOCUS.md's grey-then-white-overwrite idea), not a full implementation
     of it. No-op by default."""
+    if before_snapshot is None:
+        return "", "unobserved"
     deadline = time.time() + CLAUDE_MAX_WAIT
     last = capture_pane()
+    if last is None:
+        last = before_snapshot
     stable_since = time.time()
     partial_fired = False
+    misses = 0
     while time.time() < deadline:
         time.sleep(CLAUDE_POLL)
         now_snap = capture_pane()
+        if now_snap is None:
+            misses += 1
+            if misses >= CAPTURE_MISS_TOLERANCE:
+                return "", "unobserved"
+            continue
+        misses = 0
         if now_snap != last:
             last = now_snap
             stable_since = time.time()
@@ -593,6 +650,11 @@ def wait_for_claude_reply(before_snapshot, on_partial=None):
         elif time.time() - stable_since >= CLAUDE_IDLE_SECS:
             time.sleep(CLAUDE_POLL)  # grace-check, see docstring
             confirm_snap = capture_pane()
+            if confirm_snap is None:
+                misses += 1
+                if misses >= CAPTURE_MISS_TOLERANCE:
+                    return "", "unobserved"
+                continue
             if confirm_snap != last:
                 last = confirm_snap
                 stable_since = time.time()
@@ -606,7 +668,7 @@ def wait_for_claude_reply(before_snapshot, on_partial=None):
     # Claude Code's actual prompt markers instead of pure line-set diffing.
     new_lines = [ln for ln in after_lines if ln not in before_lines]
     reply = "\n".join(ln for ln in new_lines if ln.strip())
-    return reply.strip()
+    return reply.strip(), "ok"
 
 
 def route_claude_reply(reply):
@@ -653,25 +715,41 @@ BRAIN_UNREACHABLE_LINE = os.environ.get(
     "CRT_BRAIN_UNREACHABLE_LINE",
     "I can't reach my brain right now, so that didn't go anywhere. Try again in a moment.")
 
+# The third of three outcomes, and it needs its own line for the same reason
+# the second one does. This one means the utterance DID land -- so it must not
+# claim otherwise (BRAIN_UNREACHABLE_LINE's job) and must not blame Claude for
+# being quiet (route_claude_reply's job). Deliberately does not say "check the
+# screen": whether the answer is on the tube is exactly what this outcome
+# doesn't know.
+REPLY_UNOBSERVED_LINE = os.environ.get(
+    "CRT_REPLY_UNOBSERVED_LINE",
+    "I sent that to Claude, but I lost my view of the answer partway through.")
 
-def log_brain_unreachable(text, detail):
-    """Every undelivered utterance, with why, so a tunnel drop leaves
-    evidence instead of just feeling like a quiet night. Same best-effort
-    posture as log_fallthrough: a broken log write must never become the
-    reason the user hears nothing."""
+
+def log_brain_unreachable(text, detail, verdict="NOT DELIVERED"):
+    """Every utterance the brain didn't answer, with why, so a tunnel drop
+    leaves evidence instead of just feeling like a quiet night. Same
+    best-effort posture as log_fallthrough: a broken log write must never
+    become the reason the user hears nothing.
+
+    verdict is not decoration. The unobserved-reply caller DID deliver its
+    utterance, and a line reading "NOT DELIVERED (sent, but the pane went
+    unreadable)" contradicts itself -- which is the exact class of
+    confidently-wrong diagnostic this project keeps finding in its own
+    tooling (see crt-mandark.sh's port, 26cd8df)."""
     try:
         d = os.path.dirname(BRAIN_LOG)
         if d:
             os.makedirs(d, exist_ok=True)
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
         with open(BRAIN_LOG, "a") as f:
-            f.write("%s  [%s]  %s\n" % (ts, detail, text))
+            f.write("%s  %s  [%s]  %s\n" % (ts, verdict, detail, text))
     except OSError:
         pass
-    sys.stderr.write("[crt-secretary] NOT DELIVERED (%s): %s\n" % (detail, text))
+    sys.stderr.write("[crt-secretary] %s (%s): %s\n" % (verdict, detail, text))
 
 
-def report_brain_unreachable():
+def _report_bad_news(line):
     """Say so, out loud, immediately. bin/crt-wake-router.py's own design
     note for the `none` route already states the rule this implements --
     "the caller should give a short honest earcon/line ... NOT silence" --
@@ -682,10 +760,26 @@ def report_brain_unreachable():
     # without this the screen we just switched to would sit blank, which is
     # the same silence in a different medium.
     try:
-        sh([os.path.join(BIN_DIR, "crt-think.sh"), BRAIN_UNREACHABLE_LINE])
+        sh([os.path.join(BIN_DIR, "crt-think.sh"), line])
     except OSError:
         pass
-    speak(BRAIN_UNREACHABLE_LINE)
+    speak(line)
+
+
+def report_brain_unreachable():
+    """The utterance never left the building."""
+    _report_bad_news(BRAIN_UNREACHABLE_LINE)
+
+
+def report_reply_unobserved(text):
+    """The utterance landed; the answer to it could not be watched arrive.
+    Logged to the same place as an undelivered one -- a tunnel that drops
+    mid-answer and one that drops before the send are the same fault, and
+    ~/.crt/brain-unreachable.log is where the evidence for it lives."""
+    log_brain_unreachable(
+        text, "the pane went unreadable before a reply was seen",
+        verdict="DELIVERED, REPLY UNOBSERVED")
+    _report_bad_news(REPLY_UNOBSERVED_LINE)
 
 
 def _answers_match(local_answer, claude_reply):
@@ -730,7 +824,11 @@ def _confirm_in_background(text, local_answer):
         # confidence model that the local playbook disagrees with Claude,
         # from an exchange that never happened.
         return
-    reply = wait_for_claude_reply(before)
+    reply, status = wait_for_claude_reply(before)
+    if status != "ok":
+        # Same reasoning one step later: an answer nobody could read is not
+        # an answer that disagreed. Scoring it would poison the same state.
+        return
     with _CONFIDENCE_STATE_LOCK:
         state = stt_confidence.load_state()
         stt_confidence.record_claude_call(text, state)
@@ -812,8 +910,11 @@ def handle(text):
         report_brain_unreachable()
         return
     play_earcon("thinking")
-    reply = wait_for_claude_reply(before, on_partial=show_composing_line)
+    reply, status = wait_for_claude_reply(before, on_partial=show_composing_line)
     touch_claude_active()  # the reply itself also counts as recent activity
+    if status != "ok":
+        report_reply_unobserved(text)
+        return
     route_claude_reply(reply)
 
 
