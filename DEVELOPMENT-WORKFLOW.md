@@ -7,7 +7,13 @@ one place. Read the linked doc for depth on any one piece.
 ## Three tiers of autonomy
 1. **Mandark disposable-clone batch** (existing, working) —
    `nightly-batch.md`, registered in `schedule/crt.conf`, code-shaped work
-   only, explicitly cannot touch the VM or dexter.
+   only, explicitly cannot touch the VM or dexter. **It also cannot write
+   `.claude/`** — refused as a sensitive path on four consecutive cycles
+   (2026-07-24 through 2026-07-25), which makes the skill's own
+   "keep `.claude/FOCUS.md` current" instruction unsatisfiable from this
+   tier. `BATCH-NOTES.md` (repo root, 2026-07-25) is where it stages
+   entries bound for `.claude/QUESTIONS.md`/`FOCUS.md` instead; fold them
+   in from an interactive session and delete them from there.
 2. **VM-resident hardware check** (new, `VM-JOBS.md`) — a systemd timer
    running `claude -p` directly on crt-vm, real mic/display/printer
    access, narrow scope: verify what can be mechanically verified, report
