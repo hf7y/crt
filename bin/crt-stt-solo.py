@@ -187,6 +187,15 @@ NR_AMT  = float(os.environ.get("CRT_NOISERED_AMT", "0.21"))  # noisered strength
 # engine applies the change and flashes an on-screen bar. Empty = disabled.
 CTL     = os.environ.get("CRT_CTL_FILE", "")
 MUTED   = False
+# Reference count behind MUTED, not a plain last-write-wins flag: if a TTS
+# reply and an earcon both duck capture around the same handset playback
+# (2026-07-24 fe46ac1's known limitation), one finishing and writing
+# "mute 0" must not unmute while the other duck is still active. Each
+# "mute 1"/"mute 0" line increments/decrements this counter instead of
+# setting an absolute state; MUTED is true iff the count is still > 0.
+# Also makes crt-midi-knobs.py's manual mute toggle compose correctly with
+# an in-flight duck instead of racing it.
+MUTE_COUNT = 0
 # "Ring" the phone: play a bursty tone N times; if the handset is picked up
 # (voice detected) it stops immediately; if all rings finish unanswered, a
 # message is printed (shows up on whatever screen this pane is on -- the
@@ -450,13 +459,17 @@ def apply_ctl_line(line):
     """Parse a '<param> <value>' control line, clamp+apply, return a HUD string.
     Values are given in display units (vad in %, trail/min in s, nr 0-0.3).
     Special: 'mute 1|0'."""
-    global THRESH, NR_AMT, TRAIL, MINUTT, MUTED
+    global THRESH, NR_AMT, TRAIL, MINUTT, MUTED, MUTE_COUNT
     parts = line.split()
     if len(parts) < 2:
         return None
     name, raw = parts[0].lower(), parts[1]
     if name == "mute":
-        MUTED = raw not in ("0", "off", "false")
+        if raw not in ("0", "off", "false"):
+            MUTE_COUNT += 1
+        else:
+            MUTE_COUNT = max(0, MUTE_COUNT - 1)
+        MUTED = MUTE_COUNT > 0
         return "MUTE  %s" % ("ON" if MUTED else "off")
     if name not in CTL_MAP:
         return None

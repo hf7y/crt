@@ -111,7 +111,7 @@ class ApplyCtlLineTest(unittest.TestCase):
         # can't leak state into each other or into a later test module that
         # imports the same file fresh (importlib caches by spec name, but
         # keep this test file self-contained regardless).
-        self._saved = {k: getattr(stt_solo, k) for k in ("THRESH", "NR_AMT", "TRAIL", "MINUTT", "MUTED")}
+        self._saved = {k: getattr(stt_solo, k) for k in ("THRESH", "NR_AMT", "TRAIL", "MINUTT", "MUTED", "MUTE_COUNT")}
 
     def tearDown(self):
         for k, v in self._saved.items():
@@ -149,6 +149,29 @@ class ApplyCtlLineTest(unittest.TestCase):
         out = stt_solo.apply_ctl_line("mute 0")
         self.assertFalse(stt_solo.MUTED)
         self.assertIn("off", out)
+
+    def test_mute_is_reference_counted_not_last_write_wins(self):
+        # Two concurrent duckers (e.g. a TTS reply and an earcon both
+        # playing over the handset) each push "mute 1"; the first to finish
+        # writes "mute 0" and must NOT unmute capture while the other is
+        # still holding its duck open (2026-07-24 fe46ac1's known
+        # limitation -- this is the fix).
+        stt_solo.apply_ctl_line("mute 1")  # ducker A starts
+        stt_solo.apply_ctl_line("mute 1")  # ducker B starts
+        stt_solo.apply_ctl_line("mute 0")  # ducker A finishes first
+        self.assertTrue(stt_solo.MUTED)    # still muted -- B is still active
+        stt_solo.apply_ctl_line("mute 0")  # ducker B finishes
+        self.assertFalse(stt_solo.MUTED)   # now both released
+
+    def test_mute_count_floors_at_zero(self):
+        # An extra/unbalanced "mute 0" (e.g. from a duck whose matching
+        # "mute 1" was lost) must not drive the count negative, which would
+        # require multiple extra "mute 1"s to ever unmute again.
+        stt_solo.apply_ctl_line("mute 0")
+        stt_solo.apply_ctl_line("mute 0")
+        self.assertEqual(stt_solo.MUTE_COUNT, 0)
+        stt_solo.apply_ctl_line("mute 1")
+        self.assertTrue(stt_solo.MUTED)
 
 
 class LogUserThoughtTest(unittest.TestCase):

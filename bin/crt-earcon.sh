@@ -217,8 +217,10 @@ HANDSET_DEVICE="${CRT_EARCON_HANDSET_DEVICE:-plughw:1,0}"
 # capture, and playing on it while crt-stt-solo.py's arecord is running
 # leaves the recording near-dead (measured by crt-earcon-loopback-test.py).
 # Suppress VAD triggering for the duration via the same CTL-file "mute"
-# flag crt-tts.py's handset path now uses, so a played tone can't be
-# misread as speech while the adapter can't hear the room anyway.
+# reference count crt-tts.py's handset path now uses (ref-counted, not a
+# last-write-wins flag, so this can't unmute early out from under a
+# concurrent TTS duck), so a played tone can't be misread as speech while
+# the adapter can't hear the room anyway.
 CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
 CAPTURE_MUTED=0
 capture_mute() {

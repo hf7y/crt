@@ -132,12 +132,14 @@ def _sideband_mute(muted):
 # the recording at ~0.1x baseline -- this hardware can't reliably play+
 # record at once. Software can't fix the missing signal, but it CAN stop
 # treating that corrupted window as real audio: crt-stt-solo.py already has
-# a CTL-file "mute N" flag (apply_ctl_line) that suppresses VAD triggering
-# without tearing down the sole-reader arecord process (see CRT_CTL_FILE in
-# HANDOFF.md). Route handset playback through it, same duck-around-the-call
-# shape as _sideband_mute above, so a stray earcon/TTS blip on the handset
-# can't be misread as speech (or drown out a real utterance's start) while
-# the adapter is deaf to the mic anyway.
+# a CTL-file "mute N" reference count (apply_ctl_line) that suppresses VAD
+# triggering without tearing down the sole-reader arecord process (see
+# CRT_CTL_FILE in HANDOFF.md) -- ref-counted, not a last-write-wins flag, so
+# an overlapping earcon duck can't get unmuted early by this one finishing
+# first. Route handset playback through it, same duck-around-the-call shape
+# as _sideband_mute above, so a stray earcon/TTS blip on the handset can't
+# be misread as speech (or drown out a real utterance's start) while the
+# adapter is deaf to the mic anyway.
 CTL_FILE = os.path.expanduser(os.environ.get("CRT_CTL_FILE", "~/.crt/ctl"))
 
 
