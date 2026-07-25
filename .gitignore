@@ -29,3 +29,9 @@ id_rsa*
 # Exploratory/one-off artifacts, not source (2026-07-24 build-discipline
 # pass, flagged by realisateur's /ideate 2026-07-24 dirty-tree finding).
 potato_large.txt
+
+# The sidecar lock bin/crt_fixups_store.py takes while it rewrites
+# stt-fixups.json, and the per-process temp that write goes through. Both
+# are transient; neither is source.
+*.json.lock
+*.tmp

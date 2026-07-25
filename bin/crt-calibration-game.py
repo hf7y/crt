@@ -30,7 +30,6 @@
 # never 31/32/34/91/92/94.
 import difflib
 import importlib.util
-import json
 import os
 import subprocess
 import sys
@@ -48,6 +47,11 @@ _cfg_spec = importlib.util.spec_from_file_location(
     "crt_config_for_calibration_game", os.path.join(BIN_DIR, "crt_config.py"))
 crt_config = importlib.util.module_from_spec(_cfg_spec)
 _cfg_spec.loader.exec_module(crt_config)
+
+_store_spec = importlib.util.spec_from_file_location(
+    "crt_fixups_store_for_calibration_game", os.path.join(BIN_DIR, "crt_fixups_store.py"))
+fixups_store = importlib.util.module_from_spec(_store_spec)
+_store_spec.loader.exec_module(fixups_store)
 
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 FIXUPS_PATH = crt_config.fixups_path()   # both spellings, one answer
@@ -172,41 +176,39 @@ def offer_to_save(seen, target):
     if not choice or choice not in seen:
         print("Skipped.")
         return
-    try:
-        with open(FIXUPS_PATH) as f:
-            data = json.load(f)
-    except (OSError, ValueError):
-        data = {}
-    data[choice] = {
-        "intent": target,
-        "confidence": "confirmed",
-        "type": "calibration-game",
-        "note": "confirmed live via crt-calibration-game.py, %.0f%% similarity"
-                % (seen[choice] * 100),
-    }
-    save_fixups(data, FIXUPS_PATH)
+    save_fixup(choice, target, seen[choice], FIXUPS_PATH)
     print("Saved %r -> %r in %s" % (choice, target, FIXUPS_PATH))
     print("The wake gate picks this up on its next utterance -- "
           "crt-stt-solo.py re-reads this file when it changes.")
 
 
-def save_fixups(data, path):
-    """Write via a temp file + os.replace, the same way
-    crt-stt-training-merge.py's own merge pass does.
+def save_fixup(fragment, target, similarity, path):
+    """Record one confirmed mishear, through crt_fixups_store.update().
 
-    Two reasons, one of them new as of 2026-07-25. The old reason:
-    `open(path, "w")` truncates the real file first, so a crash or a full
-    disk mid-dump destroys every hand-authored "confirmed" entry in a file
-    that is tracked in git and holds human judgments this project cannot
-    re-derive. The new one: crt-stt-solo.py now re-reads this file live
-    while capture is running, so a reader can genuinely land inside the
-    window where it is half-written -- os.replace() makes that window not
-    exist rather than relying on the reader's tolerance for the wreckage."""
-    tmp_path = path + ".tmp"
-    with open(tmp_path, "w") as f:
-        json.dump(data, f, indent=4, sort_keys=True)
-        f.write("\n")
-    os.replace(tmp_path, path)
+    The write is a temp file + os.replace for two reasons that predate this
+    function's current shape: `open(path, "w")` truncates the real file
+    first, so a crash or a full disk mid-dump destroys every hand-authored
+    "confirmed" entry in a file that is tracked in git and holds human
+    judgments this project cannot re-derive; and crt-stt-solo.py re-reads
+    this file live while capture is running, so a reader can genuinely land
+    inside the window where it is half-written.
+
+    What changed 2026-07-25 is WHERE the existing entries come from. They
+    used to be read here and written back a moment later, which meant the
+    `stttrain` window's 600s merge tick could land in between and be
+    silently erased by this save -- or erase it. The entry is now added
+    inside the store's lock, to the file as it is at that instant."""
+    def add(existing):
+        existing[fragment] = {
+            "intent": target,
+            "confidence": "confirmed",
+            "type": "calibration-game",
+            "note": "confirmed live via crt-calibration-game.py, %.0f%% similarity"
+                    % (similarity * 100),
+        }
+        return existing
+
+    return fixups_store.update(path, add)
 
 
 def earcon_round():

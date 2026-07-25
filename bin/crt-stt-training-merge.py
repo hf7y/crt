@@ -43,7 +43,6 @@
 #   CRT_STT_TRAINING_MIN_REPEATS (default 2, same as generate_candidate_fixups)
 #   CRT_STT_TRAINING_MERGE_INTERVAL_SECS (default 600, only used with --loop)
 import importlib.util
-import json
 import os
 import sys
 import time
@@ -63,6 +62,11 @@ _cfg_spec = importlib.util.spec_from_file_location(
 crt_config = importlib.util.module_from_spec(_cfg_spec)
 _cfg_spec.loader.exec_module(crt_config)
 
+_store_spec = importlib.util.spec_from_file_location(
+    "crt_fixups_store_for_training_merge", os.path.join(BIN_DIR, "crt_fixups_store.py"))
+fixups_store = importlib.util.module_from_spec(_store_spec)
+_store_spec.loader.exec_module(fixups_store)
+
 # Was os.environ.get("CRT_STT_FIXUPS_PATH", ...) -- its own spelling, which
 # no reader of this file used. Both spellings now resolve here, canonical
 # first; see bin/crt_config.py.
@@ -73,12 +77,10 @@ MERGE_INTERVAL_SECS = float(os.environ.get("CRT_STT_TRAINING_MERGE_INTERVAL_SECS
 
 def load_fixups_file(path):
     """Tolerant read -- missing/malformed file means 'start from empty',
-    never a crash (same convention as crt-stt-solo.py's own load_fixups)."""
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return {}
+    never a crash (same convention as crt-stt-solo.py's own load_fixups).
+    Thin alias for crt_fixups_store.read() since 2026-07-25; kept as a name
+    because the tests and this file's own history use it."""
+    return fixups_store.read(path)
 
 
 def merge_candidates(existing, candidates):
@@ -111,13 +113,18 @@ def run_merge_pass(fixups_path=None, training_log_path=None, min_repeats=None):
     mismatches = stats.summarize_training(rows)["mismatches"]
     candidates = stats.generate_candidate_fixups(mismatches, min_repeats=min_repeats)
 
-    existing = load_fixups_file(fixups_path)
-    merged, added = merge_candidates(existing, candidates)
-    if added:
-        tmp_path = fixups_path + ".tmp"
-        with open(tmp_path, "w") as f:
-            json.dump(merged, f, indent=2, sort_keys=True)
-        os.replace(tmp_path, fixups_path)
+    # The merge happens INSIDE crt_fixups_store.update()'s lock, against the
+    # file as it is at that instant. Reading first and merging afterwards is
+    # what let this loop's 600s tick silently drop a word a human had
+    # confirmed by ear in the seconds between -- see that module's header.
+    added = []
+
+    def merge(existing):
+        merged, new = merge_candidates(existing, candidates)
+        added[:] = new
+        return merged if new else None
+
+    fixups_store.update(fixups_path, merge)
     return added
 
 

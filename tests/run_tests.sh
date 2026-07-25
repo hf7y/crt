@@ -162,6 +162,14 @@ echo "== crt_config.py (one answer for where stt-fixups.json is) =="
 python3 "$DIR/test_config_fixups_path.py" 2>&1 | tail -3 || fail=1
 echo
 
+echo "== crt_fixups_store.py (one safe way to change stt-fixups.json) =="
+python3 "$DIR/test_fixups_store.py" 2>&1 | tail -3 || fail=1
+echo
+
+echo "== the two stt-fixups.json writers do not erase each other =="
+python3 "$DIR/test_fixups_two_writers.py" 2>&1 | tail -3 || fail=1
+echo
+
 echo "== log readers survive a torn byte (window 1 stays lit) =="
 python3 "$DIR/test_log_reader_decoding.py" 2>&1 | tail -3 || fail=1
 echo

@@ -229,16 +229,39 @@ class TestCalibrationGameWritesAtomically(FixupsTempFile):
         # holds human-confirmed judgments that cannot be re-derived, and it
         # is tracked in git -- a crash mid-dump used to take all of them.
         write_fixups(self.path, {"slide": {"intent": "claude"}})
-        with self.assertRaises(TypeError):
-            self.game.save_fixups({"bad": {object()}}, self.path)
+        real_replace = os.replace
+
+        def boom(src, dst):
+            raise OSError("no space left on device")
+
+        os.replace = boom
+        try:
+            with self.assertRaises(OSError):
+                self.game.save_fixup("greydog", "claude", 0.8, self.path)
+        finally:
+            os.replace = real_replace
         with open(self.path) as f:
             self.assertEqual(json.load(f), {"slide": {"intent": "claude"}})
 
     def test_a_good_write_lands_and_leaves_no_temp_file(self):
-        self.game.save_fixups({"greydog": {"intent": "claude"}}, self.path)
+        self.game.save_fixup("greydog", "claude", 0.8, self.path)
         with open(self.path) as f:
-            self.assertEqual(json.load(f), {"greydog": {"intent": "claude"}})
-        self.assertFalse(os.path.exists(self.path + ".tmp"))
+            saved = json.load(f)
+        self.assertEqual(saved["greydog"]["intent"], "claude")
+        self.assertEqual(saved["greydog"]["confidence"], "confirmed")
+        self.assertEqual([n for n in os.listdir(os.path.dirname(self.path))
+                          if ".tmp" in n], [])
+
+    def test_a_save_keeps_every_entry_that_was_already_there(self):
+        # save_fixups(data, path) took the whole dict from a caller holding
+        # a snapshot; save_fixup() reads inside the store's lock, so nothing
+        # written between the human's decision and their save is lost.
+        write_fixups(self.path, {"_comment": "keep me",
+                                 "read about": {"intent": "ring the bell"}})
+        self.game.save_fixup("greydog", "claude", 0.8, self.path)
+        with open(self.path) as f:
+            saved = json.load(f)
+        self.assertEqual(set(saved), {"_comment", "read about", "greydog"})
 
     def test_the_gate_sees_what_the_game_just_saved(self):
         # End to end, the loop this cycle closed: a human confirms a
@@ -246,8 +269,7 @@ class TestCalibrationGameWritesAtomically(FixupsTempFile):
         write_fixups(self.path, {})
         solo = load_solo(self.path)
         self.assertFalse(solo.addressed_to_console("greydog hello"))
-        self.game.save_fixups({"greydog": {"intent": "claude",
-                                           "confidence": "confirmed"}}, self.path)
+        self.game.save_fixup("greydog", "claude", 0.8, self.path)
         self.assertTrue(solo.addressed_to_console("greydog hello"))
 
 
