@@ -28,6 +28,16 @@ reason about *why* a given transcription got garbled the way it did.
    middle. If the duck outlasts `CRT_MUTE_UTT_MAX_SECS` (2s) the utterance is
    closed and transcribed as-is, so a long reply can also cut a sentence in
    half rather than clipping a word.
+
+   The same applies to the **pre-roll** — the `CRT_VAD_PREROLL` chunks kept
+   before onset so a first word's soft attack isn't lost. Ducked chunks are
+   kept out of it as well (2026-07-25), so an utterance that begins right
+   after the console stops talking opens on the room tone from before the
+   playback, not on the playback's own tail. Before that fix, a follow-up
+   spoken straight after the `addressed` earcon was handed to whisper with
+   up to `CRT_VAD_PREROLL`×100ms of that earcon in front of it — worth
+   knowing if you're reading older `stt.log` entries where a follow-up
+   picked up a phantom leading word.
 3. **Denoise** (optional, currently on): a sox chain — highpass filter, then
    `noisered` against a captured noise profile (`~/crt/noise.prof`, built
    from a sample of the room's AC hum), then peak normalize. This tames

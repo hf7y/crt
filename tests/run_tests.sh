@@ -103,6 +103,10 @@ echo "== crt-stt-solo.py excises a duck that lands mid-utterance =="
 bash "$DIR/test_duck_midutterance_excision.sh" || fail=1
 echo
 
+echo "== crt-stt-solo.py keeps ducked audio out of the pre-roll too =="
+bash "$DIR/test_duck_preroll_leak.sh" || fail=1
+echo
+
 echo "== crt-stt-solo.py releases the mic when stopped =="
 bash "$DIR/test_capture_release_on_signal.sh" || fail=1
 echo

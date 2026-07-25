@@ -1015,7 +1015,20 @@ def main():
                 wake_arm.check_arm_timeout(ARM_STATE, now)
 
             if not in_utt:
-                pre.append(data)
+                # Ducked audio does not go in the pre-roll either (2026-07-25).
+                # The deque's whole job is to prepend the moments before onset,
+                # since the attack of a first word sits under the threshold --
+                # so anything in it is handed to whisper as the opening of the
+                # next utterance. The start gate below refuses to BEGIN an
+                # utterance while muted and utt_chunk() excises a duck that
+                # arrives mid-utterance, but neither helps if our own handset
+                # playback is already sitting in the deque when the speaker
+                # starts. Skipping the append splices the pre-roll across the
+                # duck, exactly as utt_chunk() splices the utterance body:
+                # what leads the utterance is then the room tone from just
+                # before playback started, not the tail of the playback.
+                if not MUTED:
+                    pre.append(data)
                 if not MUTED and peak >= THRESH:
                     above += 1
                     if above >= START:
