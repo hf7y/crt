@@ -41,10 +41,15 @@ mute_balance() {
   echo $(( ${up:-0} - ${down:-0} ))
 }
 
-# --- crt-tts.py, SIGTERMed mid-playback -------------------------------------
-# Driven through the real CLI entrypoint (not by importing play_wav), so this
-# also covers __main__ actually installing the handler. A fake espeak-ng
-# stands in for the synth backend -- the duck under test is playback's.
+# Both fatal signals are tested, not just SIGTERM. Re-measured 2026-07-25 with
+# a real `tmux kill-window`: the pane process receives signal 1 (SIGHUP) -- the
+# pty closes and the kernel hangs the process group up. So SIGHUP, not SIGTERM,
+# is what the "killed by tmux kill-window" case in this project actually means,
+# and Python skips finally: on it exactly as it does on SIGTERM. A handler that
+# traps only SIGTERM passes the SIGTERM half of this test while still leaking
+# the duck every time a console window is torn down mid-playback.
+SIGNALS="TERM HUP"
+
 cat > "$FAKE_BIN/espeak-ng" <<'EOF'
 #!/usr/bin/env bash
 while [ $# -gt 0 ]; do
@@ -55,47 +60,55 @@ exit 0
 EOF
 chmod +x "$FAKE_BIN/espeak-ng"
 
-CTL="$WORK/ctl-tts"
-CRT_CTL_FILE="$CTL" PATH="$FAKE_BIN:$PATH" \
-  python3 "$BIN_DIR/crt-tts.py" --device handset "duck test" >/dev/null 2>&1 &
-tts_pid=$!
-for _ in $(seq 1 50); do            # wait for the duck to actually open
-  [ -s "$CTL" ] && break
-  sleep 0.1
-done
-if [ "$(mute_balance "$CTL")" -ne 1 ]; then
-  echo "FAIL - crt-tts.py handset playback never opened a duck (CTL: $(cat "$CTL" 2>/dev/null))"
-  fail=1
-fi
-kill -TERM "$tts_pid" 2>/dev/null
-wait "$tts_pid" 2>/dev/null
-
-if [ "$(mute_balance "$CTL")" -eq 0 ]; then
-  echo "ok - crt-tts.py released its capture duck when SIGTERMed mid-playback"
-else
-  echo "FAIL - crt-tts.py leaked a capture duck on SIGTERM; capture would stay muted (CTL: $(tr '\n' '/' < "$CTL"))"
-  fail=1
-fi
-
-# --- crt-earcon.sh, SIGTERMed mid-playback ----------------------------------
-if command -v sox >/dev/null 2>&1; then
-  CTL2="$WORK/ctl-earcon"
-  CRT_CTL_FILE="$CTL2" PATH="$FAKE_BIN:$PATH" \
-    bash "$BIN_DIR/crt-earcon.sh" ack --device handset >/dev/null 2>&1 &
-  ear_pid=$!
-  for _ in $(seq 1 50); do
-    [ -s "$CTL2" ] && break
+# --- crt-tts.py, killed mid-playback ----------------------------------------
+# Driven through the real CLI entrypoint (not by importing play_wav), so this
+# also covers __main__ actually installing the handler. A fake espeak-ng
+# stands in for the synth backend -- the duck under test is playback's.
+for sig in $SIGNALS; do
+  CTL="$WORK/ctl-tts-$sig"
+  CRT_CTL_FILE="$CTL" PATH="$FAKE_BIN:$PATH" \
+    python3 "$BIN_DIR/crt-tts.py" --device handset "duck test" >/dev/null 2>&1 &
+  tts_pid=$!
+  for _ in $(seq 1 50); do            # wait for the duck to actually open
+    [ -s "$CTL" ] && break
     sleep 0.1
   done
-  kill -TERM "$ear_pid" 2>/dev/null
-  wait "$ear_pid" 2>/dev/null
-
-  if [ "$(mute_balance "$CTL2")" -eq 0 ]; then
-    echo "ok - crt-earcon.sh released its capture duck when SIGTERMed mid-playback"
-  else
-    echo "FAIL - crt-earcon.sh leaked a capture duck on SIGTERM (CTL: $(tr '\n' '/' < "$CTL2"))"
+  if [ "$(mute_balance "$CTL")" -ne 1 ]; then
+    echo "FAIL - crt-tts.py handset playback never opened a duck (CTL: $(cat "$CTL" 2>/dev/null))"
     fail=1
   fi
+  kill -"$sig" "$tts_pid" 2>/dev/null
+  wait "$tts_pid" 2>/dev/null
+
+  if [ "$(mute_balance "$CTL")" -eq 0 ]; then
+    echo "ok - crt-tts.py released its capture duck when SIG$sig'd mid-playback"
+  else
+    echo "FAIL - crt-tts.py leaked a capture duck on SIG$sig; capture would stay muted (CTL: $(tr '\n' '/' < "$CTL"))"
+    fail=1
+  fi
+done
+
+# --- crt-earcon.sh, killed mid-playback -------------------------------------
+if command -v sox >/dev/null 2>&1; then
+  for sig in $SIGNALS; do
+    CTL2="$WORK/ctl-earcon-$sig"
+    CRT_CTL_FILE="$CTL2" PATH="$FAKE_BIN:$PATH" \
+      bash "$BIN_DIR/crt-earcon.sh" ack --device handset >/dev/null 2>&1 &
+    ear_pid=$!
+    for _ in $(seq 1 50); do
+      [ -s "$CTL2" ] && break
+      sleep 0.1
+    done
+    kill -"$sig" "$ear_pid" 2>/dev/null
+    wait "$ear_pid" 2>/dev/null
+
+    if [ "$(mute_balance "$CTL2")" -eq 0 ]; then
+      echo "ok - crt-earcon.sh released its capture duck when SIG$sig'd mid-playback"
+    else
+      echo "FAIL - crt-earcon.sh leaked a capture duck on SIG$sig (CTL: $(tr '\n' '/' < "$CTL2"))"
+      fail=1
+    fi
+  done
 else
   echo "skip - sox not installed (crt-earcon.sh half)"
 fi

@@ -327,20 +327,33 @@ def main():
 
 
 def install_term_handler():
-    """Turn SIGTERM into a normal exception-driven exit so play_wav()'s
+    """Turn SIGTERM/SIGHUP into a normal exception-driven exit so play_wav()'s
     finally: still runs. Measured 2026-07-25: Python skips finally blocks
     entirely on an untrapped SIGTERM (bash's EXIT trap, which crt-earcon.sh
     relies on for the same job, does NOT), so `tmux kill-window`/pkill on a
     mid-playback crt-tts.py left its "mute 1" duck unreleased and capture
     deaf. crt-stt-solo.py's MUTE_MAX_SECS watchdog is the backstop for the
     cases this can't cover (SIGKILL, power loss); this closes the common
-    one cleanly instead of waiting the watchdog out."""
+    one cleanly instead of waiting the watchdog out.
+
+    SIGHUP is trapped alongside it, and is arguably the MORE important of the
+    two here: re-measured 2026-07-25 against a real `tmux kill-window`, the
+    pane process receives signal 1 (SIGHUP), not 15 -- the pty closes and the
+    kernel hangs the process group up. Trapping only SIGTERM therefore missed
+    the exact case this docstring names as its motivation. Python's default
+    SIGHUP disposition skips finally: just like SIGTERM's, so the duck leaked
+    on every console/window teardown mid-playback.
+
+    SIGINT is deliberately not trapped: Python already raises KeyboardInterrupt
+    for it, which unwinds through finally: correctly on its own."""
     def _bail(signum, frame):
-        raise SystemExit(143)      # 128 + SIGTERM, the usual shell convention
-    try:
-        signal.signal(signal.SIGTERM, _bail)
-    except (ValueError, OSError):  # not the main thread / no signal support
-        pass
+        raise SystemExit(128 + signum)   # the usual shell convention
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        try:
+            signal.signal(sig, _bail)
+        except (ValueError, OSError, AttributeError):
+            # not the main thread / no signal support / no SIGHUP
+            pass
 
 
 if __name__ == "__main__":
