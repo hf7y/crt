@@ -27,6 +27,43 @@ one durable channel it actually owns.
 
 ## Pending — for `.claude/QUESTIONS.md`
 
+- **2026-07-25 (fifth cycle): this tier does not run on mandark. It runs on
+  dexter, and that changes what the `ssh potato` ask actually is.** Four
+  cycles have reported "`ssh potato` blocked, add a `Host` block / authorize
+  `dexter_mandark_deploy.pub`" on the premise FOCUS.md states directly: *"The
+  nightly-batch runner operates as the persistent `zach` account on mandark
+  ... the SAME account this session added `Host potato` to."* Measured this
+  cycle, all read-only:
+  - `hostname` → `dexter`; addresses `192.168.0.22` plus a `10.255.255.254`
+    WSL interface. mandark is `192.168.0.27` (from the `mandark-lan` block in
+    `~/.ssh/config`). **This tier is not on mandark and never was.**
+  - `~/.ssh/config` defines exactly three hosts: `mandark-lan`,
+    `github-scheduler-deploy`, `github-wtul-deploy`. No `potato`, no
+    `crt-vm`. The keys on disk are `dexter_mandark_deploy`,
+    `dexter_scheduler_deploy`, `dexter_wtul_deploy` — the naming is
+    from-dexter-to-X throughout, which corroborates the hostname.
+  - **Routing through mandark is not available either.** `ssh mandark-lan
+    <anything>` returns `fatal: unrecognized command` — that account is
+    restricted to `git-shell`. It serves `origin`
+    (`/home/zach/git-remotes/crt.git`, push/fetch work fine) and nothing
+    else. So this tier cannot run the mandark-side setup script, restart the
+    bridge, or hop to potato from there.
+
+  So the block is not a config oversight this side could fix: dexter has
+  never had a path to potato at all. **The decision needed:** either give
+  dexter direct SSH to potato (a `Host potato` block here plus
+  `dexter_mandark_deploy.pub` in potato's `authorized_keys`), or accept that
+  this tier is offline-only and drop the `nightly-batch` skill's paragraph
+  saying "real STT-pipeline/audio work on potato IS in scope for an
+  unattended run" — it has not been true for any cycle so far, and it is
+  what keeps generating a "blocked on potato" section every night.
+
+  *Not claimed:* nothing here says anything about what is or isn't running on
+  mandark itself. `setup-mandark-remote-claude-persistence.sh` hardcodes
+  `/home/zach/Documents/Projects/crt/bin/...` in its unit files; that path
+  does not exist **on dexter**, which is unremarkable since dexter isn't
+  mandark. Whether it exists on mandark is unverifiable from here.
+
 - **2026-07-25 (fourth cycle): what did `bin/crt-mic-footer.sh` do, and does
   potato still have it?** `tests/run_tests.sh` claimed to test it
   (`== crt-mic-footer.sh status-bar rendering ==`) from `38607bd` onward — one
@@ -55,6 +92,37 @@ one durable channel it actually owns.
   `nightly-batch` skill so it stops asking for something that cannot happen.
 
 ## Pending — for `.claude/FOCUS.md`
+
+- **The "FIRST STEP EVERY CYCLE (2026-07-21): pull from crt-vm before doing
+  anything else" section is dead and should be removed.** It instructs every
+  cycle to run `bin/crt-sync-vm.sh status` before touching any code. That
+  script does not exist in this repo — `bin/crt-sync-vm*`, `bin/crt-vm-*`,
+  `bin/dexter-*` and `systemd/crt-vm-*` are all gone (retired with the
+  crt-vm→potato move). An instruction headed FIRST STEP EVERY CYCLE that
+  names a missing script is the same class of thing as the test-runner
+  headers `ad41f5a` removed: it reads as a live gate and is a no-op.
+
+- **Ranked-backlog item 1's concrete claims have been overtaken; only the
+  config-consolidation half is still real.** Checked each this cycle:
+  - *"delete `bin/dexter-*.py`, `bin/crt-sync-vm*.sh`, `bin/crt-vm-*.sh`,
+    `systemd/crt-vm-*`"* — all four globs match nothing. Already done.
+  - *"fix the dexter `:8992` default still lurking in
+    `crt-tts.py`/`crt-announce.sh`"* — `grep -rn 8992` over the whole repo
+    returns nothing. Already done.
+  - *"**Real bug found:** port 8993 collides — both
+    `crt-remote-claude-bridge.py` and `crt-scanner-feed.py:32` claim it"* —
+    `bin/crt-scanner-feed.py` no longer exists; `crt-console.sh:201-204`
+    records that the dexter→8993 scanner listener was removed for exactly
+    this collision. Already resolved.
+  - Still real: **one config source**. 8993 is typed into six files under
+    three different env var names (`CRT_MANDARK_PORT`,
+    `CRT_CLAUDE_REMOTE_PORT`, `CRT_REMOTE_BRIDGE_PORT`) and 8991 into five.
+    The names are not interchangeable — they are genuinely different roles
+    (listen / dial / probe-default) — so this is a consolidation job, not a
+    rename, and it wants a design decision about which of the three is
+    canonical before anything is rewired. Flagged rather than done: a config
+    module that half the boot path doesn't read would be worse than the
+    sprawl.
 
 - **Ranked-backlog item 5c (test-coverage gaps) needs one line added:** the
   gap was not only "files with no test" but "tests the suite does not run".
