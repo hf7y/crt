@@ -76,8 +76,43 @@ CONTROL = {
 }
 
 
+# Is the pane above a Claude brain, or the potato idle face? One shared
+# answer, in bin/crt_config.py, whose header carries the whole finding. False
+# in the historical layout (CRT_IDLE_FACE_WINDOW unset), so nothing about
+# this engine's behaviour changes there.
+PANE_IS_IDLE_FACE = crt_config.pane_is_idle_face()
+# Snapshotted next to the decision, not rebuilt when it is reported: a
+# message that reads the environment later can describe a different
+# configuration than the one that was actually acted on.
+IDLE_FACE_PANE_REPORT = crt_config.idle_face_pane_report(PANE)
+_idle_face_reported = False
+
+
 def send_to_claude(text, key):
-    """Type text (or send a control keystroke) into the tmux Claude pane."""
+    """Type text (or send a control keystroke) into the tmux Claude pane.
+
+    Unless that pane is the idle face (2026-07-25). CONTROL keystrokes
+    deliberately BYPASS the wake gate -- they are meta-interactions with
+    whatever is on screen -- so in the idle-lean layout every ambient
+    "okay"/"no"/"next"/"back" in the room was being typed into
+    crt-screensaver.py's stdin: echoed onto the potato by the tty, Enter
+    scrolling the frame, nothing anywhere able to act on it, and the
+    "control" earcon (suppressed below) beeping as though something had.
+    Refuse and say so instead. The utterance is already in stt.log by the
+    time this runs, so the Book Game's answer listener still sees a spoken
+    "yes" exactly as before."""
+    global _idle_face_reported
+    if PANE_IS_IDLE_FACE:
+        print("[crt-stt] not sent -- %s: %r" % (IDLE_FACE_PANE_REPORT, text))
+        if not _idle_face_reported:
+            # Once per process, on window 1: the cause never changes and this
+            # can fire on any stray single word, but a failure only the stt
+            # pane knows about is a failure nobody at the tube can see. Same
+            # once-per-distinct-cause rule crt-window-switcher.py uses.
+            _idle_face_reported = True
+            log_console_thought("voice keys have nowhere to go -- %s"
+                                % IDLE_FACE_PANE_REPORT)
+        return
     target = "%s:%s" % (SESSION, PANE)
     if " " not in text and key in CONTROL:
         subprocess.run(["tmux", "send-keys", "-t", target, CONTROL[key]])
@@ -1399,7 +1434,13 @@ def emit(text, peak=1.0):
             except OSError:
                 pass
             return
-        if EARCON_ON_CONTROL and is_control:
+        # ...and not when the keystroke has nowhere to land (2026-07-25). An
+        # earcon is this console's way of saying "done"; saying it for a key
+        # that reached a screensaver is the same confidently-wrong report
+        # send_to_claude() just stopped making, in the one channel the person
+        # is actually listening to. Silence here is not silence overall:
+        # send_to_claude() prints every one and puts the reason on window 1.
+        if EARCON_ON_CONTROL and is_control and not PANE_IS_IDLE_FACE:
             play_earcon("control")
         elif EARCON_ON_ADDRESSED and not is_control:
             play_earcon("addressed")

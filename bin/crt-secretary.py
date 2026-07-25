@@ -77,6 +77,18 @@ MEDIA_BACKEND = media_player.VlcBackend()
 SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
 PANE = os.environ.get("CRT_TMUX_PANE", "0")
 
+# One config question, one answer, shared with crt-stt-solo.py: is the pane
+# below a Claude brain, or the potato idle face? See bin/crt_config.py's
+# PANE_ENV block for the whole finding. Read once at import -- this process
+# is spawned fresh per utterance, so there is nothing to go stale.
+_cfg_spec = importlib.util.spec_from_file_location(
+    "crt_config_for_secretary", os.path.join(BIN_DIR, "crt_config.py"))
+crt_config = importlib.util.module_from_spec(_cfg_spec)
+_cfg_spec.loader.exec_module(crt_config)
+LOCAL_PANE_IS_IDLE_FACE = crt_config.pane_is_idle_face()
+# Built here, beside the decision it explains -- see crt-stt-solo.py's copy.
+IDLE_FACE_PANE_REPORT = crt_config.idle_face_pane_report(PANE)
+
 # Remote-Claude wiring (2026-07-23, reverse-tunneled local-socket first
 # cut -- see FOCUS.md's "move Claude off potato" note for the API-based
 # version planned for later, and bin/crt-remote-claude-bridge.py's own
@@ -571,6 +583,16 @@ def capture_pane():
     apart."""
     if CLAUDE_REMOTE_PORT:
         return _bridge_request("CAPTURE", CLAUDE_REMOTE_PORT) or None
+    if LOCAL_PANE_IS_IDLE_FACE:
+        # The idle face is not an unreadable pane -- it reads perfectly, and
+        # that is the danger. Its frames CHANGE on their own (the potato
+        # breathes, and since 4f7c17e its caption moves every 8s), so
+        # wait_for_claude_reply() would watch it "grow" and hand back the
+        # caption as Claude's answer, which route_claude_reply() then speaks
+        # into the earpiece. None is the honest reading: there is no brain
+        # here to have a pane. send_to_claude() refuses first, so in practice
+        # nothing gets this far -- this is the belt to that brace.
+        return None
     r = sh(["tmux", "capture-pane", "-t", "%s:%s" % (SESSION, PANE), "-p", "-S", "-200"])
     return r.stdout if r.returncode == 0 else None
 
@@ -600,6 +622,17 @@ def send_to_claude(text):
         # refused. Both mean not delivered; keep the distinction in the log.
         note = reply.strip() or "no response from the bridge on port %s" % CLAUDE_REMOTE_PORT
         log_brain_unreachable(text, note)
+        return False
+    if LOCAL_PANE_IS_IDLE_FACE:
+        # The local route with no local brain: the idle-lean layout after a
+        # plain `crt-mandark.sh off` (its own help: "keep the brain
+        # local/onsite (or none)"). tmux would ACCEPT these keys -- the pane
+        # is real, it just holds the potato -- so the delivery check below
+        # cannot catch this; the utterance would be typed onto the console's
+        # own face and answered by a screensaver. This is the third way an
+        # utterance never leaves the building, and it gets the same honest
+        # line as a dropped tunnel because it is the same fact.
+        log_brain_unreachable(text, IDLE_FACE_PANE_REPORT)
         return False
     r = sh(["tmux", "send-keys", "-t", "%s:%s" % (SESSION, PANE), "-l", text])
     if r.returncode != 0:

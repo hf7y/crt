@@ -94,6 +94,10 @@ python3 "$DIR/test_capture_device.py" || fail=1
 bash "$DIR/test_capture_death_loud.sh" || fail=1
 echo
 
+echo "== the pane behind the idle face is not a brain (stt-solo + secretary) =="
+python3 "$DIR/test_idle_face_is_not_a_brain.py" 2>&1 | tail -3 || fail=1
+echo
+
 echo "== crt-stt-solo.py excises a duck that lands mid-utterance =="
 bash "$DIR/test_duck_midutterance_excision.sh" || fail=1
 echo
