@@ -147,14 +147,29 @@ brain window swap) — see POTATO.md "remaining live wiring".
    `crt-calibrate` suite that emits pass/fail + numbers (not just
    exit-0), so silent-audio regressions (the earcon-bug class) get caught
    mechanically. Live re-run on potato is [hw].
-7. **[hw] Wake supervisor** (POTATO.md remaining-wiring #1) — on-demand
+7. **[batch] Handset 3-pin switch: write up the design options (filed
+   2026-07-24, routed here after first being mis-filed in scheduler's
+   BLOCKERS.md — that file is human-only blockers, not a work queue this
+   project's batch reads, so it never would have surfaced otherwise).**
+   The handset's 3-pin switch is now printed and physically functional
+   (see `cad/HANDSET-MEASUREMENTS.md`); the open question is how it gets
+   wired up in software/hardware — hard-kill audio, software mute on
+   switch-close, or a Pi GPIO signal into existing logic. Deliverable: a
+   short design-options doc (tradeoffs, not a recommendation only —
+   Zach decides), flagged-status style like `RFP-GALLERY.md`'s `## Status`
+   section. **First check whether this is the same physical switch
+   `HOOKSWITCH.md` already specs** (same on/off-hook shape, has debounce
+   logic + a "Future states" section already) before assuming it's a
+   distinct mechanism — don't duplicate that doc if it's the same switch.
+   No hardware access needed for the writeup itself.
+8. **[hw] Wake supervisor** (POTATO.md remaining-wiring #1) — on-demand
    local-brain spin-up + screensaver↔brain swap. Offline half: the
    decision + a dry-run harness (done via `crt-wake-router.py`). Live
    spin-up/teardown + RAM/whisper readiness gating needs the Pi.
-8. **[hw] Sticky wake window / dormant wake-judge wiring** — `crt-wake-arm.py`
+9. **[hw] Sticky wake window / dormant wake-judge wiring** — `crt-wake-arm.py`
    exists (opt-in, `CRT_WAKE_ARM_ENABLED`); needs live tuning of the
    arm-window duration by ear. See the 2026-07-23 08:00 entry below.
-9. **[hw] Streaming STT (Vosk/Sherpa-ONNX) for wake-spotting** — whisper
+10. **[hw] Streaming STT (Vosk/Sherpa-ONNX) for wake-spotting** — whisper
    is the wrong tool for instant wake on this Pi (measured). See the
    2026-07-23 07:45 / 09:25 entries below for the real numbers.
 
