@@ -161,22 +161,56 @@ def wake_round(tailer, target, seconds):
     return tailer.seen
 
 
-def offer_to_save(seen, target):
-    candidates = sorted(
-        ((w, r) for w, r in seen.items() if w != target and 0.45 <= r < 0.98),
+SAVE_MIN_RATIO = 0.45   # below this a word is not a mishear, it is a word
+SAVE_MAX_RATIO = 0.98   # at/above this STT already got it right
+SAVE_LIMIT = 8          # how many the prompt actually offers
+
+
+def save_candidates(seen, target, limit=SAVE_LIMIT):
+    """The words this round is willing to save, best match first -- and the
+    ONLY words it will accept, which is the point of returning them rather
+    than re-deriving the rule at the prompt.
+
+    Takes a snapshot (`dict(seen)`) because the caller's dict is the Tailer's
+    live one: that thread keeps adding words for the entire session by
+    design, including while a human reads this list and types, so iterating
+    it directly races a `dictionary changed size during iteration` and means
+    the set on screen is not the set the answer is checked against."""
+    return sorted(
+        ((w, r) for w, r in dict(seen).items()
+         if w != target and SAVE_MIN_RATIO <= r < SAVE_MAX_RATIO),
         key=lambda kv: -kv[1],
-    )
+    )[:limit]
+
+
+def offer_to_save(seen, target):
+    candidates = save_candidates(seen, target)
     if not candidates:
         print("Nothing worth saving -- either dead-on or too far off.")
         return
+    offered = dict(candidates)
     print("\nCandidates to save as confirmed mishears of %r:" % target)
-    for w, r in candidates[:8]:
+    for w, r in candidates:
         print("  %-16s %.0f%%" % (w, r * 100))
     choice = input("\nType a word to confirm-save it (or Enter to skip): ").strip().lower()
-    if not choice or choice not in seen:
+    if not choice:
         print("Skipped.")
         return
-    save_fixup(choice, target, seen[choice], FIXUPS_PATH)
+    # Only what was offered. Until 2026-07-25 this accepted any word the
+    # tailer had EVER heard, which is every word said in the room since the
+    # game launched -- so a typed "about" (18% similar, never on the list)
+    # was written as a CONFIRMED mishear of the wake word, and confirmed is
+    # the tier crt-stt-solo.py's gate acts on with no further review. The
+    # console then woke on "what is this book about". The escape hatch for a
+    # word that genuinely belongs is the one that was always there and is
+    # reviewable: edit bin/stt-fixups.json, which is tracked in git.
+    if choice not in offered:
+        print("%r was not offered -- only the words listed above can be "
+              "confirm-saved here." % choice)
+        print("(Below %.0f%% it is a different word, not a mishear. To add it "
+              "anyway, edit %s by hand.)" % (SAVE_MIN_RATIO * 100, FIXUPS_PATH))
+        return
+    save_fixup(choice, target, offered[choice], FIXUPS_PATH)
     print("Saved %r -> %r in %s" % (choice, target, FIXUPS_PATH))
     print("The wake gate picks this up on its next utterance -- "
           "crt-stt-solo.py re-reads this file when it changes.")
