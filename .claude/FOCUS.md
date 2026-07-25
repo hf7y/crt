@@ -1413,3 +1413,10 @@ passes/night (01:45/03:45/05:45), 30-day auto-sunset. Each run reads this file
 watchdog/single-reader, USB firmware, video wrapper), branching around anything
 physical. Reports land in `~/reports/crt/`. A GitHub mirror is optional later
 (deploy key `~/.ssh/crt_deploy_key` is ready; swap `REPO_URL` in the conf).
+
+## Fable review (2026-07-25)
+
+<!-- Appended by realisateur/fable-like/inject-suggestions.sh. Full context: fable-like/FABLE_REPORT.md. Triage these like any dated entries; delete freely. -->
+
+- **2026-07-25 (fable-review):** mandark's paced-runner log shows crt dispatches 2026-07-24 23:58/23:59 despite `_paced.conf` enabled=0 and dexter ownership — verify (stale log vs real double-dispatch), then make single-host dispatch a runner-enforced invariant, not a two-config-file implication
+- **2026-07-25 (fable-review):** resolve the bibliothecaire name collision (your parked Book-Game catalog split vs realisateur's new inbox "page 92" idea) before either scaffolds
