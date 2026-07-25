@@ -42,6 +42,25 @@ import time
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 JUDGE_BIN = os.path.join(BIN_DIR, "crt-wake-judge.py")
 
+# Where the open window is published for OTHER processes (2026-07-25,
+# twentieth cycle). The state machine itself is in-process -- one ArmState
+# held by crt-stt-solo.py for the life of the engine -- and that was enough
+# while the engine was the only thing that cared. It is not: bin/crt-book-
+# answer-listen.py reads the SAME ~/.crt/stt.log with the opposite rule
+# (anything inside a scanned book's answer window is a trivia answer), and an
+# arm-window follow-up carries no wake word BY DESIGN, so from over there it
+# is indistinguishable from someone answering the question on the tube. See
+# that file's grade_pending_answer() for what it costs.
+#
+# A DEADLINE, not a flag: the wake utterance opens the window, so the file is
+# already on disk before the follow-up it describes is ever spoken -- no
+# ordering race with emit()'s own stt.log append, which happens before the
+# routing decision. A stale file (a crash, a reboot, arming turned back off)
+# describes a deadline in the past and reads as closed, so there is nothing
+# to clean up and no second env var for the reader to agree about.
+ARM_STATE_FILE = os.path.expanduser(
+    os.environ.get("CRT_WAKE_ARM_STATE", "~/.crt/wake-arm.state"))
+
 ARM_SECS = float(os.environ.get("CRT_WAKE_ARM_SECS", "12"))
 # Hard ceiling on one sticky conversation (2026-07-25). A consumed follow-up
 # SLIDES the window forward -- the live bug this exists for was four
@@ -138,6 +157,74 @@ class ArmState:
     def disarm(self):
         self.armed = False
         self.continuation = False
+
+
+def publish_arm_window(state, path=None):
+    """Mirror `state`'s deadline to ARM_STATE_FILE so another process can ask
+    whether the console is mid-conversation. Writes 0 when disarmed.
+
+    Called by the SOLE MIC READER after every arm-state transition, so it is
+    held to that loop's rules: never raises (an unwritable ~/.crt must not
+    cost the console its ears), and never blocks on anything but one small
+    local write. os.replace so a reader can never catch a half-written
+    number -- the reader tolerates one anyway, but a torn read here would
+    silently mean "closed", which is the failure this file exists to stop.
+
+    Deliberately NOT a method on ArmState: that object is pure, held by
+    reference in tests that arm and slide it hundreds of times, and giving it
+    a filesystem side effect would put ~/.crt writes inside the unit tests --
+    the test-hermeticity class this project has already paid for once."""
+    # `is None` means "use the module default", NOT `or` -- an explicit ""
+    # has to be able to mean "publish nowhere" (CRT_WAKE_ARM_STATE= turns
+    # this off), and `path or ARM_STATE_FILE` would quietly redirect that to
+    # the real ~/.crt/wake-arm.state instead. Caught by a test of this file
+    # writing into the suite runner's own home directory.
+    path = ARM_STATE_FILE if path is None else path
+    if not path:
+        return
+    deadline = state.deadline if state.armed else 0.0
+    tmp = path + ".tmp"
+    try:
+        d = os.path.dirname(path)
+        if d:
+            os.makedirs(d, exist_ok=True)
+        with open(tmp, "w") as f:
+            f.write("%.3f\n" % deadline)
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def read_arm_deadline(path=None):
+    """The published deadline as a Unix epoch float, or None if there isn't
+    one to read (never published, unreadable, junk). None means "no open
+    window", never a crash -- this is called from another window's own loop
+    and a missing file is the ordinary case, not an error."""
+    path = ARM_STATE_FILE if path is None else path   # see publish_arm_window
+    if not path:
+        return None
+    try:
+        with open(path) as f:
+            return float(f.read().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def arm_window_open(now=None, path=None):
+    """True when a sticky-conversation window is open RIGHT NOW -- i.e. the
+    engine will route the next utterance to Claude as a follow-up, without it
+    needing to carry the wake word.
+
+    The boundary belongs to the engine, not to this reader: an utterance
+    arriving within a hair of the deadline may be consumed there and read as
+    closed here (or the reverse). Both processes read the same clock on the
+    same box, so the disagreement window is sub-millisecond, and it degrades
+    to exactly the behaviour that existed before this function -- a follow-up
+    also graded as a trivia answer -- rather than to anything new."""
+    deadline = read_arm_deadline(path)
+    if deadline is None:
+        return False
+    return (now if now is not None else time.time()) < deadline
 
 
 def spawn_judge(outcome, trigger_text, match_kind, match_source=None,

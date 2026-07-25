@@ -712,6 +712,20 @@ if WAKE_ARM_ENABLED:
     ARM_STATE = wake_arm.ArmState()
 
 
+def publish_arm_window():
+    """Tell the rest of the console whether a sticky-conversation window is
+    open. Called after EVERY arm-state transition below and nowhere else --
+    the state lives in this process, so this is the only place that knows.
+
+    A no-op when arming is disabled, which is also why nothing else has to
+    know about CRT_WAKE_ARM_ENABLED: with the feature off the file is never
+    written, and bin/crt-wake-arm.py's arm_window_open() reads that as
+    closed. See that function for the reader (crt-book-answer-listen.py,
+    which grades utterances this engine has already routed to Claude)."""
+    if WAKE_ARM_ENABLED:
+        wake_arm.publish_arm_window(ARM_STATE)
+
+
 def load_fixups(path):
     """stt-fixups.json: {lowercased misheard fragment: {"intent": ..., ...}}.
     Ignores keys starting with "_" (the file's own "_comment" doc key) and
@@ -1413,6 +1427,11 @@ def emit(text, peak=1.0):
         if WAKE_ARM_ENABLED and not is_control and \
                 wake_arm.consume_arm_with_followup(ARM_STATE, text,
                                                    wake_match=arm_match):
+            # Before the dispatch, not after: this utterance is already in
+            # stt.log (written at the top of emit), and the window that
+            # matters to the reader is the one this consume just slid, re-armed
+            # or closed.
+            publish_arm_window()
             if STT_DEBUG_PERSIST:
                 print("%s  (arm follow-up) %s" % (ts, text))
             log_user_thought(text)
@@ -1449,6 +1468,7 @@ def emit(text, peak=1.0):
                                   else classify_wake_match(text))
             if kind:
                 ARM_STATE.arm(text, kind, source, word)
+                publish_arm_window()
         label = "(key %s)" % CONTROL[key] if is_control else "->"
         if STT_DEBUG_PERSIST:
             print("%s  %s %s" % (ts, label, text))
@@ -1751,8 +1771,12 @@ def main():
             # Cheap tick, opt-in only -- see bin/crt-wake-arm.py. Must run
             # even with no speech happening at all, since a timeout is
             # defined by silence, not by the next utterance arriving.
-            if WAKE_ARM_ENABLED:
-                wake_arm.check_arm_timeout(ARM_STATE, now)
+            if WAKE_ARM_ENABLED and wake_arm.check_arm_timeout(ARM_STATE, now):
+                # Only on an actual transition. This tick runs every pass of
+                # the capture loop; republishing an unchanged deadline here
+                # would put a small write in the sole mic reader's hot path
+                # for no one's benefit.
+                publish_arm_window()
 
             if not in_utt:
                 # Ducked audio does not go in the pre-roll either (2026-07-25).

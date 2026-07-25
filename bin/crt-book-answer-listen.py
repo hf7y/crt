@@ -77,6 +77,15 @@ _wg_spec = importlib.util.spec_from_file_location(
 wake_gate = importlib.util.module_from_spec(_wg_spec)
 _wg_spec.loader.exec_module(wake_gate)
 
+# The OTHER way an utterance reaches Claude without carrying the wake word
+# (2026-07-25, twentieth cycle): the sticky-conversation window. Loaded for
+# arm_window_open() alone -- this window never runs the state machine, it
+# only asks whether the engine has one open. Light: os/re/subprocess/time.
+_arm_spec = importlib.util.spec_from_file_location(
+    "crt_wake_arm_for_book_answer", os.path.join(BIN_DIR, "crt-wake-arm.py"))
+wake_arm = importlib.util.module_from_spec(_arm_spec)
+_arm_spec.loader.exec_module(wake_arm)
+
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
 ANSWER_WINDOW_SECS = float(os.environ.get("CRT_BOOK_ANSWER_WINDOW_SECS", "20"))
@@ -219,12 +228,38 @@ def grade_pending_answer(conn, spoken_text, window_secs=ANSWER_WINDOW_SECS, now=
     is above. Checked BEFORE the pending-question lookup: whether this was
     addressed to the console has nothing to do with whether a book is open.
 
-    Not covered, and open in BATCH-NOTES.md: an arm-window follow-up
-    (CRT_WAKE_ARM_ENABLED) carries no wake word by design and still looks
-    like an answer from here."""
+    THE THIRD DOOR, CLOSED 2026-07-25 (twentieth cycle): an arm-window
+    follow-up. Once CRT_WAKE_ARM_ENABLED is on -- and the stability
+    milestone's first bar item is exactly that, live -- a wake opens a
+    sticky-conversation window, and the utterances inside it reach Claude
+    WITHOUT the wake word, by design (bin/crt-wake-arm.py; the live
+    2026-07-23 bug was four follow-ups in one breath all gate-dropped). So
+    the funnel's own scenario replays with the wake word one utterance
+    earlier and every check above passes:
+
+        scan -> tube shows "Fiction or nonfiction?"
+             -> "claude, are you there?"        (wake: skipped here, arms)
+             -> "what is this book about?"      (follow-up: routed to Claude)
+             -> tube: "nope, it was fiction"
+             -> a row whose `heard` was never an answer attempt
+             -> "fiction" -- NOT graded, the round closed on the row above
+
+    That is the fourteenth cycle's defect exactly, through a door that
+    opens when the milestone's OTHER bar item goes live. Asked of
+    crt-wake-arm.py, which is the window's own rule, the same anti-drift
+    move find_playbook() and the wake gate are above -- and a no-op
+    whenever arming is off, since nothing ever publishes a window then.
+
+    What this does NOT decide: whether an arm-window follow-up SHOULD be
+    able to answer the question on the tube instead of going to Claude.
+    Today it goes to Claude -- the engine has already routed it by the time
+    this runs -- and grading it here as well is double-handling, not a
+    second opinion. Open for Zach in BATCH-NOTES.md."""
     if secretary.find_playbook(spoken_text)[0] is not None:
         return None
     if wake_gate.addressed_to_console(spoken_text):
+        return None
+    if wake_arm.arm_window_open(now=now):
         return None
     pending = get_pending_question(conn, window_secs, now=now)
     if pending is None:

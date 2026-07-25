@@ -143,6 +143,13 @@ class TestRewakeThroughEmit(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
         self.stt.STT_LOG = os.path.join(self.tmpdir, "stt.log")
         self.stt.GATE_LOG = os.path.join(self.tmpdir, "thoughts.log")
+        # emit() publishes the arm window for crt-book-answer-listen.py to
+        # read (2026-07-25, twentieth cycle). This class drives the REAL
+        # emit(), so without this redirect the suite writes an open window
+        # into the live console's own ~/.crt -- on potato that would suppress
+        # trivia grading for twelve seconds because someone ran the tests.
+        self.arm_state = os.path.join(self.tmpdir, "wake-arm.state")
+        self.stt.wake_arm.ARM_STATE_FILE = self.arm_state
         self.stt.log_user_thought = lambda text, **kw: None
         self.stt.play_earcon = lambda *a, **kw: None
         self.heard = []
@@ -196,6 +203,31 @@ class TestRewakeThroughEmit(unittest.TestCase):
         self.say("potato one more thing", 105.0)
         self.assertEqual(self.heard, ["potato what is the weather",
                                       "potato one more thing"])
+
+    def test_emit_publishes_the_window_it_is_actually_in(self):
+        """The other reader of this window is a different process
+        (crt-book-answer-listen.py, which must not grade a follow-up as a
+        trivia answer -- tests/test_book_answer_arm_window.py). It learns
+        about the window through this file, so the deadline on disk has to
+        track what emit() actually did, not just what ArmState holds in
+        memory. Uses the same FakeClock the rest of this class runs on."""
+        read = lambda: self.stt.wake_arm.read_arm_deadline(self.arm_state)
+        self.say("potato what is the weather", 100.0)
+        self.assertEqual(read(), 112.0)                  # armed: 100 + ARM_SECS
+        self.say("and tomorrow", 110.0)                  # consumed -> slides
+        self.assertEqual(read(), 122.0)
+        self.say("potato are you still there", 120.0)    # re-wake -> fresh
+        self.assertEqual(read(), 132.0)
+
+    def test_a_window_that_times_out_is_published_shut(self):
+        """A timeout happens in the capture loop, not in emit() -- and a
+        deadline left on disk after the window closed would keep the book
+        window silent for as long as the clock said it was open."""
+        self.say("potato what is the weather", 100.0)
+        self.clock.now = 113.0
+        if self.stt.wake_arm.check_arm_timeout(self.stt.ARM_STATE, 113.0):
+            self.stt.publish_arm_window()
+        self.assertEqual(self.stt.wake_arm.read_arm_deadline(self.arm_state), 0.0)
 
 
 if __name__ == "__main__":
