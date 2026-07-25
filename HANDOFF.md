@@ -262,6 +262,28 @@ that file, rather than passing a quoted command line directly to
 `schtasks`, sidesteps it. `schtasks /create` itself is classifier-gated
 in auto mode (needed one-time explicit user approval to run).
 
+**2026-07-24 fix (via senechal's cross-project audit):** the `crt-whisper-server`
+task was found broken — every logon-triggered run exited
+`0xC000013A`/`STATUS_CONTROL_C_EXIT` with nothing ever listening on 8991,
+while running the exact same `.bat` by hand (over an SSH session as the
+same user) worked fine. Root cause: `crt-whisper-server.bat` invoked
+python via the per-user WindowsApps **execution-alias reparse point**
+(`C:\Users\Zach\AppData\Local\Microsoft\WindowsApps\python.exe`), which
+Task Scheduler's logon-trigger launch context fails to resolve (a known
+Windows behavior — alias reparse points only resolve reliably from an
+interactively-activated process, not every launch context). Fixed by
+pointing the `.bat` at the alias's already-resolved real target instead of
+the alias itself: `C:\Users\Zach\AppData\Local\Microsoft\WindowsApps\
+PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe`. Verified
+via `schtasks /run /tn crt-whisper-server` (the real Task Scheduler launch
+path, not just an SSH-session run) — task result went from a crash to
+`SCHED_S_TASK_RUNNING`, and `GET /health` on port 8991 returned
+`{"model":"...fw-base-en","ok":true}`. Not yet verified across an actual
+reboot/fresh-logon, only via `/run`; if this ever regresses, check whether
+the WindowsApps package got reinstalled/updated (which would change the
+resolved path and require updating the `.bat` again) before assuming
+something else broke.
+
 ## Core pieces (bin/), what each does
 
 - `crt-stt-solo.py` — the sole mic reader (single-consumer by design, see
