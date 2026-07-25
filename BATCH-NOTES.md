@@ -3,13 +3,13 @@
 **What this is.** The unattended nightly-batch tier (the disposable clone on
 mandark, see `DEVELOPMENT-WORKFLOW.md`'s three-tier model) cannot write to
 `.claude/`. Every write to `.claude/QUESTIONS.md` and `.claude/FOCUS.md` from
-this tier has been refused as a sensitive file on **thirteen consecutive
+this tier has been refused as a sensitive file on **seventeen consecutive
 cycles** (2026-07-24, and twelve times on 2026-07-25). The `nightly-batch` skill
 nonetheless instructs this tier to keep `.claude/FOCUS.md` current and to
 append open questions to `.claude/QUESTIONS.md`, so that instruction has been
-unsatisfiable for thirteen cycles running and the questions have only ever
+unsatisfiable for seventeen cycles running and the questions have only ever
 reached Zach through `~/reports/crt/LATEST.md`. Tested directly again each
-cycle rather than assumed -- most recently the sixteenth cycle, 2026-07-25,
+cycle rather than assumed -- most recently the seventeenth cycle, 2026-07-25,
 by attempting a real append to `.claude/QUESTIONS.md` and being refused.
 
 **What it is not.** Not a replacement for `.claude/QUESTIONS.md` or
@@ -47,6 +47,36 @@ one durable channel it actually owns.
   same wording, nothing new to fold in; `c48ef11` already carries it.
 
 ## Pending — for `.claude/QUESTIONS.md`
+
+- **2026-07-25 (seventeenth cycle): is 8 seconds the right heartbeat for the
+  resting screen?** `render_idle_screen()` has always picked a fresh caption
+  and a fresh position per call, and `main()` had always called it exactly
+  once, so the `book` window's idle screen was a still frame from boot until
+  somebody scanned. `5891e4f` gives it `CRT_BOOK_IDLE_ROTATE_SECS`, default 8
+  — long enough to read a 30-column enticement twice, short enough that the
+  screen looks alive. That number is entirely a by-eye call on a real tube and
+  I picked it unattended. `0` freezes it again. One env var either way.
+
+- **2026-07-25 (seventeenth cycle): should the enticement lines wrap, or be
+  rewritten to fit one row?** All six of `bg.ENTICE_LINES` are 45–62 columns
+  against Zach's own 30-column `MAX_CONTENT_WIDTH` hard rule, so a single-line
+  cut took the end off all six and the words "scan"/"try it" off four of them
+  — the screen that exists to ask for a book had stopped asking. `b92932b`
+  wraps them across up to three rows, which preserves the authored copy
+  exactly but splits the kaomoji face from its own sentence. The other answer
+  is to rewrite the six lines short, and that is Zach's voice, not this
+  tier's. Six lines in `crt-book-game.py`.
+
+- **2026-07-25 (seventeenth cycle): does the tube's console font have the
+  kaomoji glyphs at all?** `b92932b` proves the layout is now correct in
+  COLUMNS (`・` U+30FB is East Asian Wide, so a 30-character caption was drawn
+  32 columns and wrapped on a 40-column pane). It cannot prove the glyphs
+  render. If potato's console font has no CJK coverage, `(・∀・)` and
+  `( closed book )`'s neighbours are showing boxes or blanks, and the fix is
+  to drop the wide characters from `ENTICE_LINES` — not to touch any of the
+  layout code. Directly related to the 2026-07-23 13:05 FOCUS.md note about
+  scraping potato art with "no character encoding problems". One glance at
+  the tube answers it.
 
 - **2026-07-25 (sixteenth cycle): the `CRT_COLS`/`CRT_ROWS` pin question is
   no longer cosmetic — it now decides whether the FIRST screen a scan draws
