@@ -3,13 +3,13 @@
 **What this is.** The unattended nightly-batch tier (the disposable clone on
 mandark, see `DEVELOPMENT-WORKFLOW.md`'s three-tier model) cannot write to
 `.claude/`. Every write to `.claude/QUESTIONS.md` and `.claude/FOCUS.md` from
-this tier has been refused as a sensitive file on **seventeen consecutive
+this tier has been refused as a sensitive file on **eighteen consecutive
 cycles** (2026-07-24, and twelve times on 2026-07-25). The `nightly-batch` skill
 nonetheless instructs this tier to keep `.claude/FOCUS.md` current and to
 append open questions to `.claude/QUESTIONS.md`, so that instruction has been
-unsatisfiable for seventeen cycles running and the questions have only ever
+unsatisfiable for eighteen cycles running and the questions have only ever
 reached Zach through `~/reports/crt/LATEST.md`. Tested directly again each
-cycle rather than assumed -- most recently the seventeenth cycle, 2026-07-25,
+cycle rather than assumed -- most recently the eighteenth cycle, 2026-07-25,
 by attempting a real append to `.claude/QUESTIONS.md` and being refused.
 
 **What it is not.** Not a replacement for `.claude/QUESTIONS.md` or
@@ -47,6 +47,28 @@ one durable channel it actually owns.
   same wording, nothing new to fold in; `c48ef11` already carries it.
 
 ## Pending — for `.claude/QUESTIONS.md`
+
+- **2026-07-25 (eighteenth cycle): should the potato screensaver's caption
+  move at all?** Zach's 2026-07-21 ask, quoted in `render_idle_screen()`'s
+  docstring and re-quoted in his reply on the seventeenth cycle's report, is
+  about "the idle screen" — and there are two of them. `4f7c17e` applied it
+  to `crt-screensaver.py`, which in the idle-lean layout is the screen the
+  tube actually boots into, so its caption now moves between rows and
+  alignments every `CRT_SCREENSAVER_CAPTION_MOVE_SECS` (default 8). That is
+  an inference from an ask made about the other screen: a sleeping-potato
+  face with a wandering instruction line may read worse than a still one,
+  and unlike the shelf's caption this one never changes its TEXT, so all the
+  motion is positional. `0` restores the old behaviour exactly, byte for
+  byte. One env var either way, but it is a taste call this tier cannot make
+  from here.
+
+- **2026-07-25 (eighteenth cycle): is 8 seconds right for BOTH resting
+  screens, or should they differ?** Supersedes the seventeenth cycle's
+  version of this question below. The shelf's caption swaps its text when it
+  moves; the potato's only moves. The same interval may read as lively on
+  one and fidgety on the other. `CRT_BOOK_IDLE_ROTATE_SECS` and
+  `CRT_SCREENSAVER_CAPTION_MOVE_SECS`, no code either way.
+
 
 - **2026-07-25 (seventeenth cycle): is 8 seconds the right heartbeat for the
   resting screen?** `render_idle_screen()` has always picked a fresh caption
