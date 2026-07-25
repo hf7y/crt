@@ -195,6 +195,20 @@ def ducks_capture(device):
     return resolved == LOCAL_HANDSET_DEVICE or resolved in ("", "default")
 
 
+def aplay_error_detail(stderr_text):
+    """The one line of aplay's stderr worth repeating, flattened to fit a
+    single log/pane line. Pure, so the wording is testable without a broken
+    sound card -- same posture as crt-stt-solo.py's capture_death_report().
+
+    aplay's useful message is the LAST line ("Device or resource busy",
+    "No such file or directory"); anything before it is usually the
+    "audio open error" preamble, which names no cause."""
+    lines = [ln.strip() for ln in (stderr_text or "").splitlines() if ln.strip()]
+    if not lines:
+        return "no error text (check the device name against `aplay -l`)"
+    return lines[-1][:300]
+
+
 def play_wav(wav, device):
     _sideband_mute(True)
     # Decided once, so the unmute in `finally:` can never disagree with the
@@ -216,7 +230,24 @@ def play_wav(wav, device):
             except Exception as e:
                 sys.stderr.write("[crt-tts] dexter audio-out failed: %s\n" % e)
                 return False
-        subprocess.run(["aplay", "-D", resolve_alsa_device(device), "-q", wav])
+        # aplay's exit status is the ONLY evidence that this console said
+        # anything out loud (2026-07-25). It used to be discarded and `True`
+        # returned unconditionally, so a device that does not exist, is busy,
+        # or is misnamed produced a confident "spoken" from a silent room --
+        # and every caller downstream believed it. That is the same defect
+        # this project already hit twice on the capture side (plughw:0,0 with
+        # no capture stream) and once on the earcon side; the output half was
+        # simply never checked. `-q` suppresses aplay's chatter, not its
+        # errors, so its stderr is the real diagnosis and is repeated here
+        # rather than swallowed.
+        alsa_device = resolve_alsa_device(device)
+        r = subprocess.run(["aplay", "-D", alsa_device, "-q", wav],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.stderr.write(
+                "[crt-tts] PLAYED NOTHING: aplay exited %d on device %s -- %s\n"
+                % (r.returncode, alsa_device, aplay_error_detail(r.stderr)))
+            return False
         return True
     finally:
         _sideband_mute(False)

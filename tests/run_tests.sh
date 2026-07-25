@@ -226,6 +226,10 @@ bash "$DIR/test_earcon_capture_duck.sh" || fail=1
 python3 "$DIR/test_tts_capture_duck.py" || fail=1
 echo
 
+echo "== a console that cannot speak says so =="
+python3 "$DIR/test_speech_failure_visible.py" || fail=1
+echo
+
 echo "== capture duck released when its producer is killed =="
 bash "$DIR/test_capture_duck_signal_safety.sh" || fail=1
 echo

@@ -25,11 +25,24 @@ class TestCaptureDuck(unittest.TestCase):
         self.wav = os.path.join(self.tmpdir, "x.wav")
         open(self.wav, "w").close()
         tts.CTL_FILE = self.ctl_file
-        self.orig_run = tts.subprocess.run
-        tts.subprocess.run = lambda *a, **k: None  # fake aplay: no-op
+        # A real executable named `aplay`, found the way play_wav() really
+        # finds it (2026-07-25). This used to be
+        # `subprocess.run = lambda *a, **k: None`, and that stub was never a
+        # faithful stand-in: real subprocess.run returns a CompletedProcess,
+        # so the stub silently asserted that nothing downstream would ever
+        # look at aplay's exit status -- which is exactly the bug that was
+        # sitting in play_wav() the whole time this test was green.
+        self.binstub = os.path.join(self.tmpdir, "bin")
+        os.makedirs(self.binstub)
+        aplay = os.path.join(self.binstub, "aplay")
+        with open(aplay, "w") as f:
+            f.write("#!/bin/sh\nexit 0\n")
+        os.chmod(aplay, 0o755)
+        self.orig_path = os.environ["PATH"]
+        os.environ["PATH"] = self.binstub + os.pathsep + self.orig_path
 
     def tearDown(self):
-        tts.subprocess.run = self.orig_run
+        os.environ["PATH"] = self.orig_path
 
     def _ctl_lines(self):
         if not os.path.exists(self.ctl_file):
@@ -63,10 +76,12 @@ class TestCaptureDuck(unittest.TestCase):
         tts.play_wav(self.wav, tts.LOCAL_TV_DEVICE)
         self.assertEqual(self._ctl_lines(), [])
 
-    def test_handset_unmutes_even_if_aplay_raises(self):
-        def boom(*a, **k):
-            raise OSError("no such device")
-        tts.subprocess.run = boom
+    def test_handset_unmutes_even_if_aplay_cannot_run(self):
+        # aplay not installed at all: the real failure this stands for, and
+        # now produced the real way (an empty PATH) rather than by patching
+        # subprocess.run to raise. The duck must still be released -- a
+        # console with no sound output must not also end up with no mic.
+        os.environ["PATH"] = self.tmpdir + "/nonexistent-bin"
         with self.assertRaises(OSError):
             tts.play_wav(self.wav, "handset")
         self.assertEqual(self._ctl_lines(), ["mute 1", "mute 0"])

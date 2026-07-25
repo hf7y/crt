@@ -161,8 +161,44 @@ def sh(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, **kw)
 
 
+# What a line that could not be spoken is prefixed with on the tube. Short,
+# because it is competing for a 40-column screen with the words it is about.
+UNSPOKEN_PREFIX = os.environ.get("CRT_UNSPOKEN_PREFIX", "(unspoken) ")
+
+
 def speak(text, device="handset"):
-    sh(["python3", os.path.join(BIN_DIR, "crt-tts.py"), "--device", device, text])
+    """Say something out loud. Returns True only if it was actually played.
+
+    This used to discard crt-tts.py's exit status along with its stderr
+    (sh() captures both), which mattered more here than anywhere: speech is
+    this console's primary output channel, and EVERY honest-failure line the
+    last three cycles added -- BRAIN_UNREACHABLE_LINE, REPLY_UNOBSERVED_LINE,
+    route_claude_reply's "didn't catch a reply" -- is delivered through this
+    function. A dead output device therefore silenced the reports about the
+    silence, which is the worst possible place for this defect to sit."""
+    r = sh(["python3", os.path.join(BIN_DIR, "crt-tts.py"), "--device", device, text])
+    if r.returncode != 0:
+        report_unspoken(text, r)
+        return False
+    return True
+
+
+def report_unspoken(text, result):
+    """A reply that could not be heard is not thereby a reply that has to be
+    lost: put the words on the tube instead, where mono is already showing.
+
+    Deliberately does NOT try to speak the bad news -- the one thing just
+    established is that speaking does not work. It also never raises: this
+    runs on the failure path of the failure path, and a traceback here would
+    replace a lost sentence with a lost process."""
+    detail = (result.stderr or "").strip().splitlines()
+    detail = detail[-1].strip() if detail else "crt-tts.py exited %d" % result.returncode
+    sys.stderr.write("[crt-secretary] SPOKE NOTHING (%s): %s\n" % (detail, text))
+    try:
+        sh([os.path.join(BIN_DIR, "crt-think.sh"),
+            UNSPOKEN_PREFIX + text[:SHORT_ANSWER_CHARS]])
+    except OSError:
+        pass
 
 
 def print_full(text):
