@@ -3,13 +3,13 @@
 **What this is.** The unattended nightly-batch tier (the disposable clone on
 mandark, see `DEVELOPMENT-WORKFLOW.md`'s three-tier model) cannot write to
 `.claude/`. Every write to `.claude/QUESTIONS.md` and `.claude/FOCUS.md` from
-this tier has been refused as a sensitive file on **twelve consecutive
-cycles** (2026-07-24, and eleven times on 2026-07-25). The `nightly-batch` skill
+this tier has been refused as a sensitive file on **thirteen consecutive
+cycles** (2026-07-24, and twelve times on 2026-07-25). The `nightly-batch` skill
 nonetheless instructs this tier to keep `.claude/FOCUS.md` current and to
 append open questions to `.claude/QUESTIONS.md`, so that instruction has been
-unsatisfiable for twelve cycles running and the questions have only ever
+unsatisfiable for thirteen cycles running and the questions have only ever
 reached Zach through `~/reports/crt/LATEST.md`. Tested directly again each
-cycle rather than assumed -- most recently the fifteenth cycle, 2026-07-25,
+cycle rather than assumed -- most recently the sixteenth cycle, 2026-07-25,
 by attempting a real append to `.claude/QUESTIONS.md` and being refused.
 
 **What it is not.** Not a replacement for `.claude/QUESTIONS.md` or
@@ -47,6 +47,51 @@ one durable channel it actually owns.
   same wording, nothing new to fold in; `c48ef11` already carries it.
 
 ## Pending — for `.claude/QUESTIONS.md`
+
+- **2026-07-25 (sixteenth cycle): the `CRT_COLS`/`CRT_ROWS` pin question is
+  no longer cosmetic — it now decides whether the FIRST screen a scan draws
+  is readable.** It has been open since the ninth cycle (see its own entry
+  further down) as "should window 1 get the pin window 0 already has", and
+  the honest answer then was that window 1 self-corrects within one 0.5s
+  refresh of the client attaching, so the pin only bought a handful of
+  pre-attach frames. That is still true of window 1. It is **not** true of
+  the `book` window, and this cycle changed what a yes would buy: the
+  window that draws the question now reads those pins (it could not
+  before), and in the historical layout it is the boot-default window whose
+  idle shelf screen is what the tube holds until somebody scans something —
+  so its pre-attach frame is a screen someone actually looks at, for as
+  long as they look at it. One `export CRT_COLS=40 CRT_ROWS=15` above the
+  layout `if` in `crt-console.sh` covers every window at once and retires
+  the inline pin on the screensaver's launch line. The cost is unchanged
+  and still real: it overrides a differently-sized terminal you attach from
+  for debugging. Still not done unilaterally — it changes live boot
+  behaviour.
+
+- **2026-07-25 (sixteenth cycle): should the book window crop to the
+  overscan safe margin, now that it measures the pane at all?**
+  `crt-pager.py` and `crt-monologue.py` both read `~/.crt/display.conf`
+  (what `crt-calibrate-display.py` writes) and draw inside the *visible*
+  picture rather than the raw pane. The book window measures the pane and
+  stops there, so on a tube cropping 2 columns a side the question is
+  centered correctly in a rectangle whose edges are behind the bezel. The
+  wiring is small and the per-tick re-measure this cycle added is the seam
+  it belongs in. Not done, for two reasons: it is ranked-backlog item 5b,
+  which the declared milestone explicitly parks, and whether a *question*
+  should sit inside the safe area or use the full tube is a by-eye call on
+  real hardware, not a number to guess at.
+
+- **2026-07-25 (sixteenth cycle): when a title will not fit, which half
+  goes — the book's name or its call number?** Picked, not asked, because
+  something had to be: the call number survives and the title is shortened
+  to `Nineteen Eighty-F.. (PR6029)`, on the reasoning that the person is
+  holding the book so its name is the part they already know, and
+  BOOK-GAME.md's resolved v1 decision made this screen the only place the
+  LCC appears at all. Below 8 characters of remaining title the trade
+  stops paying (`.. (QA76.73.P98)` names no book) and the call number goes
+  instead. Both the direction and the 8 are judgement, and the opposite
+  choice — always show as much of the title as fits, drop the LCC — is
+  perfectly defensible. One constant and one branch in
+  `crt-book-console.py`'s `scan_title()` if you want it the other way.
 
 - **2026-07-25 (fifteenth cycle): the idle face cannot show idle-bait, for
   exactly the reason it was eating scans.** Tonight's fix closed the funnel's
