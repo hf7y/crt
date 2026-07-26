@@ -465,11 +465,20 @@ fi
 echo
 
 echo "== live console state untouched (~/.crt) =="
-if pgrep -f 'crt-stt-solo\.py' >/dev/null 2>&1; then
-  # Not a pass. The check could not be made, and saying "ok" would be the
-  # exact confidently-wrong report this project keeps finding.
-  echo "SKIPPED - a console is running on this box, so changes under" \
-       "$CRT_LIVE_STATE_DIR cannot be attributed to the suite"
+# A console running on this same box writes ~/.crt for real reasons, so the
+# comparison below cannot attribute anything and must not claim to. That is a
+# SKIP, never a pass -- and it names the PID it saw, because `pgrep -f` matches
+# any command line that merely MENTIONS the script (a grep, an editor, the
+# shell that launched this), and a skip nobody can audit is the silent-pass
+# class this whole check exists to catch. CRT_TEST_SKIP_LIVE_STATE_GUARD=1 is
+# the explicit way to say "yes, a console is up, I know".
+live_console_pid="$(pgrep -f '[c]rt-stt-solo\.py' 2>/dev/null | head -1)"
+if [ "${CRT_TEST_SKIP_LIVE_STATE_GUARD:-0}" = "1" ]; then
+  echo "SKIPPED - CRT_TEST_SKIP_LIVE_STATE_GUARD=1 (not a pass; nothing was checked)"
+elif [ -n "$live_console_pid" ]; then
+  echo "SKIPPED - pid $live_console_pid looks like a running console, so changes"
+  echo "          under $CRT_LIVE_STATE_DIR cannot be attributed to the suite."
+  echo "          Check that pid is real: ps -p $live_console_pid -o args="
 elif [ "$(snapshot_live_state)" = "$LIVE_STATE_BEFORE" ]; then
   echo "ok - no test wrote into $CRT_LIVE_STATE_DIR"
 else

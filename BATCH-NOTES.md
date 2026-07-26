@@ -48,6 +48,53 @@ one durable channel it actually owns.
 
 ## Pending — for `.claude/QUESTIONS.md`
 
+- **2026-07-25 (twenty-second cycle): when no capture card matches by NAME,
+  should the console guess, or refuse to start?** `36f6457` made the guess
+  visible — the resolver now reports whether it matched a name, guessed the
+  first listed card, or found no cards at all, and says which in plain words
+  naming every card it did see. It did not change the policy: a name miss
+  still starts capture on a guessed device. The argument for guessing is that
+  every card in a CAPTURE listing can at least be opened, so a wrong guess
+  produces a live-but-wrong mic (a webcam instead of the handset), which the
+  person hears immediately. The argument for refusing is that a wrong mic on
+  this console is indistinguishable from a quiet room, which is the failure
+  this project has now spent several cycles on. There is a third option:
+  guess, but make `crt-audio-doctor.sh` fail its verdict when the device was
+  guessed rather than matched. **I did not pick one** — it changes what
+  happens on a real boot with a replugged adapter, and potato is the box that
+  decides it.
+
+- **2026-07-25 (twenty-second cycle): is `thoughts.log` one channel or
+  three?** Found while fixing the suite's writes into the live `~/.crt`
+  (`39ba627`): pinning `CRT_THOUGHT_LOG` did **not** stop tests writing to the
+  real `~/.crt/thoughts.log`, because a second env var names the same file —
+  `CRT_STT_GATE_LOG`, the gate-drop path in `crt-stt-solo.py` and
+  `stt-feed.sh`. A third writer, `bin/crt-bell-test.sh`, hardcodes
+  `$HOME/.crt/thoughts.log` with no variable at all. So "redirect window 1's
+  log" is not something one variable can do, and nothing says so anywhere.
+  This is ranked-backlog item 1's config-consolidation shape at small scale.
+  Two separate vars may well be deliberate (a gate drop is not a thought);
+  if so the defaults should differ, and if not they should be one name.
+
+- **2026-07-25 (twenty-second cycle): should a name miss warn once or once
+  per lookup?** `crt-audio-doctor.sh` and `crt-capture-watchdog.sh` each
+  resolve twice on the same `arecord -l` text — once for the device, once for
+  the card number — so a miss now prints the same warning twice at startup.
+  Left as-is deliberately: de-duplicating needs a "have I warned yet" global
+  in a sourced shell library, which is hidden state that breaks when a test
+  sources it twice. Two identical lines read as a repeat, not as two
+  problems. Say if that is too noisy on the tube.
+
+- **2026-07-25 (twenty-second cycle): should `tests/run_tests.sh` go red on
+  potato?** The new live-state guard fails the suite if anything wrote into
+  `~/.crt` during a run. On the console box itself a console is writing there
+  constantly for real reasons, so the guard skips when it sees a running
+  `crt-stt-solo.py` — and names the PID, because `pgrep -f` matches any
+  command line that merely mentions the script, and a skip nobody can audit
+  is the silent-pass class the guard exists to catch.
+  `CRT_TEST_SKIP_LIVE_STATE_GUARD=1` is the explicit way through. Whether
+  that is the right default for the one box where it matters is your call.
+
 - **2026-07-25 (twenty-first cycle): is 45% the right floor for a
   confirm-saved mishear, and should there be an in-game way past it?**
   `810d935` made `bin/crt-calibration-game.py` accept only the words it
