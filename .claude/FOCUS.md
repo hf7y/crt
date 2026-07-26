@@ -13,6 +13,40 @@ Ideas beyond this bar are PARKED by default (see realisateur/STABILITY-MILESTONE
 
 # crt — focus & backlog
 
+- **2026-07-26 (realisateur):** the parked "bibliothecaire" catalog-split
+  fork below is RESOLVED — Zach chose the third preserved option, **split
+  scope-only**: a wholly separate greenfield project (own repo, own
+  scheduler registration, queued for nightly-batch at low weight via
+  realisateur's inbox) that never forks crt's scan/grade/STT-log code and
+  shares at most `books.db`'s data. It merges the catalog wing with a new
+  operations/cybernetics knowledge base seeded from realisateur's
+  `UNIVERSE.md` (closed loops, stigmergy, theories of the firm, holons —
+  sourced quotes with attribution). The merged project owns the name;
+  the unrelated "page 92" idea — which realisateur's 2026-07-26 nightly
+  had meanwhile scaffolded as a live project under the contested name —
+  gets renamed to `quatre-vingt-douze` as step 0 of the librarian's
+  scaffold drop (Zach's call, asked directly), which also resolves the
+  fable-review name-collision item further down this file. Nothing moves
+  out of crt's tree and nothing here is required for crt's current
+  milestone. Full vision + milestone chain: realisateur `.claude/FOCUS.md`
+  2026-07-26 entry.
+
+  **New offline-safe backlog item registered with it** (answering this
+  file's own QUESTIONS.md note that the offline-safe backlog appears
+  exhausted): **[batch] `(waiting: bibliothecaire quotes file)`** — extend
+  the idle-bait quote rotation (`pick_idle_quote()` path in
+  `bin/crt-book-game.py` / `bin/crt-book-idle-bait.py`, tests in
+  `tests/test_book_idle_bait.py`) to ALSO draw from an external
+  bibliothecaire-published quotes file when one is present, keeping the
+  existing non-API-at-idle-time rule and the `CRT_BOOK_ENTICE_RATE` mix.
+  Chosen over a dedicated splash app deliberately — no new tmux
+  window/surface (realisateur `UNIVERSE.md` Law 3), quotes surface on the
+  book channel's existing idle screen. **Stated park-by-default override:**
+  this is not required for the current milestone bar; it's promoted only
+  because it feeds the starved offline-safe lane and adds no surface. It
+  stays `waiting` (not buildable) until bibliothecaire's first research
+  pass actually publishes the file — don't start it on spec.
+
 - **2026-07-24 (realisateur, parked):** split Book Game's library/catalog
   half into its own "bibliothecaire" program — designed to eventually know
   book contents, relationships, citations, further reading (a real
