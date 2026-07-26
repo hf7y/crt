@@ -86,9 +86,48 @@ can_chime() {
 chime() {
   # $1 = bait|question -- shares crt-announce.sh's lockfile so a chime and
   # a TV announcement can never stack (IDLE-BAIT.md's single-rate-limit rule).
+  #
+  # 2026-07-25: this was `crt-earcon.sh "$1" >/dev/null 2>&1 || true` with
+  # the stamp written first and never taken back, which is two of this
+  # project's own recurring bugs in three lines.
+  #
+  #   - The earcon's failure went to /dev/null and then to `|| true`. sox
+  #     missing, a device that will not open, a name this script and that
+  #     one disagree about -- all identical to a chime that played. Same
+  #     class as cdf05cc's silent earcon and f187a45's discarded exit
+  #     status; the fix is the same one, say what it said on its way out.
+  #   - The stamp was spent whether or not anything was heard, and the
+  #     window is SHARED with crt-announce.sh's TV voice. So an earcon that
+  #     cannot play would also mute working TV announcements for fifteen
+  #     minutes at a time, which is a fault spreading between channels, not
+  #     a rate limit.
+  #
+  # Stamp first (a concurrent chime must still be blocked while this one is
+  # attempting), roll back if nothing played. No retry storm: the caller
+  # mark_seen()s each line before chiming, so a failing chime is retried at
+  # most once per new report/question line, not once per poll.
+  local prev had_lock=0 err status=0
   can_chime || return 0
+  if [ -f "$ANNOUNCE_LOCK" ]; then
+    had_lock=1
+    prev="$(cat "$ANNOUNCE_LOCK" 2>/dev/null || echo 0)"
+  fi
   date +%s > "$ANNOUNCE_LOCK"
-  "$BIN_DIR/crt-earcon.sh" "$1" >/dev/null 2>&1 || true
+
+  err="$("$BIN_DIR/crt-earcon.sh" "$1" 2>&1 >/dev/null)" || status=$?
+  [ "$status" = 0 ] && return 0
+
+  if [ "$had_lock" = 1 ]; then
+    printf '%s\n' "$prev" > "$ANNOUNCE_LOCK"
+  else
+    rm -f "$ANNOUNCE_LOCK"
+  fi
+  # Last non-blank line of whatever it complained about -- crt-earcon.sh
+  # prefixes its own messages ("[crt-earcon] sox not installed").
+  err="$(printf '%s\n' "$err" | grep -v '^[[:space:]]*$' | tail -1)"
+  echo "[crt-idle-teaser] chime '$1' did not play (exit $status): ${err:-no output}" >&2
+  "$BIN_DIR/crt-think.sh" "meant to make a noise just then. nothing came out: ${err:-silence}" 2>/dev/null || true
+  return 0
 }
 
 # ANSI color-per-register (2026-07-20, EXPRESSIVE-TONE.md's color

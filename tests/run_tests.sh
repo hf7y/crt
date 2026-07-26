@@ -91,6 +91,13 @@ echo "== CRT-safe palette, whole tree (no 31/32/34/91/92/94) =="
 bash "$DIR/test_crt_safe_colors.sh" || fail=1
 echo
 
+# 2026-07-25: crt-announce.sh had no test at all, and it writes the window
+# crt-idle-teaser.sh's chime() rate-limits against. A failed announcement
+# used to spend fifteen minutes of silence on BOTH channels.
+echo "== crt-announce.sh shared rate-limit window =="
+bash "$DIR/test_announce_rate_limit.sh" || fail=1
+echo
+
 echo "== stt-feed.sh CRT_SECRETARY opt-in gate =="
 bash "$DIR/test_stt_feed_secretary_flag.sh" || fail=1
 echo

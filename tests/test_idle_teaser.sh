@@ -182,4 +182,60 @@ CRT_IDLE_TEASER_TEST_MODE=1 bash -c '
 ' > "$TMPDIR/canchime_fresh"
 check "a fresh lock suppresses the next chime" "no" "$(cat "$TMPDIR/canchime_fresh")"
 
+# --- a chime that does not play must not spend the shared window --------
+#
+# The lock is shared with crt-announce.sh's TV voice on purpose, so an
+# earcon that cannot play used to mute working TV announcements for fifteen
+# minutes -- a fault spreading between channels rather than a rate limit.
+# A failing `sox` (first on PATH, so this is the same on a box that really
+# has one) makes crt-earcon.sh exit non-zero with something on stderr.
+FAIL_BIN="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR" "$FAKE_BIN" "$FAIL_BIN"' EXIT
+cat > "$FAIL_BIN/sox" <<'EOF'
+#!/usr/bin/env bash
+echo "sox FAIL formats: no handler for file extension" >&2
+exit 1
+EOF
+cp "$FAKE_BIN/aplay" "$FAIL_BIN/aplay"
+chmod +x "$FAIL_BIN/sox" "$FAIL_BIN/aplay"
+
+rm -f "$CRT_ANNOUNCE_LOCK"
+chime_err="$(PATH="$FAIL_BIN:$PATH" CRT_IDLE_TEASER_TEST_MODE=1 \
+  CRT_THOUGHT_LOG="$TMPDIR/thoughts3.log" bash -c '
+    source "'"$BIN_DIR"'/crt-idle-teaser.sh"
+    chime bait
+  ' 2>&1 >/dev/null)"
+
+if [ ! -e "$CRT_ANNOUNCE_LOCK" ]; then
+  echo "ok - a chime that never played left the shared window unspent"
+else
+  echo "FAIL - a failed chime still spent the announce window ($(cat "$CRT_ANNOUNCE_LOCK"))"
+  fail=1
+fi
+case "$chime_err" in
+  *"did not play"*"no handler for file extension"*)
+    echo "ok - the failed chime said so, and said what the tool said" ;;
+  *)
+    echo "FAIL - a failed chime was silent about it (stderr: [$chime_err])"
+    fail=1 ;;
+esac
+if grep -q "nothing came out" "$TMPDIR/thoughts3.log" 2>/dev/null; then
+  echo "ok - the failed chime reached window 1, not just stderr"
+else
+  echo "FAIL - nothing about the failed chime reached the thought log"
+  fail=1
+fi
+
+# A pre-existing stamp must be RESTORED, not deleted -- rolling back to
+# "never chimed" would hand the next caller a window it had not earned.
+old_stamp=$(( $(date +%s) - 30 ))
+echo "$old_stamp" > "$CRT_ANNOUNCE_LOCK"
+PATH="$FAIL_BIN:$PATH" CRT_IDLE_TEASER_TEST_MODE=1 CRT_ANNOUNCE_MIN_GAP=10 \
+  CRT_THOUGHT_LOG="$TMPDIR/thoughts4.log" bash -c '
+    source "'"$BIN_DIR"'/crt-idle-teaser.sh"
+    chime bait
+  ' >/dev/null 2>&1
+check "a failed chime restores the previous stamp, not zero" \
+  "$old_stamp" "$(cat "$CRT_ANNOUNCE_LOCK" 2>/dev/null)"
+
 exit "$fail"
