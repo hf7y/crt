@@ -37,6 +37,14 @@ export CRT_THOUGHT_LOG="$CRT_TEST_STATE_DIR/thoughts.log"
 # for having it. (bin/crt-bell-test.sh hardcodes the path with no var at
 # all; nothing in the suite runs it. Noted, not fixed here.)
 export CRT_STT_GATE_LOG="$CRT_TEST_STATE_DIR/thoughts.log"
+# Found by the guard below on its SECOND run (2026-07-25): a sixth live
+# file. crt-idle-teaser.sh's chime() stamps the announce lock, which is the
+# 15-minute rate limit it deliberately SHARES with crt-announce.sh's TV
+# announcements -- so a suite run on potato silenced the console's next
+# real chime and its next real announcement, both. Its seen-ledger is
+# touched at source time by every case in that file.
+export CRT_ANNOUNCE_LOCK="$CRT_TEST_STATE_DIR/announce.lastrun"
+export CRT_IDLE_SEEN="$CRT_TEST_STATE_DIR/idle-bait.seen"
 trap 'rm -rf "$CRT_TEST_STATE_DIR"' EXIT
 
 # ...and a guard, because pinning only covers the vars known TODAY and this
@@ -73,6 +81,7 @@ echo
 echo "== idle-teaser screensaver gate =="
 bash "$DIR/test_idle_teaser.sh" || fail=1
 echo
+
 
 echo "== stt-feed.sh CRT_SECRETARY opt-in gate =="
 bash "$DIR/test_stt_feed_secretary_flag.sh" || fail=1

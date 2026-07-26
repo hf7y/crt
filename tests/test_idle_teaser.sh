@@ -17,7 +17,43 @@ check() {
 }
 
 TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR"' EXIT
+FAKE_BIN="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR" "$FAKE_BIN"' EXIT
+
+# This file reaches the LIVE console through two doors, both found
+# 2026-07-25 by run_tests.sh's live-state guard and by reading what it
+# actually runs. Neither is about what is under test here.
+#
+#  1. `chime` stamps CRT_ANNOUNCE_LOCK -- default ~/.crt/announce.lastrun,
+#     the 15-minute rate limit SHARED with crt-announce.sh's TV
+#     announcements (IDLE-BAIT.md's single-rate-limit rule). Running the
+#     suite on potato therefore bought the console fifteen minutes of
+#     silence: the next real bait chime AND the next real TV announcement
+#     both suppressed, for no reason anyone could have traced.
+#  2. `chime` then execs the real bin/crt-earcon.sh, which on a box with
+#     sox installed ends in `aplay -D default` -- the suite makes the
+#     console beep. The guard cannot ever catch that one; sound is not a
+#     file. Faked on PATH the same way test_earcon_capture_duck.sh and
+#     test_earcon_sideband_duck.sh already do.
+#
+# CRT_IDLE_SEEN is pinned too: this script `touch`es it at SOURCE time, so
+# every case below (not just the two that tease) reached the live
+# ~/.crt/idle-bait.seen ledger.
+export CRT_ANNOUNCE_LOCK="$TMPDIR/announce.lastrun"
+export CRT_IDLE_SEEN="$TMPDIR/seen.default"
+cat > "$FAKE_BIN/aplay" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+cat > "$FAKE_BIN/sox" <<'EOF'
+#!/usr/bin/env bash
+for a in "$@"; do
+  case "$a" in *.wav) : > "$a" ;; esac
+done
+exit 0
+EOF
+chmod +x "$FAKE_BIN/aplay" "$FAKE_BIN/sox"
+export PATH="$FAKE_BIN:$PATH"
 
 run_is_idle() {
   # $1 = marker file paths (space-separated), $2 = timeout secs
@@ -102,12 +138,41 @@ CRT_IDLE_TEASER_TEST_MODE=1 CRT_IDLE_MARKERS="$TMPDIR/old_marker" \
       process_new_lines "'"$report_file2"'" report
     fi
   ' >/dev/null 2>&1
-if grep -qF $'\033[1;31m' "$TMPDIR/thoughts2.log" 2>/dev/null && \
+if grep -qF "$COLOR_URGENT_EXPECTED" "$TMPDIR/thoughts2.log" 2>/dev/null && \
    grep -qF $'\033[0m' "$TMPDIR/thoughts2.log" 2>/dev/null; then
   echo "ok - colored teaser reaches thoughts.log with color + reset"
 else
   echo "FAIL - colored teaser missing color/reset codes in thoughts.log"
   fail=1
 fi
+
+# That case is a BLOCKER, so it chimed -- which is the whole reason the
+# lock is pinned above. Assert the stamp landed in the PINNED file rather
+# than only asserting the live one is untouched: a pin that silently stops
+# working looks exactly like a chime that never fired.
+if [ -s "$CRT_ANNOUNCE_LOCK" ] && grep -qE '^[0-9]+$' "$CRT_ANNOUNCE_LOCK"; then
+  echo "ok - the chime's rate-limit stamp went to the pinned lock, not ~/.crt"
+else
+  echo "FAIL - no epoch stamp in the pinned announce lock ($CRT_ANNOUNCE_LOCK)"
+  fail=1
+fi
+
+# And the shared rate limit is honoured: a second blocker inside
+# CRT_ANNOUNCE_MIN_GAP must NOT re-chime. This is IDLE-BAIT.md's rule that
+# a chime and a TV announcement can never stack, and nothing tested it.
+stamp_before="$(cat "$CRT_ANNOUNCE_LOCK")"
+echo "1" > "$CRT_ANNOUNCE_LOCK"        # epoch 1970: gap long past -> may chime
+CRT_IDLE_TEASER_TEST_MODE=1 bash -c '
+  source "'"$BIN_DIR"'/crt-idle-teaser.sh"
+  if can_chime; then echo yes; else echo no; fi
+' > "$TMPDIR/canchime_old"
+check "a long-expired lock permits a chime" "yes" "$(cat "$TMPDIR/canchime_old")"
+
+echo "$stamp_before" > "$CRT_ANNOUNCE_LOCK"   # stamped just now -> must not
+CRT_IDLE_TEASER_TEST_MODE=1 bash -c '
+  source "'"$BIN_DIR"'/crt-idle-teaser.sh"
+  if can_chime; then echo yes; else echo no; fi
+' > "$TMPDIR/canchime_fresh"
+check "a fresh lock suppresses the next chime" "no" "$(cat "$TMPDIR/canchime_fresh")"
 
 exit "$fail"
