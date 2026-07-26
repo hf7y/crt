@@ -26,6 +26,13 @@ chmod +x "$FAKE_BIN/sox"
 MUTE_FILE="$TMPDIR/sideband.mute"
 OBSERVED="$TMPDIR/observed"
 
+# crt-earcon.sh's capture duck appends to CRT_CTL_FILE, which defaults to the
+# REAL ~/.crt/ctl -- the channel a running crt-stt-solo.py reads live
+# (2026-07-25). This test carefully sandboxed the mute file it knew about and
+# let the duck write to the live box. tests/run_tests.sh pins this for the
+# whole suite; this covers running this file on its own.
+export CRT_CTL_FILE="${CRT_CTL_FILE:-$TMPDIR/ctl}"
+
 cat > "$FAKE_BIN/aplay" <<EOF
 #!/usr/bin/env bash
 if [ -f "$MUTE_FILE" ]; then

@@ -21,6 +21,19 @@ import os
 import tempfile
 import unittest
 
+# Pin the live-console state defaults into tmp BEFORE any bin/ module is
+# imported and reads them at module scope (2026-07-25). This file was one of
+# five appending to the REAL ~/.crt -- the capture-duck control channel a
+# running crt-stt-solo.py reads live, and the state crt-window-switcher.py
+# reads to decide whether a brain is behind the screen. tests/run_tests.sh
+# pins these for the whole suite; this covers running this file on its own.
+_state = tempfile.mkdtemp(prefix="crt-test-state-")
+os.environ.setdefault("CRT_CTL_FILE", os.path.join(_state, "ctl"))
+os.environ.setdefault("CRT_CLAUDE_ACTIVE_STATE",
+                      os.path.join(_state, "claude-window-active.state"))
+os.environ.setdefault("CRT_THOUGHT_LOG", os.path.join(_state, "thoughts.log"))
+os.environ.setdefault("CRT_STT_GATE_LOG", os.path.join(_state, "thoughts.log"))
+
 BIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin")
 SOLO_PATH = os.path.join(BIN_DIR, "crt-stt-solo.py")
 

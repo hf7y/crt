@@ -12,6 +12,44 @@ fail=0
 # the var is unset, so that test still runs for real exactly once.
 export CRT_TEST_SUITE_RUNNING=1
 
+# Nothing in this suite may touch the LIVE console's state (2026-07-25).
+# Measured, not assumed: five test files were appending to the real
+# ~/.crt/ctl -- the capture-duck control channel a RUNNING crt-stt-solo.py
+# reads live -- and stamping the real ~/.crt/claude-window-active.state,
+# which crt-window-switcher.py reads to decide whether a brain is behind
+# the screen. On potato, running this suite meant muting and unmuting the
+# console's own mic a few hundred times and holding window 1 for the next
+# 30 seconds. Each of those tests carefully made a tmpdir for the files it
+# knew it wrote, then let the module-level DEFAULTS point at the live box.
+#
+# So the defaults are pinned here, once, for every test at once -- cycle
+# 21's lesson after the same class recurred within one cycle: pin the
+# default, not each path. Individually pinned in the five as well, for a
+# standalone `python3 tests/test_secretary.py`.
+CRT_TEST_STATE_DIR="$(mktemp -d)"
+export CRT_CTL_FILE="$CRT_TEST_STATE_DIR/ctl"
+export CRT_CLAUDE_ACTIVE_STATE="$CRT_TEST_STATE_DIR/claude-window-active.state"
+export CRT_THOUGHT_LOG="$CRT_TEST_STATE_DIR/thoughts.log"
+# TWO vars name that same file: crt-stt-solo.py's GATE_LOG and stt-feed.sh's
+# both default to ~/.crt/thoughts.log under CRT_STT_GATE_LOG. Pinning
+# CRT_THOUGHT_LOG alone left the gate-drop path still writing to the live
+# one -- found by the guard below on its first run, which is the argument
+# for having it. (bin/crt-bell-test.sh hardcodes the path with no var at
+# all; nothing in the suite runs it. Noted, not fixed here.)
+export CRT_STT_GATE_LOG="$CRT_TEST_STATE_DIR/thoughts.log"
+trap 'rm -rf "$CRT_TEST_STATE_DIR"' EXIT
+
+# ...and a guard, because pinning only covers the vars known TODAY and this
+# is the third cycle to find this class. Snapshot the live state dir now,
+# compare at the end, name whatever moved. Skipped (loudly) when a console
+# is actually running on this box, since then ~/.crt changes for real
+# reasons and nothing here could attribute them.
+CRT_LIVE_STATE_DIR="${CRT_LIVE_STATE_DIR:-$HOME/.crt}"
+snapshot_live_state() {
+  find "$CRT_LIVE_STATE_DIR" -type f 2>/dev/null | sort | xargs -r md5sum 2>/dev/null
+}
+LIVE_STATE_BEFORE="$(snapshot_live_state)"
+
 echo "== shell syntax =="
 bash "$DIR/test_shell_syntax.sh" || fail=1
 echo
@@ -422,6 +460,24 @@ done
 if [ "$mfail" -eq 0 ]; then
   echo "ok - test manifest consistent both ways"
 else
+  fail=1
+fi
+echo
+
+echo "== live console state untouched (~/.crt) =="
+if pgrep -f 'crt-stt-solo\.py' >/dev/null 2>&1; then
+  # Not a pass. The check could not be made, and saying "ok" would be the
+  # exact confidently-wrong report this project keeps finding.
+  echo "SKIPPED - a console is running on this box, so changes under" \
+       "$CRT_LIVE_STATE_DIR cannot be attributed to the suite"
+elif [ "$(snapshot_live_state)" = "$LIVE_STATE_BEFORE" ]; then
+  echo "ok - no test wrote into $CRT_LIVE_STATE_DIR"
+else
+  echo "FAIL - the suite wrote into the LIVE console state dir:"
+  diff <(printf '%s\n' "$LIVE_STATE_BEFORE") <(snapshot_live_state) \
+    | grep '^[<>]' | sed 's/^/    /'
+  echo "    A test is using a real ~/.crt default instead of a tmp path."
+  echo "    Pin the env var above (see this script's header), don't delete this check."
   fail=1
 fi
 echo
