@@ -82,6 +82,14 @@ echo "== idle-teaser screensaver gate =="
 bash "$DIR/test_idle_teaser.sh" || fail=1
 echo
 
+# 2026-07-25: CLAUDE.md cites test_book_game.py's palette check as the proof
+# the CRT-safe color rule is "not just a comment" -- but that check reads
+# five constants in one Python module, and crt-idle-teaser.sh had been
+# putting bold red (31) on window 1 since the day it was written. This one
+# reads every file in bin/ and tests/.
+echo "== CRT-safe palette, whole tree (no 31/32/34/91/92/94) =="
+bash "$DIR/test_crt_safe_colors.sh" || fail=1
+echo
 
 echo "== stt-feed.sh CRT_SECRETARY opt-in gate =="
 bash "$DIR/test_stt_feed_secretary_flag.sh" || fail=1

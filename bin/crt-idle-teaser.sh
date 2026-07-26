@@ -94,7 +94,7 @@ chime() {
 # ANSI color-per-register (2026-07-20, EXPRESSIVE-TONE.md's color
 # dimension, named but not reached until now): each teaser kind gets a
 # color matching its register in that doc's table -- clipped/urgent
-# (blocker) reads red, a real question reads yellow (present, not
+# (blocker) reads bold magenta, a real question reads yellow (present, not
 # alarming), an ordinary find reads the same cyan "warm/curious" register
 # as the `curious`/`bait` earcons. crt-think.sh just appends whatever text
 # it's given, so the color codes ride along into thoughts.log and
@@ -103,7 +103,18 @@ chime() {
 # this works even though fold (correctly) doesn't know the escape bytes
 # are zero-width; given how short these teaser lines are, in practice
 # that just doesn't come up.
-COLOR_URGENT=$'\033[1;31m'    # blocker
+#
+# CRT-SAFE PALETTE (2026-07-25): this was `1;31` (bold red) from the day it
+# was written, which CLAUDE.md and BOOK-GAME-STYLE.md both name as banned
+# outright -- 31/32/34 and 91/92/94 bleed and smear on a real composite/RF
+# tube at any boldness. The book-game palette was reassigned for exactly
+# this on 2026-07-21 and this file was missed, so the ONE teaser register
+# most likely to be worth reading (a blocker) was the one drawn in the
+# worst color the tube has. Magenta is where that doc's corrected table
+# already puts the clipped register (`COLOR_WRONG`); bold carries the
+# urgency red was doing. Enforced repo-wide now, not just for the book
+# game's palette: tests/test_crt_safe_colors.sh.
+COLOR_URGENT=$'\033[1;35m'    # blocker (clipped register, CRT-safe)
 COLOR_QUESTION=$'\033[33m'    # a real judgment call
 COLOR_CURIOUS=$'\033[36m'     # ordinary find
 COLOR_RESET=$'\033[0m'

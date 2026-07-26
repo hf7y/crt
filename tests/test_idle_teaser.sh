@@ -112,9 +112,16 @@ run_color_for_line() {
   '
 }
 
-COLOR_URGENT_EXPECTED=$'\033[1;31m'
+# Bold MAGENTA, not the bold red this asserted until 2026-07-25. 31 is
+# banned outright by CLAUDE.md and BOOK-GAME-STYLE.md -- it bleeds on the
+# real tube -- and this assertion was holding the violation in place, which
+# is why the rule is now checked over the whole tree by
+# tests/test_crt_safe_colors.sh rather than over one Python palette.
+# Magenta is where BOOK-GAME-STYLE.md's corrected table already puts the
+# clipped register; bold carries the urgency.
+COLOR_URGENT_EXPECTED=$'\033[1;35m'
 got="$(run_color_for_line "- **09:00 (BLOCKER):** something broke")"
-check "blocker line -> urgent red" "$COLOR_URGENT_EXPECTED" "$got"
+check "blocker line -> urgent bold magenta (CRT-safe)" "$COLOR_URGENT_EXPECTED" "$got"
 
 COLOR_QUESTION_EXPECTED=$'\033[33m'
 got="$(run_color_for_line "- **09:00 (QUESTION):** pick one")"
