@@ -83,6 +83,98 @@ class TestResolveCaptureDeviceByName(unittest.TestCase):
             "plughw:9,0")
 
 
+    def test_reports_how_it_resolved(self):
+        dev, reason, names = stt_solo.resolve_capture_device(POTATO_ARECORD_L)
+        self.assertEqual((dev, reason), ("plughw:1,0", stt_solo.BY_NAME))
+        self.assertEqual(names, ["KT USB Audio"])
+
+        dev, reason, names = stt_solo.resolve_capture_device(
+            MULTI_CARD_ARECORD_L, name_pattern="nonexistent card")
+        self.assertEqual((dev, reason), ("plughw:0,0", stt_solo.FIRST_LISTED))
+        # Names every card it saw, so a miss can be acted on without rerunning
+        # arecord by hand on a box you may not be sitting at.
+        self.assertEqual(names, ["HDA Intel PCH", "KT USB Audio"])
+
+        dev, reason, names = stt_solo.resolve_capture_device("")
+        self.assertEqual((dev, reason), (stt_solo.DEV_FALLBACK, stt_solo.NO_CARDS))
+        self.assertEqual(names, [])
+
+    def test_no_soundcards_message_is_not_a_card_listing(self):
+        # What `arecord -l` actually prints with nothing plugged in.
+        out = "**** List of CAPTURE Hardware Devices ****\n"
+        dev, reason, _ = stt_solo.resolve_capture_device(out)
+        self.assertEqual((dev, reason), (stt_solo.DEV_FALLBACK, stt_solo.NO_CARDS))
+
+
+# The listing that broke the old warning. "USB Audio" is the DEVICE
+# description of essentially every USB audio-class adapter, so the raw-text
+# substring test the warning used could not tell "a card matched" from "no
+# card matched but this is a USB adapter" -- which is the only case it
+# existed to report.
+GENERIC_USB_TWO_CARD = """**** List of CAPTURE Hardware Devices ****
+card 0: PCH [HDA Intel PCH], device 0: ALC3271 Analog [ALC3271 Analog]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 1: Device [USB PnP Sound Device], device 0: USB Audio [USB Audio]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+"""
+
+
+class TestGuessedDeviceIsAnnounced(unittest.TestCase):
+    """A guessed capture device is a legitimate degraded mode; a SILENT one is
+    the failure this resolver was built to end (FOCUS.md 2026-07-23 07:10:
+    "the process restarted silently exits (no error, no capture)")."""
+
+    def test_a_matched_card_says_nothing(self):
+        dev, reason, names = stt_solo.resolve_capture_device(POTATO_ARECORD_L)
+        self.assertIsNone(stt_solo.capture_device_warning(dev, reason, names))
+
+    def test_the_usb_device_description_no_longer_suppresses_the_warning(self):
+        # The regression. Card NAMES here are "HDA Intel PCH" and "USB PnP
+        # Sound Device" -- neither contains "USB Audio" -- so the resolver
+        # guesses card 0, the onboard analog input, over the USB mic. The old
+        # check asked whether "USB Audio" appeared anywhere in the text; it
+        # does, twice, in the device description on the line it got wrong.
+        self.assertIn("USB Audio", GENERIC_USB_TWO_CARD)   # the text that fooled it
+        dev, reason, names = stt_solo.resolve_capture_device(GENERIC_USB_TWO_CARD)
+        self.assertEqual((dev, reason), ("plughw:0,0", stt_solo.FIRST_LISTED))
+        msg = stt_solo.capture_device_warning(dev, reason, names)
+        self.assertIsNotNone(msg)
+        self.assertIn("plughw:0,0", msg)                 # what it settled on
+        self.assertIn("USB PnP Sound Device", msg)       # what was actually there
+        self.assertIn("CRT_AUDIO_DEV_NAME", msg)         # how to fix it
+        self.assertIn("CRT_AUDIO_DEV", msg)              # ...and the hard override
+
+    def test_no_cards_at_all_is_described_differently(self):
+        dev, reason, names = stt_solo.resolve_capture_device("")
+        msg = stt_solo.capture_device_warning(dev, reason, names)
+        self.assertIn("NO capture cards", msg)
+        self.assertNotIn("first one listed", msg)   # there was no listing to be first in
+
+    def test_detect_writes_the_warning_where_a_person_will_see_it(self):
+        import contextlib
+        import io
+        original = dict(os.environ)
+        real_run = stt_solo.subprocess.run
+
+        class FakeCompleted:
+            stdout = GENERIC_USB_TWO_CARD
+
+        try:
+            os.environ.pop("CRT_AUDIO_DEV", None)
+            stt_solo.subprocess.run = lambda *a, **k: FakeCompleted()
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                dev = stt_solo._detect_capture_device()
+            self.assertEqual(dev, "plughw:0,0")
+            self.assertIn("no capture card NAMED", err.getvalue())
+        finally:
+            stt_solo.subprocess.run = real_run
+            os.environ.clear()
+            os.environ.update(original)
+
+
 class TestExplicitOverrideWins(unittest.TestCase):
     def test_explicit_env_var_skips_name_resolution_entirely(self):
         # CRT_AUDIO_DEV must always be a hard override -- name-resolution

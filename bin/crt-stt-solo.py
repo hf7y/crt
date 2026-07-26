@@ -315,34 +315,88 @@ DEV_FALLBACK = "plughw:0,0"
 ARECORD_CARD_RE = re.compile(
     r"^card (\d+):.*\[(.*?)\],\s*device (\d+):", re.IGNORECASE)
 
+# HOW a device was arrived at. The resolver has always had three outcomes;
+# it used to return only the device, so the caller had to re-derive which one
+# had happened -- and did it by testing whether DEV_NAME_PATTERN appeared
+# anywhere in the raw `arecord -l` text. That is not the same question.
+# "USB Audio" is the DEVICE description of essentially every USB audio-class
+# adapter, not just of a card whose NAME matches:
+#
+#   card 1: Device [USB PnP Sound Device], device 0: USB Audio [USB Audio]
+#                   ^ the name that must match      ^ but this matched instead
+#
+# so the substring test passed while no card name had matched, and the one
+# case the warning exists for was the one case it could not see. On a box
+# with two capture cards that silently opened the wrong one. The resolver
+# knows which outcome it took; it now says so instead of being guessed at.
+BY_NAME      = "name"           # a card's bracketed name actually matched
+FIRST_LISTED = "first-listed"   # no name matched; guessed a real capture card
+NO_CARDS     = "no-cards"       # the listing named no capture cards at all
 
-def resolve_capture_device_by_name(arecord_l_output, name_pattern=DEV_NAME_PATTERN,
-                                    fallback=DEV_FALLBACK):
-    """Pure string parse of `arecord -l` CAPTURE-device listing output --
-    returns 'plughw:<card>,<device>' for the first card whose bracketed name
-    contains name_pattern (case-insensitive). If nothing matches by name but
-    the listing DOES name capture cards, returns the first one listed rather
-    than `fallback`: every card in this listing can at least be opened for
-    capture, whereas the hardcoded fallback index is exactly what broke on
-    potato (plughw:0,0 there is the onboard playback-only card, absent from
-    this listing entirely -- arecord on it exits instantly with no capture).
-    `fallback` is only for a listing with no cards at all. Does not touch
-    hardware itself; callers pass in the already-captured `arecord -l` text
-    so this stays unit-testable."""
-    if not arecord_l_output:
-        return fallback
-    needle = name_pattern.lower()
+
+def resolve_capture_device(arecord_l_output, name_pattern=DEV_NAME_PATTERN,
+                           fallback=DEV_FALLBACK):
+    """Pure string parse of `arecord -l` CAPTURE-device listing output.
+    Returns (device, reason, card_names): 'plughw:<card>,<device>' for the
+    first card whose bracketed name contains name_pattern (case-insensitive),
+    with reason BY_NAME. If nothing matches by name but the listing DOES name
+    capture cards, returns the first one listed (FIRST_LISTED) rather than
+    `fallback`: every card in this listing can at least be opened for capture,
+    whereas the hardcoded fallback index is exactly what broke on potato
+    (plughw:0,0 there is the onboard playback-only card, absent from this
+    listing entirely -- arecord on it exits instantly with no capture).
+    `fallback` is only for a listing with no cards at all (NO_CARDS).
+
+    card_names is every bracketed card name seen, in order, so a caller
+    reporting a miss can name what WAS there without re-running arecord.
+
+    Does not touch hardware itself; callers pass in the already-captured
+    `arecord -l` text so this stays unit-testable."""
+    needle = (name_pattern or "").lower()
     first = None
-    for line in arecord_l_output.splitlines():
+    names = []
+    for line in (arecord_l_output or "").splitlines():
         m = ARECORD_CARD_RE.match(line.strip())
         if not m:
             continue
         dev = "plughw:%s,%s" % (m.group(1), m.group(3))
-        if needle in m.group(2).lower():
-            return dev
+        names.append(m.group(2))
+        if needle and needle in m.group(2).lower():
+            return dev, BY_NAME, names
         if first is None:
             first = dev
-    return first if first else fallback
+    if first:
+        return first, FIRST_LISTED, names
+    return fallback, NO_CARDS, names
+
+
+def resolve_capture_device_by_name(arecord_l_output, name_pattern=DEV_NAME_PATTERN,
+                                    fallback=DEV_FALLBACK):
+    """The device alone, for callers that don't report on how it was found."""
+    return resolve_capture_device(arecord_l_output, name_pattern, fallback)[0]
+
+
+def capture_device_warning(dev, reason, names, name_pattern=DEV_NAME_PATTERN):
+    """The message for a device that was GUESSED rather than matched, or None
+    when it was matched by name and there is nothing to say. Separate from the
+    resolver and from the writing of it so the wording is testable without a
+    subprocess -- same shape as capture_death_report() below.
+
+    Guessing a capture device is a legitimate degraded mode. Doing it silently
+    is how "the console just stopped hearing anything" turns into an evening
+    of debugging, which is the entire reason this resolver exists."""
+    if reason == BY_NAME:
+        return None
+    if reason == NO_CARDS:
+        return ("[crt-stt] WARNING: `arecord -l` listed NO capture cards at "
+                "all; falling back to %s, which may not be a capture device "
+                "on this box. Check the mic is plugged in, or set "
+                "CRT_AUDIO_DEV to pin one explicitly.\n" % dev)
+    seen = ", ".join(repr(n) for n in (names or [])) or "(none)"
+    return ("[crt-stt] WARNING: no capture card NAMED %r in `arecord -l`; "
+            "guessing %s, the first one listed. Cards seen: %s. Set "
+            "CRT_AUDIO_DEV to pin a device explicitly, or CRT_AUDIO_DEV_NAME "
+            "to match this box's adapter.\n" % (name_pattern, dev, seen))
 
 
 def _detect_capture_device():
@@ -358,16 +412,10 @@ def _detect_capture_device():
                               text=True, timeout=5).stdout
     except Exception:
         return DEV_FALLBACK
-    dev = resolve_capture_device_by_name(out)
-    # Say so when we didn't get what we asked for. Guessing a device is a
-    # legitimate degraded mode, but doing it silently is how "the console
-    # just stopped hearing anything" turns into an evening of debugging.
-    if DEV_NAME_PATTERN.lower() not in (out or "").lower():
-        sys.stderr.write(
-            "[crt-stt] WARNING: no capture card matching %r in `arecord -l`; "
-            "falling back to %s. Set CRT_AUDIO_DEV to pin one explicitly, or "
-            "CRT_AUDIO_DEV_NAME to match this box's adapter.\n"
-            % (DEV_NAME_PATTERN, dev))
+    dev, reason, names = resolve_capture_device(out)
+    warning = capture_device_warning(dev, reason, names)
+    if warning:
+        sys.stderr.write(warning)
     return dev
 
 
