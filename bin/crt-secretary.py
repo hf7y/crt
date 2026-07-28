@@ -645,6 +645,52 @@ def send_to_claude(text):
     return True
 
 
+# Claude Code's own TUI chrome that a raw pane-line diff cannot tell apart
+# from real reply content (2026-07-28, live-confirmed on potato the first
+# time a real remote reply was captured end-to-end): the echoed prompt
+# ("> what you just said"), the bottom status bar ("-- INSERT --", "auto
+# mode on..."), bare box-drawing border lines, and the spinner line
+# ("* Baked for 2s"). None of these are ever the actual answer.
+_PANE_SPINNER_CHARS = "*+~"
+_PANE_BORDER_RE = re.compile(r"^[\s\-_=]*$")
+_PANE_STATUS_RE = re.compile(
+    r"^(--\s*INSERT\s*--|auto mode on\b|.*for agents\s*)", re.IGNORECASE)
+
+
+def clean_claude_pane_reply(lines):
+    """Filter a raw pane-diff line list down to just Claude's answer text.
+
+    Best-effort, same posture as the diff it cleans up (see
+    wait_for_claude_reply's docstring) -- not a real terminal parser, just
+    enough pattern-matching to stop known chrome from being spoken or
+    printed as if it were the answer. Safe to run on any line list,
+    including one with no chrome in it at all (nothing here matches
+    ordinary reply text)."""
+    out = []
+    for raw in lines:
+        s = raw.strip()
+        if not s:
+            continue
+        # box-drawing border lines (potato's SSH/tmux capture renders these
+        # in plain ASCII, not unicode box-drawing, hence the dash/equals
+        # check above rather than a unicode char class)
+        if set(s) <= set("-_=─│┌┐└┘╭╮╯╰"):
+            continue
+        if _PANE_STATUS_RE.match(s):
+            continue
+        if s[0] in "❯":  # the echoed prompt line ("> ..."/❯ ...): never the reply
+            continue
+        if s[0] in "●✦✴✻✶✺" or s[0] in _PANE_SPINNER_CHARS:
+            # answer marker ("* " / "● ") or spinner line ("✦ Baked for 2s")
+            s = s.lstrip("●✦✴✻✶✺" + _PANE_SPINNER_CHARS).strip()
+            if s.startswith("»"):  # "● » " marker seen live 2026-07-28
+                s = s[1:].strip()
+            if not s or re.match(r"^Baked for \d", s, re.IGNORECASE):
+                continue
+        out.append(s)
+    return "\n".join(out).strip()
+
+
 def wait_for_claude_reply(before_snapshot, on_partial=None):
     """Poll capture-pane until it stops changing for CLAUDE_IDLE_SECS, or
     CLAUDE_MAX_WAIT elapses. Returns (reply, status): the pane lines added
@@ -740,7 +786,7 @@ def wait_for_claude_reply(before_snapshot, on_partial=None):
     # tail. Good enough as a first cut; a real implementation should key off
     # Claude Code's actual prompt markers instead of pure line-set diffing.
     new_lines = [ln for ln in after_lines if ln not in before_lines]
-    reply = "\n".join(ln for ln in new_lines if ln.strip())
+    reply = clean_claude_pane_reply(new_lines)
     return reply.strip(), "ok"
 
 
@@ -967,6 +1013,15 @@ def confidence_route(text, action):
     return local_answer
 
 
+# Same toggle crt-stt-solo.py already exposes (CRT_EARCON_DEVICE), read
+# here too (2026-07-28) -- this file's play_earcon() previously never
+# passed --device at all, so it silently fell through crt-earcon.sh's
+# `${DEVICE:-default}` case to the system default ALSA device regardless
+# of what the console's other earcons were routed to. One knob, both call
+# sites now honor it.
+EARCON_DEVICE = os.environ.get("CRT_EARCON_DEVICE", "handset")
+
+
 def play_earcon(name):
     """Fire-and-forget (Popen, not sh()/run) -- an earcon must never add
     its own latency on top of the real wait it's meant to paper over.
@@ -979,7 +1034,7 @@ def play_earcon(name):
     inaudible answer."""
     try:
         subprocess.Popen(
-            [os.path.join(BIN_DIR, "crt-earcon.sh"), name],
+            [os.path.join(BIN_DIR, "crt-earcon.sh"), name, "--device", EARCON_DEVICE],
             stdout=subprocess.DEVNULL,
         )
     except OSError:

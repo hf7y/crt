@@ -192,6 +192,10 @@ echo "== crt-claude-bridge.py =="
 python3 "$DIR/test_claude_bridge.py" || fail=1
 echo
 
+echo "== crt-secretary.py clean_claude_pane_reply() (TUI-chrome stripping) =="
+python3 "$DIR/test_clean_claude_pane_reply.py" || fail=1
+echo
+
 # 2026-07-25: this file existed but nothing ran it, so the CAPTURE/SEND
 # protocol of the bridge the live brain-on-mandark path depends on had zero
 # coverage in the suite. See the manifest check at the bottom.
