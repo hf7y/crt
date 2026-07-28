@@ -9,8 +9,18 @@ this file is the stable "how the pieces relate" reference.
 - Raspberry Pi 3B+, quad Cortex-A53 @1.4GHz, **~905MB RAM** (1GB class),
   user `vkv`, project tree at `~/crt`. `ssh potato` (key auth, alias in
   mandark's `~/.ssh/config`).
-- The real console hardware: composite/RF to a CRT (≈40×15), landline
-  handset mic, USB audio ("KT USB Audio", capture only on `plughw:1,0`).
+- The real console hardware: **HDMI out → RF converter → CRT** (≈40×15,
+  landline handset mic, USB audio ("KT USB Audio", capture only on
+  `plughw:1,0`). **Confirmed 2026-07-28, live, by ear (Zach): HDMI audio
+  (`aplay -D plughw:2,0`, card 2 `vc4-hdmi`) DOES reach the room** through
+  that converter — this is the room-wide alert path, not a dead port.
+  Earlier phrasing here ("composite/RF to a CRT") was read as "HDMI is
+  disconnected from the real signal chain" during the same day's earcon
+  work and cost real time chasing whether anything was even plugged in —
+  it wasn't wrong about the RF/CRT part, just silent about HDMI being the
+  thing feeding the converter. `crt-earcon.sh --device tv` and
+  `CRT_EARCON_DEVICE=tv` (potato's `~/.bash_profile` testing default,
+  toggle back to `handset`) are this path, live and correct.
 - Memory-constrained. Claude Code resident on potato was **~37% of RAM**
   (`ARCHITECTURE-REVIEW-2026-07-23.md`) — the whole reason the brain moved
   off-box. Keep potato lean.
