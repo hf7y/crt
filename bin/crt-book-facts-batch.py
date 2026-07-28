@@ -64,7 +64,11 @@ _bg_spec = importlib.util.spec_from_file_location("crt_book_game", os.path.join(
 bg = importlib.util.module_from_spec(_bg_spec)
 _bg_spec.loader.exec_module(bg)
 
-BATCH_SIZE = int(os.environ.get("CRT_BOOK_FACTS_BATCH_SIZE", "10"))
+# 2026-07-28, live, Zach-directed ("smaller batch size"): a real 10-book
+# batch (30 generated questions) timed out even after the timeout itself
+# was widened (see bg.GEMINI_BATCH_TIMEOUT_SECS) -- fewer books per call
+# is the other half of that fix, not a substitute for it.
+BATCH_SIZE = int(os.environ.get("CRT_BOOK_FACTS_BATCH_SIZE", "4"))
 
 
 def books_needing_scrape(conn):
@@ -171,6 +175,19 @@ def run_distill_stage(conn, api_key=None, poster=None, log=print):
     return processed
 
 
+def _timestamped_log(msg):
+    # Only main()'s own default -- run_scrape_stage/run_distill_stage
+    # still default to plain print() so tests asserting on exact log
+    # text don't have to match a timestamp. This is what actually lands
+    # in ~/.crt/facts-batch.log when crt-book-console.py's fire-and-
+    # forget trigger fires (2026-07-28: that used to discard both
+    # streams entirely, see maybe_trigger_facts_batch's own comment) --
+    # a timestamp is the difference between a debuggable log and a wall
+    # of messages with no idea which run or how long ago.
+    import datetime
+    print("%s  %s" % (datetime.datetime.now().strftime("%H:%M:%S"), msg))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scrape-only", action="store_true")
@@ -184,14 +201,14 @@ def main():
     if args.dry_run:
         scrape_n = len(books_needing_scrape(conn))
         distill_n = len(books_needing_distill(conn))
-        print(f"[facts-batch] dry-run: {scrape_n} book(s) would be scraped, "
-              f"{distill_n} book(s) would be distilled")
+        _timestamped_log(f"dry-run: {scrape_n} book(s) would be scraped, "
+                         f"{distill_n} book(s) would be distilled")
         return
 
     if not args.distill_only:
-        run_scrape_stage(conn)
+        run_scrape_stage(conn, log=_timestamped_log)
     if not args.scrape_only:
-        run_distill_stage(conn)
+        run_distill_stage(conn, log=_timestamped_log)
 
 
 if __name__ == "__main__":

@@ -385,7 +385,16 @@ def _load_gemini_key():
         return None
 
 
-def call_gemini_batch(prompt_payload, api_key=None, poster=None):
+# 2026-07-28, live: a real 10-book batch (30 generated questions) timed
+# out against the old 20s -- fine for a single-book question call, not
+# for a real multi-book batch. Configurable per-call (single-book
+# callers can still pass a short one) rather than just bumping the
+# hardcoded number, since the two use cases have genuinely different
+# latency budgets.
+GEMINI_BATCH_TIMEOUT_SECS = float(os.environ.get("CRT_GEMINI_BATCH_TIMEOUT_SECS", "90"))
+
+
+def call_gemini_batch(prompt_payload, api_key=None, poster=None, timeout=None):
     """Sends build_claude_batch_prompt()'s payload to Gemini and returns
     parsed JSON in the same {"<isbn>": [...]} shape parse_claude_batch_
     response() already expects -- this is the cheap-tier stand-in for the
@@ -413,7 +422,7 @@ def call_gemini_batch(prompt_payload, api_key=None, poster=None):
             url, data=body, method="POST",
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with urllib.request.urlopen(req, timeout=timeout or GEMINI_BATCH_TIMEOUT_SECS) as resp:
             raw = resp.read()
 
     envelope = json.loads(raw)
@@ -1328,7 +1337,11 @@ def main():
             # Library lookup above.
             try:
                 prompt = build_claude_batch_prompt([book])
-                response_json = call_gemini_batch(prompt)
+                # A single book, not a real batch -- keep this call's
+                # original fast-fail budget rather than the wider
+                # GEMINI_BATCH_TIMEOUT_SECS a real multi-book batch needs
+                # (2026-07-28); a fresh scan should not stall for 90s.
+                response_json = call_gemini_batch(prompt, timeout=20)
                 questions = parse_claude_batch_response(response_json, isbn)
                 if questions:
                     question = questions[0]

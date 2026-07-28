@@ -528,9 +528,24 @@ def maybe_trigger_facts_batch(conn, spawner=None, runner=None):
         if spawner is not None:
             spawner(["python3", os.path.join(BIN_DIR, "crt-book-facts-batch.py")])
         else:
+            # Real log, not DEVNULL (2026-07-28, live): a real Gemini
+            # batch timeout on potato went completely unseen the first
+            # time this fired, because a fire-and-forget subprocess with
+            # both streams discarded is indistinguishable from one that
+            # quietly succeeded -- exactly the "it did not happen" vs
+            # "nothing to do" distinction this project's own build
+            # discipline calls out repeatedly. Appended, not truncated:
+            # this can fire many times across a session.
+            log_path = os.path.expanduser(
+                os.environ.get("CRT_BOOK_FACTS_BATCH_LOG", "~/.crt/facts-batch.log"))
+            try:
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                log_f = open(log_path, "a")
+            except OSError:
+                log_f = subprocess.DEVNULL
             subprocess.Popen(
                 ["python3", os.path.join(BIN_DIR, "crt-book-facts-batch.py")],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                stdout=log_f, stderr=subprocess.STDOUT,
             )
     except OSError:
         return False
