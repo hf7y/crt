@@ -239,6 +239,17 @@ tmux new-window -d -t "$SESSION" -n book -c "$BIN_DIR" "python3 ./crt-book-conso
 # design (reads books.db/fallback pool only, no live cost at idle time).
 tmux new-window -d -t "$SESSION" -n bookidle -c "$BIN_DIR" "python3 ./crt-book-idle-bait.py; exec bash"
 
+# Background daemon, not a display surface (2026-07-28, Zach-directed:
+# "idlebait also show page92 excerpts via \\192.168.0.27\bibquotes") --
+# keeps ~/.crt/bibquotes.txt fresh from bibliothecaire's published-quotes
+# Samba share so crt-book-idle-bait.py's own render path can read it with
+# zero network calls, same non-API-at-idle-time rule as everything else
+# that window draws from. Same "background daemon gets its own window,
+# UI surfaces don't" precedent as windowswitch/stt below -- the actual
+# excerpts appear via the EXISTING bookidle mixing into thoughts.log, no
+# new screen.
+tmux new-window -d -t "$SESSION" -n bibquotes -c "$BIN_DIR" "./crt-bibquotes-sync.sh --daemon; exec bash"
+
 # Background: closes the Book Game funnel's last link (idle-bait -> scan
 # -> question -> SPOKEN ANSWER -> STT training log, .claude/FOCUS.md's
 # 2026-07-21 end-goal). Watches ~/.crt/stt.log (crt-stt-solo.py already

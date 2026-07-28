@@ -191,15 +191,14 @@ def pick_caption_slot(art, width, height, rng=None, avoid=None):
                                  1, rng=rng, avoid=avoid)
 
 
-def render_frame(art, width, height, caption, color, dim, slot=None):
-    """Build one full-screen frame string: cleared, art centered
-    horizontally and vertically, caption at `slot` -- (row, alignment) --
-    or on the last row, centered, when no slot is given.
-
-    Exactly `height` lines, the clear sequence riding on the first one
-    rather than taking a line of its own: emitting height+1 lines scrolled
-    the tube by a row on every single frame, so the whole picture jumped up
-    and back twice a breath."""
+def _frame_rows(art, width, height, caption, color, dim, slot=None):
+    """The frame's content rows, unpadded by any overscan margin and
+    with no clear-sequence prefix -- split out from render_frame()
+    (2026-07-28) so a caller can shrink (width, height) for the
+    calibrated safe area and then physically pad the result, the same
+    two-step crt-book-console.py's redraw()/pad_for_margins() already
+    does. render_frame() itself is now a thin wrapper for callers that
+    don't need margin handling (tests, mostly)."""
     lines, top = art_layout(art, width, height)
     rows = [""] * max(1, height)
     style = (DIM if dim else "") + "\x1b[%sm" % color
@@ -221,7 +220,77 @@ def render_frame(art, width, height, caption, color, dim, slot=None):
         pad = width - caption_lib.display_width(cap)
         left = 0 if align == "left" else pad if align == "right" else pad // 2
         rows[row] = " " * left + DIM + "\x1b[%sm" % YELLOW + cap + RESET
+    return rows
+
+
+def render_frame(art, width, height, caption, color, dim, slot=None):
+    """Build one full-screen frame string: cleared, art centered
+    horizontally and vertically, caption at `slot` -- (row, alignment) --
+    or on the last row, centered, when no slot is given.
+
+    Exactly `height` lines, the clear sequence riding on the first one
+    rather than taking a line of its own: emitting height+1 lines scrolled
+    the tube by a row on every single frame, so the whole picture jumped up
+    and back twice a breath. No margin handling -- see _frame_rows()'s
+    docstring for the caller that wants that."""
+    rows = _frame_rows(art, width, height, caption, color, dim, slot)
     return "\x1b[H\x1b[2J" + "\n".join(rows)
+
+
+def load_safe_margins():
+    """Same calibrated-margin loader + hard vertical floor as
+    crt-book-console.py's load_safe_margins() (2026-07-28, Zach-
+    directed: "splash screen doesn't look to be going through the same
+    bezel margin enforcer, bottom line cut off by bezel") -- duplicated
+    rather than imported (this window deliberately avoids importing
+    crt-book-console.py or crt-book-game.py at all, see this file's own
+    header on why: sqlite3/urllib have no business in the one window
+    meant to hold no brain on a 1GB Pi). Degrades to the hard floor
+    alone if crt-pager.py or the calibration file can't be read."""
+    margins = {"top": 0, "bottom": 0, "left": 0, "right": 0}
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "crt_pager_margins_for_screensaver", os.path.join(BIN_DIR, "crt-pager.py"))
+        pager = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(pager)
+        conf = os.path.expanduser(
+            os.environ.get("CRT_DISPLAY_CONF", "~/.crt/display.conf"))
+        margins = pager.load_display_margins(conf)
+    except Exception:
+        pass
+    margins["top"] = max(margins.get("top", 0), MIN_VERTICAL_PAD)
+    margins["bottom"] = max(margins.get("bottom", 0), MIN_VERTICAL_PAD)
+    return margins
+
+
+def safe_screen_size(width, height, margins):
+    """(width, height) shrunk by `margins` -- pure, testable without a
+    display.conf on disk. Same shape as crt-book-console.py's
+    safe_screen_size()."""
+    left, right = margins.get("left", 0), margins.get("right", 0)
+    top, bottom = margins.get("top", 0), margins.get("bottom", 0)
+    return max(1, width - left - right), max(1, height - top - bottom)
+
+
+def pad_frame_rows(rows, margins, width):
+    """Physically pushes already-rendered `rows` away from the tube's
+    edges by `margins` -- same reasoning and same shape as
+    crt-book-console.py's pad_for_margins(): shrinking the content box
+    passed to _frame_rows() only makes the ART smaller/centered within
+    that box, the box itself still starts at the true top-left corner
+    (render_frame's own `\\x1b[H`) unless something adds real blank
+    rows/columns here."""
+    left = " " * max(0, margins.get("left", 0))
+    padded = [left + r for r in rows]
+    blank = " " * (width + margins.get("left", 0) + margins.get("right", 0))
+    top = [blank] * max(0, margins.get("top", 0))
+    bottom = [blank] * max(0, margins.get("bottom", 0))
+    return top + padded + bottom
+
+
+# Same hard floor as crt-book-console.py's MIN_VERTICAL_PAD (2026-07-28):
+# at least one blank line top and bottom even with zero calibration.
+MIN_VERTICAL_PAD = int(os.environ.get("CRT_SCREENSAVER_MIN_VERTICAL_PAD", "1"))
 
 
 def forward_scan(isbn, log_path=None):
@@ -318,10 +387,14 @@ def main(argv=None):
     art_paths = [args.art] if args.art else active_art_paths()
     arts = [load_art(path) for path in art_paths]
     art = arts[0]
+    margins = load_safe_margins()
 
     if args.once:
         cols, rows = resolve_size()
-        sys.stdout.write(render_frame(art, cols, rows, args.caption, CYAN, dim=True))
+        content_cols, content_rows = safe_screen_size(cols, rows, margins)
+        frame_rows = _frame_rows(art, content_cols, content_rows, args.caption, CYAN, dim=True)
+        padded = pad_frame_rows(frame_rows, margins, content_cols)
+        sys.stdout.write("\x1b[H\x1b[2J" + "\n".join(padded))
         sys.stdout.write("\n")
         sys.stdout.flush()
         return 0
@@ -339,7 +412,8 @@ def main(argv=None):
     slot, move_at = None, 0.0
     art_idx, art_move_at = 0, 0.0
     for dim in itertools.cycle([True, False]):
-        cols, rows = resolve_size()
+        raw_cols, raw_rows = resolve_size()
+        cols, rows = safe_screen_size(raw_cols, raw_rows, margins)
         # Art alternation (2026-07-28): only matters while more than one
         # art is active (see active_art_paths()/OLD_ART_SUNSET_DATE) --
         # a single-art rotation is a no-op every tick, same "automatic
@@ -372,8 +446,9 @@ def main(argv=None):
         if args.caption_move_secs and time.time() >= move_at:
             slot = pick_caption_slot(art, cols, rows, avoid=slot)
             move_at = time.time() + args.caption_move_secs
-        sys.stdout.write(render_frame(art, cols, rows, args.caption, CYAN,
-                                      dim=dim, slot=slot))
+        frame_rows = _frame_rows(art, cols, rows, args.caption, CYAN, dim=dim, slot=slot)
+        padded = pad_frame_rows(frame_rows, margins, cols)
+        sys.stdout.write("\x1b[H\x1b[2J" + "\n".join(padded))
         sys.stdout.flush()
         time.sleep(args.interval)
     return 0

@@ -192,7 +192,11 @@ class TheRunningScreensaverMovesItTest(unittest.TestCase):
                            caption)
         self.assertEqual(len(set(slots)), 1,
                          "CRT_SCREENSAVER_CAPTION_MOVE_SECS=0 still moved it")
-        self.assertEqual(slots[0], (14, (40 - len(caption)) // 2))
+        # Row 13, not 14 (2026-07-28): the overscan safe-margin fix means
+        # row 14 (the tube's literal last row) is now always blank
+        # padding -- see crt-screensaver.py's load_safe_margins()/
+        # MIN_VERTICAL_PAD, same hard floor crt-book-console.py enforces.
+        self.assertEqual(slots[0], (13, (40 - len(caption)) // 2))
 
     def test_a_junk_interval_does_not_kill_the_face(self):
         # 2.5s of run against the 2.5s default it must fall back to: one

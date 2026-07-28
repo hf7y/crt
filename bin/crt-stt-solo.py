@@ -735,7 +735,17 @@ HALLU = set("you thankyou thanks thankyouforwatching bye music musicplaying "
 # need the wake word repeated.
 GATE       = os.environ.get("CRT_STT_GATE", "0") != "0"
 WAKE_WORD  = os.environ.get("CRT_WAKE_WORD", "claude").lower()
-GATE_LOG   = os.environ.get("CRT_STT_GATE_LOG", os.path.expanduser("~/.crt/thoughts.log"))
+# 2026-07-28, live, Zach-directed ("clean up claude output to mono ...
+# junk on screen"): this defaulted to the SAME file as THOUGHT_LOG below
+# -- window 1 (mono, crt-monologue.py) renders thoughts.log directly, so
+# every ambient utterance in the room that never reached Claude (gated,
+# no wake word) was landing on the one screen meant to show the
+# conversation, indistinguishable from an actual reply. Genuinely
+# separate file now; nothing else reads CRT_STT_GATE_LOG expecting it to
+# equal thoughts.log except test isolation setup pointing BOTH env vars
+# at one scratch path for convenience (those still work -- they set the
+# var explicitly, this only changes what happens when nobody does).
+GATE_LOG   = os.environ.get("CRT_STT_GATE_LOG", os.path.expanduser("~/.crt/gate.log"))
 # Resolved through bin/crt_config.py rather than read here, so this gate
 # and the two scripts that WRITE stt-fixups.json can no longer be pointed
 # at different files by setting one env var (crt-stt-training-merge.py

@@ -1262,6 +1262,70 @@ def pick_idle_quote(conn, rng=None):
 
 
 # ---------------------------------------------------------------------------
+# bibliothecaire "bibquotes" integration (2026-07-28, Zach-directed):
+# the quotes-file publishing side realisateur's 2026-07-26 FOCUS.md entry
+# queued ("extend the idle-bait quote rotation to ALSO draw from an
+# external bibliothecaire-published quotes file when one is present")
+# turned out to already be live -- \\192.168.0.27\bibquotes (mandark,
+# Samba, read-only), publishing quotes.txt: "one publishable quote per
+# line, 'text -- author, work'. Already filtered; consumers need no
+# policy logic" (that share's own README.txt). NON-API-BY-DESIGN is kept
+# intact: this module only ever reads a LOCAL cached copy
+# (bin/crt-bibquotes-sync.sh's job, run separately/periodically, never
+# from inside an idle-bait render) -- no network call happens at
+# idle-bait time, same rule pick_idle_quote() above already follows for
+# books.db.
+# ---------------------------------------------------------------------------
+
+BIBQUOTES_LOCAL_PATH = os.path.expanduser(
+    os.environ.get("CRT_BIBQUOTES_PATH", "~/.crt/bibquotes.txt"))
+
+
+def parse_bibquotes_line(line):
+    """Pure function: one 'quote -- author, work' line from bibquotes'
+    quotes.txt into (quote, attribution), or None for a blank/malformed
+    line. The em-dash separator (' — ', not a hyphen) is exactly what
+    that share's README.txt documents and the live file (fetched
+    2026-07-28) actually uses -- a bare ' - ' is NOT treated as the
+    separator, to avoid splitting on a hyphen that's part of the quote
+    text itself (real risk in philosophy/cybernetics prose, this
+    corpus's actual content)."""
+    line = line.strip()
+    if not line or " — " not in line:
+        return None
+    quote, _, attribution = line.partition(" — ")
+    quote, attribution = quote.strip(), attribution.strip()
+    if not quote or not attribution:
+        return None
+    return quote, attribution
+
+
+def load_bibquotes(path=None):
+    """All (quote, attribution) pairs from the local bibquotes cache.
+    Never raises -- a missing file (sync never run yet, or the share
+    unreachable last sync) or an unreadable one just means no bibquotes
+    lines are available this round, same graceful-empty posture as
+    pick_idle_quote()'s empty-registry case. Malformed individual lines
+    are skipped, not fatal to the whole file."""
+    path = path or BIBQUOTES_LOCAL_PATH
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.readlines()
+    except OSError:
+        return []
+    return [parsed for parsed in (parse_bibquotes_line(l) for l in lines) if parsed]
+
+
+def pick_bibquotes_line(path=None, rng=None):
+    """One random (quote, attribution) from the local bibquotes cache, or
+    None if the cache is missing/empty. rng injectable for tests, same
+    convention as pick_idle_quote."""
+    rng = rng or random
+    pairs = load_bibquotes(path)
+    return rng.choice(pairs) if pairs else None
+
+
+# ---------------------------------------------------------------------------
 # Scanner-feed integration: bridges bin/crt-scanner-feed.py's delivery
 # convention (SCANNER.md) with this CLI's plain --isbn argument
 # ---------------------------------------------------------------------------

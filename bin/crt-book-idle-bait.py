@@ -68,21 +68,43 @@ IDLE_SECS = crt_config.env_number("CRT_BOOK_IDLE_BAIT_SECS", 180.0)
 # mic reader's box. Nothing else in this file has that shape.
 POLL_SECS = crt_config.env_number("CRT_BOOK_IDLE_BAIT_POLL", 10.0, minimum=0.1)
 ENTICE_RATE = crt_config.env_number("CRT_BOOK_ENTICE_RATE", 0.4)
+# THIRD register (2026-07-28, Zach-directed: "idlebait also show page92
+# excerpts via \\192.168.0.27\bibquotes") -- bg.pick_bibquotes_line()
+# reads a LOCAL cache of bibliothecaire's published quotes.txt (synced
+# separately by bin/crt-bibquotes-sync.sh; NEVER hits the network from
+# here, same NON-API-BY-DESIGN rule as pick_idle_quote() above). Fraction
+# of quote-shaped rounds (i.e. rounds that already passed the entice
+# check) that pull from bibquotes instead of a registered book's own
+# quote, when BOTH are available. When the registry is empty but
+# bibquotes has content, bibquotes fills the "quote" register on its
+# own -- an empty scan history no longer means only enticements ever
+# show.
+BIBQUOTES_RATE = crt_config.env_number("CRT_BOOK_BIBQUOTES_RATE", 0.3)
 
 
 def pick_and_format_line(conn, rng=None):
-    """Pure-ish (only touches the given conn): returns a colored idle-
-    bait line -- an enticement nudge (warm/curious register, EXPRESSIVE-
-    TONE.md) or a quote about an already-scanned book (wistful/quiet
-    register), per the mixing rule in the file header. Never None: an
-    empty registry always gets an enticement line instead of silently
-    producing nothing."""
+    """Pure-ish (only touches the given conn, and bg.BIBQUOTES_LOCAL_PATH
+    for a local file read): returns a colored idle-bait line -- an
+    enticement nudge (warm/curious register, EXPRESSIVE-TONE.md), a quote
+    about an already-scanned book, or a bibliothecaire page-92 excerpt
+    (both wistful/quiet register), per the mixing rule in the file
+    header. Never None: with nothing to quote at all (empty registry AND
+    no bibquotes cache), always gets an enticement line instead of
+    silently producing nothing."""
     rng = rng or random
     picked = bg.pick_idle_quote(conn, rng=rng)
-    if picked is None or rng.random() < ENTICE_RATE:
+    bibquote = bg.pick_bibquotes_line(rng=rng)
+    have_quote_source = picked is not None or bibquote is not None
+    if not have_quote_source or rng.random() < ENTICE_RATE:
         return bg.wrap_color("  " + bg.pick_entice_line(rng=rng), bg.COLOR_QUESTION)
-    title, quote = picked
-    line = f'  ~ "{quote}" -- {title}'
+    # Both available: mix via BIBQUOTES_RATE. Only one available: use it,
+    # no dice roll needed.
+    if bibquote is not None and (picked is None or rng.random() < BIBQUOTES_RATE):
+        quote, attribution = bibquote
+        line = f'  ~ "{quote}" -- {attribution}'
+    else:
+        title, quote = picked
+        line = f'  ~ "{quote}" -- {title}'
     return bg.wrap_color(line, bg.COLOR_QUOTE)
 
 

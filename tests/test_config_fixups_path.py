@@ -188,7 +188,11 @@ class TestATypoDoesNotTakeAWindowDown(unittest.TestCase):
 
     def test_the_book_window_still_loads_at_its_defaults(self):
         mod = _load("crt_book_console_junk", "crt-book-console.py", self.JUNK)
-        self.assertEqual((mod.IDLE_SECS, mod.IDLE_ROTATE_SECS), (20.0, 8.0))
+        # 20.0 -> 35.0, 2026-07-28 (see crt-book-console.py's own comment
+        # on IDLE_SECS: "need more of a delay between question and
+        # answer" for the now-real, thought-requiring AI-enriched
+        # questions).
+        self.assertEqual((mod.IDLE_SECS, mod.IDLE_ROTATE_SECS), (35.0, 8.0))
 
     def test_the_idle_face_still_loads_at_its_defaults(self):
         mod = _load("crt_screensaver_junk", "crt-screensaver.py", self.JUNK)

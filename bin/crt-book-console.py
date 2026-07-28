@@ -101,9 +101,19 @@ _env_secs = crt_config.env_number
 
 
 SCANNER_LOG = os.path.expanduser(os.environ.get("CRT_SCANNER_LOG", "~/.crt/scanner.log"))
-IDLE_SECS = _env_secs("CRT_BOOK_CONSOLE_IDLE_SECS", 20.0)
+# 20.0 -> 35.0 (2026-07-28, Zach-directed: "need more of a delay between
+# question and answer") -- the AI-enriched questions (crt-book-facts-
+# batch.py's real, fact-grounded trivia, live as of this same session)
+# take real thought, unlike the two-word fiction/nonfiction guess this
+# timing was originally tuned for. Kept in step with crt-book-answer-
+# listen.py's ANSWER_WINDOW_SECS below -- no point holding the question
+# on screen longer than a spoken answer would still be graded.
+IDLE_SECS = _env_secs("CRT_BOOK_CONSOLE_IDLE_SECS", 35.0)
 POLL_SECS = _env_secs("CRT_BOOK_CONSOLE_POLL_SECS", 0.5)
-WAIT_HINT_SECS = _env_secs("CRT_BOOK_CONSOLE_WAIT_HINT_SECS", 8.0)
+# 8.0 -> 15.0, same reasoning and same day as IDLE_SECS above -- the
+# "still reading..." hint firing well before someone's finished reading
+# a real question read as the console rushing them.
+WAIT_HINT_SECS = _env_secs("CRT_BOOK_CONSOLE_WAIT_HINT_SECS", 15.0)
 # How often the resting screen redraws itself. render_idle_screen() picks a
 # fresh caption and a fresh position every call -- see its docstring, which
 # quotes Zach on both halves -- and until 2026-07-25 main() called it once and

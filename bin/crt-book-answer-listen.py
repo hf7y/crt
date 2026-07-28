@@ -36,8 +36,12 @@
 #     result announcement is appended (crt-monologue.sh already tails
 #     this and shows it on screen, same channel crt-book-idle-bait.py
 #     and crt-idle-teaser.sh already write to)
-#   CRT_BOOK_ANSWER_WINDOW_SECS (default 20) -- how long after a scan an
-#     utterance still counts as "the answer to that question"
+#   CRT_BOOK_ANSWER_WINDOW_SECS (default 35, was 20 -- 2026-07-28,
+#     Zach-directed: "need more of a delay between question and answer",
+#     kept in step with crt-book-console.py's IDLE_SECS so the question
+#     doesn't leave the screen before an answer would still be graded)
+#     -- how long after a scan an utterance still counts as "the answer
+#     to that question"
 #   CRT_WAKE_WORD (default claude) and CRT_STT_FIXUPS -- read only to
 #     recognize an utterance addressed to the console and leave it alone;
 #     both resolved exactly as crt-stt-solo.py's gate resolves them, via
@@ -88,7 +92,7 @@ _arm_spec.loader.exec_module(wake_arm)
 
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
-ANSWER_WINDOW_SECS = float(os.environ.get("CRT_BOOK_ANSWER_WINDOW_SECS", "20"))
+ANSWER_WINDOW_SECS = float(os.environ.get("CRT_BOOK_ANSWER_WINDOW_SECS", "35"))
 POLL_SECS = float(os.environ.get("CRT_BOOK_ANSWER_LISTEN_POLL_SECS", "0.5"))
 
 
