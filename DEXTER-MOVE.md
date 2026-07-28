@@ -37,7 +37,11 @@ tokens, untracked, repo root) was **deleted 2026-07-28** on Zach's
 instruction rather than migrated. If a future session finds it again,
 something restored it from a backup — do not carry it to dexter.
 
-## 2. Decide the remote-Claude bridge's fate BEFORE moving it
+## 2. The remote-Claude bridge — DECIDED 2026-07-28: **delete it**
+
+**Zach's call, taken interactively via realisateur `/ideate` (on gardien)
+on 2026-07-28, answering this section's own "do not defer this" — filed
+here by realisateur once `check-project-busy crt` reported free.**
 
 `bin/crt-remote-claude-bridge.py` + `bin/crt-mandark.sh` +
 `crt-potato-tunnel.service` exist in their current shape for one reason,
@@ -46,22 +50,33 @@ so the connection is a reverse tunnel initiated *outward* from mandark, and
 potato holds no path into mandark at all. That is a security property
 derived from the host being a laptop.
 
-On an always-on, reachable dexter, the honest options are:
+**The decision: delete, don't migrate.** With the brain on always-on dexter
+and potato talking to it directly, `crt-mandark.sh`'s whole config surface
+(`~/.crt/mandark.conf`) is dead weight. **This folds into FOCUS item 1's
+existing "kill dead dexter/crt-vm code" sweep** rather than becoming its own
+track — same sweep, one more corpse.
 
-- **Keep the reverse-tunnel shape** — deliberately, because "the brain host
-  has no inbound path" is still a property worth having, not because it was
-  inherited.
-- **Replace it with a direct service** — simpler, but that is a real
-  blast-radius decision (a listening Claude bridge on an always-on box) and
-  needs Zach in the loop, same class as potato's push-access question.
-- **Delete it** — if the brain runs on dexter and potato talks to it
-  directly, `crt-mandark.sh`'s whole config surface (`~/.crt/mandark.conf`)
-  is dead weight. FOCUS item 1 is already a "kill dead dexter/crt-vm code"
-  sweep; this would fold into it.
+*Rejected, and why, so the fork survives its context:* **keeping the
+reverse-tunnel shape** would have meant deliberately re-adopting "the brain
+host has no inbound path" as a property worth having on dexter too. Not
+chosen — the property was a consequence of mandark being an intermittent
+laptop, and re-adopting it on an always-on box means paying its complexity
+for a threat model nobody has argued for on its own merits. **Replacing it
+with a direct service** was rejected as the worst of both: it keeps a
+listening Claude bridge, and puts it on an always-on machine, which is a
+real blast-radius increase for no gain once the reverse tunnel is gone
+anyway.
 
-Do not defer this past the move. A migrated-verbatim bridge documents a
-threat model that stopped being true, which is how the next session
-inherits a wrong premise.
+The retirement half is filed to senechal (2026-07-28, "RETIREMENT IS A
+CHANGE") — with the note that `crt-remote-claude-bridge.service` and
+`crt-potato-tunnel.service` are *installed-but-inactive on mandark right
+now*, which is exactly the state step 6 below warns against. Deleting the
+code without removing those units would leave the corpse this decision
+exists to clear.
+
+The original framing, kept because it is still the right instinct: a
+migrated-verbatim bridge documents a threat model that stopped being true,
+which is how the next session inherits a wrong premise.
 
 ## 3. Potato's `origin` is the actual deliverable
 
