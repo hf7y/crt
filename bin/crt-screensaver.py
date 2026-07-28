@@ -170,17 +170,23 @@ LOGO_COLORS = [
 GRADIENT = "gradient"
 
 
-def gradient_colors(n, palette=None):
+def gradient_colors(n, palette=None, offset=0):
     """n colors sampled evenly across `palette` (default LOGO_COLORS),
-    top-to-bottom. Pure, deterministic given n/palette -- same color
-    picked for the same row index every call, so this doesn't need its
-    own state in main()'s loop the way the old discrete rotation did."""
+    top-to-bottom, then rotated by `offset` positions (2026-07-28, live,
+    Zach: "rotating gradient of olive, brown, tan (all at once, but the
+    gradient crossover changes)" -- a static row->color mapping read as
+    flat; the crossover point between colors needs to actually move
+    over time). Pure/deterministic given n/palette/offset -- the
+    ROTATION over time is main()'s job (a slowly-incrementing offset
+    counter), not this function's; same "no hidden state" rule as the
+    unrotated version this replaces."""
     palette = list(palette or LOGO_COLORS)
     if n <= 0:
         return []
     if n == 1 or len(palette) == 1:
-        return [palette[0]] * n
-    return [palette[round(i * (len(palette) - 1) / (n - 1))] for i in range(n)]
+        return [palette[offset % len(palette)]] * n
+    return [palette[(round(i * (len(palette) - 1) / (n - 1)) + offset) % len(palette)]
+           for i in range(n)]
 
 
 # Blink model (2026-07-28, Zach-directed): "make the shimmer stay long
@@ -249,6 +255,17 @@ def frame_color_for_state(asleep):
     the sleep/awake color split has its own test, not just an assertion
     buried in a live-process integration test."""
     return WHITE if asleep else GRADIENT
+
+
+def frame_dim_for_state(asleep, cycled_dim):
+    """The `dim` arg _frame_rows() should get for this tick (2026-07-28,
+    live, Zach: "make sleep potato stop blinking"). The art itself was
+    already frozen on arts[1] while asleep, but the loop's own DIM/
+    normal breathing cycle kept alternating regardless -- a second,
+    separate kind of "blinking" Zach was still seeing. Asleep always
+    gets True (a static dim frame reads as resting, not off); awake
+    passes through whatever the loop's own breathing cycle says."""
+    return True if asleep else cycled_dim
 
 
 def active_art_paths(today=None):
@@ -336,17 +353,18 @@ def pick_caption_slot(art, width, height, rng=None, avoid=None, reserve_caption=
                                  1, rng=rng, avoid=avoid)
 
 
-def _frame_rows(art, width, height, caption, color, dim, slot=None):
+def _frame_rows(art, width, height, caption, color, dim, slot=None, gradient_offset=0):
     """The frame's content rows, unpadded by any overscan margin and
     with no clear-sequence prefix -- split out from render_frame()
     (2026-07-28) so a caller can shrink (width, height) for the
     calibrated safe area and then physically pad the result, the same
     two-step crt-book-console.py's redraw()/pad_for_margins() already
     does. render_frame() itself is now a thin wrapper for callers that
-    don't need margin handling (tests, mostly)."""
+    don't need margin handling (tests, mostly). `gradient_offset` only
+    matters when color is GRADIENT -- see gradient_colors()."""
     lines, top = art_layout(art, width, height, reserve_caption=bool(caption))
     rows = [""] * max(1, height)
-    line_colors = (gradient_colors(len(lines)) if color == GRADIENT
+    line_colors = (gradient_colors(len(lines), offset=gradient_offset) if color == GRADIENT
                   else [color] * len(lines))
     for i, line in enumerate(lines):
         row = top + i
@@ -562,6 +580,19 @@ def main(argv=None):
     slot, move_at = None, 0.0
     art_move_at = 0.0
     was_asleep = False
+    # Rotating gradient (2026-07-28, live, Zach: "instead of flash to
+    # grey, have rotating gradient of olive, brown, tan (all at once,
+    # but the gradient crossover changes)"). gradient_offset only
+    # advances while awake -- sleep already renders flat WHITE
+    # (frame_color_for_state), so there is nothing to rotate then, and
+    # freezing the counter during sleep means waking always resumes the
+    # rotation from wherever it left off rather than jumping. Blinks
+    # (potato2.txt) intentionally do NOT reset or skip the offset --
+    # frame_color_for_state() only depends on asleep, never on which art
+    # is showing, so a blink keeps whatever gradient position is current.
+    gradient_offset = 0
+    gradient_move_at = 0.0
+    GRADIENT_ROTATE_SECS = float(os.environ.get("CRT_SCREENSAVER_GRADIENT_ROTATE_SECS", "3.0"))
     for dim in itertools.cycle([True, False]):
         raw_cols, raw_rows = resolve_size()
         cols, rows = safe_screen_size(raw_cols, raw_rows, margins)
@@ -622,8 +653,13 @@ def main(argv=None):
             slot = pick_caption_slot(art, cols, rows, avoid=slot,
                                      reserve_caption=bool(args.caption))
             move_at = time.time() + args.caption_move_secs
+        if not asleep and time.time() >= gradient_move_at:
+            gradient_offset += 1
+            gradient_move_at = time.time() + GRADIENT_ROTATE_SECS
         frame_color = frame_color_for_state(asleep)
-        frame_rows = _frame_rows(art, cols, rows, args.caption, frame_color, dim=dim, slot=slot)
+        frame_dim = frame_dim_for_state(asleep, dim)
+        frame_rows = _frame_rows(art, cols, rows, args.caption, frame_color, dim=frame_dim, slot=slot,
+                                 gradient_offset=gradient_offset)
         padded = pad_frame_rows(frame_rows, margins, cols)
         sys.stdout.write("\x1b[H\x1b[2J" + "\n".join(padded))
         sys.stdout.flush()

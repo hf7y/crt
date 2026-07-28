@@ -196,3 +196,43 @@ class TestFrameColorForState(unittest.TestCase):
         joined = "\n".join(rows)
         self.assertIn("\x1b[37m", joined)
         self.assertEqual(len(re.findall(r"\x1b\[38;5;\d+m", joined)), 0)
+
+
+class TestGradientOffsetRotation(unittest.TestCase):
+    # 2026-07-28, live, Zach: "instead of flash to grey, have rotating
+    # gradient of olive, brown, tan (all at once, but the gradient
+    # crossover changes)" -- a static row->color mapping read as flat;
+    # these check gradient_colors()'s offset actually shifts the
+    # per-row mapping, and that _frame_rows() threads its own
+    # gradient_offset param through to gradient_colors() end to end.
+    def test_offset_shifts_the_row_to_color_mapping(self):
+        palette = ["a", "b", "c"]
+        base = ss.gradient_colors(3, palette=palette, offset=0)
+        shifted = ss.gradient_colors(3, palette=palette, offset=1)
+        self.assertEqual(base, ["a", "b", "c"])
+        self.assertEqual(shifted, ["b", "c", "a"])
+
+    def test_offset_wraps_around_the_palette(self):
+        palette = ["a", "b", "c"]
+        self.assertEqual(ss.gradient_colors(3, palette=palette, offset=3),
+                         ss.gradient_colors(3, palette=palette, offset=0))
+
+    def test_frame_rows_threads_gradient_offset_through(self):
+        art = ["line%d" % i for i in range(3)]
+        old = ss.LOGO_COLORS
+        ss.LOGO_COLORS = ["38;5;58", "38;5;94", "38;5;136"]
+        try:
+            rows_a = ss._frame_rows(art, 40, 5, "", ss.GRADIENT, dim=True, gradient_offset=0)
+            rows_b = ss._frame_rows(art, 40, 5, "", ss.GRADIENT, dim=True, gradient_offset=1)
+        finally:
+            ss.LOGO_COLORS = old
+        self.assertNotEqual(rows_a, rows_b,
+                            "a different gradient_offset should change which colors land on which rows")
+
+    def test_blinking_to_potato2_does_not_drop_the_gradient_color(self):
+        # "keep the blinks of flipping to potato2.txt while keeping the
+        # color" -- frame_color_for_state() must depend only on sleep
+        # state, never on which art (potato.txt vs potato2.txt) is
+        # currently displayed, so a blink can't accidentally fall back
+        # to a flat/grey color.
+        self.assertEqual(ss.frame_color_for_state(asleep=False), ss.GRADIENT)
