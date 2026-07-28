@@ -636,6 +636,20 @@ def _init_schema(conn, retries=5):
             # pre-column behaviour -- the round is still open.
             if "last_answered" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN last_answered TEXT")
+            # Added 2026-07-28 (Zach-directed): the trivia-fact enrichment
+            # pipeline (bin/crt-book-facts-batch.py) -- two columns, two
+            # separate passes, same cache-once philosophy as quote/lcc.
+            # facts_raw: candidate sentences from a non-AI Wikipedia
+            # scrape (cheap, no API key, re-runnable freely). facts_json:
+            # ~3 AI-curated high-quality trivia facts distilled from
+            # facts_raw IN BATCHES (the expensive step, done once, cached
+            # forever after like every other AI call in this file). NULL
+            # in either column means "not yet processed by that stage",
+            # not "no facts available" -- see crt-book-facts-batch.py.
+            if "facts_raw" not in existing_cols:
+                conn.execute("ALTER TABLE books ADD COLUMN facts_raw TEXT")
+            if "facts_json" not in existing_cols:
+                conn.execute("ALTER TABLE books ADD COLUMN facts_json TEXT")
             conn.commit()
             return
         except sqlite3.OperationalError:
@@ -1101,6 +1115,109 @@ def scrape_quote(title, fetcher=None, rng=None):
         return _truncate_quote(rng.choice(candidates))
     except Exception:
         return None
+
+
+# ---------------------------------------------------------------------------
+# Trivia-fact enrichment (2026-07-28, Zach-directed): two-stage pipeline,
+# same cache-once philosophy as quote/lcc -- see crt-book-facts-batch.py
+# for the runner. Stage 1 (here): a NON-AI Wikipedia scrape per book,
+# cheap and re-runnable, caches candidate sentences into `facts_raw`.
+# Stage 2 (also here, but a genuine AI call): distills those candidates
+# into ~3 high-quality trivia facts PER BOOK, batched across many books
+# in one call -- same batching shape as build_claude_batch_prompt/
+# call_gemini_batch above, reused rather than duplicated.
+# ---------------------------------------------------------------------------
+
+WIKIPEDIA_SUMMARY_URL = "https://en.wikipedia.org/api/rest_v1/page/summary/{title}"
+
+# Split on sentence-ending punctuation followed by a space and a capital
+# letter or opening quote -- good enough for encyclopedia prose (short,
+# declarative sentences), not a real NLP sentence splitter.
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z\"‘“])")
+MIN_FACT_SENTENCE_CHARS = 25
+MAX_FACT_CANDIDATES = 8
+
+
+def fetch_wikipedia_extract(title, fetcher=None):
+    """Best-effort: Wikipedia's REST summary API for `title` -- NOT an AI
+    call, literal text from Wikipedia's own CC BY-SA extract. Returns the
+    raw extract string, or None on ANY failure (no page, disambiguation
+    page with no `extract` key, network error) so callers always have a
+    graceful skip. `fetcher` is injectable for tests (callable(url) ->
+    parsed JSON dict), same pattern as fetch_book_metadata/scrape_quote."""
+    fetcher = fetcher or _http_get_json
+    try:
+        data = fetcher(WIKIPEDIA_SUMMARY_URL.format(title=urllib.parse.quote(title)))
+        extract = data.get("extract")
+        return extract if isinstance(extract, str) and extract.strip() else None
+    except Exception:
+        return None
+
+
+def extract_fact_candidates(extract_text):
+    """Pure function: splits a Wikipedia extract into sentence-shaped fact
+    candidates. Drops short/fragment-y sentences (MIN_FACT_SENTENCE_CHARS)
+    -- disambiguation-adjacent or list-y extracts produce a lot of noise
+    below that length -- and caps the list (MAX_FACT_CANDIDATES) so a very
+    long extract doesn't blow up the batch prompt's token cost for no
+    quality gain (the AI pass only needs a handful of good candidates to
+    pick 3 from, not the whole article)."""
+    if not extract_text:
+        return []
+    sentences = [s.strip() for s in _SENTENCE_SPLIT_RE.split(extract_text.strip())]
+    return [s for s in sentences if len(s) >= MIN_FACT_SENTENCE_CHARS][:MAX_FACT_CANDIDATES]
+
+
+def build_facts_batch_prompt(books):
+    """Pure function: given a list of dicts with isbn/title/authors/year/
+    facts_raw (a list of candidate sentences, may be empty), build the
+    single batched prompt asking for exactly 3 high-quality trivia facts
+    per book. Grounded in facts_raw when present (reduces hallucination --
+    the model is asked to prefer/paraphrase the given candidates over
+    inventing new claims); books with no scraped candidates still get a
+    slot in case the model has reliable general knowledge, but the prompt
+    says so explicitly rather than silently blurring the two cases.
+    Does not call anything -- just constructs the request payload, so
+    this is testable without a live API, same as build_claude_batch_
+    prompt above."""
+    books_payload = [
+        {
+            "isbn": b["isbn"],
+            "title": b["title"],
+            "authors": b.get("authors"),
+            "year": b.get("year"),
+            "candidate_sentences": b.get("facts_raw") or [],
+        }
+        for b in books
+    ]
+    instructions = (
+        "For each book below, write exactly 3 concise, high-quality, "
+        "trivia-worthy facts about it (interesting to a general audience, "
+        "not generic plot-jacket copy). Prefer paraphrasing/selecting from "
+        "candidate_sentences when they contain real facts; only use outside "
+        "knowledge if candidate_sentences is empty or unhelpful, and never "
+        "invent a specific claim (a date, a number, an award) you are not "
+        "confident is true. Return ONLY JSON: "
+        "{\"<isbn>\": [fact1, fact2, fact3], ...}"
+    )
+    return {"instructions": instructions, "books": books_payload}
+
+
+def parse_facts_batch_response(response_json, isbn):
+    """Pure function: pull this book's facts out of a parsed batch
+    response. Returns [] if the ISBN is missing/malformed rather than
+    raising, so one bad entry doesn't take down the whole batch -- same
+    contract as parse_claude_batch_response above. Caps at 3 and drops
+    non-string/empty entries (a model that returns a dict or a number
+    where a fact string belongs must not corrupt facts_json)."""
+    try:
+        entries = response_json.get(isbn, [])
+    except AttributeError:
+        return []
+    if not isinstance(entries, list):
+        return []
+    facts = [f.strip() for f in entries if isinstance(f, str) and f.strip()]
+    return facts[:3]
 
 
 def pick_idle_quote(conn, rng=None):

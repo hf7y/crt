@@ -180,6 +180,10 @@ echo "== crt-book-game.py =="
 python3 -m unittest discover -s "$DIR" -p "test_book_game.py" -v 2>&1 | tail -5 || fail=1
 echo
 
+echo "== trivia-fact enrichment pipeline (2026-07-28) =="
+python3 -m unittest discover -s "$DIR" -p "test_book_facts.py" -v 2>&1 | tail -5 || fail=1
+echo
+
 echo "== crt-book-idle-bait.py =="
 python3 -m unittest discover -s "$DIR" -p "test_book_idle_bait.py" -v 2>&1 | tail -5 || fail=1
 echo

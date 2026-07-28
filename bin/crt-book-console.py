@@ -51,6 +51,7 @@ import json
 import os
 import queue
 import random
+import subprocess
 import sys
 import threading
 import time
@@ -350,6 +351,37 @@ def scan_title(row, width):
 # number costs more than it's worth -- see scan_title().
 MIN_TITLE_CHARS = 8
 
+# Same budget reasoning as CAPTION_MAX_ROWS above -- the waiting-hint
+# overlay only ever gets the bottom few rows of an already-laid-out
+# question screen, never a full re-layout.
+FACT_HINT_MAX_ROWS = 3
+
+
+def fact_lines_for_hint(row, width):
+    """Pure function: the waiting-hint overlay lines for `row`'s first
+    AI-curated fact (crt-book-facts-batch.py's facts_json, 2026-07-28),
+    wrapped and centered to `width`. None if the book has no facts yet
+    (facts_json NULL/empty) or facts_json is malformed -- callers fall
+    back to the generic cat_reading art in either case, same "never crash
+    the wait screen over enrichment data" posture as every other
+    optional field on this row (quote, lcc)."""
+    try:
+        facts = json.loads(row["facts_json"] or "[]")
+    except (ValueError, TypeError, LookupError):
+        # LookupError covers both a plain dict missing the key (a `row`
+        # built by hand, e.g. in tests) and sqlite3.Row's IndexError for
+        # an unknown column name -- real Row objects from this project's
+        # own get_db() always have the column, this is defense for the
+        # test-double shape, same posture as the rest of this function.
+        return None
+    if not facts or not isinstance(facts, list) or not isinstance(facts[0], str):
+        return None
+    wrapped = bg.wrap_to_width(facts[0], min(width - 4, bg.MAX_CONTENT_WIDTH),
+                               max_lines=FACT_HINT_MAX_ROWS)
+    if not wrapped:
+        return None
+    return [bg.center_text(l, width) for l in wrapped]
+
 
 def render_scan_result(row, width, height, show_waiting_hint=False):
     """Pure function: the question screen for a freshly-scanned or
@@ -378,12 +410,27 @@ def render_scan_result(row, width, height, show_waiting_hint=False):
     question = questions[0] if questions else {"text": "(no question on file)", "options": []}
     lines = bg.render_question_screen(scan_title(row, width), question, width, height)
     if show_waiting_hint:
-        art_lines = (bg.get_ascii_art("cat_reading") or "").splitlines()
-        start = height - len(art_lines)
-        for i, art_line in enumerate(art_lines):
-            row_i = start + i
-            if 0 <= row_i < height:
-                lines[row_i] = bg.center_text(art_line, width)
+        facts = fact_lines_for_hint(row, width)
+        if facts is not None:
+            # A real, book-specific fact (crt-book-facts-batch.py's AI-
+            # curated facts_json, 2026-07-28) beats generic cat_reading
+            # art in this exact slot -- "here's something to read while
+            # you think" is the whole point of the wait, and a book that
+            # HAS been enriched should show it, not the placeholder every
+            # other book still gets. Falls through to the art below for
+            # any book not yet processed by that pipeline.
+            start = height - len(facts)
+            for i, ln in enumerate(facts):
+                row_i = start + i
+                if 0 <= row_i < height:
+                    lines[row_i] = ln
+        else:
+            art_lines = (bg.get_ascii_art("cat_reading") or "").splitlines()
+            start = height - len(art_lines)
+            for i, art_line in enumerate(art_lines):
+                row_i = start + i
+                if 0 <= row_i < height:
+                    lines[row_i] = bg.center_text(art_line, width)
     return [bg.wrap_color(l, bg.COLOR_QUESTION) if l.strip() else l for l in lines]
 
 
@@ -457,6 +504,64 @@ class ScanLookupFailed(Exception):
     pass
 
 
+# How many books must be missing facts_json before a batch distill run
+# fires (2026-07-28, Zach-directed: "make sure claude isn't summoned on
+# most book scans, just every 5 or so that have no trivia stored, so it
+# generates the json like a batch"). Checked cheaply on every scan (one
+# COUNT query); the AI call itself only ever happens inside
+# crt-book-facts-batch.py's own batched call, never per-scan.
+FACTS_BATCH_TRIGGER = int(os.environ.get("CRT_BOOK_FACTS_BATCH_TRIGGER", "5"))
+
+
+def facts_batch_already_running(runner=None):
+    """True if crt-book-facts-batch.py is already a live process --
+    guards maybe_trigger_facts_batch() against firing a second, redundant
+    (and DB-write-racing) batch run while one from an earlier scan is
+    still in flight. `runner` is injectable for tests (callable(cmd) ->
+    CompletedProcess-shaped object with .stdout), default runs the real
+    `pgrep -f`."""
+    if runner is None:
+        try:
+            r = subprocess.run(["pgrep", "-f", "crt-book-facts-batch.py"],
+                               capture_output=True, text=True)
+        except OSError:
+            return False  # can't check -- fail open, same as any other best-effort guard here
+        return bool(r.stdout.strip())
+    return bool(runner(["pgrep", "-f", "crt-book-facts-batch.py"]).stdout.strip())
+
+
+def maybe_trigger_facts_batch(conn, spawner=None, runner=None):
+    """Fire-and-forget bin/crt-book-facts-batch.py once at least
+    FACTS_BATCH_TRIGGER books are missing facts_json, batching the AI
+    distill call across all of them (that script's own BATCH_SIZE
+    chunking) instead of ever calling Claude/Gemini synchronously on a
+    single scan. Idempotent by construction -- the batch script only
+    touches rows still missing facts_json, so calling this on every scan
+    (fresh or re-scan) is safe, not just tolerated; facts_batch_already_
+    running() is the only thing preventing two concurrent runs, not a
+    state file this function has to maintain itself.
+
+    `spawner`/`runner` injectable for tests -- callable(cmd) -> anything
+    truthy is fine for spawner (its return value is never used), same
+    shape as facts_batch_already_running's `runner`."""
+    n = conn.execute("SELECT COUNT(*) FROM books WHERE facts_json IS NULL").fetchone()[0]
+    if n < FACTS_BATCH_TRIGGER:
+        return False
+    if facts_batch_already_running(runner):
+        return False
+    try:
+        if spawner is not None:
+            spawner(["python3", os.path.join(BIN_DIR, "crt-book-facts-batch.py")])
+        else:
+            subprocess.Popen(
+                ["python3", os.path.join(BIN_DIR, "crt-book-facts-batch.py")],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+    except OSError:
+        return False
+    return True
+
+
 def handle_scan(conn, isbn, fetcher=None, quote_fetcher=None, training_log_path=None):
     """Looks up/registers `isbn` if new, returns the registry row either
     way (register_book's own cache-on-insert semantics mean a re-scan
@@ -491,7 +596,9 @@ def handle_scan(conn, isbn, fetcher=None, quote_fetcher=None, training_log_path=
         # left no trace anywhere that a scan had just happened, so
         # crt-book-answer-listen.py -- which derives "a question is pending"
         # from a timestamp -- never graded the answer someone then spoke.
-        return bg.touch_scan(conn, isbn) or existing
+        result = bg.touch_scan(conn, isbn) or existing
+        maybe_trigger_facts_batch(conn)
+        return result
     try:
         book = bg.fetch_book_metadata(isbn, fetcher=fetcher)
     except Exception as e:
@@ -501,7 +608,9 @@ def handle_scan(conn, isbn, fetcher=None, quote_fetcher=None, training_log_path=
     tier = bg.pick_response_tier(total_rounds, stt_accuracy)
     question = bg.generate_template_question(book, tier=tier)
     quote = bg.scrape_quote(book["title"], fetcher=quote_fetcher)
-    return bg.register_book(conn, book, questions=[question], question_source=source, quote=quote)
+    result = bg.register_book(conn, book, questions=[question], question_source=source, quote=quote)
+    maybe_trigger_facts_batch(conn)
+    return result
 
 
 def draw(lines):
