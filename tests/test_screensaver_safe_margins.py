@@ -77,3 +77,30 @@ class TestPadFrameRows(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestArtLayoutCaptionReservation(unittest.TestCase):
+    def test_reserves_two_rows_by_default(self):
+        art = ["line%d" % i for i in range(13)]
+        lines, _top = ss.art_layout(art, 40, 13)
+        self.assertEqual(len(lines), 11)
+
+    def test_no_reservation_when_no_caption(self):
+        # The exact live bug (2026-07-28): potato.txt's real 13-line art
+        # lost its bottom 2 lines to a caption reservation for a caption
+        # that (post caption-removal) was never going to be drawn.
+        art = ["line%d" % i for i in range(13)]
+        lines, _top = ss.art_layout(art, 40, 13, reserve_caption=False)
+        self.assertEqual(len(lines), 13)
+
+    def test_frame_rows_reserves_nothing_for_empty_caption(self):
+        art = ["line%d" % i for i in range(13)]
+        rows = ss._frame_rows(art, 40, 13, "", ss.CYAN, dim=True)
+        self.assertTrue(any("line12" in r for r in rows),
+                        "the last art line was dropped even with no caption")
+
+    def test_frame_rows_still_reserves_for_a_real_caption(self):
+        art = ["line%d" % i for i in range(13)]
+        rows = ss._frame_rows(art, 40, 13, "wake me up", ss.CYAN, dim=True)
+        self.assertFalse(any("line12" in r for r in rows),
+                         "a real caption's reserved row should still cost the last art line")

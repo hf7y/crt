@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-# Tests for crt-screensaver.py's dual-art alternation (2026-07-28,
-# Zach-directed): "have the splash screen alternate between existing
-# potato ascii and potato.txt ... remove 'say potato to wake' ... plan
-# to sunset old potato in favor of new potato.txt, hardcode expiration."
-import datetime
+# Tests for crt-screensaver.py's art rotation (2026-07-28, Zach-directed,
+# three steps same session): alternate potato-small.txt/potato.txt with
+# a sunset date -> sunset immediately -> "replace potato_small.txt with
+# potato2.txt in the slideshow to create an animation effect". Final
+# design: potato.txt/potato2.txt are a PERMANENT pair (near-identical
+# frames, meant to shimmer), neither ever retires -- the sunset-date
+# mechanism from the first two steps no longer applies and was removed.
 import importlib.util
 import os
 import unittest
@@ -15,33 +17,40 @@ spec.loader.exec_module(ss)
 
 
 class TestActiveArtPaths(unittest.TestCase):
-    def test_before_sunset_both_arts_active(self):
-        before = ss.OLD_ART_SUNSET_DATE - datetime.timedelta(days=1)
-        paths = ss.active_art_paths(today=before)
-        self.assertEqual(paths, [ss.DEFAULT_ART, ss.NEW_ART])
+    def test_both_frames_always_active(self):
+        self.assertEqual(ss.active_art_paths(), [ss.DEFAULT_ART, ss.NEW_ART])
 
-    def test_on_sunset_date_only_new_art(self):
-        paths = ss.active_art_paths(today=ss.OLD_ART_SUNSET_DATE)
-        self.assertEqual(paths, [ss.NEW_ART])
+    def test_the_date_argument_is_accepted_but_irrelevant(self):
+        # Kept accepting `today` so nothing calling the old signature
+        # breaks, but it no longer changes the result -- neither frame
+        # ever retires.
+        import datetime
+        self.assertEqual(ss.active_art_paths(today=datetime.date(2099, 1, 1)),
+                         [ss.DEFAULT_ART, ss.NEW_ART])
 
-    def test_after_sunset_only_new_art(self):
-        after = ss.OLD_ART_SUNSET_DATE + datetime.timedelta(days=30)
-        paths = ss.active_art_paths(today=after)
-        self.assertEqual(paths, [ss.NEW_ART])
-
-    def test_default_art_file_actually_retires_not_just_deprioritized(self):
-        after = ss.OLD_ART_SUNSET_DATE + datetime.timedelta(days=1)
-        self.assertNotIn(ss.DEFAULT_ART, ss.active_art_paths(today=after))
+    def test_potato_small_is_not_in_rotation_at_all(self):
+        old_art = os.path.join(BIN_DIR, "..", "potato-small.txt")
+        self.assertNotIn(old_art, ss.active_art_paths())
 
 
 class TestBothArtFilesLoadReal(unittest.TestCase):
     def test_default_art_loads(self):
         art = ss.load_art(ss.DEFAULT_ART)
-        self.assertNotEqual(art, ss.FALLBACK_ART, "potato-small.txt should exist and load for real")
+        self.assertNotEqual(art, ss.FALLBACK_ART, "potato.txt should exist and load for real")
 
     def test_new_art_loads(self):
         art = ss.load_art(ss.NEW_ART)
-        self.assertNotEqual(art, ss.FALLBACK_ART, "potato.txt should exist and load for real")
+        self.assertNotEqual(art, ss.FALLBACK_ART, "potato2.txt should exist and load for real")
+
+    def test_the_two_frames_are_near_identical_not_wildly_different(self):
+        # The whole point is a shimmer, not a content swap -- if these
+        # ever diverge by more than a few lines, the "animation effect"
+        # framing no longer describes what's actually happening.
+        a, b = ss.load_art(ss.DEFAULT_ART), ss.load_art(ss.NEW_ART)
+        self.assertEqual(len(a), len(b))
+        differing_lines = sum(1 for x, y in zip(a, b) if x != y)
+        self.assertLessEqual(differing_lines, len(a) // 2,
+                             "the two animation frames differ too much to read as one shimmering figure")
 
 
 class TestDefaultCaptionRemoved(unittest.TestCase):
@@ -65,3 +74,20 @@ class TestDefaultCaptionRemoved(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLogoColorVariety(unittest.TestCase):
+    def test_logo_colors_include_tan_and_brown(self):
+        # Zach: "potato colors variety, tan, brown" -- at least cyan plus
+        # some non-primary 256-color options, distinct from each other.
+        self.assertGreater(len(ss.LOGO_COLORS), 1)
+        self.assertIn(ss.CYAN, ss.LOGO_COLORS)
+        self.assertEqual(len(set(ss.LOGO_COLORS)), len(ss.LOGO_COLORS))
+
+    def test_no_logo_color_uses_a_forbidden_basic_primary_code(self):
+        # CLAUDE.md's hard rule: never 31/32/34/91/92/94 (basic-mode
+        # saturated primaries). 256-color codes (38;5;N) are a different
+        # numbering space and are fine -- this checks none of them
+        # accidentally collide with the forbidden literal codes.
+        forbidden = {"31", "32", "34", "91", "92", "94"}
+        self.assertEqual(set(ss.LOGO_COLORS) & forbidden, set())

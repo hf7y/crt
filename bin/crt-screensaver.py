@@ -43,7 +43,6 @@
 # question and brings itself to the front. This window stays what it is --
 # an idle face with no brain, no database, and no book logic.
 import argparse
-import datetime
 import importlib.util
 import itertools
 import os
@@ -52,15 +51,21 @@ import threading
 import time
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_ART = os.path.join(BIN_DIR, "..", "potato-small.txt")
-# New art (2026-07-28, Zach-directed), alternated with DEFAULT_ART until
-# OLD_ART_SUNSET_DATE, then DEFAULT_ART retires and this is the only art
-# shown. "hardcode expiration" was the explicit instruction -- this is
-# that hardcode, not a config knob: bump the date by hand (and update
-# this comment) if the sunset needs to move, don't wire an env var
-# around a decision meant to actually take effect.
-NEW_ART = os.path.join(BIN_DIR, "..", "potato.txt")
-OLD_ART_SUNSET_DATE = datetime.date(2026, 8, 27)  # 30 days out from the decision
+# 2026-07-28, Zach-directed, in three steps same session:
+#   1. potato.txt introduced, alternated with the old potato-small.txt
+#      until a 30-day sunset.
+#   2. "hard prefer the new potato.txt, sunset old potato_small.txt
+#      now" -- sunset moved up to immediate.
+#   3. "replace potato_small.txt with potato2.txt in the slideshow to
+#      create an animation effect" -- potato-small.txt retired for
+#      good, replaced by potato2.txt: a near-identical second frame
+#      (a handful of characters differ -- see that file vs potato.txt)
+#      meant to alternate with potato.txt fast enough to read as a
+#      shimmer/breathe animation, not a slow content swap. No more
+#      sunset logic needed: neither frame ever retires, they're a
+#      permanent pair.
+DEFAULT_ART = os.path.join(BIN_DIR, "..", "potato.txt")
+NEW_ART = os.path.join(BIN_DIR, "..", "potato2.txt")
 
 # Two imports, both deliberately light: crt_scan_line.py pulls in `re` and
 # `datetime`, crt_caption.py `re`, `random` and `unicodedata`, and nothing
@@ -111,16 +116,28 @@ FALLBACK_ART = [
 CYAN, YELLOW, WHITE = "36", "33", "37"
 DIM, BOLD, RESET = "\x1b[2m", "\x1b[1m", "\x1b[0m"
 
+# Potato-colored variety for the ART only (2026-07-28, Zach-directed:
+# "potato colors variety, tan, brown. logos don't need to be exactly
+# read safe") -- CLAUDE.md's hard CRT-safe rule (never 31/32/34/91/92/94)
+# is about SATURATED primaries bleeding on composite/RF; tan and brown
+# are desaturated oranges, already on the safe side of that concern, and
+# Zach's own call is that decorative art (unlike functional text -- the
+# caption stays on YELLOW, unchanged) doesn't need to hold to the same
+# bar anyway. 256-color codes (38;5;N), a different numbering space from
+# the basic 30-37 codes CYAN/YELLOW/WHITE use above, but "\x1b[%sm" %
+# color already works unchanged for either shape. One color picked per
+# ART CHANGE (tied to the same cadence as art alternation, see
+# art_move_at in main()), not per frame -- variety across sessions/
+# rotations, not flicker within one.
+LOGO_COLORS = [CYAN, "38;5;180", "38;5;136", "38;5;94"]  # cyan, tan, dark tan, brown
+
 
 def active_art_paths(today=None):
-    """Pure function: which art file path(s) are in rotation right now.
-    Before OLD_ART_SUNSET_DATE, both (alternated in main()'s loop); on or
-    after it, NEW_ART only -- DEFAULT_ART (potato-small.txt) retires for
-    good, not just stops being picked first. `today` is injectable so
-    this is testable without waiting for the real calendar date."""
-    today = today or datetime.date.today()
-    if today >= OLD_ART_SUNSET_DATE:
-        return [NEW_ART]
+    """Pure function: which art file path(s) are in rotation right now --
+    always both (2026-07-28: potato.txt/potato2.txt are a permanent
+    animation pair, not an old-vs-new deprecation window). `today`
+    accepted and ignored, kept only so callers from the prior sunset-
+    based design don't need to change their call shape."""
     return [DEFAULT_ART, NEW_ART]
 
 
@@ -155,13 +172,22 @@ def resolve_size():
         return 40, 15
 
 
-def art_layout(art, width, height):
+def art_layout(art, width, height, reserve_caption=True):
     """Where the art actually lands: (clipped lines, first row).
 
     Split out (2026-07-25) so the caption can be placed anywhere the art
     ISN'T, without a second copy of this arithmetic deciding where that is.
-    """
-    art = art[: max(1, height - 2)]  # leave a row for the caption
+
+    `reserve_caption` (2026-07-28, live fix): the 2-row reservation used
+    to be unconditional, which was harmless while the default caption
+    was always non-empty text -- but the same session's caption-removal
+    change (default caption now "") plus the overscan safe-margin fix
+    (content height already shrunk once) stacked into potato.txt's real
+    13-line art losing its bottom 2 lines to a reservation for a caption
+    that was never going to be drawn. Callers that know there's no
+    caption text this frame pass False and get the full height back."""
+    reserve = 2 if reserve_caption else 0
+    art = art[: max(1, height - reserve)]
     # Never let a rendered line exceed the width, or it wraps on the tube
     # (the bug that made the potato look broken): if the art is wider than
     # the screen, drop leading cells rather than pad it off the edge.
@@ -169,25 +195,25 @@ def art_layout(art, width, height):
     return art, max(0, (height - len(art) - 1) // 2)
 
 
-def caption_runs(art, width, height):
+def caption_runs(art, width, height, reserve_caption=True):
     """The runs of rows a caption may use, best first.
 
     Rows the art occupies are out. So is the strip ABOVE the art whenever
     there is any room below it: the top row of this tube is the most
-    overscan-exposed edge (`~/.crt/display.conf`'s safe margin, which this
-    window does not consume yet -- .claude/FOCUS.md backlog 5b), and the
-    caption is the one line here that has to stay readable. It is the only
-    thing on screen that says how to wake the console."""
-    lines, top = art_layout(art, width, height)
+    overscan-exposed edge (now actually enforced -- see load_safe_
+    margins()/pad_frame_rows(), 2026-07-28), and the caption is the one
+    line here that has to stay readable. It is the only thing on screen
+    that says how to wake the console, when one is configured at all."""
+    lines, top = art_layout(art, width, height, reserve_caption=reserve_caption)
     used = set(range(top, min(height, top + len(lines))))
     below = [r for r in range(height) if r not in used and r > max(used or {-1})]
     free = below or [r for r in range(height) if r not in used]
     return caption_lib.row_runs(free) or [[max(0, height - 1)]]
 
 
-def pick_caption_slot(art, width, height, rng=None, avoid=None):
+def pick_caption_slot(art, width, height, rng=None, avoid=None, reserve_caption=True):
     """A (row, align) for the caption -- never the one it is in now."""
-    return caption_lib.pick_slot(caption_runs(art, width, height),
+    return caption_lib.pick_slot(caption_runs(art, width, height, reserve_caption=reserve_caption),
                                  1, rng=rng, avoid=avoid)
 
 
@@ -199,7 +225,7 @@ def _frame_rows(art, width, height, caption, color, dim, slot=None):
     two-step crt-book-console.py's redraw()/pad_for_margins() already
     does. render_frame() itself is now a thin wrapper for callers that
     don't need margin handling (tests, mostly)."""
-    lines, top = art_layout(art, width, height)
+    lines, top = art_layout(art, width, height, reserve_caption=bool(caption))
     rows = [""] * max(1, height)
     style = (DIM if dim else "") + "\x1b[%sm" % color
     for i, line in enumerate(lines):
@@ -378,8 +404,16 @@ def main(argv=None):
                     default=_env_secs("CRT_SCREENSAVER_CAPTION_MOVE_SECS", 8.0),
                     help="how often the caption moves to a new spot; 0 pins it")
     p.add_argument("--art-rotate-secs", type=float,
-                    default=_env_secs("CRT_SCREENSAVER_ART_ROTATE_SECS", 10.0),
+                    default=_env_secs("CRT_SCREENSAVER_ART_ROTATE_SECS", 3.0),
                     help="how often the art alternates when more than one is active; 0 pins the first")
+    # 10.0 -> 3.0 (2026-07-28): potato.txt/potato2.txt differ by only a
+    # handful of characters, meant to read as a shimmer/breathe
+    # animation (Zach: "create an animation effect") -- 10s was tuned
+    # for the old slow old-vs-new content swap, not a frame pair meant
+    # to feel alive. Bounded by --interval (the breathing dim/normal
+    # cadence, default 2.5s): art can only actually change once per
+    # drawn frame, so this and --interval together set the real
+    # perceived rate, not this value alone.
     p.add_argument("--once", action="store_true",
                     help="render a single frame and exit (for tests/preview)")
     args = p.parse_args(argv)
@@ -411,6 +445,8 @@ def main(argv=None):
     # and centered for it, so lines wrapped on the tube. Cheap to redo.
     slot, move_at = None, 0.0
     art_idx, art_move_at = 0, 0.0
+    color_idx, color_move_at = 0, 0.0
+    logo_color = LOGO_COLORS[0]
     for dim in itertools.cycle([True, False]):
         raw_cols, raw_rows = resolve_size()
         cols, rows = safe_screen_size(raw_cols, raw_rows, margins)
@@ -429,6 +465,14 @@ def main(argv=None):
             # land inside the other's rows until caption_move_secs
             # catches up on its own schedule otherwise.
             move_at = 0.0
+        # Logo color variety (2026-07-28), same cadence but its OWN
+        # counter and deliberately NOT gated on len(arts) > 1 -- color
+        # rotation shouldn't stop just because DEFAULT_ART sunset (same
+        # day) left only one art active.
+        if args.art_rotate_secs and time.time() >= color_move_at:
+            color_idx = (color_idx + 1) % len(LOGO_COLORS)
+            logo_color = LOGO_COLORS[color_idx]
+            color_move_at = time.time() + args.art_rotate_secs
         # The caption moves (2026-07-25, eighteenth cycle). The breathing
         # proves this process is alive; it does not stop the SCREEN from
         # being one fixed layout from boot until someone speaks, which is
@@ -444,9 +488,10 @@ def main(argv=None):
         # always been (last row, centered) -- an automatic behaviour keeps
         # its manual escape hatch, same rule as CRT_BOOK_IDLE_ROTATE_SECS.
         if args.caption_move_secs and time.time() >= move_at:
-            slot = pick_caption_slot(art, cols, rows, avoid=slot)
+            slot = pick_caption_slot(art, cols, rows, avoid=slot,
+                                     reserve_caption=bool(args.caption))
             move_at = time.time() + args.caption_move_secs
-        frame_rows = _frame_rows(art, cols, rows, args.caption, CYAN, dim=dim, slot=slot)
+        frame_rows = _frame_rows(art, cols, rows, args.caption, logo_color, dim=dim, slot=slot)
         padded = pad_frame_rows(frame_rows, margins, cols)
         sys.stdout.write("\x1b[H\x1b[2J" + "\n".join(padded))
         sys.stdout.flush()
