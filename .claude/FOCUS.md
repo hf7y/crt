@@ -27,7 +27,45 @@ Ideas beyond this bar are PARKED by default (see realisateur/STABILITY-MILESTONE
 
 # crt — focus & backlog
 
-- **2026-07-28 (realisateur, via `/ideate`, Zach-directed and Zach-answered live): crt is to be RE-ENABLED, on dexter, as part of the move. DECIDED, not proposed.**
+- **2026-07-28 (realisateur, via `/ideate`) CORRECTION, filed within the hour and BEFORE anything acted on it: the entry below is premised on a FALSE READING. crt was never dark. It has been `enabled=1` at weight 3 in `schedule/_paced.dexter.conf` since 2026-07-24, and is dexter's ONLY participant.**
+  The decision recorded below ("re-enable crt on dexter") therefore
+  describes something already true for four days. Nothing was flipped;
+  there was nothing to flip. Kept rather than deleted because the
+  *reasoning* still stands and because the failure is worth the record.
+  **Root cause:** `steward-survey.sh:39` hardcodes
+  `$SCHED_ROOT/schedule/_paced.conf` and cannot see
+  `_paced.dexter.conf`. A project running on the other host reads as
+  DARK. mandark's `crt|0|3|` line is *correct* — it prevents double
+  dispatch — but the survey reads absence-of-dispatch-here as
+  absence-of-dispatch-anywhere. Verified: no project is enabled in both
+  files, so there is no double-dispatch hazard today.
+  **A contributing cause worth naming separately**, since it fooled a
+  careful read: `_paced.dexter.conf`'s crt block OPENS with
+  `crt -- PINNED here (hardware-evidenced), but enabled=0: NOT YET
+  RUNNABLE` and only resolves it ~40 lines later with "crt is now enabled
+  below", above a line reading `crt|1|3|`. The stale first line is the
+  same decay pattern fixed in that file's policy header the same session
+  (`bccf9ce`).
+  **This is a RE-ARRIVAL, which is the strongest signal `PRECIPITATION.md`
+  defines** — false-DARK crt was also the loudest wrong reading on
+  2026-07-27. Same project, same sensor, same shape, two days running.
+  `(re-arrival: 2026-07-27, 2026-07-28)`. Promotion trigger: the fix is
+  not a crt fix at all but the already-queued `sensor-agree` work, plus
+  the absence-surface milestone filed to scheduler this session
+  (`e05016e`) — a sensor that reads one host's file cannot distinguish
+  "not running" from "running somewhere I don't look".
+  **What is genuinely open, and it is the better question:** crt is
+  enabled on dexter, but *has it dispatched?* mandark's last-run record
+  still reads `2026-07-24T23:59:28 (54s), pushed: no`, and mandark
+  structurally cannot see dexter's job state (`silence-audit` already
+  FLAGs this class: "reads job state under `$HOME` only, but 2 accounts
+  dispatch"). The leading hypothesis, unverified from here: dexter's
+  paced runner logged **338 identical `http_code=401` HOLDs over three
+  days with zero dispatches**. If that is still live, crt has been
+  enabled for four days and run nothing. Being checked from dexter by
+  Zach in the same session this correction was written.
+
+- **2026-07-28 (realisateur, via `/ideate`, Zach-directed and Zach-answered live): crt is to be RE-ENABLED, on dexter, as part of the move. ~SUPERSEDED BY THE CORRECTION ABOVE~ — already true since 2026-07-24.**
   What made this a question: crt is the largest disagreement in the
   ecosystem between stated intent and actual dispatch -- `enabled=0` at
   **weight 3** (the highest weight in the set, tied with `scheduler`,
