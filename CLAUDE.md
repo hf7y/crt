@@ -129,9 +129,7 @@ into a commit in the first place, only the push step itself.
 ## Build discipline (realisateur baseline — see realisateur/BUILD-DISCIPLINE.md)
 Before marking anything done:
 - [ ] Fails **loud**? (no exit-0 no-ops; pipefail+SIGPIPE guarded)
-- [ ] **Wired to a real path** (boot/timer/enabled-flag), not just built?
 - [ ] "Working" backed by a **test name or human-sense witness**, not exit code alone?
-- [ ] New mechanism **names what it retires**?
 - [ ] Config read from **one source**, not retyped per file?
 - [ ] Deploy verified against a **git ref**; drift fails loud?
 - [ ] **No secret** in a tracked file; tree clean of build debris?
@@ -142,9 +140,9 @@ Before marking anything done:
       down, stamped `# verified <date> via <command>`?
 - [ ] Verified **where the consumer reads it** (pushed to the ref the job
       clones — not just committed locally)?
-- [ ] No privileged probe **silencing stderr** (`2>/dev/null` turns
-      "denied" into "clean")?
 - [ ] Multi-line or shell-quoting commit message written with
+- [ ] `silence-audit --strict` clean? (mechanizes the retired
+      stderr-silencing / wired-to-a-real-path / names-what-it-retires rows)
       **`git commit -F <file>`**, not `-m` (backticks inside double
       quotes execute)?
 
