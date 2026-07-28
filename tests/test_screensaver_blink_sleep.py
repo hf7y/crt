@@ -133,7 +133,13 @@ class TestGradientColors(unittest.TestCase):
 
     def test_uses_more_than_one_color_for_real_art_height(self):
         # The actual live complaint: one flat shade for the whole frame.
-        colors = ss.gradient_colors(13, palette=ss.LOGO_COLORS)
+        # Explicit multi-color palette -- LOGO_COLORS' own default is a
+        # single safe WHITE as of the "red is no go" live finding, which
+        # correctly produces exactly one color and isn't what this
+        # checks (that's gradient_colors' own single-palette-entry case,
+        # covered by test_single_row_uses_first_color/palette-of-one
+        # elsewhere).
+        colors = ss.gradient_colors(13, palette=["38;5;58", "38;5;94", "38;5;136"])
         self.assertGreater(len(set(colors)), 1)
 
     def test_zero_rows_returns_empty(self):
@@ -145,8 +151,17 @@ class TestGradientColors(unittest.TestCase):
 
 class TestFrameRowsGradient(unittest.TestCase):
     def test_gradient_sentinel_produces_more_than_one_color_in_output(self):
+        # LOGO_COLORS' own default is a single safe WHITE (see the
+        # comment in the sibling test above) -- swap in a multi-color
+        # palette for the duration of this test to exercise the actual
+        # per-row blend mechanism, not today's safety-driven default.
         art = ["line%d" % i for i in range(5)]
-        rows = ss._frame_rows(art, 40, 7, "", ss.GRADIENT, dim=True)
+        old = ss.LOGO_COLORS
+        ss.LOGO_COLORS = ["38;5;58", "38;5;94", "38;5;136"]
+        try:
+            rows = ss._frame_rows(art, 40, 7, "", ss.GRADIENT, dim=True)
+        finally:
+            ss.LOGO_COLORS = old
         colors_seen = set(re.findall(r"\x1b\[38;5;\d+m", "\n".join(rows)))
         self.assertGreater(len(colors_seen), 1,
                            "gradient mode should use more than one color across the art")

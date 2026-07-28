@@ -77,15 +77,41 @@ if __name__ == "__main__":
 
 
 class TestLogoColorVariety(unittest.TestCase):
-    def test_logo_colors_are_a_potato_toned_palette(self):
-        # Zach, two passes: "tan, brown" then "make potato more potato
-        # colored (brown, yellow, golden)" -- cyan dropped on the second
-        # pass, it was never a potato color. All distinct 256-color
-        # options.
-        self.assertGreater(len(ss.LOGO_COLORS), 1)
-        self.assertNotIn(ss.CYAN, ss.LOGO_COLORS)
-        self.assertTrue(all(c.startswith("38;5;") for c in ss.LOGO_COLORS))
-        self.assertEqual(len(set(ss.LOGO_COLORS)), len(ss.LOGO_COLORS))
+    def test_default_logo_color_is_the_known_safe_white(self):
+        # Zach, three passes: "tan, brown" -> "more potato colored
+        # (brown, yellow, golden)" -> LIVE on the real CRT: "should not
+        # be flashing between grey and red... red is no go." The bright
+        # gold/yellow 256-color picks were the likely composite-bleed
+        # culprit; reverted to CLAUDE.md's own explicit safe list
+        # (yellow/magenta/cyan/white) until a real replacement is
+        # verified live. No env override set here -> the default.
+        old = os.environ.pop("CRT_SCREENSAVER_LOGO_COLORS", None)
+        try:
+            import importlib
+            fresh_spec = importlib.util.spec_from_file_location(
+                "crt_screensaver_default_colors", os.path.join(BIN_DIR, "crt-screensaver.py"))
+            fresh = importlib.util.module_from_spec(fresh_spec)
+            fresh_spec.loader.exec_module(fresh)
+            self.assertEqual(fresh.LOGO_COLORS, [fresh.WHITE])
+        finally:
+            if old is not None:
+                os.environ["CRT_SCREENSAVER_LOGO_COLORS"] = old
+
+    def test_logo_colors_overridable_for_live_testing_without_a_redeploy(self):
+        old = os.environ.get("CRT_SCREENSAVER_LOGO_COLORS")
+        os.environ["CRT_SCREENSAVER_LOGO_COLORS"] = "38;5;58,38;5;94"
+        try:
+            import importlib
+            fresh_spec = importlib.util.spec_from_file_location(
+                "crt_screensaver_override_colors", os.path.join(BIN_DIR, "crt-screensaver.py"))
+            fresh = importlib.util.module_from_spec(fresh_spec)
+            fresh_spec.loader.exec_module(fresh)
+            self.assertEqual(fresh.LOGO_COLORS, ["38;5;58", "38;5;94"])
+        finally:
+            if old is None:
+                os.environ.pop("CRT_SCREENSAVER_LOGO_COLORS", None)
+            else:
+                os.environ["CRT_SCREENSAVER_LOGO_COLORS"] = old
 
     def test_no_logo_color_uses_a_forbidden_basic_primary_code(self):
         # CLAUDE.md's hard rule: never 31/32/34/91/92/94 (basic-mode

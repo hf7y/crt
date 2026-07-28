@@ -131,24 +131,34 @@ FALLBACK_ART = [
 CYAN, YELLOW, WHITE = "36", "33", "37"
 DIM, BOLD, RESET = "\x1b[2m", "\x1b[1m", "\x1b[0m"
 
-# Potato-colored variety for the ART only (2026-07-28, Zach-directed,
-# two passes: "potato colors variety, tan, brown. logos don't need to
-# be exactly read safe", then "make potato more potato colored (brown,
-# yellow, golden)" -- cyan dropped entirely on the second pass, it was
-# never a potato color, just this file's original default before any
-# of tonight's art work). CLAUDE.md's hard CRT-safe rule (never
-# 31/32/34/91/92/94) is about SATURATED primaries bleeding on
-# composite/RF; these are all desaturated ochres/browns, already on the
-# safe side of that concern, and Zach's own call is that decorative art
-# (unlike functional text -- the caption stays on YELLOW, unchanged)
-# doesn't need to hold to the same bar anyway. 256-color codes
-# (38;5;N), a different numbering space from the basic 30-37 codes
-# CYAN/YELLOW/WHITE use above, but "\x1b[%sm" % color already works
-# unchanged for either shape. One color picked per REST decision (see
-# next_blink_state() in main()), not per frame -- variety across
-# sessions/blinks, not flicker within one held frame.
-LOGO_COLORS = ["38;5;220", "38;5;178", "38;5;180", "38;5;136", "38;5;94"]
-# golden yellow, gold, tan, dark tan/mustard, brown
+# Potato-colored variety for the ART ONLY (2026-07-28, Zach-directed,
+# three passes now): "tan, brown, logos don't need to be exactly read
+# safe" -> "more potato colored (brown, yellow, golden)" -> LIVE, on the
+# real CRT: "should not be flashing between grey and red... red is no
+# go." The bright gold/yellow picks (220, 178) were almost certainly the
+# culprit -- composite/RF chroma bleed toward red is a textbook failure
+# mode for exactly that hue family (high R+G, the same reason CLAUDE.md's
+# hard rule already bans basic yellow/orange-adjacent primaries), this
+# hardware just proved it again on the 256-color palette too. CLAUDE.md's
+# hard rule (never 31/32/34/91/92/94) covers BASIC codes; this file's own
+# earlier claim that 256-color desaturated ochres were automatically
+# "on the safe side of that concern" was an unverified guess, now
+# falsified live -- correcting the record here, not just the color.
+#
+# Reverted to a single known-safe shade (WHITE, already on CLAUDE.md's
+# explicit safe list) while real candidates get tested live -- "red is
+# no go" is the hard constraint, "what about tan or brown" is still
+# open, but only Zach's own eyes on the real tube can answer it now.
+# Override for live testing without a redeploy: CRT_SCREENSAVER_LOGO_
+# COLORS, comma-separated 256-color-or-basic codes, e.g.
+#   CRT_SCREENSAVER_LOGO_COLORS=38;5;58 crt-screensaver.py
+# tries ONE muted, heavily-desaturated olive-brown -- 58 has roughly
+# equal low R/G and near-zero B, about as far from the gold/yellow
+# family that just failed as a "brown" 256-color option gets.
+LOGO_COLORS = [
+    c.strip() for c in os.environ.get("CRT_SCREENSAVER_LOGO_COLORS", WHITE).split(",")
+    if c.strip()
+] or [WHITE]
 
 # Sentinel for _frame_rows()'s `color` param: a real yellow-through-
 # brown BLEND across the art's own rows, not one flat shade per frame
