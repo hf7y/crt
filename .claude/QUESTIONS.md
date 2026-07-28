@@ -85,3 +85,5 @@ something from this file.
   easy-but-off-focus wins. If this keeps recurring, worth either
   broadening the milestone bar or registering a new offline-safe batch
   item explicitly.
+
+- **2026-07-28 (realisateur, Zach-directed, filed for later): stand up a second whisper server on dexter, as a failover peer to mandark's.** During tonight's live-verify pass, `crt-stt-solo.py` on potato logged intermittent `TRANSCRIPTION FAILED ... gave no answer` against `CRT_WHISPER_SERVER=http://192.168.0.27:8991` — that IP is **mandark** (`crt-whisper-server.service`, confirmed healthy, every `/transcribe` in its own logs returned 200 for the exact window potato saw failures), so the fault is network-level between potato and mandark, not the whisper server being down. `bin/dexter-whisper-server.py` already exists in this repo (built 2026-07-19, verified working live back then) — Zach's direction: don't build this now, just record it as the next concrete step so potato can fail over to dexter if the mandark path drops again. Not required for the current milestone bar (mandark's server is the one actually in use and it's healthy); this is redundancy, not a blocker.
