@@ -46,6 +46,17 @@ import time
 SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
 BOOK_WINDOW = os.environ.get("CRT_BOOK_WINDOW_NAME", "book")
 CLAUDE_VIEW_WINDOW = os.environ.get("CRT_CLAUDE_VIEW_WINDOW_NAME", "mono")
+# Same var, same meaning as crt-book-console.py's CRT_IDLE_FACE_WINDOW
+# (2026-07-28): under the idle-lean layout (CRT_NO_IDLE_CLAUDE=1) the
+# real resting state is the screensaver, not `book`. Landing on `book`
+# instead left the console stuck there -- crt-book-console.py's own
+# return-to-idle-face logic (should_release_tube()) only fires when BOOK
+# itself grabbed focus for an active question, so a focus handoff FROM
+# this script (which never took a question) never got released onward.
+# Empty (the historical/pre-idle-lean layout) preserves the old
+# mono->book behavior exactly.
+IDLE_FACE_WINDOW = os.environ.get("CRT_IDLE_FACE_WINDOW", "").strip()
+RETURN_WINDOW = IDLE_FACE_WINDOW or BOOK_WINDOW
 CLAUDE_ACTIVE_STATE = os.path.expanduser(
     os.environ.get("CRT_CLAUDE_ACTIVE_STATE", "~/.crt/claude-window-active.state"))
 IDLE_SECS = float(os.environ.get("CRT_WINDOW_SWITCHER_IDLE_SECS", "30"))
@@ -133,8 +144,10 @@ def select_window(target):
 
 
 def switch_to_book_window():
-    """This loop's own move: back to `book` after an idle Claude exchange."""
-    return select_window("%s:%s" % (SESSION, BOOK_WINDOW))
+    """This loop's own move after an idle Claude exchange: back to the
+    real idle face (screensaver) when the idle-lean layout says there is
+    one, else the historical `book` target."""
+    return select_window("%s:%s" % (SESSION, RETURN_WINDOW))
 
 
 def switch_failure_report(target, detail):
@@ -179,7 +192,7 @@ def main():
         # the top.
         if detail != reported:
             reported = detail
-            line = switch_failure_report("%s:%s" % (SESSION, BOOK_WINDOW), detail)
+            line = switch_failure_report("%s:%s" % (SESSION, RETURN_WINDOW), detail)
             print(line)
             announce(line)
 

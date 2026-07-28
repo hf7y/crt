@@ -317,6 +317,10 @@ echo "== crt-window-switcher.py =="
 python3 -m unittest discover -s "$DIR" -p "test_window_switcher.py" -v 2>&1 | tail -5 || fail=1
 echo
 
+echo "== crt-window-switcher.py idle-face-aware return target (2026-07-28) =="
+python3 "$DIR/test_window_switcher_idle_face.py" || fail=1
+echo
+
 echo "== crt-stt-training-merge.py =="
 python3 -m unittest discover -s "$DIR" -p "test_stt_training_merge.py" -v 2>&1 | tail -5 || fail=1
 echo
