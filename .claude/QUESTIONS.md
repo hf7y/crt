@@ -93,3 +93,30 @@ something from this file.
 - **2026-07-28 (realisateur, Zach-directed, filed for later, PARKED): dual-output earcons (both handset AND HDMI simultaneously) with per-earcon-type device configuration.** Right now `CRT_EARCON_DEVICE` is one global toggle read by both `crt-stt-solo.py`'s and `crt-secretary.py`'s `play_earcon()` calls -- either everything goes to the quiet handset or everything goes to the room-wide HDMI/RF-converter path, and every earcon NAME (`addressed`/`control`/`thinking`/`oops`/etc.) shares that one device. Zach's ask: play some or all earcons to BOTH devices at once, and let the device choice vary per earcon name (e.g. "addressed" room-wide so anyone hears the console woke up, "thinking" quiet/handset-only so it's not a constant room noise during normal use). Not required for the current milestone bar (the loop works either way); this is a UX-shaping decision Zach should make deliberately once there's been more live listening time with the current single-toggle version, not guessed at now. Shape sketch for whenever it's picked up: a per-name device map (dict, default falls back to `CRT_EARCON_DEVICE`) passed into both `play_earcon()` call sites, plus a "both" pseudo-device that fires two `crt-earcon.sh` invocations.
 
 - **2026-07-28 (realisateur, live-verify): trivia-fact enrichment pipeline built and scrape stage proven live -- distill stage needs a Gemini key.** `bin/crt-book-facts-batch.py`'s scrape stage ran live against all 5 real registered books: "Lolita" pulled 6 real candidate sentences from Wikipedia's public API, three others correctly cached an empty result (no exact-title match), nothing errored. The AI/distill stage (batched, ~3 curated facts per book) is built, tested, and wired to fire automatically from a live scan once >=5 books lack facts_json (never per-scan) -- but potato has no `CRT_GEMINI_API_KEY`/`~/.crt/gemini.key` configured, so it currently loudly no-ops every time it's triggered. Needs Zach to provision a Gemini key (same mechanism `install.sh` already writes for the existing question-generation Gemini path) before the distill half can actually run.
+
+- **2026-07-28 (dexter move, filed at close): what happens to the
+  remote-Claude bridge on an always-on host?** `crt-remote-claude-bridge.py`
+  + `crt-mandark.sh` + `crt-potato-tunnel.service` are shaped the way they
+  are for one reason, stated in the bridge's own header: mandark has no
+  inbound network path, so the connection is a reverse tunnel initiated
+  outward. On always-on dexter that rationale stops being true. Three
+  honest options: keep the reverse-tunnel shape *deliberately* (the
+  property is still worth having), replace it with a direct listening
+  service (simpler, but a real blast-radius change), or delete it entirely
+  and fold `~/.crt/mandark.conf` into FOCUS item 1's dead-code sweep.
+  Migrating it verbatim is the one option that's wrong — it would
+  fossilize a threat model that no longer holds. See `DEXTER-MOVE.md` §2
+  (`51f7346`).
+  > (answer inline here)
+
+- **2026-07-28 (dexter move, filed at close): does potato get PUSH access
+  to the dexter-hosted repo, or stay pull-only?** Repointing potato's
+  `origin` at something it can actually reach is the move's real
+  deliverable — today's session proved potato has never once been able to
+  fetch. Pull-only already fixes the drift and lets the nightly self-repair
+  pass pull. Push access is a separate blast-radius decision (an autonomous
+  unit writing to the shared repo) that you reserved earlier, modeled on
+  `svc-vaporwave`. Flagging it because the wiring step is where someone
+  would quietly grant both at once. See `DEXTER-MOVE.md` §3 (`51f7346`).
+  > (answer inline here)
+
