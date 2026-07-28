@@ -27,6 +27,49 @@ Ideas beyond this bar are PARKED by default (see realisateur/STABILITY-MILESTONE
 
 # crt — focus & backlog
 
+- **2026-07-28 (realisateur, via `/ideate`, Zach-directed and Zach-answered live): crt is to be RE-ENABLED, on dexter, as part of the move. DECIDED, not proposed.**
+  What made this a question: crt is the largest disagreement in the
+  ecosystem between stated intent and actual dispatch -- `enabled=0` at
+  **weight 3** (the highest weight in the set, tied with `scheduler`,
+  `senechal` and `realisateur`) with **34 stranded ideas** behind the
+  closed valve. `steward-survey`'s first reading law is exactly this row:
+  weight is stated intent, `enabled=0` is actual dispatch, and they
+  disagree. The three other ways to resolve it were offered and declined:
+  re-enable on mandark first (declined -- splits the decision), drop the
+  weight to 1 to make the survey honest (declined -- that resolves the
+  disagreement by lowering intent to match inertia), and keep it dark at
+  weight 3 with a stamped reason (declined). Zach chose the honest
+  direction: re-enable where it is meant to run.
+  **Why now, and not a week ago:** the host policy was reversed
+  2026-07-28 -- dexter is now the DEFAULT execution host, "move everything
+  possible", superseding hardware-evidenced-pinning-only. crt no longer
+  needs an exception argument to live on dexter; under the new policy it is
+  an ordinary resident. That reversal has been written into
+  `schedule/_paced.dexter.conf`'s own header this session (`bccf9ce`,
+  pushed) -- it had still been asserting the retired rule.
+  **NOT DONE FROM HERE, deliberately.** The dexter-side change is a
+  human-session step on dexter: `_paced.dexter.conf`'s own rule is that
+  dexter writes that file, and no key on mandark authenticates to dexter,
+  so nothing here can verify a change to it. crt's participant line still
+  reads `crt|0|3|` in mandark's `_paced.conf` and is untouched. What this
+  entry does is record the decision so the dexter session does not have to
+  re-derive it.
+  **Prerequisites, from crt's own already-filed questions -- these are
+  sequencing, not blockers to the decision:**
+  1. Does potato get PUSH access? (filed 2026-07-28, dexter move, at close)
+  2. What happens to the mandark-local bare repo? (same filing) -- note
+     scheduler's own FOCUS.md flagged the same thing: crt's bare repo is on
+     *mandark's* filesystem on purpose, and the options were SSH access to
+     it or moving it to dexter, "arguably better".
+  3. The second whisper server on dexter as a failover peer to mandark's --
+     already filed 2026-07-28 after `crt-stt-solo.py` logged intermittent
+     `TRANSCRIPTION FAILED` against `CRT_WHISPER_SERVER=http://192.168.0.27:8991`,
+     which is mandark. Moving crt's execution to dexter while its STT still
+     points at mandark reproduces the dependency the move is meant to relax.
+  **One caution, offered rather than acted on:** `ecosystem-survey` reported
+  this repo dirty with an untracked `.potato.txt.swp` at 15:39 today -- a vim
+  swap file, i.e. possibly a live editor session. Nothing here touched it.
+
 - **2026-07-28 (interactive session with Zach): potato's nightly brain is LIVE, the repo move to dexter is scoped, and a stale premise in the entry below is corrected.** `crt-self-repair.{service,timer}` are installed and `enabled --now` on potato (first fire 04:15 local, +10min jitter; Zach ran the sudo half — the permission classifier blocks remote sudo from a session, so hand that command over rather than retrying it). Filed with senechal. **Correction to the 2026-07-27 entry below:** potato's `~/crt` was NOT "a real clone of `origin`" — its `origin` is `/home/zach/git-remotes/crt.git`, a path that exists only on mandark, so potato has never been able to fetch at all. Its 10 modified + 7 untracked files were byte-identical to `origin/main` (checksummed before touching anything): a file-level copy layered on a stale HEAD, not local work. Synced via `git bundle` + `scp` + `git stash push -u` + `merge --ff-only`; potato is clean on `746b708`. The direction that DOES work is `git fetch potato` from this checkout (`ssh://potato/home/vkv/crt`) — that is how the nightly pass's commits come back until the move lands. **New: `DEXTER-MOVE.md`** (`51f7346`) — Zach is moving crt off mandark onto always-on dexter with `gardien`; the file carries a live-probed inventory (headline: `crt-whisper-server.service` is ACTIVE on mandark on `0.0.0.0:8991`, i.e. live STT depends on a laptop staying awake — nothing in the docs had flagged that) and an 8-step order of operations. `crt-vm_claude_creds.json` deleted on Zach's instruction rather than migrated. **New mechanism: `bin/crt-senechal-guard.sh`** (`1011af6`) — a PostToolUse(Bash) hook that makes forgetting `notify-senechal` loud; it reminds rather than auto-filing, on purpose (an auto-note marks the debt paid while recording none of the knowledge senechal exists to hold — reasoning is in the script header, don't "improve" it into an auto-filer). Also asked senechal to SWEEP for unregistered machine config rather than only receiving pushes (senechal `918cf6f`), with today's own three-unmentioned-units find as the evidence. **Fixed:** the two CRT-safe-color enforcers were contradicting each other — `test_crt_safe_colors.sh`'s documented "nothing here uses 256-color" over-match died when the screensaver adopted `\x1b[38;5;94m`, so it flagged `test_screensaver.py`'s regression test for exactly that false positive (`746b708`). **Known flake, deliberately not fixed:** `tests/test_hookswitch_debounce.sh`'s "two real, separated transitions" case has a fixed 0.35s wall-clock budget — green 3/3 standalone, red under full-suite load.
 
 - **2026-07-27 (realisateur, via `/ideate`): potato reachability is confirmed live, not just theoretically fixed — the 4 milestone checkboxes above are unblocked, do the live-verify pass now.** Tonight's own reconciliation session (`da45280`) confirmed potato is still `192.168.0.45` (unchanged — no static-IP change actually landed, that was a stale premise carried into this session), reachable, and `~/crt`'s repo relationship is now a real clone of `origin` (was an orphan tar-deploy history since 2026-07-22). Zach confirmed: run the live-verification pass next — wake-arm live-confirm, handset-duck loopback test, capture-device-by-name against real `arecord -l`, Book Game funnel end-to-end scan — the four items this file's Stability milestone has listed as "code done, needs live-confirm" since 07-24. Vision unchanged (core voice loop + Book Game funnel reliable on potato); this is the milestone's next concrete step, not a new direction. **`steward-survey.sh` will misreport crt as DARK** — it reads only `_paced.conf` (mandark), not `_paced.dexter.conf`, where crt actually runs (`enabled=1`, weight 3, 274 commits/7d as of tonight); a fix for that gap is scheduler's own, not filed again here (see realisateur's own FOCUS.md 2026-07-27 entry and [[feedback_probe_survey_headlines]] for the prior false-DARK incident this would repeat).
