@@ -77,11 +77,14 @@ if __name__ == "__main__":
 
 
 class TestLogoColorVariety(unittest.TestCase):
-    def test_logo_colors_include_tan_and_brown(self):
-        # Zach: "potato colors variety, tan, brown" -- at least cyan plus
-        # some non-primary 256-color options, distinct from each other.
+    def test_logo_colors_are_a_potato_toned_palette(self):
+        # Zach, two passes: "tan, brown" then "make potato more potato
+        # colored (brown, yellow, golden)" -- cyan dropped on the second
+        # pass, it was never a potato color. All distinct 256-color
+        # options.
         self.assertGreater(len(ss.LOGO_COLORS), 1)
-        self.assertIn(ss.CYAN, ss.LOGO_COLORS)
+        self.assertNotIn(ss.CYAN, ss.LOGO_COLORS)
+        self.assertTrue(all(c.startswith("38;5;") for c in ss.LOGO_COLORS))
         self.assertEqual(len(set(ss.LOGO_COLORS)), len(ss.LOGO_COLORS))
 
     def test_no_logo_color_uses_a_forbidden_basic_primary_code(self):

@@ -16,7 +16,27 @@ spec = importlib.util.spec_from_file_location("screensaver",
 ss = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ss)
 
-FORBIDDEN = re.compile(r"\x1b\[[0-9;]*(31|32|34|91|92|94)[;m]")
+FORBIDDEN_CODES = {"31", "32", "34", "91", "92", "94"}
+ANSI_SEQ = re.compile(r"\x1b\[([0-9;]*)m")
+
+
+def find_forbidden_basic_code(text):
+    """None if `text` contains no forbidden BASIC-mode SGR code
+    (31/32/34/91/92/94) as an actual token. A plain substring/regex
+    match on the raw escape text (the previous version of this check)
+    false-positives on 256-color codes -- \\x1b[38;5;94m is a perfectly
+    safe extended-palette color whose LAST NUMBER happens to be 94, and
+    a naive '...94[;m]' pattern can't tell that apart from a real bare
+    \\x1b[94m. This tokenizes each sequence and skips any that start
+    with 38;5 or 48;5 (the 256-color foreground/background prefix)
+    before checking for an exact forbidden token match."""
+    for m in ANSI_SEQ.finditer(text):
+        tokens = m.group(1).split(";")
+        if tokens[:2] in (["38", "5"], ["48", "5"]):
+            continue
+        if any(t in FORBIDDEN_CODES for t in tokens):
+            return m
+    return None
 
 
 class TestArt(unittest.TestCase):
@@ -49,8 +69,20 @@ class TestRender(unittest.TestCase):
 
     def test_no_forbidden_colors(self):
         frame = ss.render_frame(["potato"], 40, 15, "say potato", ss.CYAN, dim=True)
-        self.assertIsNone(FORBIDDEN.search(frame),
+        self.assertIsNone(find_forbidden_basic_code(frame),
                           "screensaver must not emit CRT-unsafe primary colors")
+
+    def test_256_color_ending_in_a_forbidden_number_is_not_a_false_positive(self):
+        # 2026-07-28, live: \x1b[38;5;94m (a safe brown, one of
+        # LOGO_COLORS) tripped the OLD naive substring check because it
+        # ends in "94m", identical-looking to a real forbidden bare
+        # \x1b[94m. This is the regression test for that false positive.
+        self.assertIsNone(find_forbidden_basic_code("\x1b[38;5;94mtext\x1b[0m"))
+        self.assertIsNone(find_forbidden_basic_code("\x1b[48;5;31mtext\x1b[0m"))
+
+    def test_a_real_bare_forbidden_code_is_still_caught(self):
+        self.assertIsNotNone(find_forbidden_basic_code("\x1b[94mtext\x1b[0m"))
+        self.assertIsNotNone(find_forbidden_basic_code("\x1b[2;31mtext\x1b[0m"))
 
     def _visible_lines(self, frame):
         strip = re.compile(r"\x1b\[[0-9;]*m")
@@ -79,7 +111,7 @@ class TestCli(unittest.TestCase):
                            env={**os.environ, "CRT_COLS": "40", "CRT_ROWS": "15"})
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("\x1b[2J", r.stdout)
-        self.assertIsNone(FORBIDDEN.search(r.stdout))
+        self.assertIsNone(find_forbidden_basic_code(r.stdout))
 
 
 if __name__ == "__main__":

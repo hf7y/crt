@@ -46,6 +46,7 @@ import argparse
 import importlib.util
 import itertools
 import os
+import random
 import sys
 import threading
 import time
@@ -104,6 +105,20 @@ _env_secs = crt_config.env_number
 
 SCANNER_LOG = os.path.expanduser(os.environ.get("CRT_SCANNER_LOG", "~/.crt/scanner.log"))
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
+# Sleep/wake (2026-07-28, Zach-directed): "have potato 2 for long
+# stretches 'potato is asleep' ... on any sound, volume over threshold,
+# go to the blink animation ... potato wakes up. then have a >60s
+# silence resulting in sleep again." Reuses crt-stt-solo.py's own
+# STT_LOG/GATE_LOG paths as the "sound crossed threshold" signal rather
+# than reading the mic directly, which would violate that script's
+# sole-reader design (POTATO.md) -- EVERY utterance that crosses its
+# capture threshold gets a line in stt.log unconditionally, before any
+# gate/wake-word check, so its mtime alone is a real volume-over-
+# threshold signal, not a proxy for "reached Claude". gate.log checked
+# too, defensively, in case stt.log's write ever fails.
+STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
+GATE_LOG = os.path.expanduser(os.environ.get("CRT_STT_GATE_LOG", "~/.crt/gate.log"))
+SLEEP_SILENCE_SECS = _env_secs("CRT_SCREENSAVER_SLEEP_SILENCE_SECS", 60.0)
 
 FALLBACK_ART = [
     "   .-\"\"\"\"-.",
@@ -116,20 +131,101 @@ FALLBACK_ART = [
 CYAN, YELLOW, WHITE = "36", "33", "37"
 DIM, BOLD, RESET = "\x1b[2m", "\x1b[1m", "\x1b[0m"
 
-# Potato-colored variety for the ART only (2026-07-28, Zach-directed:
-# "potato colors variety, tan, brown. logos don't need to be exactly
-# read safe") -- CLAUDE.md's hard CRT-safe rule (never 31/32/34/91/92/94)
-# is about SATURATED primaries bleeding on composite/RF; tan and brown
-# are desaturated oranges, already on the safe side of that concern, and
-# Zach's own call is that decorative art (unlike functional text -- the
-# caption stays on YELLOW, unchanged) doesn't need to hold to the same
-# bar anyway. 256-color codes (38;5;N), a different numbering space from
-# the basic 30-37 codes CYAN/YELLOW/WHITE use above, but "\x1b[%sm" %
-# color already works unchanged for either shape. One color picked per
-# ART CHANGE (tied to the same cadence as art alternation, see
-# art_move_at in main()), not per frame -- variety across sessions/
-# rotations, not flicker within one.
-LOGO_COLORS = [CYAN, "38;5;180", "38;5;136", "38;5;94"]  # cyan, tan, dark tan, brown
+# Potato-colored variety for the ART only (2026-07-28, Zach-directed,
+# two passes: "potato colors variety, tan, brown. logos don't need to
+# be exactly read safe", then "make potato more potato colored (brown,
+# yellow, golden)" -- cyan dropped entirely on the second pass, it was
+# never a potato color, just this file's original default before any
+# of tonight's art work). CLAUDE.md's hard CRT-safe rule (never
+# 31/32/34/91/92/94) is about SATURATED primaries bleeding on
+# composite/RF; these are all desaturated ochres/browns, already on the
+# safe side of that concern, and Zach's own call is that decorative art
+# (unlike functional text -- the caption stays on YELLOW, unchanged)
+# doesn't need to hold to the same bar anyway. 256-color codes
+# (38;5;N), a different numbering space from the basic 30-37 codes
+# CYAN/YELLOW/WHITE use above, but "\x1b[%sm" % color already works
+# unchanged for either shape. One color picked per REST decision (see
+# next_blink_state() in main()), not per frame -- variety across
+# sessions/blinks, not flicker within one held frame.
+LOGO_COLORS = ["38;5;220", "38;5;178", "38;5;180", "38;5;136", "38;5;94"]
+# golden yellow, gold, tan, dark tan/mustard, brown
+
+# Sentinel for _frame_rows()'s `color` param: a real yellow-through-
+# brown BLEND across the art's own rows, not one flat shade per frame
+# (2026-07-28, live, Zach: "colors are wrong... can get mixed color
+# output yellow and brown and inbetween?"). The discrete per-tick
+# LOGO_COLORS rotation this replaced picked ONE color for the whole
+# frame; this picks one PER ROW, sampled evenly across LOGO_COLORS
+# top-to-bottom, so a single frame shows the actual gradient.
+GRADIENT = "gradient"
+
+
+def gradient_colors(n, palette=None):
+    """n colors sampled evenly across `palette` (default LOGO_COLORS),
+    top-to-bottom. Pure, deterministic given n/palette -- same color
+    picked for the same row index every call, so this doesn't need its
+    own state in main()'s loop the way the old discrete rotation did."""
+    palette = list(palette or LOGO_COLORS)
+    if n <= 0:
+        return []
+    if n == 1 or len(palette) == 1:
+        return [palette[0]] * n
+    return [palette[round(i * (len(palette) - 1) / (n - 1))] for i in range(n)]
+
+
+# Blink model (2026-07-28, Zach-directed): "make the shimmer stay long
+# on potato.txt with a quick potato2.txt, random delay, about 80-90% on
+# potato one. this is a blink. shouldn't be predictable, just a flash."
+# REPLACES the earlier fixed-cadence art_idx cycling entirely -- a
+# biological blink, not a metronome. REST (arts[0], potato.txt) holds
+# for a long, random stretch; a BLINK (arts[1], potato2.txt) is a
+# single short, random stretch, then reverts to REST. Whether a blink
+# happens at all is its own coin flip each time a REST decision is due,
+# not a scheduled alternation -- "shouldn't be predictable" is the
+# point, not a side effect.
+BLINK_PROBABILITY = float(os.environ.get("CRT_SCREENSAVER_BLINK_PROBABILITY", "0.15"))
+REST_HOLD_RANGE = (4.0, 14.0)   # seconds potato.txt is held between blink rolls
+BLINK_HOLD_RANGE = (0.3, 0.9)   # seconds potato2.txt is held during a blink
+
+
+def next_blink_state(rng=None):
+    """Pure: (is_blink, hold_secs) for the state that should start now.
+    Call again once hold_secs has elapsed to get what comes after.
+    is_blink=False means arts[0] (potato.txt, resting); True means
+    arts[1] (potato2.txt, a brief flash). BLINK_HOLD_RANGE is much
+    shorter than REST_HOLD_RANGE, so even a BLINK_PROBABILITY as high
+    as 0.15 per decision still spends well under 15% of real TIME on
+    the blink frame -- comfortably inside Zach's "80-90% on potato one"
+    without the two numbers needing to match directly."""
+    rng = rng or random
+    if rng.random() < BLINK_PROBABILITY:
+        return True, rng.uniform(*BLINK_HOLD_RANGE)
+    return False, rng.uniform(*REST_HOLD_RANGE)
+
+
+def last_sound_at(stt_log=None, gate_log=None):
+    """The more recent of STT_LOG/GATE_LOG's mtime, or None if neither
+    exists yet (nothing has ever been heard on this box). Pure given the
+    two paths; reads the filesystem, no other side effects."""
+    times = []
+    for p in (stt_log or STT_LOG, gate_log or GATE_LOG):
+        try:
+            times.append(os.path.getmtime(p))
+        except OSError:
+            pass
+    return max(times) if times else None
+
+
+def is_asleep(now, stt_log=None, gate_log=None, silence_secs=None):
+    """True if potato should be shown asleep (frozen on potato2.txt) --
+    no sound heard yet at all, or the most recent sound was more than
+    `silence_secs` (default SLEEP_SILENCE_SECS) ago. Pure given `now`
+    (injectable so this is testable without waiting on a real clock)."""
+    silence_secs = SLEEP_SILENCE_SECS if silence_secs is None else silence_secs
+    last = last_sound_at(stt_log, gate_log)
+    if last is None:
+        return True
+    return (now - last) >= silence_secs
 
 
 def active_art_paths(today=None):
@@ -227,13 +323,15 @@ def _frame_rows(art, width, height, caption, color, dim, slot=None):
     don't need margin handling (tests, mostly)."""
     lines, top = art_layout(art, width, height, reserve_caption=bool(caption))
     rows = [""] * max(1, height)
-    style = (DIM if dim else "") + "\x1b[%sm" % color
+    line_colors = (gradient_colors(len(lines)) if color == GRADIENT
+                  else [color] * len(lines))
     for i, line in enumerate(lines):
         row = top + i
         if row >= len(rows):
             break
         # clamp so leftpad + line can never exceed width (no wrap)
         w = caption_lib.display_width(line)
+        style = (DIM if dim else "") + "\x1b[%sm" % line_colors[i]
         rows[row] = " " * max(0, min((width - w) // 2, width - w)) + style + line + RESET
     if caption:
         row, align = slot or (len(rows) - 1, "center")
@@ -403,17 +501,12 @@ def main(argv=None):
     p.add_argument("--caption-move-secs", type=float,
                     default=_env_secs("CRT_SCREENSAVER_CAPTION_MOVE_SECS", 8.0),
                     help="how often the caption moves to a new spot; 0 pins it")
-    p.add_argument("--art-rotate-secs", type=float,
-                    default=_env_secs("CRT_SCREENSAVER_ART_ROTATE_SECS", 3.0),
-                    help="how often the art alternates when more than one is active; 0 pins the first")
-    # 10.0 -> 3.0 (2026-07-28): potato.txt/potato2.txt differ by only a
-    # handful of characters, meant to read as a shimmer/breathe
-    # animation (Zach: "create an animation effect") -- 10s was tuned
-    # for the old slow old-vs-new content swap, not a frame pair meant
-    # to feel alive. Bounded by --interval (the breathing dim/normal
-    # cadence, default 2.5s): art can only actually change once per
-    # drawn frame, so this and --interval together set the real
-    # perceived rate, not this value alone.
+    # --art-rotate-secs removed (2026-07-28): art alternation moved from
+    # a fixed cadence to the blink model (next_blink_state(), see
+    # BLINK_PROBABILITY/REST_HOLD_RANGE/BLINK_HOLD_RANGE) and color
+    # moved from a discrete per-tick rotation to a static gradient (see
+    # GRADIENT/gradient_colors()) -- neither one is driven by a single
+    # interval anymore, so the flag had nothing left to control.
     p.add_argument("--once", action="store_true",
                     help="render a single frame and exit (for tests/preview)")
     args = p.parse_args(argv)
@@ -426,7 +519,7 @@ def main(argv=None):
     if args.once:
         cols, rows = resolve_size()
         content_cols, content_rows = safe_screen_size(cols, rows, margins)
-        frame_rows = _frame_rows(art, content_cols, content_rows, args.caption, CYAN, dim=True)
+        frame_rows = _frame_rows(art, content_cols, content_rows, args.caption, GRADIENT, dim=True)
         padded = pad_frame_rows(frame_rows, margins, content_cols)
         sys.stdout.write("\x1b[H\x1b[2J" + "\n".join(padded))
         sys.stdout.write("\n")
@@ -444,35 +537,50 @@ def main(argv=None):
     # real 40x15 once the client attaches. Reading once at boot cached 80
     # and centered for it, so lines wrapped on the tube. Cheap to redo.
     slot, move_at = None, 0.0
-    art_idx, art_move_at = 0, 0.0
-    color_idx, color_move_at = 0, 0.0
-    logo_color = LOGO_COLORS[0]
+    art_move_at = 0.0
+    was_asleep = False
     for dim in itertools.cycle([True, False]):
         raw_cols, raw_rows = resolve_size()
         cols, rows = safe_screen_size(raw_cols, raw_rows, margins)
-        # Art alternation (2026-07-28): only matters while more than one
-        # art is active (see active_art_paths()/OLD_ART_SUNSET_DATE) --
-        # a single-art rotation is a no-op every tick, same "automatic
-        # behaviour keeps a manual escape hatch" rule as caption_move_secs
-        # below (0 pins it, here to index 0 == whatever was loaded first).
-        if len(arts) > 1 and args.art_rotate_secs and time.time() >= art_move_at:
-            art_idx = (art_idx + 1) % len(arts)
-            art = arts[art_idx]
-            art_move_at = time.time() + args.art_rotate_secs
+        # Sleep/wake (2026-07-28): frozen on arts[1] (potato2.txt,
+        # "potato is asleep") after SLEEP_SILENCE_SECS with no sound
+        # heard (is_asleep() reads crt-stt-solo.py's own STT_LOG/
+        # GATE_LOG mtimes -- see that function's docstring for why this
+        # doesn't read the mic directly). The blink state machine below
+        # only runs while awake; going from asleep to awake forces an
+        # immediate fresh blink decision (art_move_at = 0) rather than
+        # waiting out whatever hold was queued before sleep started.
+        asleep = len(arts) > 1 and is_asleep(time.time())
+        if asleep:
+            if not was_asleep:
+                art = arts[1]
+                move_at = 0.0
+            art_move_at = time.time() + 1.0  # re-check soon in case sound arrives
+        elif was_asleep:
+            art_move_at = 0.0  # force a fresh blink roll on waking, not a stale one
+        was_asleep = asleep
+        # Blink (2026-07-28, replaces the earlier fixed-cadence art_idx
+        # cycling): mostly arts[0] (potato.txt), rare short unpredictable
+        # flashes to arts[1] (potato2.txt) -- see next_blink_state()'s
+        # own docstring. Only meaningful with 2 arts (the permanent
+        # potato.txt/potato2.txt pair); an explicit single --art pins
+        # art at index 0 forever, same "manual escape hatch" rule as
+        # caption_move_secs below.
+        if not asleep and len(arts) > 1 and time.time() >= art_move_at:
+            is_blink, hold = next_blink_state()
+            art = arts[1] if is_blink else arts[0]
+            art_move_at = time.time() + hold
             # Force the caption slot to recompute against the NEW art's
             # geometry immediately, not on its own next tick -- the two
             # arts are different sizes, and a slot picked for one can
             # land inside the other's rows until caption_move_secs
             # catches up on its own schedule otherwise.
             move_at = 0.0
-        # Logo color variety (2026-07-28), same cadence but its OWN
-        # counter and deliberately NOT gated on len(arts) > 1 -- color
-        # rotation shouldn't stop just because DEFAULT_ART sunset (same
-        # day) left only one art active.
-        if args.art_rotate_secs and time.time() >= color_move_at:
-            color_idx = (color_idx + 1) % len(LOGO_COLORS)
-            logo_color = LOGO_COLORS[color_idx]
-            color_move_at = time.time() + args.art_rotate_secs
+        # Color: a real gradient across the art's own rows, not one flat
+        # shade per frame (2026-07-28, live, replacing an earlier
+        # discrete per-tick LOGO_COLORS rotation -- Zach: "colors are
+        # wrong... can get mixed color output yellow and brown and
+        # inbetween?"). See GRADIENT/_frame_rows()/gradient_colors().
         # The caption moves (2026-07-25, eighteenth cycle). The breathing
         # proves this process is alive; it does not stop the SCREEN from
         # being one fixed layout from boot until someone speaks, which is
@@ -491,7 +599,7 @@ def main(argv=None):
             slot = pick_caption_slot(art, cols, rows, avoid=slot,
                                      reserve_caption=bool(args.caption))
             move_at = time.time() + args.caption_move_secs
-        frame_rows = _frame_rows(art, cols, rows, args.caption, logo_color, dim=dim, slot=slot)
+        frame_rows = _frame_rows(art, cols, rows, args.caption, GRADIENT, dim=dim, slot=slot)
         padded = pad_frame_rows(frame_rows, margins, cols)
         sys.stdout.write("\x1b[H\x1b[2J" + "\n".join(padded))
         sys.stdout.flush()

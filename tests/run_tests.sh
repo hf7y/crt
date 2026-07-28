@@ -420,6 +420,10 @@ echo "== crt-screensaver.py overscan safe-margin enforcement (2026-07-28) =="
 python3 "$DIR/test_screensaver_safe_margins.py" || fail=1
 echo
 
+echo "== crt-screensaver.py blink model, sleep/wake, color gradient (2026-07-28) =="
+python3 "$DIR/test_screensaver_blink_sleep.py" || fail=1
+echo
+
 # 2026-07-25: the scanner types into whichever tmux window has FOCUS, and the
 # idle-lean layout gives focus to the screensaver -- so the idle face had been
 # eating every scan on potato. Both halves of the funnel's first link:
