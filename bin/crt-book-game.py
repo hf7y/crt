@@ -62,7 +62,12 @@ TRAINING_LOG = os.path.expanduser(
     os.environ.get("CRT_BOOK_GAME_TRAINING_LOG", "~/.crt/book-game-training.jsonl"))
 CLAUDE_RATE = float(os.environ.get("CRT_BOOK_GAME_CLAUDE_RATE", "0.5"))
 GEMINI_KEY_PATH = os.path.expanduser(os.environ.get("CRT_GEMINI_KEY_PATH", "~/.crt/gemini.key"))
-GEMINI_MODEL = os.environ.get("CRT_GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("CRT_GEMINI_MODEL", "gemini-flash-latest")
+# 2026-07-28, live: gemini-2.5-flash 404s for this key with "no longer
+# available to new users" -- confirmed via a direct curl against the
+# API, not a code bug. gemini-flash-latest is Google's own always-
+# current alias (resolved to gemini-3.6-flash the day this was checked)
+# specifically so this default doesn't rot the same way again.
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     "{model}:generateContent?key={key}"
