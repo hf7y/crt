@@ -60,60 +60,13 @@ something from this file.
   default.
 
 
-- **2026-07-24 (nightly-batch, 5th cycle today): `ssh potato` regressed
-  from "reachable but auth-rejected" to fully unresponsive.** Cycles 2-4
-  today all got `Permission denied (publickey,password)` from
-  `vkv@192.168.0.45` (host up, wrong key). This cycle got a bare
-  connection timeout on both SSH and `ping` to that same IP — no answer
-  at all, a strictly worse state (host likely off-network, powered down,
-  or re-addressed again). The stale `~/.ssh/config` `Host potato` entry
-  question from cycles 2-4 still stands; now compounded by potato
-  possibly being offline outright. This blocks all live verification of
-  bar items 2/3/4 in `.claude/FOCUS.md`'s stability milestone.
-
-- **2026-07-24 (nightly-batch, 6th cycle today): correction to the 5th
-  cycle's "potato may be off-network" conclusion.** This cycle's
-  environment has no route to 192.168.0.0/24 at all (ip route only
-  shows a 10.129.176.0/20 link) -- a subnet sweep from here can't
-  distinguish "potato is down" from "this box just can't reach that LAN
-  this session" (e.g. no VPN/tunnel active). The bare-timeout result is
-  real but its cause is now less certain than the 5th cycle's report
-  implied. Needs a human check from a machine actually on potato's LAN
-  (or with an active tunnel to it) before concluding potato itself is
-  offline.
-
-- **2026-07-24 (nightly-batch, 7th cycle today): potato is back to
-  "reachable but auth-rejected"** -- `ip route` this session shows
-  `192.168.0.0/24` reachable again (unlike the 6th cycle's no-route
-  session), and `ssh potato` gets `Permission denied
-  (publickey,password)` from `vkv@192.168.0.45`, the same failure shape
-  as cycles 2-4, not the bare timeout of cycles 5-6. This resolves the
-  6th cycle's open question in favor of "potato itself is likely fine,
-  just not accepting this account's key" -- the real, still-open blocker
-  is `~/.ssh/config`'s `Host potato` entry (wrong user/key, or the
-  host's `authorized_keys` no longer has this account's public key).
-  Not something to brute-force blind; needs Zach to either add
-  `~/.ssh/id_ed25519.pub` to potato's `authorized_keys` directly, or
-  confirm the right user/key to use here.
+- **2026-07-27 (realisateur, via `/ideate`): the six `ssh potato` auth-rejected entries below (2026-07-24, cycles 5-8) are CLEARED — superseded by a working access path.** Tonight's reconciliation session reached potato successfully via `vkv_deploy_key`, not this account's default key; Zach confirmed (2026-07-27 `/ideate`) the default-key gap isn't worth tracking separately since a working credential already exists. If default-key access from this account becomes load-bearing later, re-open as a fresh dated entry rather than reviving these.
 
 - **2026-07-24 (nightly-batch, 7th cycle today): `~/reports/crt` write
   access is fixed** -- `id`/`groups` now show `zach` IS a member of
   `vaporwave-reports` (was missing as of the 2026-07-23 report). Removed
   the stale question above about it; confirmed writable with a real
   touch+rm this cycle.
-
-- **2026-07-24 (nightly-batch, this cycle): `ssh potato` unchanged --
-  still auth-rejected, not offline.** Same result as cycle 7:
-  `192.168.0.0/24` is routable from here, but `vkv@192.168.0.45` returns
-  `Permission denied (publickey,password)`. No progress possible from
-  this side without a human action -- either add this account's
-  `~/.ssh/id_ed25519.pub` to potato's `authorized_keys` for user `vkv`,
-  or tell this account the right user/key/IdentityFile to put in
-  `~/.ssh/config`'s `Host potato` block (currently no `IdentityFile`
-  line at all, so it's trying the default key). This is now blocking
-  live verification of all 4 stability-milestone bar items across many
-  consecutive cycles today -- worth prioritizing over anything else open
-  in this file.
 
 - **2026-07-24 (nightly-batch, this cycle): offline-safe backlog appears
   exhausted for now.** Checked every item in `.claude/FOCUS.md`'s

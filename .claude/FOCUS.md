@@ -13,6 +13,8 @@ Ideas beyond this bar are PARKED by default (see realisateur/STABILITY-MILESTONE
 
 # crt — focus & backlog
 
+- **2026-07-27 (realisateur, via `/ideate`): potato reachability is confirmed live, not just theoretically fixed — the 4 milestone checkboxes above are unblocked, do the live-verify pass now.** Tonight's own reconciliation session (`da45280`) confirmed potato is still `192.168.0.45` (unchanged — no static-IP change actually landed, that was a stale premise carried into this session), reachable, and `~/crt`'s repo relationship is now a real clone of `origin` (was an orphan tar-deploy history since 2026-07-22). Zach confirmed: run the live-verification pass next — wake-arm live-confirm, handset-duck loopback test, capture-device-by-name against real `arecord -l`, Book Game funnel end-to-end scan — the four items this file's Stability milestone has listed as "code done, needs live-confirm" since 07-24. Vision unchanged (core voice loop + Book Game funnel reliable on potato); this is the milestone's next concrete step, not a new direction. **`steward-survey.sh` will misreport crt as DARK** — it reads only `_paced.conf` (mandark), not `_paced.dexter.conf`, where crt actually runs (`enabled=1`, weight 3, 274 commits/7d as of tonight); a fix for that gap is scheduler's own, not filed again here (see realisateur's own FOCUS.md 2026-07-27 entry and [[feedback_probe_survey_headlines]] for the prior false-DARK incident this would repeat).
+
 - **2026-07-26 (realisateur):** the parked "bibliothecaire" catalog-split
   fork below is RESOLVED — Zach chose the third preserved option, **split
   scope-only**: a wholly separate greenfield project (own repo, own
