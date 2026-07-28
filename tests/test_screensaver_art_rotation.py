@@ -77,14 +77,14 @@ if __name__ == "__main__":
 
 
 class TestLogoColorVariety(unittest.TestCase):
-    def test_default_logo_color_is_the_known_safe_white(self):
-        # Zach, three passes: "tan, brown" -> "more potato colored
-        # (brown, yellow, golden)" -> LIVE on the real CRT: "should not
-        # be flashing between grey and red... red is no go." The bright
-        # gold/yellow 256-color picks were the likely composite-bleed
-        # culprit; reverted to CLAUDE.md's own explicit safe list
-        # (yellow/magenta/cyan/white) until a real replacement is
-        # verified live. No env override set here -> the default.
+    def test_default_logo_color_is_the_live_confirmed_olive_brown_tan(self):
+        # 2026-07-28, LIVE-CONFIRMED (Zach: "good"): olive/brown/tan
+        # tested on the real tube with no red-bleed -- this is now the
+        # real default, wired into the actual boot path rather than
+        # requiring a manual env override (which crt-console.sh never
+        # set, so every real boot rendered flat white -- Zach: "awake
+        # potato still blinking white"). No env override set here -> the
+        # default.
         old = os.environ.pop("CRT_SCREENSAVER_LOGO_COLORS", None)
         try:
             import importlib
@@ -92,7 +92,7 @@ class TestLogoColorVariety(unittest.TestCase):
                 "crt_screensaver_default_colors", os.path.join(BIN_DIR, "crt-screensaver.py"))
             fresh = importlib.util.module_from_spec(fresh_spec)
             fresh_spec.loader.exec_module(fresh)
-            self.assertEqual(fresh.LOGO_COLORS, [fresh.WHITE])
+            self.assertEqual(fresh.LOGO_COLORS, ["38;5;100", "38;5;94", "38;5;137"])
         finally:
             if old is not None:
                 os.environ["CRT_SCREENSAVER_LOGO_COLORS"] = old

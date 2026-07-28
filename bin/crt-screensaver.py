@@ -144,18 +144,20 @@ DIM, BOLD, RESET = "\x1b[2m", "\x1b[1m", "\x1b[0m"
 # "on the safe side of that concern" was an unverified guess, now
 # falsified live -- correcting the record here, not just the color.
 #
-# Reverted to a single known-safe shade (WHITE, already on CLAUDE.md's
-# explicit safe list) while real candidates get tested live -- "red is
-# no go" is the hard constraint, "what about tan or brown" is still
-# open, but only Zach's own eyes on the real tube can answer it now.
-# Override for live testing without a redeploy: CRT_SCREENSAVER_LOGO_
-# COLORS, comma-separated 256-color-or-basic codes, e.g.
-#   CRT_SCREENSAVER_LOGO_COLORS=38;5;58 crt-screensaver.py
-# tries ONE muted, heavily-desaturated olive-brown -- 58 has roughly
-# equal low R/G and near-zero B, about as far from the gold/yellow
-# family that just failed as a "brown" 256-color option gets.
+# 2026-07-28, LIVE-CONFIRMED (Zach: "good"): olive/brown/tan
+# (38;5;100, 38;5;94, 38;5;137) tested on the real tube via this same
+# env override with no red-bleed -- this is now the real DEFAULT, not
+# just a manual test override. The earlier WHITE-only default was never
+# wired into the actual boot path (bin/crt-console.sh never set
+# CRT_SCREENSAVER_LOGO_COLORS), so every real boot rendered the "awake"
+# gradient as flat white -- indistinguishable from the asleep state
+# (Zach: "awake potato still blinking white"). Override still available
+# for further live testing without a redeploy: CRT_SCREENSAVER_LOGO_
+# COLORS, comma-separated 256-color-or-basic codes.
 LOGO_COLORS = [
-    c.strip() for c in os.environ.get("CRT_SCREENSAVER_LOGO_COLORS", WHITE).split(",")
+    c.strip() for c in os.environ.get(
+        "CRT_SCREENSAVER_LOGO_COLORS", "38;5;100,38;5;94,38;5;137"
+    ).split(",")
     if c.strip()
 ] or [WHITE]
 
