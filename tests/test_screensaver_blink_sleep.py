@@ -172,3 +172,27 @@ class TestFrameRowsGradient(unittest.TestCase):
         colors_seen = set(re.findall(r"\x1b\[36m", "\n".join(rows)))
         other_colors = set(re.findall(r"\x1b\[38;5;\d+m", "\n".join(rows)))
         self.assertEqual(len(other_colors), 0)
+
+
+class TestFrameColorForState(unittest.TestCase):
+    def test_asleep_is_plain_white(self):
+        self.assertEqual(ss.frame_color_for_state(True), ss.WHITE)
+
+    def test_awake_is_gradient(self):
+        self.assertEqual(ss.frame_color_for_state(False), ss.GRADIENT)
+
+    def test_asleep_frame_never_uses_gradient_colors(self):
+        # End-to-end through _frame_rows(), not just the color-picker:
+        # an asleep frame must render as flat white, not the LOGO_COLORS
+        # blend, regardless of how many colors are configured.
+        old = ss.LOGO_COLORS
+        ss.LOGO_COLORS = ["38;5;58", "38;5;94", "38;5;136"]
+        try:
+            art = ["line%d" % i for i in range(5)]
+            color = ss.frame_color_for_state(asleep=True)
+            rows = ss._frame_rows(art, 40, 7, "", color, dim=True)
+        finally:
+            ss.LOGO_COLORS = old
+        joined = "\n".join(rows)
+        self.assertIn("\x1b[37m", joined)
+        self.assertEqual(len(re.findall(r"\x1b\[38;5;\d+m", joined)), 0)

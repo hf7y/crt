@@ -238,6 +238,19 @@ def is_asleep(now, stt_log=None, gate_log=None, silence_secs=None):
     return (now - last) >= silence_secs
 
 
+def frame_color_for_state(asleep):
+    """The `color` arg _frame_rows() should get for this tick (2026-07-28,
+    live, Zach: "sleeping potato should stay grey. let's try multicolor
+    yellow, brown, tan for wake potato"). Sleep stays plain WHITE/grey,
+    deliberately NOT the gradient -- only the awake/blinking state gets
+    the (still being live-tuned, see LOGO_COLORS' own comment on the
+    CRT_SCREENSAVER_LOGO_COLORS override) color treatment. Pure/trivial
+    on purpose: kept as a real function rather than an inline ternary so
+    the sleep/awake color split has its own test, not just an assertion
+    buried in a live-process integration test."""
+    return WHITE if asleep else GRADIENT
+
+
 def active_art_paths(today=None):
     """Pure function: which art file path(s) are in rotation right now --
     always both (2026-07-28: potato.txt/potato2.txt are a permanent
@@ -609,7 +622,8 @@ def main(argv=None):
             slot = pick_caption_slot(art, cols, rows, avoid=slot,
                                      reserve_caption=bool(args.caption))
             move_at = time.time() + args.caption_move_secs
-        frame_rows = _frame_rows(art, cols, rows, args.caption, GRADIENT, dim=dim, slot=slot)
+        frame_color = frame_color_for_state(asleep)
+        frame_rows = _frame_rows(art, cols, rows, args.caption, frame_color, dim=dim, slot=slot)
         padded = pad_frame_rows(frame_rows, margins, cols)
         sys.stdout.write("\x1b[H\x1b[2J" + "\n".join(padded))
         sys.stdout.flush()
