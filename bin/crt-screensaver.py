@@ -43,6 +43,7 @@
 # question and brings itself to the front. This window stays what it is --
 # an idle face with no brain, no database, and no book logic.
 import argparse
+import datetime
 import importlib.util
 import itertools
 import os
@@ -52,6 +53,14 @@ import time
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_ART = os.path.join(BIN_DIR, "..", "potato-small.txt")
+# New art (2026-07-28, Zach-directed), alternated with DEFAULT_ART until
+# OLD_ART_SUNSET_DATE, then DEFAULT_ART retires and this is the only art
+# shown. "hardcode expiration" was the explicit instruction -- this is
+# that hardcode, not a config knob: bump the date by hand (and update
+# this comment) if the sunset needs to move, don't wire an env var
+# around a decision meant to actually take effect.
+NEW_ART = os.path.join(BIN_DIR, "..", "potato.txt")
+OLD_ART_SUNSET_DATE = datetime.date(2026, 8, 27)  # 30 days out from the decision
 
 # Two imports, both deliberately light: crt_scan_line.py pulls in `re` and
 # `datetime`, crt_caption.py `re`, `random` and `unicodedata`, and nothing
@@ -101,6 +110,18 @@ FALLBACK_ART = [
 
 CYAN, YELLOW, WHITE = "36", "33", "37"
 DIM, BOLD, RESET = "\x1b[2m", "\x1b[1m", "\x1b[0m"
+
+
+def active_art_paths(today=None):
+    """Pure function: which art file path(s) are in rotation right now.
+    Before OLD_ART_SUNSET_DATE, both (alternated in main()'s loop); on or
+    after it, NEW_ART only -- DEFAULT_ART (potato-small.txt) retires for
+    good, not just stops being picked first. `today` is injectable so
+    this is testable without waiting for the real calendar date."""
+    today = today or datetime.date.today()
+    if today >= OLD_ART_SUNSET_DATE:
+        return [NEW_ART]
+    return [DEFAULT_ART, NEW_ART]
 
 
 def load_art(path):
@@ -272,19 +293,31 @@ def scan_forwarder(stream=None, log_path=None, on_line=None):
 
 def main(argv=None):
     p = argparse.ArgumentParser(description="Potato idle screensaver for the CRT.")
-    p.add_argument("--art", default=os.environ.get("CRT_SCREENSAVER_ART", DEFAULT_ART))
-    p.add_argument("--caption", default=os.environ.get("CRT_SCREENSAVER_CAPTION",
-                                                        "say 'potato' to wake me"))
+    # No hardcoded default here (2026-07-28): an explicit --art/
+    # CRT_SCREENSAVER_ART pins ONE file, same as always (manual override
+    # wins, no alternation). Left unset, active_art_paths() decides --
+    # both potato-small.txt and potato.txt alternated until
+    # OLD_ART_SUNSET_DATE, then potato.txt only.
+    p.add_argument("--art", default=os.environ.get("CRT_SCREENSAVER_ART"))
+    # "say 'potato' to wake me" removed (2026-07-28, Zach-directed) --
+    # default caption is now empty. Still overridable via --caption/
+    # CRT_SCREENSAVER_CAPTION for anyone who wants a caption back.
+    p.add_argument("--caption", default=os.environ.get("CRT_SCREENSAVER_CAPTION", ""))
     p.add_argument("--interval", type=float,
                     default=_env_secs("CRT_SCREENSAVER_INTERVAL", 2.5))
     p.add_argument("--caption-move-secs", type=float,
                     default=_env_secs("CRT_SCREENSAVER_CAPTION_MOVE_SECS", 8.0),
                     help="how often the caption moves to a new spot; 0 pins it")
+    p.add_argument("--art-rotate-secs", type=float,
+                    default=_env_secs("CRT_SCREENSAVER_ART_ROTATE_SECS", 10.0),
+                    help="how often the art alternates when more than one is active; 0 pins the first")
     p.add_argument("--once", action="store_true",
                     help="render a single frame and exit (for tests/preview)")
     args = p.parse_args(argv)
 
-    art = load_art(args.art)
+    art_paths = [args.art] if args.art else active_art_paths()
+    arts = [load_art(path) for path in art_paths]
+    art = arts[0]
 
     if args.once:
         cols, rows = resolve_size()
@@ -304,8 +337,24 @@ def main(argv=None):
     # real 40x15 once the client attaches. Reading once at boot cached 80
     # and centered for it, so lines wrapped on the tube. Cheap to redo.
     slot, move_at = None, 0.0
+    art_idx, art_move_at = 0, 0.0
     for dim in itertools.cycle([True, False]):
         cols, rows = resolve_size()
+        # Art alternation (2026-07-28): only matters while more than one
+        # art is active (see active_art_paths()/OLD_ART_SUNSET_DATE) --
+        # a single-art rotation is a no-op every tick, same "automatic
+        # behaviour keeps a manual escape hatch" rule as caption_move_secs
+        # below (0 pins it, here to index 0 == whatever was loaded first).
+        if len(arts) > 1 and args.art_rotate_secs and time.time() >= art_move_at:
+            art_idx = (art_idx + 1) % len(arts)
+            art = arts[art_idx]
+            art_move_at = time.time() + args.art_rotate_secs
+            # Force the caption slot to recompute against the NEW art's
+            # geometry immediately, not on its own next tick -- the two
+            # arts are different sizes, and a slot picked for one can
+            # land inside the other's rows until caption_move_secs
+            # catches up on its own schedule otherwise.
+            move_at = 0.0
         # The caption moves (2026-07-25, eighteenth cycle). The breathing
         # proves this process is alive; it does not stop the SCREEN from
         # being one fixed layout from boot until someone speaks, which is
