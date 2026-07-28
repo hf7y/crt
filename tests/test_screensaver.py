@@ -27,7 +27,8 @@ def find_forbidden_basic_code(text):
     false-positives on 256-color codes -- \\x1b[38;5;94m is a perfectly
     safe extended-palette color whose LAST NUMBER happens to be 94, and
     a naive '...94[;m]' pattern can't tell that apart from a real bare
-    \\x1b[94m. This tokenizes each sequence and skips any that start
+    \\x1b[94m (crt-safe-colors: verbatim). This tokenizes each
+    sequence and skips any that start
     with 38;5 or 48;5 (the 256-color foreground/background prefix)
     before checking for an exact forbidden token match."""
     for m in ANSI_SEQ.finditer(text):
@@ -76,13 +77,13 @@ class TestRender(unittest.TestCase):
         # 2026-07-28, live: \x1b[38;5;94m (a safe brown, one of
         # LOGO_COLORS) tripped the OLD naive substring check because it
         # ends in "94m", identical-looking to a real forbidden bare
-        # \x1b[94m. This is the regression test for that false positive.
+        # \x1b[94m -- crt-safe-colors: verbatim. Regression test for it.
         self.assertIsNone(find_forbidden_basic_code("\x1b[38;5;94mtext\x1b[0m"))
         self.assertIsNone(find_forbidden_basic_code("\x1b[48;5;31mtext\x1b[0m"))
 
     def test_a_real_bare_forbidden_code_is_still_caught(self):
-        self.assertIsNotNone(find_forbidden_basic_code("\x1b[94mtext\x1b[0m"))
-        self.assertIsNotNone(find_forbidden_basic_code("\x1b[2;31mtext\x1b[0m"))
+        self.assertIsNotNone(find_forbidden_basic_code("\x1b[94mtext\x1b[0m"))  # crt-safe-colors: verbatim
+        self.assertIsNotNone(find_forbidden_basic_code("\x1b[2;31mtext\x1b[0m"))  # crt-safe-colors: verbatim
 
     def _visible_lines(self, frame):
         strip = re.compile(r"\x1b\[[0-9;]*m")

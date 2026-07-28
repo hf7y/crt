@@ -40,19 +40,35 @@ fail=0
 # insists every earlier parameter ends at a semicolon, which is what makes
 # 131 a near miss rather than a hit.
 #
-# Known and accepted over-match: a 256-color `\033[38;5;31m` (palette index
-# 31, not red at all) would trip this. Nothing in this repo uses 256-color
-# sequences and the tube would not render them predictably anyway, so the
-# cheap loud false positive is the better trade -- it costs one line of
-# explanation if it ever happens; the opposite error is the bug that put
-# bold red on the tube for five days.
+# The over-match this file originally accepted came true (2026-07-28): the
+# screensaver's live-tuned olive/brown palette uses real 256-color
+# sequences (`\x1b[38;5;94m` -- palette index 94, a brown, nothing like
+# bright blue), and `tests/test_screensaver.py` grew its own tokenizer
+# plus a regression test naming those sequences. This check flagged that
+# test file, i.e. the two enforcements of the same rule disagreed. The
+# premise for the cheap trade ("nothing in this repo uses 256-color") is
+# simply no longer true, so the check now excludes the 256-color
+# selector form the way the Python tokenizer does: a banned code
+# preceded by `;5;` is a palette index, not an SGR color code. Everything
+# else still fires. Remaining accepted over-match: a TRUEcolor
+# `\033[38;2;0;92;0m` (green component 92) would trip this -- nothing in
+# the repo uses `38;2;`/`48;2;` and no lookbehind can tell a colour
+# component from a code, so that one stays a loud false positive.
 BANNED='31|32|34|91|92|94'
-PATTERN='(\\033|\\x1b|\\e|'$'\x1b'')\[([0-9]+;)*('"$BANNED"')(;[0-9]+)*m'
+PATTERN='(\\033|\\x1b|\\e|'$'\x1b'')\[([0-9]+;)*(?<!;5;)('"$BANNED"')(;[0-9]+)*m'
+GREP=(grep -P)
 
 # This file necessarily names the banned codes in its own pattern and
 # prose, so it is the one exclusion. Everything else is fair game.
-hits="$(grep -rnE "$PATTERN" "$REPO/bin" "$REPO/tests" 2>/dev/null \
-        | grep -v "^$REPO/tests/test_crt_safe_colors.sh:")"
+# This file necessarily names the banned codes in its own pattern and
+# prose. Other files that must quote a banned sequence VERBATIM (a test
+# proving a detector catches it -- tests/test_screensaver.py) mark the
+# line with the opt-out below; it has to be typed deliberately, per line,
+# so a real violation can never inherit it from a neighbour.
+ALLOW_MARKER='crt-safe-colors: verbatim'
+hits="$("${GREP[@]}" -rn "$PATTERN" "$REPO/bin" "$REPO/tests" 2>/dev/null \
+        | grep -v "^$REPO/tests/test_crt_safe_colors.sh:" \
+        | grep -vF "$ALLOW_MARKER")"
 
 if [ -n "$hits" ]; then
   echo "FAIL - banned primary-RGB ANSI codes reach the CRT (see CLAUDE.md):"
@@ -70,7 +86,7 @@ probe="$(mktemp -d)"
 trap 'rm -rf "$probe"' EXIT
 printf 'COLOR_URGENT=$%s\n' "'\\033[1;31m'" > "$probe/decoy.sh"
 printf 'C = "\\x1b[92m"\n' > "$probe/decoy.py"
-found="$(grep -rlE "$PATTERN" "$probe" 2>/dev/null | wc -l)"
+found="$("${GREP[@]}" -rl "$PATTERN" "$probe" 2>/dev/null | wc -l)"
 if [ "$found" = "2" ]; then
   echo "ok - the check detects a banned code in both shell and python spelling"
 else
@@ -82,7 +98,7 @@ fi
 # yellow/magenta/cyan/white would just get switched off.
 printf 'C = "\\033[1;35m"\nD = $%s\nE = "\\x1b[2;36m"\nF = "\\033[37m"\nG = "\\033[33m"\n' \
   "'\\033[0m'" > "$probe/safe.py"
-if grep -qE "$PATTERN" "$probe/safe.py" 2>/dev/null; then
+if "${GREP[@]}" -q "$PATTERN" "$probe/safe.py" 2>/dev/null; then
   echo "FAIL - self-probe: the CRT-safe palette itself was flagged"
   fail=1
 else
@@ -95,11 +111,32 @@ fi
 # sequence is still read parameter by parameter.
 printf 'A = "\\033[131m"\nB = "\\033[3m"\nC = "\\033[231m"\nD = "\\033[341m"\nE = "\\033[2;33m"\n' \
   > "$probe/nearmiss.py"
-if grep -qE "$PATTERN" "$probe/nearmiss.py" 2>/dev/null; then
+if "${GREP[@]}" -q "$PATTERN" "$probe/nearmiss.py" 2>/dev/null; then
   echo "FAIL - self-probe: matched a number that merely contains a banned code"
   fail=1
 else
   echo "ok - does not fire on numbers that merely contain a banned code"
+fi
+
+# The 256-color exclusion, both directions -- an exclusion that
+# nobody has watched work is the same unwatched assertion as above. A
+# palette index that happens to read 94 must pass; a real bright-blue
+# sitting next to one must still fire.
+printf 'A = "\\x1b[38;5;94m"\nB = "\\x1b[48;5;31m"\nC = "\\033[1;38;5;92m"\n' \
+  > "$probe/palette256.py"
+if "${GREP[@]}" -q "$PATTERN" "$probe/palette256.py" 2>/dev/null; then
+  echo "FAIL - self-probe: a 256-color palette index was read as an SGR color"
+  fail=1
+else
+  echo "ok - 256-color palette indices are not mistaken for primaries"
+fi
+
+printf 'A = "\\x1b[38;5;94m"\nB = "\\x1b[94m"\n' > "$probe/mixed.py"
+if "${GREP[@]}" -q "$PATTERN" "$probe/mixed.py" 2>/dev/null; then
+  echo "ok - a real banned code still fires alongside a 256-color sequence"
+else
+  echo "FAIL - self-probe: the exclusion swallowed a real banned code"
+  fail=1
 fi
 
 exit "$fail"
