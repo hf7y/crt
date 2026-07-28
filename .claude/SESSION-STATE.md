@@ -7,6 +7,43 @@ pick up.
 
 # Session state (read this first, before STT-MECHANISM.md)
 
+## LATEST-3 (2026-07-27) — ecosystem reconciliation: potato/dexter, both fine
+
+Zach asked to survey the crt ecosystem for drift after a router change.
+Findings, in case anything here gets re-assumed wrong later:
+
+- **potato is still 192.168.0.45** (not .43 — that's an unrelated
+  Octoprint box, confirmed by Zach mid-session; don't chase that IP
+  again). `vkv_deploy_key` access works fine.
+- **dexter is still 192.168.0.22 / dexter.local**, host key unchanged —
+  an earlier "host key verification failed" was a transient mDNS/DNS
+  blip from the router swap, not an actual key change. No ssh auth
+  configured for `zach@dexter` from this box (pubkey rejected) — separate,
+  pre-existing gap, not investigated further this session.
+- **Fixed for real: potato's `~/crt` had no relationship to `origin`.**
+  It was a standalone repo from the original tar-over-ssh deploy
+  (2026-07-22), never `git clone`d from anywhere, with a completely
+  disjoint commit history (4 local-only commits, no common ancestor with
+  `origin/main`) and ~140 files sitting on disk untracked. Diffed
+  potato's tracked tree against this dev checkout byte-for-byte first —
+  confirmed potato had nothing unique (its 4 orphan commits were an
+  earlier, less-complete version of the same window-1-marker/staleness
+  work already in `origin/main`'s history under different hashes; its
+  uncommitted `stt-fixups.json` edits were already fully present here
+  too). With Zach's go-ahead: backed up potato's old repo to
+  `~/crt.bak-2026-07-28` (still there, untouched), then replaced
+  `~/crt` with a clean `git clone` built from a bundle of this repo's
+  `main`, `origin` remote pointed at `/home/zach/git-remotes/crt.git`.
+  Potato's HEAD now matches this repo's exactly (`21fe8ef` at the time).
+  **Caveat:** that `origin` path is local to this dev workstation, not
+  network-reachable from potato — potato still can't `git pull` live;
+  future deploys need the same bundle/tar/scp approach used this
+  session, not a bare `git pull origin main` on potato itself. Filed via
+  `notify-senechal` (repo/remote config change on potato).
+- Everything else in LATEST-2 below (mandark brain-routing, screensaver,
+  wake-arm) wasn't touched or re-verified this session — still whatever
+  state LATEST-2 says, not re-confirmed live.
+
 ## LATEST-2 (2026-07-23, evening) — idle-lean brain placement + potato screensaver
 
 Built + deployed live to potato this session (see POTATO.md):
