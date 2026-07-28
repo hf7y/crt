@@ -7,6 +7,48 @@ pick up.
 
 # Session state (read this first, before STT-MECHANISM.md)
 
+## LATEST (2026-07-28) — potato's brain wired, then handed to gardien
+
+**Potato's nightly self-repair is LIVE.** `/etc/systemd/system/crt-self-repair.{service,timer}`
+installed and `enabled --now` on potato (Zach ran the sudo half; the
+permission classifier blocks remote sudo from this session — hand the
+command over, don't retry it). First fire 04:15 local, randomized +10min.
+Filed with senechal.
+
+**Potato's repo was never a real clone.** `origin` is
+`/home/zach/git-remotes/crt.git` — a path that exists only on mandark, so
+potato could never fetch, ever. Its 10 modified + 7 untracked files turned
+out byte-identical to origin/main (a file-level copy on a stale HEAD, not
+local work). Synced via `git bundle` + scp + `git stash push -u` +
+`merge --ff-only`; potato is clean on the current HEAD. `stash@{0}` and
+`/tmp/crt-pretree-backup.tgz` remain on potato as redundant safety nets.
+Direction that DOES work: this checkout has a `potato` remote
+(`ssh://potato/home/vkv/crt`) and `git fetch potato` succeeds — that is how
+the nightly pass's commits come back until the move lands.
+
+**Two enforcers were contradicting each other.** `test_crt_safe_colors.sh`
+flagged `test_screensaver.py` — its documented "nothing here uses
+256-color" over-match died when the screensaver adopted `\x1b[38;5;94m`.
+Fixed with a `;5;` lookbehind + probes both directions + a per-line
+`crt-safe-colors: verbatim` opt-out. Suite green otherwise. **Known flake,
+not fixed:** `test_hookswitch_debounce.sh`'s separated-transitions case has
+a fixed 0.35s wall-clock budget — passes standalone, fails under full-suite
+load.
+
+**New mechanism: `bin/crt-senechal-guard.sh`** — PostToolUse(Bash) hook
+(project `.claude/settings.json`) that reminds when a command touches
+machine-scoped config. It reminds rather than auto-filing on purpose; the
+reasoning is in the script header, don't "improve" it into an auto-filer.
+Also asked senechal to SWEEP for unregistered config rather than only
+receiving pushes.
+
+**Handed off:** Zach is moving crt off mandark onto always-on dexter with
+gardien. `DEXTER-MOVE.md` (new, project root) has the probed inventory and
+the plan — read it before touching hosts. Headline finding:
+`crt-whisper-server.service` is ACTIVE on mandark on `0.0.0.0:8991`, i.e.
+live STT depends on a laptop staying awake. `crt-vm_claude_creds.json`
+deleted (Zach's call), not migrated.
+
 ## LATEST-3 (2026-07-27) — ecosystem reconciliation: potato/dexter, both fine
 
 Zach asked to survey the crt ecosystem for drift after a router change.
