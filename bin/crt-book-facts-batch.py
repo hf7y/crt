@@ -4,9 +4,21 @@
 # each, then ai-pass in batches to generate 3-ish high quality facts per
 # book for trivia."
 #
+# REDESIGNED same day, still live: the first version generated bare fact
+# strings shown as flavor text next to the STILL-GENERIC template
+# question (fiction/nonfiction, before/after-a-year) -- Zach caught it
+# live ("I'm still getting generic facts?") and redirected: "clean
+# design is to phrase it as a question... Who guest edited the 2016
+# edition? Answer: Junot Diaz." Stage 2 below now writes real,
+# fact-grounded two-option trivia questions DIRECTLY into questions_json,
+# replacing the generic question outright -- same schema
+# crt-book-answer-listen.py's grading already expects, so this needed
+# zero changes to display or grading code, only a better-grounded
+# question generator.
+#
 # Two independent stages, run in order each invocation, each cache-once
 # (never redoes a book that already has a value in the relevant column --
-# same philosophy as quote/lcc/questions_json):
+# same philosophy as quote/lcc):
 #
 #   1. SCRAPE (non-AI): every registered book with facts_raw IS NULL gets
 #      a Wikipedia summary-API lookup by title (bin/crt-book-game.py's
@@ -17,20 +29,21 @@
 #      signal -- same convention as quote's fallback chain).
 #
 #   2. DISTILL (AI, batched): every book with facts_raw IS NOT NULL and
-#      facts_json IS NULL gets grouped into batches of CRT_BOOK_FACTS_
-#      BATCH_SIZE and sent through ONE Gemini call per batch (bin/
-#      crt-book-game.py's build_facts_batch_prompt/call_gemini_batch/
-#      parse_facts_batch_response) asking for exactly 3 high-quality
-#      facts per book, grounded in each book's own facts_raw candidates.
-#      Skipped entirely (loud, not silent) if no Gemini key is
-#      configured -- see bin/crt-book-game.py's _load_gemini_key.
+#      question_source != 'ai-enriched' gets grouped into batches of
+#      CRT_BOOK_FACTS_BATCH_SIZE and sent through ONE Gemini call per
+#      batch (bin/crt-book-game.py's build_facts_batch_prompt/
+#      call_gemini_batch/parse_claude_batch_response -- the SAME parser
+#      the pre-existing per-scan Gemini path uses, since the output
+#      schema is now identical) asking for exactly 3 fact-grounded
+#      two-option questions per book. Skipped entirely (loud, not
+#      silent) if no Gemini key is configured -- see bin/crt-book-game.py's
+#      _load_gemini_key.
 #
-# STATUS: NOT hardware-verified past this pass's own live scrape-stage
-# run on potato's real registered books. The AI/distill stage is
-# regression-tested with an injected fake poster but has never run
-# against the real Gemini API (no key configured on potato as of this
-# writing) -- treat its live behavior as unverified until a key exists
-# and this has actually been run with one.
+# STATUS: both stages confirmed live against potato's real registered
+# books (2026-07-28) -- scrape stage and distill stage (with a real
+# provisioned Gemini key) both run end-to-end, producing genuinely
+# specific, high-quality questions (verified by reading the actual
+# stored questions_json).
 #
 # Usage:
 #   crt-book-facts-batch.py               # both stages
@@ -78,10 +91,20 @@ def run_scrape_stage(conn, fetcher=None, log=print):
     return processed
 
 
+# Marks a book's questions_json as already upgraded by the AI distill
+# stage (2026-07-28 redesign) -- reuses the existing question_source
+# column instead of a new one: 'template' (generate_template_question),
+# 'gemini'/'claude' (the pre-existing per-scan batch path), or this.
+# Never re-upgrades a book that already has it, same cache-once
+# philosophy as everything else in this pipeline.
+ENRICHED_SOURCE = "ai-enriched"
+
+
 def books_needing_distill(conn):
     rows = conn.execute(
         "SELECT isbn, title, authors, year, facts_raw FROM books "
-        "WHERE facts_raw IS NOT NULL AND facts_json IS NULL"
+        "WHERE facts_raw IS NOT NULL AND (question_source IS NULL OR question_source != ?)",
+        (ENRICHED_SOURCE,),
     ).fetchall()
     out = []
     for isbn, title, authors, year, facts_raw in rows:
@@ -100,19 +123,26 @@ def _chunks(seq, size):
 
 
 def run_distill_stage(conn, api_key=None, poster=None, log=print):
-    """Stage 2: AI, batched. Returns the count of books that received
-    facts_json. Loudly no-ops (not a silent skip) when no Gemini key is
-    configured, same honesty rule as everywhere else a missing key/
-    credential is handled in this project."""
+    """Stage 2: AI, batched. Writes real, fact-grounded two-option trivia
+    questions directly into questions_json -- REPLACING the generic
+    template question (fiction/nonfiction, before/after-a-year), not
+    just adding flavor text alongside it (2026-07-28 redesign, after the
+    first version showed facts next to the still-generic question and
+    Zach caught it: "I'm still getting generic facts?"). Marks
+    question_source = ENRICHED_SOURCE so this book is never re-upgraded.
+    Returns the count of books that received new questions. Loudly
+    no-ops (not a silent skip) when no Gemini key is configured, same
+    honesty rule as everywhere else a missing key/credential is handled
+    in this project."""
     todo = books_needing_distill(conn)
-    log(f"[facts-batch] distill stage: {len(todo)} book(s) missing facts_json")
+    log(f"[facts-batch] distill stage: {len(todo)} book(s) not yet AI-enriched")
     if not todo:
         return 0
     key = api_key or bg._load_gemini_key()
     if not key:
         log("[facts-batch] NO GEMINI KEY CONFIGURED (CRT_GEMINI_API_KEY / "
             "~/.crt/gemini.key) -- distill stage cannot run. This is not "
-            "silently skipped: the books above still need facts_json.")
+            "silently skipped: the books above still need enriched questions.")
         return 0
 
     processed = 0
@@ -125,17 +155,18 @@ def run_distill_stage(conn, api_key=None, poster=None, log=print):
                 f"{[b['isbn'] for b in batch]}: {e}")
             continue
         for b in batch:
-            facts = bg.parse_facts_batch_response(response_json, b["isbn"])
-            if not facts:
-                log(f"[facts-batch] no usable facts returned for {b['isbn']} "
-                    f"({b['title']!r}) -- leaving facts_json NULL, will retry "
-                    f"next run")
+            questions = bg.parse_claude_batch_response(response_json, b["isbn"])
+            if not questions:
+                log(f"[facts-batch] no usable questions returned for {b['isbn']} "
+                    f"({b['title']!r}) -- leaving as-is, will retry next run")
                 continue
-            conn.execute("UPDATE books SET facts_json = ? WHERE isbn = ?",
-                         (json.dumps(facts), b["isbn"]))
+            conn.execute(
+                "UPDATE books SET questions_json = ?, question_source = ? WHERE isbn = ?",
+                (json.dumps(questions), ENRICHED_SOURCE, b["isbn"]),
+            )
             conn.commit()
-            log(f"[facts-batch] distilled {b['isbn']} ({b['title']!r}): "
-                f"{len(facts)} fact(s)")
+            log(f"[facts-batch] enriched {b['isbn']} ({b['title']!r}): "
+                f"{len(questions)} fact-grounded question(s)")
             processed += 1
     return processed
 

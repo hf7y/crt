@@ -642,15 +642,18 @@ def _init_schema(conn, retries=5):
             if "last_answered" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN last_answered TEXT")
             # Added 2026-07-28 (Zach-directed): the trivia-fact enrichment
-            # pipeline (bin/crt-book-facts-batch.py) -- two columns, two
-            # separate passes, same cache-once philosophy as quote/lcc.
-            # facts_raw: candidate sentences from a non-AI Wikipedia
-            # scrape (cheap, no API key, re-runnable freely). facts_json:
-            # ~3 AI-curated high-quality trivia facts distilled from
-            # facts_raw IN BATCHES (the expensive step, done once, cached
-            # forever after like every other AI call in this file). NULL
-            # in either column means "not yet processed by that stage",
-            # not "no facts available" -- see crt-book-facts-batch.py.
+            # pipeline (bin/crt-book-facts-batch.py). facts_raw: candidate
+            # sentences from a non-AI Wikipedia scrape (cheap, no API key,
+            # re-runnable freely), NULL meaning "not yet scraped" not "no
+            # facts available". facts_json: VESTIGIAL, same day -- the
+            # first design distilled facts_raw into bare fact strings
+            # stored here and shown as flavor text; redesigned same
+            # session (Zach: "clean design is to phrase it as a
+            # question") to write real fact-grounded QUESTIONS straight
+            # into questions_json instead (see crt-book-facts-batch.py's
+            # ENRICHED_SOURCE). Column kept (harmless, already migrated
+            # onto potato) rather than dropped mid-session; nothing
+            # reads or writes it going forward.
             if "facts_raw" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN facts_raw TEXT")
             if "facts_json" not in existing_cols:
@@ -1176,15 +1179,33 @@ def extract_fact_candidates(extract_text):
 def build_facts_batch_prompt(books):
     """Pure function: given a list of dicts with isbn/title/authors/year/
     facts_raw (a list of candidate sentences, may be empty), build the
-    single batched prompt asking for exactly 3 high-quality trivia facts
-    per book. Grounded in facts_raw when present (reduces hallucination --
-    the model is asked to prefer/paraphrase the given candidates over
-    inventing new claims); books with no scraped candidates still get a
-    slot in case the model has reliable general knowledge, but the prompt
-    says so explicitly rather than silently blurring the two cases.
-    Does not call anything -- just constructs the request payload, so
-    this is testable without a live API, same as build_claude_batch_
-    prompt above."""
+    single batched prompt asking for exactly 3 REAL two-option trivia
+    QUESTIONS per book, grounded in facts_raw (2026-07-28, Zach-directed
+    redesign -- "clean design is to phrase it as a question... Who guest
+    edited the 2016 edition? Answer: Junot Diaz", after the first version
+    of this pipeline generated bare fact strings shown as flavor text
+    next to the existing generic fiction/nonfiction question instead of
+    replacing it).
+
+    SAME output schema as build_claude_batch_prompt's questions
+    ({"text":..., "options":[a,b], "correct":...}) deliberately -- this
+    is not a new display/grading mechanism, it is a better-grounded
+    filler for the existing one. crt-book-answer-listen.py's grade_
+    answer() is built specifically around a small known option set (the
+    STT-training axis needs "did they say one of the two options offered",
+    see that function's own extensive 2026-07-25 docstring) -- open-ended
+    recall trivia doesn't fit that grading model, so this keeps the wrong
+    answer plausible-but-wrong rather than truly open-ended, preserving
+    the existing grading/STT-training path unchanged.
+
+    Grounded in facts_raw when present (reduces hallucination -- the
+    model is told to base both the question and the wrong option on the
+    given candidates); books with no scraped candidates still get a slot
+    in case the model has reliable general knowledge, but the prompt says
+    so explicitly rather than silently blurring the two cases. Does not
+    call anything -- just constructs the request payload, so this is
+    testable without a live API, same as build_claude_batch_prompt
+    above."""
     books_payload = [
         {
             "isbn": b["isbn"],
@@ -1196,33 +1217,19 @@ def build_facts_batch_prompt(books):
         for b in books
     ]
     instructions = (
-        "For each book below, write exactly 3 concise, high-quality, "
-        "trivia-worthy facts about it (interesting to a general audience, "
-        "not generic plot-jacket copy). Prefer paraphrasing/selecting from "
-        "candidate_sentences when they contain real facts; only use outside "
-        "knowledge if candidate_sentences is empty or unhelpful, and never "
-        "invent a specific claim (a date, a number, an award) you are not "
+        "For each book below, write exactly 3 two-option multiple-choice "
+        "trivia questions about a SPECIFIC, INTERESTING fact (not generic "
+        "fiction/nonfiction or before/after-a-year questions) -- e.g. "
+        "'Who guest edited the 2016 edition?' with options ['Junot Diaz', "
+        "'Stephen King'] and correct 'Junot Diaz'. Prefer basing the "
+        "question and the plausible-but-wrong option on candidate_sentences "
+        "when they contain real facts; only use outside knowledge if "
+        "candidate_sentences is empty or unhelpful, and never invent a "
+        "specific claim (a name, a date, a number, an award) you are not "
         "confident is true. Return ONLY JSON: "
-        "{\"<isbn>\": [fact1, fact2, fact3], ...}"
+        "{\"<isbn>\": [{\"text\": ..., \"options\": [a, b], \"correct\": ...}, ...]}"
     )
     return {"instructions": instructions, "books": books_payload}
-
-
-def parse_facts_batch_response(response_json, isbn):
-    """Pure function: pull this book's facts out of a parsed batch
-    response. Returns [] if the ISBN is missing/malformed rather than
-    raising, so one bad entry doesn't take down the whole batch -- same
-    contract as parse_claude_batch_response above. Caps at 3 and drops
-    non-string/empty entries (a model that returns a dict or a number
-    where a fact string belongs must not corrupt facts_json)."""
-    try:
-        entries = response_json.get(isbn, [])
-    except AttributeError:
-        return []
-    if not isinstance(entries, list):
-        return []
-    facts = [f.strip() for f in entries if isinstance(f, str) and f.strip()]
-    return facts[:3]
 
 
 def pick_idle_quote(conn, rng=None):
