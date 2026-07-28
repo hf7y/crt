@@ -44,7 +44,6 @@
 # an idle face with no brain, no database, and no book logic.
 import argparse
 import importlib.util
-import itertools
 import os
 import random
 import sys
@@ -201,7 +200,14 @@ def gradient_colors(n, palette=None, offset=0):
 # point, not a side effect.
 BLINK_PROBABILITY = float(os.environ.get("CRT_SCREENSAVER_BLINK_PROBABILITY", "0.15"))
 REST_HOLD_RANGE = (4.0, 14.0)   # seconds potato.txt is held between blink rolls
-BLINK_HOLD_RANGE = (0.3, 0.9)   # seconds potato2.txt is held during a blink
+# 2026-07-28, live, Zach: "blink should be on the order of a human
+# blink" -- a real eye blink is ~0.1-0.4s. The old (0.3, 0.9) range was
+# already close, but with the old 2.5s --interval default the loop
+# could never repaint fast enough to show a hold this short as a quick
+# flash -- it just ate a full frame or two, reading as "far too long".
+# See --interval's own default change below; this range only reads as
+# a real blink once the loop repaints faster than the hold itself.
+BLINK_HOLD_RANGE = (0.1, 0.35)   # seconds potato2.txt is held during a blink
 
 
 def next_blink_state(rng=None):
@@ -537,8 +543,17 @@ def main(argv=None):
     # default caption is now empty. Still overridable via --caption/
     # CRT_SCREENSAVER_CAPTION for anyone who wants a caption back.
     p.add_argument("--caption", default=os.environ.get("CRT_SCREENSAVER_CAPTION", ""))
+    # 2026-07-28, live, Zach: "general timing of animation is too slow" --
+    # a 2.5s repaint cadence meant a 0.3-0.9s blink hold (BLINK_HOLD_RANGE)
+    # could never actually be SEEN as short; the loop just repainted once
+    # or twice during it and moved on, reading as a long hold rather than
+    # a flash. 0.15s gives a blink room to render for 1-2 real frames
+    # instead of being swallowed by the repaint rate itself, and makes
+    # the gradient rotation (GRADIENT_ROTATE_SECS) and sleep/wake cut
+    # feel immediate rather than laggy. Still cheap: this is a 40x15
+    # ASCII repaint, not real rendering work.
     p.add_argument("--interval", type=float,
-                    default=_env_secs("CRT_SCREENSAVER_INTERVAL", 2.5))
+                    default=_env_secs("CRT_SCREENSAVER_INTERVAL", 0.15))
     p.add_argument("--caption-move-secs", type=float,
                     default=_env_secs("CRT_SCREENSAVER_CAPTION_MOVE_SECS", 8.0),
                     help="how often the caption moves to a new spot; 0 pins it")
@@ -593,7 +608,22 @@ def main(argv=None):
     gradient_offset = 0
     gradient_move_at = 0.0
     GRADIENT_ROTATE_SECS = float(os.environ.get("CRT_SCREENSAVER_GRADIENT_ROTATE_SECS", "3.0"))
-    for dim in itertools.cycle([True, False]):
+    # Breathing dim pulse (pre-existing feature): used to be one
+    # `itertools.cycle([True, False])` step per loop iteration, which
+    # was fine when --interval defaulted to 2.5s (a 5s breathing cycle)
+    # but ties the pulse's cadence directly to the repaint rate. Now
+    # that --interval defaults to 0.15s (2026-07-28, for blink/gradient
+    # responsiveness), that coupling would flicker the pulse ~17x/sec
+    # instead of breathing -- give it its own timer, same pattern as
+    # gradient_offset above, so repaint rate and breathing rate are
+    # independent again.
+    dim = True
+    dim_move_at = 0.0
+    BREATHE_SECS = float(os.environ.get("CRT_SCREENSAVER_BREATHE_SECS", "2.5"))
+    while True:
+        if time.time() >= dim_move_at:
+            dim = not dim
+            dim_move_at = time.time() + BREATHE_SECS
         raw_cols, raw_rows = resolve_size()
         cols, rows = safe_screen_size(raw_cols, raw_rows, margins)
         # Sleep/wake (2026-07-28): frozen on arts[1] (potato2.txt,
