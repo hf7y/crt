@@ -27,6 +27,20 @@ Ideas beyond this bar are PARKED by default (see realisateur/STABILITY-MILESTONE
 
 # crt — focus & backlog
 
+- **2026-07-28 (realisateur `/cloture`, from dexter's own shell — Zach ran the probes, so this is FIRST-HAND, not inferred from mandark): crt is enabled on dexter and has dispatched NOTHING since 2026-07-25. The predicted cause was WRONG; the real state is stranger and more useful.**
+
+  **The prediction realisateur made, and its falsification.** This session predicted Zach would find the known **338 `http_code=401` HOLDs** still running on dexter's paced runner — i.e. an auth failure silently blocking all dispatch. **That is false.** Every HOLD line in the live log reads `http_code=200`, and the verdict text is `HOLD -- 7d window 23% used vs burn-line 23% (on-pace)`. The auth problem is GONE and the gate is working exactly as designed: it is pacing against a burn-rate line, on-pace, refusing to run ahead of budget. Recorded as a falsification rather than quietly dropped, because a prediction that was wrong is worth more on the record than one that was never checked.
+
+  **What IS true, and it is the finding.** `~/.local/share/crt-nightly-batch/` on dexter is dated entirely **2026-07-25**: `sweep.log` last written 20:37, `expires_at` and `last_heartbeat` both 01:14, and `repo/` last touched 20:35. The runner itself is demonstrably alive — it ticks every 5 minutes, and the log Zach pulled covers 16:40→18:15 on 07-28 continuously. So: **the runner runs, the gate holds, and crt has not dispatched in three days.**
+
+  **Two unexplained artifacts, flagged rather than diagnosed** (neither was probed further; both are candidates, not causes):
+  1. **`sweep.lock` exists, 0 bytes, dated 2026-07-25 20:10** — sitting next to a `sweep.log` that stops at 20:37 the same evening. If that lock is *held*, it is normal; if it is *stale*, it is a candidate cause rather than a symptom, and a stale lockfile blocking dispatch would be invisible in exactly the way this ecosystem has spent the week naming. Determining which requires an `fuser`/`flock` probe ON dexter — it cannot be answered from mandark.
+  2. **`expires_at` written 2026-07-25 01:14** — on the standard 7-day stamp that puts expiry around **2026-08-01**, i.e. within days. Per the dead-man switch's own semantics (documented in vkv-inventory's tripped instance the same day), the stamp is re-written *only when the file is missing*, so bumping an expiry variable does not renew it. If crt is still not dispatching by Aug 1 this becomes a second, independent reason it will not run.
+
+  **The structural point, which outlives the specific bug.** dexter runs **exactly one** participant (crt), and the burn-rate gate is **global**, not per-project. So a persistently on-pace HOLD means *dexter dispatches nothing at all* — and there is no surface anywhere that says so. mandark cannot see it (`silence-audit` already FLAGs this class: job state read under `$HOME` only while 2 accounts dispatch), and mandark's own record for crt still reads `2026-07-24T23:59:28`. This is now the **best real acceptance case** for the absence-surface milestone filed to scheduler this session (`e05016e`): a weight-3 project, enabled four days, healthy runner, legitimate gate, zero dispatches, and nothing anywhere reports the absence. Filed to scheduler separately as an acceptance test.
+
+  **NOT diagnosed and NOT fixed here, deliberately.** The lock probe and any renewal are dexter-side acts; realisateur has no key that reaches dexter, and guessing from mandark is what produced the falsified 401 prediction above. See scheduler's `BLOCKERS.md` for the decision this needs from Zach.
+
 - **2026-07-28 (realisateur, via `/ideate`) CORRECTION, filed within the hour and BEFORE anything acted on it: the entry below is premised on a FALSE READING. crt was never dark. It has been `enabled=1` at weight 3 in `schedule/_paced.dexter.conf` since 2026-07-24, and is dexter's ONLY participant.**
   The decision recorded below ("re-enable crt on dexter") therefore
   describes something already true for four days. Nothing was flipped;
