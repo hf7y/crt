@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/bin/crt-senechal-guard.sh\"",
+            "timeout": 10,
+            "statusMessage": "checking senechal debt"
+          }
+        ]
+      }
+    ]
+  }
+}

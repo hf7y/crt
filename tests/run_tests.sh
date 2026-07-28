@@ -497,6 +497,10 @@ echo
 # before: a check that quietly does nothing reads exactly like a check that
 # passed. This is the mechanical enforcement, not a comment asking the next
 # person to remember.
+echo "== senechal guard hook (machine-config changes owe a note) =="
+bash "$DIR/test_senechal_guard.sh" || fail=1
+echo
+
 echo "== test manifest (every test file named, every named file present) =="
 mfail=0
 # Comment lines are stripped first: the writeup above names both of the files
