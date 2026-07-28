@@ -201,8 +201,15 @@ tmux new-window -d -t "$SESSION" -n bridge -c "$BIN_DIR" "./crt-claude-bridge.py
 # mandark). Requires the bridge server running on mandark AND the
 # reverse tunnel (`ssh -R 8993:localhost:8993 potato -N`) both up before
 # this window starts, or every escalation will just time out empty.
+# crt-stt-supervisor.sh wraps the launch below (2026-07-28) -- a USB
+# replug that takes the whole python process down (not just a transient
+# capture hiccup crt-stt-solo.py already recovers from internally) used
+# to leave the console silently deaf until someone SSH'd in and noticed.
+# The supervisor restarts it and fires a loud "alarm" earcon every time,
+# with backoff so a genuinely-dead device doesn't spin a hot loop. Same
+# env vars, untouched, just passed through instead of invoked directly.
 tmux new-window -d -t "$SESSION" -n stt -c "$BIN_DIR" \
-  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 CRT_WHISPER_SERVER=${CRT_WHISPER_SERVER:-http://192.168.0.27:8991/transcribe} CRT_AUDIO_DEV=${CRT_AUDIO_DEV:-plughw:1,0} CRT_CLAUDE_REMOTE_PORT=${CRT_CLAUDE_REMOTE_PORT:-8993} python3 ./crt-stt-solo.py; exec bash"
+  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 CRT_WHISPER_SERVER=${CRT_WHISPER_SERVER:-http://192.168.0.27:8991/transcribe} CRT_AUDIO_DEV=${CRT_AUDIO_DEV:-plughw:1,0} CRT_CLAUDE_REMOTE_PORT=${CRT_CLAUDE_REMOTE_PORT:-8993} ./crt-stt-supervisor.sh; exec bash"
 
 if [ -n "${CRT_HOOK_DEVICE:-}" ]; then
   tmux new-window -d -t "$SESSION" -n hook -c "$BIN_DIR" "./hookswitch-listen.sh; exec bash"

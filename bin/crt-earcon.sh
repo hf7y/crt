@@ -84,7 +84,7 @@ if [ "${1:-}" = "--device" ]; then
 fi
 
 if [ -z "$NAME" ]; then
-  echo "usage: crt-earcon.sh <bait|curious|question|content|success|ack|thinking|heard|addressed|control|oops> [--device tv|handset]" >&2
+  echo "usage: crt-earcon.sh <bait|curious|question|content|success|ack|thinking|heard|addressed|control|oops|alarm> [--device tv|handset]" >&2
   exit 2
 fi
 
@@ -181,6 +181,20 @@ case "$NAME" in
     # descending whoop, cartoon-stumble energy, not a klaxon.
     oops_fadeout=$(awk -v s="$FADE_SCALE" 'BEGIN{v=0.03*s; if (v<0.005) v=0.005; printf "%.3f", v}')
     sox -n -r 22050 "$TMP/out.wav" synth 0.25 sine 500-220 vol 0.5 fade 0.01 0.25 "$oops_fadeout"
+    ;;
+  alarm)
+    # 2026-07-28, Zach-directed exception to this file's own header rule
+    # ("never as an alarm, that's the thing that gets the TV turned
+    # off") -- reserved exclusively for crt-stt-supervisor.sh's capture-
+    # crash signal, where the whole point IS to be impossible to ignore.
+    # Three equal, loud, harsh square-wave buzzes -- deliberately
+    # nothing like this file's other warm/curious tones. If this ever
+    # fires during ordinary use, that is itself the bug report.
+    sox -n -r 22050 "$TMP/a.wav" synth 0.12 square 440 vol 0.9
+    sox -n -r 22050 "$TMP/b.wav" synth 0.12 square 440 vol 0.9
+    sox -n -r 22050 "$TMP/c.wav" synth 0.12 square 440 vol 0.9
+    sox -n -r 22050 "$TMP/s.wav" synth 0.06 sine 0 vol 0
+    sox "$TMP/a.wav" "$TMP/s.wav" "$TMP/b.wav" "$TMP/s.wav" "$TMP/c.wav" "$TMP/out.wav"
     ;;
   *)
     echo "[crt-earcon] unknown name: $NAME" >&2
