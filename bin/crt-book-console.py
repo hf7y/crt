@@ -120,6 +120,71 @@ IDLE_ROTATE_SECS = _env_secs("CRT_BOOK_IDLE_ROTATE_SECS", 8.0)
 IDLE_FACE_WINDOW = os.environ.get("CRT_IDLE_FACE_WINDOW", "").strip()
 
 
+# Overscan safe margin (2026-07-28, Zach-directed, live finding): this
+# window never consumed ~/.crt/display.conf at all -- crt-pager.py and
+# crt-monologue.py both shrink their canvas by the calibrated margin,
+# this one drew straight to the full grid. First live calibration test
+# on potato's real RF/bezel path showed row 0 (the very top) getting
+# eaten -- confirmed NOT cosmetic, Zach's own words: "overscan is a
+# major problem." MIN_VERTICAL_PAD is a hard floor UNDERNEATH whatever
+# crt-calibrate-display.py converges on, not a replacement for it: even
+# an uncalibrated (all-zero) display.conf still gets at least one blank
+# line top and bottom, so a scan result can never again render flush
+# against the physical edge the bezel actually eats.
+MIN_VERTICAL_PAD = int(os.environ.get("CRT_BOOK_MIN_VERTICAL_PAD", "1"))
+
+
+def load_safe_margins():
+    """Reuses crt-pager.py's calibrated-margin loader (same reuse pattern
+    crt-monologue.py already established) and floors top/bottom at
+    MIN_VERTICAL_PAD. Degrades to the hard floor alone (never to zero
+    margin) if crt-pager.py or the calibration file can't be read --
+    this window's whole reason for existing is a person reading it live,
+    so "no margin" is not an honest default the way it can be for a
+    background log pager."""
+    margins = {"top": 0, "bottom": 0, "left": 0, "right": 0}
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "crt_pager_margins_for_book", os.path.join(BIN_DIR, "crt-pager.py"))
+        pager = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(pager)
+        conf = os.path.expanduser(
+            os.environ.get("CRT_DISPLAY_CONF", "~/.crt/display.conf"))
+        margins = pager.load_display_margins(conf)
+    except Exception:
+        pass
+    margins["top"] = max(margins.get("top", 0), MIN_VERTICAL_PAD)
+    margins["bottom"] = max(margins.get("bottom", 0), MIN_VERTICAL_PAD)
+    return margins
+
+
+def safe_screen_size(margins):
+    """The (width, height) content should actually be LAID OUT at --
+    bg.detect_screen_size()'s raw tube geometry, shrunk by `margins`.
+    Pure given margins, so testable without a display.conf on disk."""
+    w, h = bg.detect_screen_size()
+    left, right = margins.get("left", 0), margins.get("right", 0)
+    top, bottom = margins.get("top", 0), margins.get("bottom", 0)
+    return max(1, w - left - right), max(1, h - top - bottom)
+
+
+def pad_for_margins(lines, margins, width):
+    """Physically pushes already-rendered `lines` away from the tube's
+    edges by `margins` -- shrinking the SIZE passed to a render function
+    only makes its own content smaller/centered within that box; the box
+    itself still starts printing at the true top-left corner (draw()'s
+    `\\x1b[H`) unless something adds real blank rows/columns here. This
+    is that something, applied once, after every render, so no
+    individual screen (idle/question/answer/error) has to remember to
+    do it itself."""
+    left = " " * max(0, margins.get("left", 0))
+    padded = [left + ln for ln in lines]
+    blank = " " * (width + margins.get("left", 0) + margins.get("right", 0))
+    top = [blank] * max(0, margins.get("top", 0))
+    bottom = [blank] * max(0, margins.get("bottom", 0))
+    return top + padded + bottom
+
+
 # The scan-line contract itself moved to bin/crt_scan_line.py (2026-07-25):
 # this window is no longer the only writer of scanner.log -- crt-screensaver.py
 # forwards the scans that land on IT (see that file's header and crt_scan_line's).
@@ -635,7 +700,8 @@ def main():
     # Third window to have this exact bug and the last one still holding it:
     # crt-screensaver.py was fixed on 2026-07-23 (re-read every frame) and
     # crt-monologue.py in 6aecc39. This is the one that draws the question.
-    width, height = bg.detect_screen_size()
+    margins = load_safe_margins()
+    width, height = safe_screen_size(margins)
     # How to draw the screen currently on the tube, again, at whatever size
     # the tube turns out to be. Set by redraw() at every draw site; called
     # again when the measurement changes.
@@ -647,11 +713,18 @@ def main():
         `render` takes (width, height) and returns the lines. Anything else
         it needs is bound at the call site as a default argument, not read
         from this scope on the repaint -- a question that has since timed
-        out must not come back on a resize."""
+        out must not come back on a resize.
+
+        The lines render() returns are laid out at the MARGIN-SHRUNK
+        (width, height) -- pad_for_margins() then pushes the whole frame
+        away from the tube's real edges before it's drawn (2026-07-28:
+        shrinking the content box alone still starts printing at the true
+        top-left corner, which is exactly what let row 0 get eaten by the
+        bezel on the very first live calibration test)."""
         nonlocal current_frame
         current_frame = render
         lines = render(width, height)
-        draw(lines)
+        draw(pad_for_margins(lines, margins, width))
         # Returned so a caller can remember what is actually on the tube --
         # the idle rotation needs it to guarantee the next frame differs.
         return lines
@@ -900,11 +973,11 @@ def main():
             # BE a next draw: in the historical layout `book` is the boot
             # default and its idle shelf screen is what the tube holds until
             # somebody scans something.
-            size = bg.detect_screen_size()
+            size = safe_screen_size(margins)
             if size != (width, height):
                 width, height = size
                 if current_frame is not None:
-                    draw(current_frame(width, height))
+                    draw(pad_for_margins(current_frame(width, height), margins, width))
 
 
 if __name__ == "__main__":

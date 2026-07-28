@@ -432,6 +432,10 @@ echo "== the book window measures the tube it draws on (pty resize) =="
 python3 "$DIR/test_book_console_size.py" || fail=1
 echo
 
+echo "== the book window's overscan safe-margin enforcement (2026-07-28) =="
+python3 "$DIR/test_book_console_safe_margins.py" || fail=1
+echo
+
 # 2026-07-25 (seventeenth cycle): render_idle_screen() moves its caption and
 # swaps its text on every call, and main() called it once. The funnel's first
 # link -- the screen that talks someone into scanning a book -- was a still
