@@ -488,6 +488,10 @@ echo "== console config comes from ~/.crt, not a login shell =="
 bash "$DIR/test_console_conf.sh" || fail=1
 echo
 
+echo "== brain starts with permissions bypassed, and parks are detected =="
+bash "$DIR/test_brain_session_bypass.sh" || fail=1
+echo
+
 # Manifest check (2026-07-25). Every test file in this directory must be named
 # above, and every name above must exist. Both directions had really drifted:
 #

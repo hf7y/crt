@@ -29,13 +29,67 @@ if [ -z "$SESSION" ]; then
   exit 2
 fi
 
-# Where Claude starts. The crt checkout by default, so the console's brain
-# can answer questions about its own project without being told where it
-# lives.
+# Where Claude starts. The crt checkout, so the console's brain can answer
+# questions about its own project without being told where it lives.
+#
+# But NOT the same working tree a human is editing in. The brain now runs
+# with permissions bypassed (below) and is expected to make real, durable
+# changes -- Zach's stated goal 2026-07-29 is to talk into the handset and
+# have potato commit its own earcon/margin rules. Two writers in one
+# checkout means the brain's spoken commit and a hand edit collide in the
+# index, and the person who finds out is whoever pushes second.
+#
+# So: prefer a dedicated git worktree if one exists. Create it once with
+#   git -C <crt-repo> worktree add ~/crt-brain -b voice
+# and the brain's work lands on its own branch, mergeable on purpose
+# rather than by luck. Falls back to the repo root so a box that has not
+# set one up still gets a working brain, just a colliding one.
+CRT_BRAIN_VOICE_TREE="${CRT_BRAIN_VOICE_TREE:-$HOME/crt-brain}"
+if [ -z "${CRT_BRAIN_CWD:-}" ] && [ -d "$CRT_BRAIN_VOICE_TREE" ]; then
+  CRT_BRAIN_CWD="$CRT_BRAIN_VOICE_TREE"
+fi
 CRT_BRAIN_CWD="${CRT_BRAIN_CWD:-$(cd "$HERE/.." && pwd)}"
 CLAUDE_BIN="${CRT_BRAIN_CLAUDE:-claude}"
 
+# Zero permission prompts. Not a convenience -- a correctness requirement
+# for THIS process, decided by Zach 2026-07-29 after watching it happen.
+#
+# The brain has no keyboard. Its only input is `tmux send-keys` from
+# potato, over ssh, from someone speaking into a landline. When Claude
+# raises a modal "Do you want to proceed?", there is nobody on this end
+# to answer it: the pane parks, the secretary's capture-and-wait scrapes
+# a dialog instead of a reply, and the console goes quiet mid-sentence.
+# Live tonight, first real question asked of the dexter brain -- a
+# read-only `ls`/`grep` stalled the whole voice path.
+#
+# potato sets CRT_CLAUDE_ARGS='--permission-mode bypassPermissions' in its
+# own config for exactly this reason, but that variable lives in potato's
+# environment and stops at the ssh boundary. The brain host has to make
+# the same choice for itself, so it is spelled out here rather than
+# assumed to arrive from somewhere.
+#
+# Scoped, not blanket: this is one named tmux session, on a trusted box,
+# running the console's own project, doing work its owner asked for out
+# loud. Override with CRT_BRAIN_CLAUDE_ARGS='' for a prompting brain.
+CRT_BRAIN_CLAUDE_ARGS="${CRT_BRAIN_CLAUDE_ARGS:---permission-mode bypassPermissions}"
+
 have_session() { tmux has-session -t "$SESSION" 2>/dev/null; }
+
+# A pane that paints is not a brain that answers. Name the states where
+# Claude is sitting on a modal waiting for a human who does not exist --
+# each one presents as a healthy, beautifully-rendered pane.
+parked_reason() {
+  case "$1" in
+    *"trust the files"*|*"1. Yes, I trust"*)
+      echo "parked on the trust-folder prompt for $CRT_BRAIN_CWD" ;;
+    *"Do you want to proceed?"*|*"Do you want to make this edit"*|*"Do you want to create"*)
+      echo "parked on a permission prompt -- nobody on this end can answer it \
+(CRT_BRAIN_CLAUDE_ARGS should carry --permission-mode bypassPermissions)" ;;
+    *"Bypass Permissions mode"*|*"accept the risk"*|*"WARNING: Claude Code running in Bypass"*)
+      echo "parked on the bypass-permissions confirmation screen" ;;
+    *) return 1 ;;
+  esac
+}
 
 case "${1:-ensure}" in
   status)
@@ -59,6 +113,18 @@ potato will fail" >&2
     fi
 
     if have_session; then
+      # UP is not the same as ANSWERING. A brain parked on a modal is the
+      # worse outcome of the two, because every layer above it reports
+      # healthy: the session exists, the pane paints, CAPTURE returns
+      # text. It just happens to be the text of a dialog box. Check for
+      # it here so `status` can be trusted as the one question worth
+      # asking of this session.
+      pane="$(tmux capture-pane -t "$SESSION" -p -S -50 2>/dev/null || true)"
+      if reason="$(parked_reason "$pane")"; then
+        echo "crt-brain-session: $SESSION is UP BUT NOT ANSWERING -- $reason. \
+Clear it with: tmux attach -t $SESSION, or restart: $0 restart" >&2
+        exit 1
+      fi
       echo "crt-brain-session: $SESSION is UP (cwd $CRT_BRAIN_CWD)"
       exit "${drift:-0}"
     fi
@@ -85,7 +151,11 @@ potato will fail" >&2
       exit 2
     fi
 
-    tmux new-session -d -s "$SESSION" -c "$CRT_BRAIN_CWD" "$CLAUDE_BIN"
+    # Unquoted on purpose: tmux hands this string to sh -c, and
+    # CRT_BRAIN_CLAUDE_ARGS is meant to be word-split into flags.
+    # shellcheck disable=SC2086
+    tmux new-session -d -s "$SESSION" -c "$CRT_BRAIN_CWD" \
+      "$CLAUDE_BIN $CRT_BRAIN_CLAUDE_ARGS"
 
     # Do not report success just because tmux forked. `claude` can exit
     # immediately (not logged in, bad flag) and tmux would still have
@@ -102,17 +172,17 @@ potato will fail" >&2
       # parks on "Do you trust the files in this folder?" and waits.
       # That pane paints beautifully, so the old check called it UP --
       # and every SEND after it would have been typed into a modal
-      # dialog and answered by nobody. Name the state instead.
-      case "$pane" in
-        *"trust the files"*|*"1. Yes, I trust"*)
-          echo "crt-brain-session: $SESSION is parked on the trust-folder \
-prompt for $CRT_BRAIN_CWD -- not a usable brain. Answer it once with: \
-tmux attach -t $SESSION" >&2
-          exit 1
-          ;;
-      esac
+      # dialog and answered by nobody. parked_reason() names each such
+      # state; the permission-prompt case was added 2026-07-29 after the
+      # brain stalled on a read-only ls mid-conversation.
+      if reason="$(parked_reason "$pane")"; then
+        echo "crt-brain-session: $SESSION is $reason -- not a usable brain. \
+Clear it with: tmux attach -t $SESSION" >&2
+        exit 1
+      fi
 
-      echo "crt-brain-session: $SESSION UP (cwd $CRT_BRAIN_CWD)"
+      echo "crt-brain-session: $SESSION UP (cwd $CRT_BRAIN_CWD, args: \
+${CRT_BRAIN_CLAUDE_ARGS:-<none>})"
       exit 0
     done
 
