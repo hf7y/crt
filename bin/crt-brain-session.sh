@@ -39,9 +39,28 @@ have_session() { tmux has-session -t "$SESSION" 2>/dev/null; }
 
 case "${1:-ensure}" in
   status)
+    # The installed copy sshd actually runs vs. the repo copy that gets
+    # reviewed. These are two files, so they can disagree, and the failure
+    # is silent by construction: the console keeps working, just on code
+    # nobody read. Report drift here rather than trusting they match.
+    installed="${CRT_BRAIN_INSTALLED:-$HOME/.local/bin/crt-brain-shell}"
+    if [ -e "$installed" ]; then
+      if ! cmp -s "$installed" "$HERE/crt-brain-shell.py"; then
+        echo "crt-brain-session: DRIFT -- $installed differs from \
+$HERE/crt-brain-shell.py. sshd runs the installed copy, so the repo is NOT \
+what is live. Reinstall with: install -m755 $HERE/crt-brain-shell.py $installed" >&2
+        drift=1
+      fi
+    else
+      echo "crt-brain-session: $installed is MISSING -- authorized_keys' \
+forced command points at a file that does not exist, so every request from \
+potato will fail" >&2
+      drift=1
+    fi
+
     if have_session; then
       echo "crt-brain-session: $SESSION is UP (cwd $CRT_BRAIN_CWD)"
-      exit 0
+      exit "${drift:-0}"
     fi
     echo "crt-brain-session: $SESSION is DOWN" >&2
     exit 1
