@@ -160,6 +160,54 @@ class TestOverscanMargin(ViewportBase):
         self.frame([(time.time(), "still renders", "")])   # must not raise
 
 
+class TestTheMarginIsActuallyOnTheScreen(ViewportBase):
+    """Shrinking the box is only half the job (2026-07-28).
+
+    display.conf said left=2 and Zach, reading the actual tube, still could
+    not see the first characters of a line: render() homes to `\\x1b[H` and
+    printed at physical column 1, so a smaller width just pulled the RIGHT
+    edge in by left+right and left the left edge exactly where overscan was
+    eating it. Every assertion above passed the whole time -- they all test
+    viewport() arithmetic, and none of them looked at where a character
+    lands on the screen. These do."""
+
+    def test_the_left_margin_indents_the_text(self):
+        self.set_terminal(40, 15)
+        self.write_conf("top=0\nbottom=0\nleft=3\nright=3\n")
+        lines = self.frame([(time.time(), "x" * 60, "")])
+        body = [l for l in lines if l.strip()]
+        self.assertTrue(body, "expected rendered text")
+        for line in body:
+            self.assertTrue(self.plain(line).startswith("   "),
+                            "line is not indented: %r" % line)
+            self.assertEqual(self.plain(line)[3], "x")
+
+    def test_the_top_margin_leaves_blank_rows_above_the_text(self):
+        self.set_terminal(40, 15)
+        self.write_conf("top=2\nbottom=1\nleft=0\nright=0\n")
+        lines = self.frame([(time.time(), "hello", "")])
+        self.assertEqual(lines[0].strip(), "")
+        self.assertEqual(lines[1].strip(), "")
+
+    def test_the_padded_frame_still_exactly_fills_the_pane(self):
+        # The margin must come out of the content, not be added on top of a
+        # full-height frame -- an extra row scrolls the top one away, which
+        # is the bug this file was opened for in the first place.
+        self.set_terminal(40, 15)
+        self.write_conf("top=1\nbottom=1\nleft=2\nright=2\n")
+        buf = [(time.time(), "a thought long enough to wrap %d" % i, "")
+               for i in range(40)]
+        lines = self.frame(buf)
+        self.assertEqual(len(lines), 15)
+        for line in lines:
+            self.assertLessEqual(len(self.plain(line)), 40)
+
+    def test_no_margin_means_no_indent(self):
+        self.set_terminal(40, 15)
+        lines = self.frame([(time.time(), "hello", "")])
+        self.assertEqual(self.plain(lines[0]), "hello")
+
+
 class TestWindowOneNeverGoesDark(ViewportBase):
     def test_a_missing_crt_pager_degrades_to_no_margin(self):
         # A permanently dark window 1 is the worse failure mode (CLAUDE.md
