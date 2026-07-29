@@ -14,7 +14,9 @@ import contextlib
 import importlib.util
 import io
 import os
+import shutil
 import sys
+import tempfile
 import time
 import unittest
 
@@ -34,15 +36,31 @@ class RenderTest(unittest.TestCase):
     # (2026-07-25): size is now resolved per frame rather than frozen at
     # import, which is the point -- this window is created inside a DETACHED
     # tmux session and only learns the tube's real geometry once a client
-    # attaches. CRT_DISPLAY_CONF points at nothing on purpose, so these assert
-    # against a known margin instead of whatever the host has calibrated.
+    # attaches. CRT_DISPLAY_CONF points at an explicit ZERO profile, so these
+    # assert against a known margin instead of whatever the host has
+    # calibrated. It used to point at a nonexistent path for that -- which
+    # stopped meaning "no margin" on 2026-07-29, when an absent conf started
+    # falling back to crt-pager.DEFAULT_MARGINS. These tests are about the
+    # stale-line and wrap behavior, and a 10x4 box quietly becoming 6x2 made
+    # them assert on a frame with no room left to put anything in.
     ENV = {
         "CRT_PAGER_WIDTH": "10",
         "CRT_MONO_HEIGHT": "4",
         "CRT_MONO_STALE_SECS": "6",
         "CRT_MONO_DROP_SECS": "45",
-        "CRT_DISPLAY_CONF": "/nonexistent/crt-test/display.conf",
     }
+
+    @classmethod
+    def setUpClass(cls):
+        cls._conf_dir = tempfile.mkdtemp()
+        conf = os.path.join(cls._conf_dir, "display.conf")
+        with open(conf, "w") as f:
+            f.write("top=0\nbottom=0\nleft=0\nright=0\n")
+        cls.ENV = dict(cls.ENV, CRT_DISPLAY_CONF=conf)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls._conf_dir, ignore_errors=True)
 
     def setUp(self):
         for k, v in self.ENV.items():

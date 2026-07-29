@@ -50,10 +50,16 @@ class ViewportBase(unittest.TestCase):
                 self.addCleanup(os.environ.pop, k, None)
         self.tmpdir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmpdir, True)
-        # No calibration profile unless a test writes one, so these assert
+        # A ZERO profile unless a test writes its own, so these assert
         # against a known margin rather than the host's own display.conf.
+        # Written explicitly since 2026-07-29: an absent conf now means
+        # crt-pager.DEFAULT_MARGINS, so "just don't write a file" stopped
+        # being a way to say "no margin" -- it became a way to silently
+        # give every one of these tests a 36x13 box instead of 40x15.
         self.conf = os.path.join(self.tmpdir, "display.conf")
         os.environ["CRT_DISPLAY_CONF"] = self.conf
+        with open(self.conf, "w") as f:
+            f.write("top=0\nbottom=0\nleft=0\nright=0\n")
         spec = importlib.util.spec_from_file_location(
             "crt_monologue_viewport", os.path.join(BIN_DIR, "crt-monologue.py"))
         self.mod = importlib.util.module_from_spec(spec)
@@ -140,9 +146,15 @@ class TestOverscanMargin(ViewportBase):
         self.write_conf("top=1\nbottom=1\nleft=3\nright=3\n")
         self.assertEqual(self.mod.viewport(), (34, 13))
 
-    def test_no_conf_file_means_no_margin(self):
+    def test_no_conf_file_falls_back_to_the_safe_default(self):
+        # Was test_no_conf_file_means_no_margin, asserting (40, 15). Inverted
+        # deliberately on 2026-07-29: an uncalibrated console running its
+        # text off the physical edge of the tube is the failure mode, so the
+        # absent-conf case now gets crt-pager.DEFAULT_MARGINS.
         self.set_terminal(40, 15)
-        self.assertEqual(self.mod.viewport(), (40, 15))
+        os.remove(self.conf)
+        self.mod._pager = None
+        self.assertEqual(self.mod.viewport(), (36, 13))
 
     def test_the_margin_applies_to_a_pinned_size_too(self):
         # The margin is a physical crop of the picture tube -- true no matter
@@ -222,6 +234,7 @@ class TestWindowOneNeverGoesDark(ViewportBase):
         self.assertEqual(len(self.frame([])), 15)
 
     def test_an_unreadable_conf_file_degrades_to_no_margin(self):
+        os.remove(self.conf)            # setUp's zero profile
         os.makedirs(self.conf)          # a directory where a file belongs
         self.mod._pager = None
         self.set_terminal(40, 15)
