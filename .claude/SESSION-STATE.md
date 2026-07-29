@@ -75,6 +75,37 @@ never been able to `git pull`. Deploy by pushing from dexter:
 `git push potato main` (needs `receive.denyCurrentBranch=updateInstead`,
 already set).
 
+## LATEST-0 (2026-07-29) — ecosim casts to potato's screen/speaker
+
+Zach: *"I need to hijack potato's sight and sound. ecosim has the data."*
+ecosim can't write into this repo, so the two halves meet at a line
+protocol, written up in `ecosim/BRIEF-potato-sight-and-sound.md` (that
+repo, commit `9d59e51`):
+
+    stdin, forever:  CHANNEL<TAB>TEXT
+    SEE  -> one line on the tube      SAY -> TV device      MARK -> monologue
+
+Our half is `bin/crt-cast-sink.py` (+ `tests/test_cast_sink.py`, 13 tests,
+in `run_tests.sh`). Width comes from `crt-pager.py`'s own detect/margin
+functions, imported not retyped. `SAY` goes through `crt-announce.sh` so
+the TV voice keeps ONE clock (IDLE-BAIT.md's single-rate-limit rule).
+`MARK` gets the `» ` prefix here, which is why ecosim doesn't hardcode it.
+Over-wide lines truncate **and count**; unknown/malformed channels count
+too, and the counters print on every exit path — a silent sink and a
+working one must not look alike.
+
+**NOT on potato yet.** Deploy the way the section below says — `git push
+potato main` FROM DEXTER (potato's `origin` is a mandark-local path and has
+never worked). Putting it on potato's PATH is a shared-host footprint that
+owes `notify-senechal`, which is itself not installed on dexter.
+ecosim's side (`bin/ecosim-cast.py`) is also unbuilt as of this writing.
+
+**Flake noticed, unresolved**: one full `run_tests.sh` run printed
+SOMETHING FAILED with no `not ok` line recoverable (output was
+tail-truncated); the next two runs were ALL GREEN. Something in the suite
+is nondeterministic. Not diagnosed — if you see it again, capture the
+whole log to a file, not a tail.
+
 ## LATEST-2 (2026-07-29, early hours) — the console's config had three
 ## silent holes; all found by restarting capture by hand
 

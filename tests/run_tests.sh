@@ -500,6 +500,10 @@ echo "== brain starts with permissions bypassed, and parks are detected =="
 bash "$DIR/test_brain_session_bypass.sh" || fail=1
 echo
 
+echo "== ecosim cast sink: truncates loudly, counts what it drops =="
+python3 "$DIR/test_cast_sink.py" || fail=1
+echo
+
 # Manifest check (2026-07-25). Every test file in this directory must be named
 # above, and every name above must exist. Both directions had really drifted:
 #
