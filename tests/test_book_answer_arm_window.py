@@ -301,15 +301,26 @@ class TestTheEnginePublishes(unittest.TestCase):
         that from here without a mic; the alternative is finding out live."""
         with open(os.path.join(BIN_DIR, "crt-stt-solo.py")) as f:
             lines = f.readlines()
+        # Comments are stripped first, the same move run_tests.sh's manifest
+        # check already makes and for the same reason (2026-07-29): prose
+        # explaining a transition is not a transition, and matching it makes
+        # this guard fail on its own explanation. Only real call sites count.
         sites = [i for i, ln in enumerate(lines)
                  if ("ARM_STATE.arm(" in ln
                      or "consume_arm_with_followup(" in ln
                      or "check_arm_timeout(" in ln)
-                 and "def " not in ln]
+                 and "def " not in ln
+                 and not ln.lstrip().startswith("#")]
         self.assertTrue(sites, "no arm-state transition sites found at all")
         for i in sites:
             window = "".join(lines[i:i + 12])
-            self.assertIn("publish_arm_window()", window,
+            # Matched without its argument list (2026-07-29): the emit()-side
+            # calls now pass the measured reader-lag that translates the
+            # published deadline out of audio time. What this guard is about
+            # is that a publish HAPPENS at every transition, not what it is
+            # handed -- pinning the empty parens would make adding an
+            # argument look like a missing publish.
+            self.assertIn("publish_arm_window(", window,
                           "no publish within 12 lines of %s:%d -- %r"
                           % ("bin/crt-stt-solo.py", i + 1, lines[i].strip()))
 

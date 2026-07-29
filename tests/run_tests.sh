@@ -300,6 +300,10 @@ echo "== crt-wake-arm.py (arm-window state machine, 2026-07-23) =="
 python3 -m unittest discover -s "$DIR" -p "test_wake_arm.py" -v 2>&1 | tail -5 || fail=1
 echo
 
+echo "== the arm window measures silence, not whisper round-trips (2026-07-29) =="
+python3 -m unittest discover -s "$DIR" -p "test_wake_arm_clock_domain.py" -v 2>&1 | tail -5 || fail=1
+echo
+
 echo "== crt-whisper-server.py: one implementation, and it cleans up (2026-07-29) =="
 python3 "$DIR/test_whisper_server.py" 2>&1 | tail -4 || fail=1
 echo

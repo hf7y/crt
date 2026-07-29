@@ -16,6 +16,23 @@
 # "Potato, this is Zach" woke the console, but four follow-up utterances
 # in the same breath right after all got silently gate-dropped.
 #
+# 2026-07-29: WHICH CLOCK the window is measured on turned out to matter
+# more than its length. Every time below is wall-clock, but there are two
+# very different wall-clock instants attached to one utterance -- when it was
+# SPOKEN, and when its transcript came back -- and the caller was using the
+# second for both ends of the comparison. That silently charged the window
+# for the follow-up's own speaking duration plus two whisper round-trips.
+# Measured on potato's real ~/.crt/stt.log (1597 consecutive-utterance gaps,
+# 2026-07-29): median transcript-to-transcript gap 21s against a 12s window,
+# with a hard mode at 20-22s because CRT_VAD_MAX cuts continuous speech at
+# 20s -- so during exactly the run-on speech this room produces, the true
+# silence between two utterances is under a second while the number the
+# window was comparing against was over twenty. The window was not too
+# short; it was being measured from the wrong end of the utterance. Callers
+# now pass the ONSET of a follow-up (openness test) and the END of whatever
+# arms/slides the window (deadline anchor); both default to the module clock
+# so a caller that passes neither behaves exactly as before.
+#
 # 2026-07-25: a consumed follow-up SLIDES the window forward rather than
 # closing it. As first written, the window was single-shot -- which would
 # have let follow-up #1 of that live report through and still dropped
@@ -61,6 +78,14 @@ JUDGE_BIN = os.path.join(BIN_DIR, "crt-wake-judge.py")
 ARM_STATE_FILE = os.path.expanduser(
     os.environ.get("CRT_WAKE_ARM_STATE", "~/.crt/wake-arm.state"))
 
+# Since 2026-07-29 this is a budget for SILENCE, not for round-trips: it is
+# measured from the end of the wake utterance's audio to the start of the
+# follow-up's, so neither utterance's own length nor whisper's latency spends
+# any of it. 12s of dead air before the console stops assuming you are still
+# talking to it is a defensible number; 12s covering "say a sentence, wait for
+# two transcriptions, and start the next one" was not, and that is what it
+# silently meant before. Do not re-tune this by ear without checking which of
+# the two it is currently measuring.
 ARM_SECS = float(os.environ.get("CRT_WAKE_ARM_SECS", "12"))
 # Hard ceiling on one sticky conversation (2026-07-25). A consumed follow-up
 # SLIDES the window forward -- the live bug this exists for was four
@@ -159,9 +184,27 @@ class ArmState:
         self.continuation = False
 
 
-def publish_arm_window(state, path=None):
+def publish_arm_window(state, path=None, reader_lag=0.0):
     """Mirror `state`'s deadline to ARM_STATE_FILE so another process can ask
     whether the console is mid-conversation. Writes 0 when disarmed.
+
+    `reader_lag` TRANSLATES BETWEEN THE TWO CLOCKS (2026-07-29). Since that
+    date `state.deadline` is in audio time -- when the person stopped
+    speaking -- but the only reader of this file, bin/crt-book-answer-listen.py,
+    tails ~/.crt/stt.log and asks arm_window_open() at the moment a line
+    APPEARS there, which is one whisper round-trip later. Publishing the raw
+    audio-time deadline would hand that reader a window shorter than the one
+    the engine is enforcing, and every follow-up landing in the difference
+    would be graded as a trivia answer on the tube as well as being answered
+    by Claude. So the caller passes the lag it just measured on the utterance
+    that armed or slid this window, and the published number lands in the
+    reader's own domain -- which for a wake that took L seconds to transcribe
+    is publish-time + ARM_SECS, i.e. bit-for-bit what this file carried before
+    the clock fix. The engine's internal window is corrected; the reader's
+    contract is deliberately not changed at the same time.
+
+    Defaults to 0.0, which publishes the deadline unmodified -- what every
+    caller that has no lag to report (a timeout, a test) should do.
 
     Called by the SOLE MIC READER after every arm-state transition, so it is
     held to that loop's rules: never raises (an unwritable ~/.crt must not
@@ -182,7 +225,7 @@ def publish_arm_window(state, path=None):
     path = ARM_STATE_FILE if path is None else path
     if not path:
         return
-    deadline = state.deadline if state.armed else 0.0
+    deadline = (state.deadline + reader_lag) if state.armed else 0.0
     tmp = path + ".tmp"
     try:
         d = os.path.dirname(path)
@@ -252,7 +295,7 @@ def spawn_judge(outcome, trigger_text, match_kind, match_source=None,
 
 
 def consume_arm_with_followup(state, followup_text, now=None, wake_match=None,
-                              arm_secs=None, max_secs=None):
+                              arm_secs=None, max_secs=None, ended_at=None):
     """A real follow-up utterance arrived while armed -- strong evidence
     the wake was wanted (WAKE-TUNING-STATE.md's ground-truth rule).
     Disarms and spawns the judge with outcome=consumed. Returns True if
@@ -269,36 +312,67 @@ def consume_arm_with_followup(state, followup_text, now=None, wake_match=None,
     contract was only ever reachable from a disarmed state -- see the
     caller's own note). Zach confirmed that contract directly on
     2026-07-25 -- see arm()'s docstring for his words. The re-wake branch
-    below is load-bearing, not an optimisation."""
+    below is load-bearing, not an optimisation.
+
+    TWO TIMES, deliberately (2026-07-29, see this file's header):
+    `now` is when the follow-up STARTED being spoken -- the only fair thing
+    to test an "is the window still open?" deadline against, since the person
+    cannot know how long their own sentence will run or how long whisper will
+    take. `ended_at` is when it FINISHED, and is what the resulting slide or
+    re-wake is anchored to, so the next window starts counting from the end of
+    the speech rather than from the middle of it. `ended_at` defaults to `now`,
+    which is the pre-2026-07-29 behaviour exactly."""
     now = now if now is not None else time.time()
+    ended_at = ended_at if ended_at is not None else now
     if not state.armed or now >= state.deadline:
         return False
     spawn_judge("consumed", state.trigger_text, state.match_kind,
                 state.match_source, state.matched_word, followup_text)
     if wake_match and wake_match[0]:
         kind, source, word = wake_match
-        state.arm(followup_text, kind, source, word, now=now,
+        state.arm(followup_text, kind, source, word, now=ended_at,
                   arm_secs=arm_secs, max_secs=max_secs)
         return True
     # Slide, don't close: the live 2026-07-23 bug was FOUR follow-ups in one
     # breath, and a window that shuts after the first still drops three of
     # them -- the same complaint, one utterance later. Capped by
     # ARM_MAX_SECS so a sliding window can't become an always-on mic.
-    if not state.slide(followup_text, now, arm_secs=arm_secs):
+    if not state.slide(followup_text, ended_at, arm_secs=arm_secs):
         state.disarm()
     return True
 
 
-def check_arm_timeout(state, now=None):
+def check_arm_timeout(state, now=None, utt_start=None):
     """Call periodically (crt-stt-solo.py's own fast capture-loop tick is
     fine, cheap -- no VAD/whisper work happens here). If armed and the
     deadline has passed with no follow-up ever consumed, disarms and
     spawns the judge with timeout-with-leftover or timeout-empty per
     has_leftover_content() on the ORIGINAL trigger text. Returns True if
     a timeout was actually processed (state was armed and had expired) --
-    mainly for tests; callers don't need the return value in production."""
+    mainly for tests; callers don't need the return value in production.
+
+    `utt_start` is the wall-clock onset of an utterance the mic is capturing
+    RIGHT NOW, or None when the room is quiet (2026-07-29). An utterance that
+    BEGAN inside the window is still a candidate follow-up even if it is
+    still being spoken -- and it can be spoken for a long time, since
+    CRT_VAD_MAX lets one run 20s against a 12s window. Timing out underneath
+    it would disarm the window and then gate-drop the very utterance the
+    window was opened to admit, which is the failure this whole file exists
+    to prevent. So the timeout is DEFERRED, not cancelled: the next tick after
+    that utterance resolves finds the mic idle again and fires it. A follow-up
+    that starts AFTER the deadline gets no such protection -- it could not
+    have been consumed anyway.
+
+    The deferral is self-bounding and needs no ceiling of its own:
+    crt-stt-solo.py's utt_chunk() hard-caps a single utterance at CRT_VAD_MAX
+    (20s by default) and at MUTE_UTT_MAX_SECS while ducked, so the mic cannot
+    stay `in_utt` indefinitely and the window cannot be held open by a stuck
+    capture state. Worst case is deadline + CRT_VAD_MAX, comfortably inside
+    ARM_MAX_SECS at both defaults."""
     now = now if now is not None else time.time()
     if not state.armed or now < state.deadline:
+        return False
+    if utt_start is not None and utt_start < state.deadline:
         return False
     if state.continuation:
         # A conversation that ran its course, not a wake nobody answered --

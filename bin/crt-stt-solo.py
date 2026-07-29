@@ -770,10 +770,16 @@ if WAKE_ARM_ENABLED:
     ARM_STATE = wake_arm.ArmState()
 
 
-def publish_arm_window():
+def publish_arm_window(reader_lag=0.0):
     """Tell the rest of the console whether a sticky-conversation window is
     open. Called after EVERY arm-state transition below and nowhere else --
     the state lives in this process, so this is the only place that knows.
+
+    `reader_lag` is how long ago the utterance behind this transition actually
+    stopped being spoken (2026-07-29). The window this process enforces is in
+    audio time now; the process reading the file is in transcript time. See
+    crt-wake-arm.py's publish_arm_window() for why the translation happens
+    here rather than being left for the reader to guess at.
 
     A no-op when arming is disabled, which is also why nothing else has to
     know about CRT_WAKE_ARM_ENABLED: with the feature off the file is never
@@ -781,7 +787,7 @@ def publish_arm_window():
     closed. See that function for the reader (crt-book-answer-listen.py,
     which grades utterances this engine has already routed to Claude)."""
     if WAKE_ARM_ENABLED:
-        wake_arm.publish_arm_window(ARM_STATE)
+        wake_arm.publish_arm_window(ARM_STATE, reader_lag=reader_lag)
 
 
 def load_fixups(path):
@@ -1428,7 +1434,15 @@ def report_line(line):
         pass
 
 
-def emit(text, peak=1.0):
+def emit(text, peak=1.0, utt_start=None, utt_end=None):
+    """`utt_start`/`utt_end` are the wall-clock instants this utterance's
+    AUDIO began and ended, captured in the capture loop before transcribe()
+    was ever called (2026-07-29). They exist for the arm window and nothing
+    else: emit() itself runs after a whisper round-trip that has been measured
+    at 1-3s healthy and much worse when the potato<->mandark link is flaky, so
+    time.time() in here is not when the person spoke. Both default to None,
+    which falls through to bin/crt-wake-arm.py's own clock -- the behaviour
+    every existing caller and test already has."""
     key = "".join(c for c in text.lower() if c.isalpha())
     if not text or len(key) < 2 or key in HALLU:
         return
@@ -1458,6 +1472,15 @@ def emit(text, peak=1.0):
     if SINK in ("claude", "secretary"):
         is_control = " " not in text and key in CONTROL
 
+        # What one whisper round-trip actually cost, measured rather than
+        # assumed -- this is the gap between the person finishing a sentence
+        # and this function running. Used ONLY to put the published window in
+        # the reader's clock domain (see publish_arm_window). max(0.0, ...)
+        # because a caller that passes a synthetic utt_end from the future is
+        # a test, not a negative-latency transcription.
+        reader_lag = (max(0.0, time.time() - utt_end)
+                      if utt_end is not None else 0.0)
+
         # Arm-window follow-up check (opt-in, WAKE_ARM_ENABLED, see
         # bin/crt-wake-arm.py) -- MUST run before the normal gate below,
         # since its entire point is letting a follow-up through WITHOUT
@@ -1482,14 +1505,21 @@ def emit(text, peak=1.0):
         if WAKE_ARM_ENABLED and not is_control and ARM_STATE.armed:
             arm_match = classify_wake_match(text)
 
+        # utt_start decides whether the window was open when the person
+        # STARTED talking; utt_end anchors the window this consume slides or
+        # re-arms. See crt-wake-arm.py's header for why those are different
+        # instants and why using this function's own clock for both was the
+        # bug. Passing None for either is the pre-2026-07-29 behaviour.
         if WAKE_ARM_ENABLED and not is_control and \
                 wake_arm.consume_arm_with_followup(ARM_STATE, text,
+                                                   now=utt_start,
+                                                   ended_at=utt_end,
                                                    wake_match=arm_match):
             # Before the dispatch, not after: this utterance is already in
             # stt.log (written at the top of emit), and the window that
             # matters to the reader is the one this consume just slid, re-armed
             # or closed.
-            publish_arm_window()
+            publish_arm_window(reader_lag)
             if STT_DEBUG_PERSIST:
                 print("%s  (arm follow-up) %s" % (ts, text))
             log_user_thought(text)
@@ -1525,8 +1555,11 @@ def emit(text, peak=1.0):
             kind, source, word = (arm_match if arm_match is not None
                                   else classify_wake_match(text))
             if kind:
-                ARM_STATE.arm(text, kind, source, word)
-                publish_arm_window()
+                # Anchored to the END of the wake utterance's audio, not to
+                # this moment: the whisper round-trip that happened in
+                # between is not silence the person owes the window.
+                ARM_STATE.arm(text, kind, source, word, now=utt_end)
+                publish_arm_window(reader_lag)
         label = "(key %s)" % CONTROL[key] if is_control else "->"
         if STT_DEBUG_PERSIST:
             print("%s  %s %s" % (ts, label, text))
@@ -1696,6 +1729,13 @@ def main():
 
     pre = deque(maxlen=PREROLL)
     in_utt = False
+    # Wall clock at the first sample of the utterance currently open, or None
+    # when the mic is idle (2026-07-29). Read by the arm window, which has to
+    # know when the person SPOKE -- everything downstream of transcribe() is
+    # one whisper round-trip too late to answer that. None, not 0.0: "no
+    # utterance open" and "an utterance that began at the epoch" have to be
+    # distinguishable to check_arm_timeout(), which treats them oppositely.
+    utt_started = None
     utt_peak = 0.0
     buf = bytearray()
     above = 0
@@ -1829,7 +1869,8 @@ def main():
             # Cheap tick, opt-in only -- see bin/crt-wake-arm.py. Must run
             # even with no speech happening at all, since a timeout is
             # defined by silence, not by the next utterance arriving.
-            if WAKE_ARM_ENABLED and wake_arm.check_arm_timeout(ARM_STATE, now):
+            if WAKE_ARM_ENABLED and wake_arm.check_arm_timeout(
+                    ARM_STATE, now, utt_start=utt_started):
                 # Only on an actual transition. This tick runs every pass of
                 # the capture loop; republishing an unchanged deadline here
                 # would put a small write in the sole mic reader's hot path
@@ -1856,6 +1897,14 @@ def main():
                     if above >= START:
                         in_utt = True
                         buf = bytearray(b"".join(pre)); pre.clear()
+                        # Back-dated across the pre-roll deque, which is
+                        # already in buf and is exactly the audio whisper will
+                        # be handed before the word that crossed the
+                        # threshold. START also means detection lands a couple
+                        # of chunks into the speech; both are covered by
+                        # measuring from the first sample rather than from
+                        # this instant.
+                        utt_started = now - audio_seconds(len(buf))
                         sil = 0.0
                         mute_hold = 0.0
                         utt_peak = peak
@@ -1872,6 +1921,9 @@ def main():
                 dur = len(buf) / 2 / RATE
                 if ended:
                     in_utt = False; above = 0; mute_hold = 0.0
+                    # Captured BEFORE transcribe() blocks, and held in locals
+                    # so the clear below cannot race them.
+                    utt_span, utt_started = (utt_started, now), None
                     if dur >= MINUTT:
                         if PREDICT_FLASH:
                             predictive_flash()
@@ -1893,7 +1945,8 @@ def main():
                             if rec:
                                 report_line(rec)
                             transcribe_fails = 0
-                            emit(text, utt_peak)
+                            emit(text, utt_peak,
+                                 utt_start=utt_span[0], utt_end=utt_span[1])
                         set_sideband_state("listening")
                         # Nobody read the mic for as long as that took. Keep
                         # the newest few seconds of what queued up (a
