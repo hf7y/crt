@@ -216,7 +216,20 @@ case "${1:-check}" in
     # part worth re-running, and the part a person cannot repeat exactly.
     head_ "injecting utterance (bypassing the mic, not the pipeline)"
     printf '  > %s\n' "$*"
-    ssh_potato "cd $POTATO_BIN && python3 ./crt-secretary.py $(printf '%q' "$*")"
+    # Source the console's config FIRST. crt-secretary.py is Python and
+    # cannot read a shell conf itself -- it takes CRT_CLAUDE_SSH_HOST
+    # from its environment, which crt-console.sh supplies at boot. An ssh
+    # command shell has none of it, so an unsourced invocation here picks
+    # no brain at all and reports "didn't catch a reply" -- which reads as
+    # a broken brain rather than a broken caller. Caught the first time
+    # this verb was run, 2026-07-29, which is the entire argument for
+    # having written the harness.
+    # A far longer timeout than the checks use: this one waits on a real
+    # brain round-trip, and the brain reads files and thinks. 25s (the
+    # check default) killed it mid-answer on the first try and reported
+    # exit 124, which looks like a hang rather than impatience.
+    CRT_SSH_TIMEOUT="${CRT_SAY_TIMEOUT:-180}" \
+      ssh_potato "cd $POTATO_BIN && . ./crt-conf.sh && python3 ./crt-secretary.py $(printf '%q' "$*")"
     rc=$?
     printf '\n  secretary exited %d\n' "$rc"
     printf '  window 1 now:\n'
