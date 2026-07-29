@@ -42,19 +42,26 @@ this file is the stable "how the pieces relate" reference.
 
 ## Three directories, don't confuse them
 
-The brain runs on mandark; potato's files live on potato. These are
-**three different trees**:
+The brain runs on **dexter** (since 2026-07-28); potato's files live on
+potato. These are **four different trees** — the fourth arrived with the
+dexter move, and the count in this heading has been wrong before:
 
 | Path | Box | What it is |
 |---|---|---|
-| `~/Documents/Projects/crt` | mandark | This repo — the dev source of truth. Work happens here; scripts are scp'd out. |
-| `~/crt` | potato | The live deploy target. **Own separate git history** (seeded by copy, not a clone). Files move here by hand (`scp`); always diff after copying. |
+| `~/Documents/Projects/crt` | mandark | This repo — the historical dev source of truth. Still where `origin` lives (`~/git-remotes/crt.git`) until DEXTER-MOVE.md section 3 lands. |
+| `~/crt-repo` | dexter | Working checkout on the **brain host**, added 2026-07-28. Where the SSH-brain work was done. Also the default cwd of the `potato-claude` session, so the console's brain can read its own project. |
+| `~/crt` | potato | The live deploy target. Real `git clone` since 2026-07-27, but its `origin` is a **mandark-only filesystem path**, so it still cannot `git pull` — see DEXTER-MOVE.md section 3. |
 | `~/potato-crt` | mandark | An **sshfs mount of potato's `~/crt`** (`sshfs potato:/home/vkv/crt`). How Claude-on-mandark reads/writes potato's *real* files over SFTP. NOT this repo. |
 
 ## Where the brain runs (wake routing)
 
-The design: **idle = screensaver, no brain resident (save RAM); on wake,
-reach for a brain in priority order.**
+**Changed 2026-07-28: the brain host is now `dexter`, reached over plain
+SSH. The mandark reverse tunnel is retired.** What follows describes the
+live topology; the old one is kept at the bottom of this section because
+its threat model explains why the current shape looks the way it does.
+
+The design is unchanged: **idle = screensaver, no brain resident (save
+RAM); on wake, reach for a brain in priority order.**
 
 ```
 idle  ── screensaver (potato-small.txt), NO Claude on potato
@@ -63,30 +70,65 @@ idle  ── screensaver (potato-small.txt), NO Claude on potato
   │
   ▼
 crt-wake-router.py decides:
-  mandark ON + reachable   → REMOTE  (Claude on mandark, 0 RAM on potato) ★preferred
-  mandark ON + unreachable → fall back: LOCAL if a local brain can run, else NONE
-  mandark OFF              → LOCAL if available, else NONE
+  dexter configured + reachable   → REMOTE  (Claude on dexter, 0 RAM on potato) ★preferred
+  dexter configured + unreachable → fall back: LOCAL if a local brain can run, else NONE
+  nothing configured              → LOCAL if available, else NONE
 NONE = woken but no brain → short honest earcon/line, never silence.
 ```
 
 - **Remote** path: potato's `stt` window escalates via
-  `bin/crt-secretary.py` → `localhost:8993` → reverse tunnel → mandark's
-  `bin/crt-remote-claude-bridge.py` → tmux session `potato-claude`. Potato
-  never holds a Claude process. Tunnel is **mandark-initiated outbound**
-  (`ssh -N -R 8993:localhost:8993 potato`); potato has no path *into*
-  mandark, by design (see the bridge's threat-model header).
-- **Local** path: the onsite fallback — a Claude on potato + local
-  whisper, for lowest lag when mandark is unreachable. Highest RAM cost;
-  only spun up on demand, never held at idle.
+  `bin/crt-secretary.py` → `ssh dexter` → dexter's
+  `bin/crt-brain-shell.py` (an sshd **forced command**) → tmux session
+  `potato-claude`. Potato never holds a Claude process. No tunnel, no
+  listening service, no daemon to drop.
+- **What the key can do, and only that.** potato's key is pinned in
+  dexter's `authorized_keys` with `command="…/crt-brain-shell",restrict`.
+  It gets the two-verb protocol (`CAPTURE`, `SEND`) against one named tmux
+  session — no shell, no sftp, no port forwarding. Verified from potato
+  2026-07-28: a shell request is refused and logged, sftp and `-L`
+  forwarding both fail, `CAPTURE` works.
+- **Direction of trust changed, deliberately.** The old design gave potato
+  *no* path into the brain host, because that host was a personal laptop.
+  dexter is a dedicated always-on box that already runs sshd, so potato
+  now connects inward — narrowed to one forced command rather than
+  eliminated. This was the fork chosen on 2026-07-28; see DEXTER-MOVE.md
+  section 2 for the two rejected alternatives.
+- **Local** path: unchanged — the onsite fallback, a Claude on potato +
+  local whisper, for when dexter is unreachable. Highest RAM cost; only
+  spun up on demand, never held at idle.
+
+> **Port 2223, not 22.** dexter runs two SSH daemons: the Windows host
+> answers `:22`, and the WSL2 instance that actually holds the brain
+> answers `:2223`. Connecting to the wrong one fails as
+> `Permission denied (publickey…)`, which reads exactly like a missing
+> key and cost a debugging detour on 2026-07-28. potato's
+> `~/.ssh/config` pins `Port 2223`; if the brain ever looks
+> "unauthorized", check the port before regenerating any keys.
 
 ### The knobs
 
 | Control | Where | Effect |
 |---|---|---|
-| `bin/crt-mandark.sh on\|off\|status` | run on potato | Flips remote routing; writes `~/.crt/mandark.conf`; `status` probes the live bridge. The one knob you touch. |
-| `~/.crt/mandark.conf` | potato | Sourced by `crt-console.sh` at boot; sets `CRT_CLAUDE_REMOTE_PORT` (8993 = remote on, 0 = local/none). |
+| `CRT_CLAUDE_SSH_HOST=dexter` | potato, `~/.crt/brain.conf` | **The knob.** Sourced by `crt-console.sh` at boot; routes escalations to dexter over SSH. Unset = local/none. |
+| `bin/crt-brain-session.sh ensure\|status\|restart` | run on dexter | Asserts the `potato-claude` tmux session is alive. `status` is the honest health check — it refuses to call a trust-prompt-parked Claude "UP". |
+| `bin/crt-wake-router.py [--json]` | potato | Prints the brain decision (`remote`/`local`/`none`). Pure + testable. `--json` now carries `brain_mode`/`brain_target`. |
 | `CRT_NO_IDLE_CLAUDE=1` | env for `crt-console.sh` | Window 0 becomes the screensaver instead of a resident Claude. Default off = historical always-resident layout (nothing regresses). |
-| `bin/crt-wake-router.py [--json]` | potato | Prints the brain decision (`remote`/`local`/`none`). Pure + testable. |
+| `bin/crt-mandark.sh on\|off\|status` | potato | **RETIRED** along with the bridge — kept only until the section-2 deletion sweep runs. Do not wire anything new to it. |
+
+<details><summary>Retired: the mandark reverse-tunnel topology (2026-07-23 → 2026-07-28)</summary>
+
+potato's `stt` window escalated via `crt-secretary.py` →
+`localhost:8993` → reverse tunnel → mandark's `crt-remote-claude-bridge.py`
+→ tmux session `potato-claude`. The tunnel was **mandark-initiated
+outbound** (`ssh -N -R 8993:localhost:8993 potato`), so potato had no path
+*into* mandark at all. That was not a preference — mandark is a personal
+dev laptop that has never run sshd, and giving potato a way in was flagged
+as a real vulnerability. The shape was correct for that host; it stopped
+being necessary when the brain moved to a box that is always on and
+already accepts SSH. Recorded here so nobody re-derives the tunnel from
+first principles and assumes it was arbitrary.
+
+</details>
 
 ## Remaining live wiring (needs potato hardware, not yet built)
 
@@ -97,8 +139,10 @@ What's left is the part that can only be verified on the physical Pi:
    and *acts* on `none`/`local`: switch window 0 away from the screensaver,
    and — on `local` — spawn an onsite Claude on demand (and tear it down
    after idle to reclaim RAM). Today `crt-secretary.py` already routes to
-   the remote bridge fine; the missing glue is the on-demand local spin-up
+   dexter over SSH fine; the missing glue is the on-demand local spin-up
    and the screensaver↔brain window swap.
+   *Still the top item after the 2026-07-28 dexter move — the transport
+   changed underneath it, the missing glue did not.*
 2. **Local-brain readiness checks**: `crt-wake-router.local_claude_available()`
    currently only checks for creds — the supervisor should also gate on
    free RAM and whisper reachability before choosing `local`.

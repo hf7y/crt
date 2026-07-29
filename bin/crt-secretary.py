@@ -99,6 +99,22 @@ IDLE_FACE_PANE_REPORT = crt_config.idle_face_pane_report(PANE)
 # directly, mandark's own outbound ssh reverse-tunnels the port in).
 CLAUDE_REMOTE_PORT = int(os.environ.get("CRT_CLAUDE_REMOTE_PORT", "0")) or None
 SSH_CONNECT_TIMEOUT = os.environ.get("CRT_CLAUDE_REMOTE_SSH_TIMEOUT", "5")
+
+# SSH-direct brain (2026-07-28), the successor to CLAUDE_REMOTE_PORT above.
+# Set CRT_CLAUDE_SSH_HOST to an ssh alias (dexter) whose authorized_keys
+# pins bin/crt-brain-shell.py as a forced command. Same two-verb protocol as
+# the bridge -- only the transport differs, so everything downstream of
+# capture_pane()/send_to_claude() is untouched.
+#
+# Why this replaced the tunnel: the reverse-tunnel shape existed because
+# mandark was an intermittent laptop with no inbound path. dexter is always
+# on and already runs sshd, so the tunnel bought nothing and cost a moving
+# part that could drop silently. See DEXTER-MOVE.md section 2.
+#
+# Precedence is deliberate and checked in exactly one place (brain_mode()):
+# ssh wins over port. Both set at once is a misconfiguration, not a
+# fallback chain -- two brains would answer the same utterance.
+CLAUDE_SSH_HOST = os.environ.get("CRT_CLAUDE_SSH_HOST", "").strip() or None
 REPORTS_DIR = os.path.expanduser(os.environ.get("CRT_REPORTS_DIR", "~/reports/crt"))
 REPO_DIR = os.path.expanduser(os.environ.get("CRT_REPO_DIR", "~/crt"))
 QUESTIONS = os.environ.get("CRT_QUESTIONS_FILE", os.path.join(REPO_DIR, ".claude/QUESTIONS.md"))
@@ -569,6 +585,49 @@ def _bridge_request(command, port, timeout=None):
         return ""
 
 
+def _ssh_request(command, host, timeout=None):
+    """One request line to the brain host over ssh, one response body back.
+
+    The ssh sibling of _bridge_request(), and deliberately the same
+    contract: returns "" on ANY failure (host down, key refused, ssh
+    missing), never raises into the capture loop. Callers already treat ""
+    as "never reached the brain", and that reading stays correct here --
+    an unreachable dexter and a dropped tunnel are the same fact to potato.
+
+    Note there is no shell on the far side: sshd runs crt-brain-shell as a
+    forced command and this text arrives on ITS stdin, so `command` is data,
+    not something a remote shell parses. That is why nothing here quotes or
+    escapes -- there is no shell to escape for.
+    """
+    timeout = timeout if timeout is not None else float(SSH_CONNECT_TIMEOUT)
+    argv = ["ssh", "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=%d" % max(1, int(float(SSH_CONNECT_TIMEOUT))),
+            host]
+    try:
+        r = subprocess.run(argv, input=command + "\n", capture_output=True,
+                           text=True, timeout=timeout + CLAUDE_MAX_WAIT)
+    except (subprocess.TimeoutExpired, OSError):
+        return ""
+    # Non-zero rc with a body still carries meaning: crt-brain-shell exits 1
+    # on a refused SEND but writes "ERR <detail>" first, and the caller
+    # needs that detail to tell "tmux refused" from "never got there".
+    return r.stdout
+
+
+def brain_mode():
+    """Where this console's brain lives: "ssh", "port", or "local".
+
+    One function so the precedence question is answered once. It used to be
+    an `if CLAUDE_REMOTE_PORT:` repeated at each call site, which was fine
+    with two modes and would rot with three.
+    """
+    if CLAUDE_SSH_HOST:
+        return "ssh"
+    if CLAUDE_REMOTE_PORT:
+        return "port"
+    return "local"
+
+
 def capture_pane():
     """The pane's text, or None if it could not be read (2026-07-25).
 
@@ -581,7 +640,10 @@ def capture_pane():
     Code pane is never legitimately empty, so nothing is lost by refusing to
     trust an empty one, and no bridge-side change is needed to tell them
     apart."""
-    if CLAUDE_REMOTE_PORT:
+    mode = brain_mode()
+    if mode == "ssh":
+        return _ssh_request("CAPTURE", CLAUDE_SSH_HOST) or None
+    if mode == "port":
         return _bridge_request("CAPTURE", CLAUDE_REMOTE_PORT) or None
     if LOCAL_PANE_IS_IDLE_FACE:
         # The idle face is not an unreadable pane -- it reads perfectly, and
@@ -611,7 +673,20 @@ def send_to_claude(text):
     blank precisely because the brain isn't there. FOCUS.md's current top
     priority names tunnel drops as the thing to watch for; this is what
     makes one observable instead of looking like a quiet Claude."""
-    if CLAUDE_REMOTE_PORT:
+    mode = brain_mode()
+    if mode == "ssh":
+        # Same one-line protocol as the socket path, same reason: whisper
+        # output is one line, but strip defensively so a stray newline
+        # cannot desync the request.
+        reply = _ssh_request("SEND " + text.replace("\n", " "), CLAUDE_SSH_HOST)
+        if reply.strip() == "OK":
+            return True
+        note = reply.strip() or ("no response from the brain host %r -- "
+                                 "dexter unreachable, or its key was refused"
+                                 % CLAUDE_SSH_HOST)
+        log_brain_unreachable(text, note)
+        return False
+    if mode == "port":
         # newline-terminated single-line protocol -- a real utterance
         # never legitimately contains one (whisper output is one line),
         # but strip defensively so a stray one can't desync the protocol.

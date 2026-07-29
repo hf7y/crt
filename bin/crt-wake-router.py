@@ -23,6 +23,7 @@ import argparse
 import json
 import os
 import socket
+import subprocess
 import sys
 
 DEFAULT_PORT = int(os.environ.get("CRT_MANDARK_PORT", "8993"))
@@ -87,6 +88,44 @@ def mandark_configured_on():
     return (port != 0, port or DEFAULT_PORT)
 
 
+def probe_ssh(host, timeout=6.0):
+    """Live reachability check for the SSH-direct brain (2026-07-28).
+
+    The ssh sibling of probe_bridge(), and the same standard: it sends the
+    real CAPTURE and demands a non-empty pane back. Deliberately NOT a ping
+    or a TCP connect -- dexter answering on port 2223 proves only that a
+    daemon is up, and the failure this probe exists to catch is a dexter
+    that is perfectly reachable with its potato-claude tmux session dead.
+    That state passes every cheaper check and produces a console that wakes,
+    routes "remote", and then hears nothing.
+    """
+    if not host:
+        return False
+    try:
+        r = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=%d" % max(1, int(timeout)),
+             host],
+            input="CAPTURE\n", capture_output=True, text=True, timeout=timeout + 4)
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return bool(r.stdout.strip())
+
+
+def brain_configured_on():
+    """Which remote brain is configured, if any: (mode, target).
+
+    mode is "ssh", "port" or None. Mirrors crt-secretary.py's brain_mode()
+    precedence exactly -- ssh wins -- because a router that disagrees with
+    the thing it routes FOR is worse than no router. mandark_configured_on()
+    is kept below, unchanged, as the port-mode half.
+    """
+    host = os.environ.get("CRT_CLAUDE_SSH_HOST", "").strip()
+    if host:
+        return "ssh", host
+    on, port = mandark_configured_on()
+    return ("port", port) if on else (None, None)
+
+
 def local_claude_available():
     """Heuristic, deliberately conservative: a local brain is 'available'
     only if Claude Code credentials exist on this box. RAM/whisper checks
@@ -107,17 +146,30 @@ def main(argv=None):
                     help="skip the live bridge probe (assume unreachable)")
     args = p.parse_args(argv)
 
-    on, port = mandark_configured_on()
-    reachable = (on and not args.no_probe and probe_bridge(port))
+    mode, target = brain_configured_on()
+    on = mode is not None
+    if not on or args.no_probe:
+        reachable = False
+    elif mode == "ssh":
+        reachable = probe_ssh(target)
+    else:
+        reachable = probe_bridge(target)
     local = local_claude_available()
     choice = decide_brain(on, reachable, local)
 
     if args.json:
+        _, port = mandark_configured_on()
         print(json.dumps({
             "choice": choice,
-            "mandark_on": on,
+            "brain_mode": mode,
+            "brain_target": target,
+            # The mandark_* keys predate the dexter move and are kept so
+            # existing consumers/tests do not break. In ssh mode they
+            # describe the port-mode half only, which is now off -- read
+            # brain_mode/brain_target for the truth.
+            "mandark_on": on and mode == "port",
             "mandark_port": port,
-            "mandark_reachable": reachable,
+            "mandark_reachable": reachable and mode == "port",
             "local_available": local,
             "explain": explain(choice),
         }))

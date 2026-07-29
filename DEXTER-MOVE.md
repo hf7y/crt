@@ -78,6 +78,62 @@ The original framing, kept because it is still the right instinct: a
 migrated-verbatim bridge documents a threat model that stopped being true,
 which is how the next session inherits a wrong premise.
 
+### BUILT 2026-07-28 — what "talking to it directly" turned out to mean
+
+`# verified 2026-07-28 from potato's own shell via ssh dexter`
+
+The decision above deleted a mechanism without naming its replacement, and
+the gap was load-bearing: potato was still pointed at
+`CRT_CLAUDE_REMOTE_PORT=8993`, i.e. at the bridge this section retires. The
+replacement, now live:
+
+- **`bin/crt-brain-shell.py`** (new, dexter-side) — the same two-verb
+  protocol the bridge spoke (`CAPTURE`, `SEND`), driving the same
+  `potato-claude` tmux session, but invoked by **sshd as a forced command**
+  instead of by a listening socket. No daemon, no tunnel, no port.
+- **`bin/crt-brain-session.sh`** (new, dexter-side) — asserts the tmux
+  session exists. The bridge never had this: a human started `claude` by
+  hand and nothing ever put it back when it died.
+- **`bin/crt-secretary.py`** — new `CRT_CLAUDE_SSH_HOST` mode beside the
+  old port mode. `brain_mode()` decides precedence in one place; ssh wins.
+  `capture_pane()`/`send_to_claude()` remain the only two functions that
+  know where the brain is, exactly as before.
+- **`bin/crt-wake-router.py`** — `brain_configured_on()` + `probe_ssh()`,
+  mirroring that precedence. Its probe sends a real `CAPTURE` rather than
+  pinging, because the failure worth catching is a reachable dexter whose
+  tmux session is dead — that state passes every cheaper check.
+- **`tests/test_brain_ssh.py`** — 15 offline assertions, wired into
+  `tests/run_tests.sh`. Covers the degrade contract and proves the SEND
+  payload is never shell-interpreted rather than asserting it in a comment.
+
+**Why this is not the "direct service" the section rejected.** That
+rejection was about standing up a *listening Claude bridge* on an
+always-on box — a new daemon with its own port and blast radius. This adds
+no listener: it reuses the sshd dexter already runs, and the key is pinned
+to one forced command with `restrict`. The tiny-protocol argument that
+justified the original bridge is preserved intact; only the transport
+changed. What genuinely did change is the **direction of trust** — potato
+now has a path inward, narrowed to two verbs rather than eliminated. That
+is a real difference from the mandark design and is stated plainly here
+rather than buried, because it is the one property a future reader would
+otherwise assume still holds.
+
+**Trap found while wiring, worth more than the code.** dexter runs **two**
+sshd: the Windows host on `:22`, the WSL2 instance holding the brain on
+`:2223`. potato was authenticating against the wrong one, and the failure
+mode was `Permission denied (publickey,password,keyboard-interactive)` —
+indistinguishable from a missing or wrong key, with a *matching
+fingerprint on both ends*. Anyone debugging "dexter won't take my key"
+should check the port before touching credentials. potato's
+`~/.ssh/config` now pins `Port 2223` with that reasoning inline.
+
+**Still open after this**, and deliberately not done here: potato's key is
+now confined to the brain protocol, so it **cannot run git** against
+dexter. Section 3's repo repointing therefore needs a *second* key with a
+git-shell restriction, not a reuse of this one. Noticed while wiring; a
+single key doing both jobs would have quietly widened the forced command
+back into general access, which is the whole thing this shape prevents.
+
 ## 3. Potato's `origin` is the actual deliverable
 
 Today potato's `~/crt` has `origin = /home/zach/git-remotes/crt.git` — a

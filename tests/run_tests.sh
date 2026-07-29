@@ -408,6 +408,10 @@ echo "== crt-wake-router.py brain decision =="
 python3 "$DIR/test_wake_router.py" || fail=1
 echo
 
+echo "== SSH-direct brain (crt-brain-shell + transport selection) =="
+python3 "$DIR/test_brain_ssh.py" || fail=1
+echo
+
 echo "== crt-screensaver.py potato art =="
 python3 "$DIR/test_screensaver.py" || fail=1
 echo
