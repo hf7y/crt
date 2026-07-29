@@ -300,6 +300,10 @@ echo "== crt-wake-arm.py (arm-window state machine, 2026-07-23) =="
 python3 -m unittest discover -s "$DIR" -p "test_wake_arm.py" -v 2>&1 | tail -5 || fail=1
 echo
 
+echo "== crt-whisper-server.py: one implementation, and it cleans up (2026-07-29) =="
+python3 "$DIR/test_whisper_server.py" 2>&1 | tail -4 || fail=1
+echo
+
 echo "== a re-wake starts a fresh session, through the live emit() path (2026-07-25) =="
 python3 -m unittest discover -s "$DIR" -p "test_wake_rearm_ceiling.py" -v 2>&1 | tail -5 || fail=1
 echo
