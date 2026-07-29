@@ -1567,3 +1567,40 @@ physical. Reports land in `~/reports/crt/`. A GitHub mirror is optional later
 
 - **2026-07-25 (fable-review):** mandark's paced-runner log shows crt dispatches 2026-07-24 23:58/23:59 despite `_paced.conf` enabled=0 and dexter ownership — verify (stale log vs real double-dispatch), then make single-host dispatch a runner-enforced invariant, not a two-config-file implication
 - **2026-07-25 (fable-review):** resolve the bibliothecaire name collision (your parked Book-Game catalog split vs realisateur's new inbox "page 92" idea) before either scaffolds
+## 2026-07-28 (realisateur /cloture, supervision session): the brain moved to dexter, the EARS did not
+
+Probed first-hand this session from mandark and potato, not recalled.
+
+- [batch] **potato's STT still depends on mandark, which the dexter move
+  exists to escape.** `~/.crt/brain.conf` on potato points
+  `CRT_CLAUDE_SSH_HOST=dexter` (written 2026-07-28, mandark reverse-tunnel
+  explicitly `0`), but `crt-console.sh:176` still defaults
+  `CRT_WHISPER_SERVER=http://192.168.0.27:8991/transcribe` -- **192.168.0.27
+  is mandark**, verified via `hostname -I` there. And
+  `crt-whisper-server.service` is ACTIVE on mandark right now, listening
+  `0.0.0.0:8991` (`systemctl is-active` + `ss -ltn`). So the console's
+  speech path breaks whenever the laptop sleeps, which is the exact
+  property the move was for. `bin/dexter-whisper-server.py` already exists
+  in potato's checkout (`~/crt.bak-2026-07-28/bin/`), so this is a
+  deploy-and-repoint, not a build: stand it up on dexter, repoint the
+  console default, retire the mandark unit + its `ufw` 8991 rule (see
+  `bin/setup-mandark-whisper-persistence.sh`). Owner: crt. Not started.
+
+- **crt's 3-day silence on dexter is EXPLAINED, and it is neither of the
+  two candidates filed on 2026-07-28.** Filed candidates were a held
+  `sweep.lock` and the dead-man expiry; both are ruled out or secondary:
+  - the 0-byte `sweep.lock` (07-25 20:10) has **no holder** -- `fuser` on
+    dexter returns nothing, and both `fuser` and `flock` are installed. It
+    is an orphan file, not a lock. RED HERRING, stop citing it.
+  - `expires_at` is real and confirmed: **2026-08-01T01:14**, ~3 days out.
+    It is a FUTURE second cause, not the current one.
+  - **The actual cause:** the 2026-07-25 20:10 run died with
+    `You've hit your monthly spend limit` and logged
+    `=== FAILED 2026-07-25T20:37:06-05:00 ===`. Nothing has dispatched
+    since. Read directly from
+    `~/.local/share/crt-nightly-batch/sweep.log` on dexter.
+  - **And it cannot recover on its own** -- see the starvation finding
+    filed to scheduler's BLOCKERS.md the same day: dexter's usage gate has
+    returned `HOLD ... 7d window 24% used vs burn-line 24% (on-pace)` every
+    5 minutes for three days. That is scheduler's decision to make, not
+    crt's, which is why it is filed there rather than here.
