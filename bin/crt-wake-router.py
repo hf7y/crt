@@ -49,10 +49,19 @@ def decide_brain(mandark_on, mandark_reachable, local_available):
     return NONE
 
 
-def explain(choice):
+def explain(choice, target=None):
+    """Human-readable reason. `target` names the actual brain host.
+
+    It used to hardcode "mandark", which survived the 2026-07-28 move to
+    dexter and started printing a wrong host name beside a correct decision
+    -- the kind of stale string that gets believed precisely because
+    everything around it is right. Defaulted rather than required so
+    existing callers (and tests) keep working.
+    """
+    where = target or "the remote host"
     return {
-        REMOTE: "brain: mandark (remote, no RAM cost on potato)",
-        LOCAL: "brain: local onsite Claude (mandark unavailable/off)",
+        REMOTE: "brain: %s (remote, no RAM cost on potato)" % where,
+        LOCAL: "brain: local onsite Claude (%s unavailable/off)" % where,
         NONE: "brain: none available -- give a short honest reply, not silence",
     }[choice]
 
@@ -171,7 +180,7 @@ def main(argv=None):
             "mandark_port": port,
             "mandark_reachable": reachable and mode == "port",
             "local_available": local,
-            "explain": explain(choice),
+            "explain": explain(choice, target),
         }))
     else:
         print(choice)

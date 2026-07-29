@@ -33,14 +33,25 @@ export PATH="$BIN_DIR:$HOME/.local/bin:$PATH"
 export CRT_CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
 
 # Where the console's Claude brain runs is a runtime choice Zach flips with
-# bin/crt-mandark.sh, persisted to ~/.crt/mandark.conf (sets
-# CRT_CLAUDE_REMOTE_PORT: a real port -> route escalations to mandark's
-# remote Claude bridge; 0 -> keep it local/onsite). Sourcing it here lets
-# that toggle survive a reboot without editing this file. No file = the
-# historical default (remote on, port 8993), preserved by the `:-8993`
-# fallback on the stt window's launch line below. See POTATO.md.
+# Brain routing, persisted so it survives a reboot without editing this
+# file. CHANGED 2026-07-28 (dexter move): the brain is reached by SSH
+# (CRT_CLAUDE_SSH_HOST=dexter), not by the retired mandark reverse-tunnel
+# bridge. See POTATO.md and DEXTER-MOVE.md section 2.
+#
+# The no-file default was the dangerous part and is why this block changed
+# rather than just its contents: it used to fall back to port 8993, so a
+# potato that lost ~/.crt/mandark.conf came up pointed at a bridge that no
+# longer exists -- silently, since an unreachable bridge just times out
+# empty. The default is now the live brain host, and the port default is 0.
+CRT_BRAIN_CONF="${CRT_BRAIN_CONF:-$HOME/.crt/brain.conf}"
 CRT_MANDARK_CONF="${CRT_MANDARK_CONF:-$HOME/.crt/mandark.conf}"
-if [ -f "$CRT_MANDARK_CONF" ]; then
+if [ -f "$CRT_BRAIN_CONF" ]; then
+  # shellcheck disable=SC1090
+  . "$CRT_BRAIN_CONF"
+elif [ -f "$CRT_MANDARK_CONF" ]; then
+  # Legacy path, read only if no brain.conf exists. Kept so a potato that
+  # has not been migrated yet still boots with its old routing rather than
+  # silently changing behavior under someone.
   # shellcheck disable=SC1090
   . "$CRT_MANDARK_CONF"
 fi
@@ -209,7 +220,7 @@ tmux new-window -d -t "$SESSION" -n bridge -c "$BIN_DIR" "./crt-claude-bridge.py
 # with backoff so a genuinely-dead device doesn't spin a hot loop. Same
 # env vars, untouched, just passed through instead of invoked directly.
 tmux new-window -d -t "$SESSION" -n stt -c "$BIN_DIR" \
-  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 CRT_WHISPER_SERVER=${CRT_WHISPER_SERVER:-http://192.168.0.27:8991/transcribe} CRT_AUDIO_DEV=${CRT_AUDIO_DEV:-plughw:1,0} CRT_CLAUDE_REMOTE_PORT=${CRT_CLAUDE_REMOTE_PORT:-8993} ./crt-stt-supervisor.sh; exec bash"
+  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 CRT_WHISPER_SERVER=${CRT_WHISPER_SERVER:-http://192.168.0.27:8991/transcribe} CRT_AUDIO_DEV=${CRT_AUDIO_DEV:-plughw:1,0} CRT_CLAUDE_SSH_HOST=${CRT_CLAUDE_SSH_HOST:-dexter} CRT_CLAUDE_REMOTE_PORT=${CRT_CLAUDE_REMOTE_PORT:-0} ./crt-stt-supervisor.sh; exec bash"
 
 if [ -n "${CRT_HOOK_DEVICE:-}" ]; then
   tmux new-window -d -t "$SESSION" -n hook -c "$BIN_DIR" "./hookswitch-listen.sh; exec bash"
