@@ -32,29 +32,17 @@ export PATH="$BIN_DIR:$HOME/.local/bin:$PATH"
 # PATH above.
 export CRT_CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
 
-# Where the console's Claude brain runs is a runtime choice Zach flips with
-# Brain routing, persisted so it survives a reboot without editing this
-# file. CHANGED 2026-07-28 (dexter move): the brain is reached by SSH
-# (CRT_CLAUDE_SSH_HOST=dexter), not by the retired mandark reverse-tunnel
-# bridge. See POTATO.md and DEXTER-MOVE.md section 2.
+# The console's config -- wake word, earcon sink, mic, whisper server,
+# and where the Claude brain runs. All of it read from ~/.crt/ by one
+# loader, so this boot path is not the only way to acquire it.
 #
-# The no-file default was the dangerous part and is why this block changed
-# rather than just its contents: it used to fall back to port 8993, so a
-# potato that lost ~/.crt/mandark.conf came up pointed at a bridge that no
-# longer exists -- silently, since an unreachable bridge just times out
-# empty. The default is now the live brain host, and the port default is 0.
-CRT_BRAIN_CONF="${CRT_BRAIN_CONF:-$HOME/.crt/brain.conf}"
-CRT_MANDARK_CONF="${CRT_MANDARK_CONF:-$HOME/.crt/mandark.conf}"
-if [ -f "$CRT_BRAIN_CONF" ]; then
-  # shellcheck disable=SC1090
-  . "$CRT_BRAIN_CONF"
-elif [ -f "$CRT_MANDARK_CONF" ]; then
-  # Legacy path, read only if no brain.conf exists. Kept so a potato that
-  # has not been migrated yet still boots with its old routing rather than
-  # silently changing behavior under someone.
-  # shellcheck disable=SC1090
-  . "$CRT_MANDARK_CONF"
-fi
+# It used to be: these were exports in ~/.bash_profile (which execs this
+# script), and the brain block was inline here. Both bit, in the same
+# way -- see bin/crt-conf.sh's header for the live 2026-07-29 failure.
+# Anything that restarts a window WITHOUT going through a login shell
+# came up with library defaults and looked healthy while doing it.
+# shellcheck disable=SC1090
+. "$BIN_DIR/crt-conf.sh"
 
 # CRT_MODE=stt  -> standalone speech-to-text only, no Claude Code. A single
 # process (crt-stt-solo.py) is the SOLE mic reader -- metering + VAD + whisper
@@ -217,10 +205,21 @@ tmux new-window -d -t "$SESSION" -n bridge -c "$BIN_DIR" "./crt-claude-bridge.py
 # capture hiccup crt-stt-solo.py already recovers from internally) used
 # to leave the console silently deaf until someone SSH'd in and noticed.
 # The supervisor restarts it and fires a loud "alarm" earcon every time,
-# with backoff so a genuinely-dead device doesn't spin a hot loop. Same
-# env vars, untouched, just passed through instead of invoked directly.
+# with backoff so a genuinely-dead device doesn't spin a hot loop.
+#
+# The command string below carries only what is specific to THIS window
+# (which sink, which gate, which pane to type into). Everything that is
+# console-wide -- CRT_WHISPER_SERVER, CRT_AUDIO_DEV, CRT_EARCON_DEVICE,
+# CRT_WAKE_WORD, brain routing -- is NOT retyped here: the supervisor
+# sources crt-conf.sh itself. That is the whole point of the 2026-07-29
+# change. Retyping them here was what made `tmux kill-window` +
+# `tmux new-window` (the obvious way to restart capture by hand) a
+# different configuration than boot, with no error to say so.
+#
+# It has to be a literal env prefix on the command rather than inherited:
+# tmux windows get the tmux SERVER's environment, not this script's.
 tmux new-window -d -t "$SESSION" -n stt -c "$BIN_DIR" \
-  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 CRT_WHISPER_SERVER=${CRT_WHISPER_SERVER:-http://192.168.0.27:8991/transcribe} CRT_AUDIO_DEV=${CRT_AUDIO_DEV:-plughw:1,0} CRT_CLAUDE_SSH_HOST=${CRT_CLAUDE_SSH_HOST:-dexter} CRT_CLAUDE_REMOTE_PORT=${CRT_CLAUDE_REMOTE_PORT:-0} ./crt-stt-supervisor.sh; exec bash"
+  "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 ./crt-stt-supervisor.sh; exec bash"
 
 if [ -n "${CRT_HOOK_DEVICE:-}" ]; then
   tmux new-window -d -t "$SESSION" -n hook -c "$BIN_DIR" "./hookswitch-listen.sh; exec bash"

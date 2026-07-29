@@ -484,6 +484,10 @@ echo "== crt-console.sh CRT_CTL_FILE export =="
 bash "$DIR/test_console_ctl_env_export.sh" || fail=1
 echo
 
+echo "== console config comes from ~/.crt, not a login shell =="
+bash "$DIR/test_console_conf.sh" || fail=1
+echo
+
 # Manifest check (2026-07-25). Every test file in this directory must be named
 # above, and every name above must exist. Both directions had really drifted:
 #

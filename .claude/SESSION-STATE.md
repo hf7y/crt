@@ -7,7 +7,67 @@ pick up.
 
 # Session state (read this first, before STT-MECHANISM.md)
 
-## LATEST (2026-07-28) — potato's brain wired, then handed to gardien
+## LATEST (2026-07-29, early hours) — the console's config had three
+## silent holes; all found by restarting capture by hand
+
+Zach: "potato can't reach its brain." It could. What follows is three
+separate silent-wrong-default bugs stacked on each other, none of which
+produced an error anywhere.
+
+1. **Stale process, not a broken path.** potato's `~/.crt/brain.conf`
+   correctly said `CRT_CLAUDE_SSH_HOST=dexter`, but the running
+   `crt-stt-supervisor.sh` had been up ~22h — since before that file was
+   written — still carrying `CRT_CLAUDE_REMOTE_PORT=8993`, the retired
+   mandark tunnel. Every utterance since logged `NOT DELIVERED [no
+   response from the bridge on port 8993]` to
+   `~/.crt/brain-unreachable.log`. Verified the real path works first:
+   `ssh potato 'echo CAPTURE | ssh dexter'` returns dexter's live pane.
+   **Lesson: nothing asserts the running console matches its conf files.
+   A config edit is inert until someone restarts, with no drift signal.**
+
+2. **My own restart made it worse, which is how the real bug surfaced.**
+   `ssh potato tmux new-window ...` is a NON-LOGIN shell. potato's
+   console identity lived only in `~/.bash_profile`, so capture came back
+   with `CRT_EARCON_DEVICE` unset (code default `handset` —
+   `crt-stt-solo.py:279`) and `CRT_WAKE_WORD` unset (default `claude` —
+   `:737`). Mic live, meter moving, `gate.log` filling. Beeping into an
+   earpiece nobody held, listening for a name nobody says.
+
+3. **Worse and older: the tty1 boot path never had them either.** On
+   potato, `CRT_CLAUDE_ARGS`, `CRT_WAKE_WORD` and `CRT_EARCON_DEVICE`
+   sat BELOW the `exec crt-console.sh` line in `~/.bash_profile`. A cold
+   autologin boot never reached them. The documented `potato` wake word
+   had therefore never actually been in force on a real boot since it was
+   set on 2026-07-28 — it only worked when a human started the console by
+   hand from an ssh login shell.
+
+**Fix shipped**: `bin/crt-conf.sh` (new, sourced-not-executed loader) reads
+`~/.crt/console.conf` then `~/.crt/brain.conf` (last, so runtime brain
+routing still wins), legacy `mandark.conf` fallback unchanged.
+`crt-console.sh` and `crt-stt-supervisor.sh` both source it; the supervisor
+in particular, because it is the restart point for capture and gets rerun
+by hand. `crt-console.sh` no longer retypes console-wide env into the stt
+window command. Template: `console.conf.example`. Test:
+`tests/test_console_conf.sh` (7 assertions, in `run_tests.sh`) — the
+load-bearing one runs the supervisor under `env -i` and asserts the child
+still comes up configured.
+
+**Still true, NOT fixed**: `CRT_WHISPER_SERVER=http://192.168.0.27:8991`
+— that IP is **mandark**, the intermittent laptop the dexter move exists
+to escape. dexter is `192.168.0.22` and has **no whisper install at all**
+(no `~/whisper.cpp`, nothing listening on 8991). realisateur flagged this
+from mandark and was right about the gap, but wrong on one detail:
+`bin/dexter-whisper-server.py` does **not** exist — deleted in `3dee2d5`,
+surviving only as a stale comment in `mandark-whisper-server.py:5`. The
+good news: `mandark-whisper-server.py` is already host-agnostic (all
+`CRT_WHISPER_*` env, binds `0.0.0.0`), so it is a copy + venv + repoint,
+and the repoint is now one line in `~/.crt/console.conf`.
+
+**Room/audio facts confirmed live**: potato's ALSA — card 0 `bcm2835
+Headphones` (playback only), card 1 `KT USB Audio` (the mic, capture),
+card 2 `vc4hdmi`. Earcons sound on all three; `tv` = `plughw:2,0` (HDMI).
+
+## LATEST-2 (2026-07-28) — potato's brain wired, then handed to gardien
 
 **Potato's nightly self-repair is LIVE.** `/etc/systemd/system/crt-self-repair.{service,timer}`
 installed and `enabled --now` on potato (Zach ran the sudo half; the
