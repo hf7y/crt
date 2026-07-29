@@ -7,7 +7,75 @@ pick up.
 
 # Session state (read this first, before STT-MECHANISM.md)
 
-## LATEST (2026-07-29, early hours) — the console's config had three
+## LATEST (2026-07-29, ~04:00) — voice loop is CLOSED and re-runnable
+## without a model in the loop. Start here.
+
+**One command picks this up cold:**
+
+```
+bin/crt-voice-calibration.sh stage      # brain up, primed, 7 hops checked
+bin/crt-voice-calibration.sh say TEXT   # inject an utterance, no mic
+bin/crt-voice-calibration.sh watch      # tail gate/delivery/thoughts logs
+```
+
+Zach's ask (going afk, 2026-07-29): "get this potato-zach interaction
+staged for when I get back... mechanical script calls including prompt
+injection so that I can re-run the calibration voice interaction again
+with minimal ai." That script IS the staging. Its seven checks are this
+session's whole investigation written down as commands — including the
+one that would have caught the 02:00 bug in one line (check 3 compares
+the LIVE capture process's env against its config files; they had
+disagreed for 22h with nothing looking).
+
+**Verified end-to-end**: `say "potato, what are the margins set to right
+now?"` → brain answered `» Zero. Nothing set.` → rendered on window 1.
+
+**The brain (dexter, tmux session `potato-claude`)**:
+- Runs with `--permission-mode bypassPermissions`, Zach-directed ("yes
+  hard bypass"). Its only input is `tmux send-keys` from a person
+  speaking into a landline — there is no keyboard to answer a modal. A
+  read-only `ls` stalled the entire voice path before this.
+- The bypass **confirmation screen** must be answered once per new cwd.
+  `crt-brain-session.sh status` detects it (and trust-folder prompts, and
+  permission prompts) — a parked brain now reports UP BUT NOT ANSWERING
+  instead of UP.
+- Runs in **`~/crt-brain`, branch `voice`** — a git worktree, NOT the
+  shared checkout. It makes real commits now. Merge with `git merge
+  voice`. `crt-brain-session.sh` prefers that worktree automatically when
+  it exists.
+- Its standing brief is `voice-priming-prompt.md`, injected mechanically.
+  Edit that file to change what a calibration pass is about.
+
+**KNOWN BROKEN, fails loudly in `stage` every run — do not "fix" by
+silencing it.** The `» ` marker filter is enforced NOWHERE in the live
+path. The brain marks its user-facing lines correctly; potato's
+`crt-claude-bridge.py` still watches **window 0's local pane**, and the
+brain moved hosts. So window 1 renders the brain's full working output —
+tool logs, hook messages, the question echoed back. The brain has started
+noticing this itself ("either window 1 didn't show my answer, or overscan
+ate it"). The fix is a design decision Zach has not made: where does the
+filter live now that the brain is on another host? Left failing on
+purpose.
+
+**Also open**: `crt-secretary.py` exits **0** while printing "didn't catch
+a reply" — an exit-0 no-op. And `CRT_WHISPER_SERVER` still points at
+mandark (192.168.0.27); dexter (.22) has no whisper install.
+
+**Ecosystem gap worth escalating**: `notify-senechal`,
+`check-project-busy`, `focus-commit` and `silence-audit` are **not
+installed on dexter**. `~/.local/bin` has only claude, crt-brain-shell,
+node/npm/npx and two usage scripts. Machine-config changes made here
+(potato's `~/.crt/console.conf`, its trimmed `~/.bash_profile`, its repo's
+`receive.denyCurrentBranch=updateInstead`) are owed a senechal note that
+could not be filed.
+
+**Deploying to potato**: potato's `origin` is
+`/home/zach/git-remotes/crt.git`, a **mandark-local path** — potato has
+never been able to `git pull`. Deploy by pushing from dexter:
+`git push potato main` (needs `receive.denyCurrentBranch=updateInstead`,
+already set).
+
+## LATEST-2 (2026-07-29, early hours) — the console's config had three
 ## silent holes; all found by restarting capture by hand
 
 Zach: "potato can't reach its brain." It could. What follows is three
