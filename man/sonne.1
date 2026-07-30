@@ -1,0 +1,73 @@
+.TH SONNE 1 "2026-07-30" "bashified" "Zach's utilities"
+.SH NAME
+sonne \- ring the handset: voice front end for a terminal
+.SH SYNOPSIS
+.B sonne
+[\fIsubcommand\fR] [\fIflags\fR]
+.SH DESCRIPTION
+A plain shell utility. It takes arguments, keeps a stated promise, and
+exits with a code that says exactly what happened.
+.PP
+Run
+.B sonne list
+to see the subcommands that are actually backed by tooling.
+A subcommand the contract names but for which no tooling exists exits 4
+(GAP) and says so, rather than exiting 0 having done nothing.
+.SH FLAGS
+.TP
+.B \-\-json
+Machine-readable output.
+.TP
+.B \-\-quiet, \-q
+Results only, no commentary.
+.TP
+.B \-h, \-\-help
+Usage summary.
+.SH THE COST BOUNDARY
+This utility does not spend money and therefore has
+.B no --summon flag.
+Any utility in this family that CAN spend declares
+.B \-\-summon
+and refuses to spend without it. There is deliberately no short form:
+.B \-s
+collides with existing tools and
+.B \-S
+differs from it by a
+single shift key, which is an unacceptable property for the one flag
+that costs real money. Spelling the word out is the deliberateness.
+.SH EXIT STATUS
+.TP
+.B 0
+The promise was kept.
+.TP
+.B 2
+Usage error; the caller is wrong.
+.TP
+.B 3
+Needs a summon and did not get one. A finding, not an error.
+.TP
+.B 4
+GAP: the tooling to keep this promise does not exist yet.
+.TP
+.B 5
+BROKEN: it ran and produced a wrong or partial answer.
+.TP
+.B 6
+BLIND: it cannot read its domain, so it will not report on it.
+.SH FILES
+.TP
+.I CONTRACT.md
+The promise this utility must keep.
+.TP
+.I GAPS.md
+What the contract names and the tooling cannot yet do.
+.SH HISTORY
+Rebuilt 2026-07-30 from the tree named
+.BR crt .
+This branch is a total purge: it keeps the tool and nothing else.
+What was removed is not lost \- it is on the default branch
+of this same repository. That is why this is a branch and not a new
+repository, and extracting it into one would destroy the archive that
+justifies the purge.
+.SH SEE ALSO
+.BR dose (1)
