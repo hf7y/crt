@@ -1428,7 +1428,14 @@ def report_line(line):
         pass
 
 
-def emit(text, peak=1.0):
+def emit(text, peak=1.0, heard_at=None):
+    """`heard_at`, when given, is when the speaker actually stopped talking
+    (captured before transcribe() ran) -- see the caller's own note. It is
+    the clock the arm window measures against, NOT the moment this function
+    happens to run, which can trail the real utterance by however long
+    whisper/the network took. Defaults to None (falls through to real
+    time.time() inside crt-wake-arm.py, the old behavior) so callers that
+    don't care about arm-window precision are unaffected."""
     key = "".join(c for c in text.lower() if c.isalpha())
     if not text or len(key) < 2 or key in HALLU:
         return
@@ -1484,7 +1491,8 @@ def emit(text, peak=1.0):
 
         if WAKE_ARM_ENABLED and not is_control and \
                 wake_arm.consume_arm_with_followup(ARM_STATE, text,
-                                                   wake_match=arm_match):
+                                                   wake_match=arm_match,
+                                                   now=heard_at):
             # Before the dispatch, not after: this utterance is already in
             # stt.log (written at the top of emit), and the window that
             # matters to the reader is the one this consume just slid, re-armed
@@ -1525,7 +1533,7 @@ def emit(text, peak=1.0):
             kind, source, word = (arm_match if arm_match is not None
                                   else classify_wake_match(text))
             if kind:
-                ARM_STATE.arm(text, kind, source, word)
+                ARM_STATE.arm(text, kind, source, word, now=heard_at)
                 publish_arm_window()
         label = "(key %s)" % CONTROL[key] if is_control else "->"
         if STT_DEBUG_PERSIST:
@@ -1872,6 +1880,13 @@ def main():
                 dur = len(buf) / 2 / RATE
                 if ended:
                     in_utt = False; above = 0; mute_hold = 0.0
+                    # Captured here, before transcribe() -- not after it
+                    # returns -- so the arm-window clock (see emit()'s
+                    # heard_at) measures from when the person actually
+                    # stopped talking, not from whenever whisper/the network
+                    # got around to finishing. See CRT_WAKE_ARM_SECS's own
+                    # note in bin/crt-wake-arm.py for why this matters.
+                    utt_end_ts = time.time()
                     if dur >= MINUTT:
                         if PREDICT_FLASH:
                             predictive_flash()
@@ -1893,7 +1908,7 @@ def main():
                             if rec:
                                 report_line(rec)
                             transcribe_fails = 0
-                            emit(text, utt_peak)
+                            emit(text, utt_peak, heard_at=utt_end_ts)
                         set_sideband_state("listening")
                         # Nobody read the mic for as long as that took. Keep
                         # the newest few seconds of what queued up (a

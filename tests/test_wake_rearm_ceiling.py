@@ -168,8 +168,12 @@ class TestRewakeThroughEmit(unittest.TestCase):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def say(self, text, at):
+        # heard_at makes emit() measure the arm window from `at` directly,
+        # the same real-clock parameter the live capture loop now passes
+        # (VAD-end, before transcribe()) -- see crt-stt-solo.py's own note.
+        # self.clock still backs check_arm_timeout()'s direct calls below.
         self.clock.now = at
-        self.stt.emit(text)
+        self.stt.emit(text, heard_at=at)
 
     def test_a_rewake_buys_a_fresh_ceiling_for_what_follows_it(self):
         self.say("potato what is the weather", 100.0)        # ceiling 130
@@ -218,6 +222,23 @@ class TestRewakeThroughEmit(unittest.TestCase):
         self.assertEqual(read(), 122.0)
         self.say("potato are you still there", 120.0)    # re-wake -> fresh
         self.assertEqual(read(), 132.0)
+
+    def test_heard_at_drives_the_deadline_not_the_wall_clock_when_emit_runs(self):
+        # FOCUS.md's open question (2026-07-28 milestone entry): is the
+        # arm window's clock starting from the wrong reference point given
+        # transcription/network lag? Answer, pinned here: emit() is called
+        # AFTER transcribe() returns, but heard_at is captured by the
+        # capture loop BEFORE transcribe() runs (VAD-end) -- so the window
+        # measures from when the person stopped talking, not from whenever
+        # whisper/the network got around to finishing. Decoy proves it:
+        # wake_arm.time is left pointing at a wildly wrong "now" (999.0,
+        # standing in for the moment emit() actually executes after a slow
+        # transcription), and the published deadline still comes out
+        # relative to heard_at=100.0, not 999.0.
+        self.clock.now = 999.0
+        self.stt.emit("potato what is the weather", heard_at=100.0)
+        read = lambda: self.stt.wake_arm.read_arm_deadline(self.arm_state)
+        self.assertEqual(read(), 112.0)   # 100 + ARM_SECS, not 999 + ARM_SECS
 
     def test_a_window_that_times_out_is_published_shut(self):
         """A timeout happens in the capture loop, not in emit() -- and a
