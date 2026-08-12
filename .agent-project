@@ -1,0 +1,14 @@
+# .agent-project -- this repo is an agent PROJECT, not merely a repository.
+#
+# Read by realisateur/bin/cut-verb-build.sh, which resolves this path across
+# every non-archived repo in one GraphQL query and records the ones that
+# carry it as the registry block of the verb build's manifest.tsv.
+#
+# WHY A FILE AND NOT A LIST SOMEWHERE. The registry used to be
+# scheduler/schedule/*.conf -- a CHECKOUT -- and that single data dependency
+# is what kept forcing a scheduler clone onto hosts that needed none. A
+# project declaring itself in its own tree is the same shape as declaring a
+# verb, and it means nobody has to remember to add a row elsewhere.
+#
+# TO RETIRE: delete this file, or archive the repo. Both remove it from the
+# next build's registry, symmetrically with --no-archived.
