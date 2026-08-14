@@ -1,0 +1,8 @@
+# Paths under /srv/zaxon that this repo does NOT own and must never be
+# deleted by a deploy. data/ is always kept; these are the extras.
+#
+# uv/ is the uv-managed CPython 3.11 the venv symlinks to, lifted off the old
+# hermes distro (97M). It is runtime, not state -- the right home for it is the
+# image, and upstream hermes-agent ships its own Dockerfile that would do that.
+# Until that switch, it lives here and must survive every deploy.
+uv

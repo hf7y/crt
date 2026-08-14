@@ -26,7 +26,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # uid 1000 matches zaxon inside the hermes distro (probed: uid=1000(zaxon)),
 # so the bind-mounted session files stay readable and stay owned by a
 # non-root user.
+# The relay's OWN venv is compiled for python 3.14 (the old distro's system
+# python) and cannot be reused here, so its one dependency is installed into
+# the image instead. zaxon_relay_server.py imports mcp; everything else it uses
+# is stdlib, and it shells out to hermes-agent's venv for delivery.
+RUN pip install --no-cache-dir mcp
+
 RUN useradd -m -u 1000 -s /bin/bash zaxon
+
+# Pre-create the XDG dirs OWNED BY zaxon. Docker creates a bind mount's parent
+# directories as root, so mounting ./uv at ~/.local/share/uv makes ~/.local and
+# ~/.local/share root-owned -- and the gateway then cannot create ~/.local/state
+# for its session lock ("Could not acquire session lock ... Permission denied",
+# seen live 2026-08-14). Creating them first means the mount replaces only the
+# leaf it names.
+RUN mkdir -p /home/zaxon/.local/share /home/zaxon/.local/state /home/zaxon/.cache \
+ && chown -R zaxon:zaxon /home/zaxon/.local /home/zaxon/.cache
 
 USER zaxon
 WORKDIR /home/zaxon/.hermes
