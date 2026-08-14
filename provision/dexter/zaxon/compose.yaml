@@ -19,33 +19,60 @@ services:
     # the venv's shebangs are absolute and would break at any other mount point.
     volumes:
       - ./data:/home/zaxon/.hermes
-    # 8643 is the MCP door every agent in the estate calls. Bound on all
-    # interfaces because monkey reaches it over the VirtualBox NAT gateway and
-    # mandark over the tailnet -- see realisateur/ZAXON.md's route table.
+      # THE INTERPRETER IS NOT IN ~/.hermes. The venv's `python` is a symlink to
+      # a uv-managed build at ~/.local/share/uv/python/cpython-3.11-.../bin/
+      # python3.11 -- outside the app directory. Without this mount the venv is
+      # a pile of dangling symlinks, PATH falls through to the image's own
+      # python, and the gateway crash-loops on ModuleNotFoundError: hermes_cli.
+      # Mounted at its original path because the symlink is absolute.
+      - ./uv:/home/zaxon/.local/share/uv
+    # 8643 is published HERE, on behalf of the relay: the relay shares this
+    # container's network namespace so it can reach the bridge hermes-agent
+    # spawns on localhost:3000.
     ports:
       - "8643:8643"
-    depends_on:
-      - bridge
-    healthcheck:
-      # A relay that answers TCP but not MCP is the failure this project keeps
-      # meeting. Probe the endpoint, not the port.
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8643/mcp', timeout=5).status < 500 else 1)"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  bridge:
+  # THE MCP DOOR. Separate from the gateway on purpose, and it was separate in
+  # the distro too (zaxon-relay-mcp.service): the relay owns ask_zach /
+  # check_zach_reply and shells out to hermes-agent's `hermes send` to deliver,
+  # deliberately not touching the gateway's own process or storage.
+  relay:
     build: .
     image: zaxon-gateway:local
-    container_name: zaxon-bridge
+    container_name: zaxon-relay
     restart: always
     volumes:
       - ./data:/home/zaxon/.hermes
-    working_dir: /home/zaxon/.hermes/hermes-agent/scripts/whatsapp-bridge
-    command: ["node", "bridge.js"]
-    # Deliberately NOT published. The bridge listens on :3000 and speaks for
-    # Zach's WhatsApp account; only the gateway needs to reach it, and it does
-    # so over compose's own network.
-    expose:
-      - "3000"
+      - ./uv:/home/zaxon/.local/share/uv
+    working_dir: /home/zaxon/.hermes/zaxon_relay
+    # SHARE THE GATEWAY'S NETWORK NAMESPACE. `hermes send` talks to the Baileys
+    # bridge on localhost:3000, and that bridge is a child of the gateway
+    # process -- from its own namespace the relay saw "Cannot connect to host
+    # localhost:3000", which is exactly this (observed live 2026-08-14).
+    network_mode: "service:gateway"
+    # The IMAGE's python, explicitly: PATH puts hermes-agent's venv first and
+    # that venv has no `mcp`. The relay's own venv is 3.14-compiled and unusable.
+    command: ["/usr/local/bin/python", "/home/zaxon/.hermes/zaxon_relay/zaxon_relay_server.py"]
+    depends_on:
+      - gateway
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/python", "-c", "import socket,sys; s=socket.create_connection(('127.0.0.1',8643),5); s.close()"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Tails hermes-agent's agent.log for Zach's replies and matches them to
+  # tickets. Reads only; it does not touch the gateway's process or source.
+  watcher:
+    build: .
+    image: zaxon-gateway:local
+    container_name: zaxon-watcher
+    restart: always
+    volumes:
+      - ./data:/home/zaxon/.hermes
+      - ./uv:/home/zaxon/.local/share/uv
+    working_dir: /home/zaxon/.hermes/zaxon_relay
+    network_mode: "service:gateway"
+    command: ["/usr/local/bin/python", "/home/zaxon/.hermes/zaxon_relay/zaxon_relay_watcher.py"]
+    depends_on:
+      - relay
