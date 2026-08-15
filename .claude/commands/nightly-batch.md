@@ -1,16 +1,17 @@
 ---
-description: Nightly thorough pass on the crt voice console -- code-shaped backlog only, scoped by FOCUS.md
+description: Nightly thorough pass on the crt voice console -- code-shaped backlog only, scoped by the GitHub issue backlog
 ---
 
 <!-- Adapted from scheduler/examples/nightly-batch.md.template and the
-     home-assistant project's own no-tracker variant. No web tracker/
-     INTAKE.md for this project -- FOCUS.md's own "Now" and "Deferred"
-     sections are the source of truth instead. -->
+     home-assistant project's own no-tracker variant. The backlog moved to
+     GitHub issues on 2026-08-14 (hf7y/scheduler#66, hf7y/realisateur#230);
+     `.scheduler/FOCUS.md` and `.scheduler/QUESTIONS.md` are retired
+     pointer stubs and must not be written to again. -->
 
-Read `.claude/FOCUS.md` first. Everything below is scoped BY that file --
-if something looks like an easy win but isn't in service of the current
-focus, write it up in the report as deferred; do not implement it just
-because it's sitting there.
+Read the open issues first: `gh issue list -R hf7y/crt --limit 100`.
+Everything below is scoped BY that backlog -- if something looks like an
+easy win but isn't in service of an open issue, write it up in the report
+as deferred; do not implement it just because it's sitting there.
 
 This project is a physical voice console. As of 2026-07-23, `potato` (a
 Raspberry Pi, real hardware, `ssh potato` -- key auth, alias in this
@@ -41,14 +42,14 @@ scope.
 
 `git log --oneline -10`, current branch state, `README.md`, `HANDOFF.md`
 (persistent state/access notes -- trust it over assumptions), `AUDIO-DEBUG.md`,
-and `.claude/FOCUS.md`. If the previous nightly run left work in progress
+and the open issues. If the previous nightly run left work in progress
 (check `~/reports/crt/` for the last report), pick up from there rather
 than starting over.
 
 ## 2. Re-verify anything a previous run claimed was working
 
 Do not trust a prior run's own claims. For any script/tool a previous
-cycle said it "finished," re-read it and check it against FOCUS.md's
+cycle said it "finished," re-read it and check it against its issue's
 actual acceptance bar -- most items here are explicitly marked
 `[needs VM test]`/needs a live human ear precisely because they can't be
 fully verified from here; don't upgrade that marker to "done" without
@@ -58,14 +59,14 @@ concrete measurement from a tool built for exactly that (e.g.
 measurement is real evidence and worth acting on, but still note in the
 report where it stops short of Zach's own ear as final confirmation.
 
-## 3. Push forward on whatever IS in scope per FOCUS.md
+## 3. Push forward on whatever IS in scope per the open issues
 
 Real progress, not just re-reading the same status. Commit as you
 complete meaningful chunks -- don't save it all for one giant commit at
 the end. If a task needs the user's own hands (plugging something in, a
 live VM session, a physical test), do not attempt to route around it --
 write the specific blocker and exactly what's needed from them in the
-report.
+report, and say so on the issue.
 
 ## 4. Stress-test what you touched
 
@@ -80,14 +81,16 @@ compiling/parsing.
 to match it. Cover exactly: what got built/fixed tonight (with commit
 references), what was deliberately deferred because it's physical/needs a
 live VM (and what exactly the human needs to do), any new issues
-discovered, and any open questions that need a human decision (append to
-`.claude/QUESTIONS.md`, create it if absent, using the standard `> `
-inline-reply convention every other project uses).
+discovered, and any open questions that need a human decision.
+
+**File findings and questions as GitHub issues** -- `gh issue create -R
+hf7y/crt` -- not as a file in this repo. The `> ` inline-reply convention
+retired with `QUESTIONS.md` on 2026-08-14; Zach answers by commenting on
+the issue and leaving it open.
 
 ## 6. Before finishing
 
-Confirm every meaningful change has a real commit, pushed to `origin`
-(the local bare repo at `/home/zach/git-remotes/crt.git` -- this is not
-GitHub, just a disposable-clone target, so pushing here is safe and
-expected every run). An overnight run that isn't saved anywhere didn't
-happen.
+Confirm every meaningful change has a real commit on a BRANCH, pushed to
+`origin` (`hf7y/crt` on GitHub), with a pull request open. `main` is
+protected -- never push to it. An overnight run that isn't saved anywhere
+didn't happen.
