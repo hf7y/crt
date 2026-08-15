@@ -267,7 +267,7 @@ Built + deployed live to potato this session (see POTATO.md):
   0.0.0.0:8993, colliding with the Claude bridge tunnel. Was inactive on
   potato, no live impact. scanner.log now written by crt-book-console.py.
 - Commits 806ba31 (brain-placement scaffolding + POTATO.md +
-  REFACTOR-ASSESSMENT.md + FOCUS.md batch backlog) and de37a06 pushed.
+  REFACTOR-ASSESSMENT.md + the batch backlog) and de37a06 pushed.
 - **`bin/crt-mandark-serve.sh {on|off|status}`** (MANDARK side) — toggles
   the whole remote path (whisper + bridge + reverse tunnel). Prefers
   systemd, falls back to ad-hoc. whisper on/off needs sudo. Committed
@@ -348,7 +348,7 @@ Confirmed Claude-on-mandark can actually run tool calls against the
 sshfs-mounted files (asked to list top-level files, got the real
 answer). No failures observed, but only tested for a few minutes, not a
 full session's worth of tunnel-stability/idle-detection-over-network
-questions — see the FOCUS.md cleanup-flags entry from this session.
+questions — see the cleanup-flags backlog entry from this session.
 
 **NOT yet durable**: the bridge server and tunnel are still the
 original ad-hoc `nohup` background processes on mandark (PIDs will not
@@ -384,7 +384,7 @@ with Zach on the mic, direct interactive access to BOTH mandark (this
 dev box) and potato (the real console hardware, a Raspberry Pi). This
 supersedes everything below it (2026-07-20 and earlier) as the current
 accurate picture -- read this section fully before touching STT/audio
-code, then check `.claude/FOCUS.md`'s 2026-07-23-dated entries for full
+code, then check the 2026-07-23-dated backlog entries for full
 detail/reasoning on any item below.
 
 ## Current real topology (2026-07-23) -- dexter/crt-vm is legacy
@@ -441,7 +441,7 @@ assumes the old dexter-bridge exists.
   (`plughw:0,0`) silently exits the whole sole-reader process with no
   error if used. Pinned in `crt-console.sh`'s stt launch line. Real fix
   (resolve by device NAME, not a hardcoded index) still open --
-  see FOCUS.md, and keep the hardcoded override available alongside
+  see the issue backlog, and keep the hardcoded override alongside
   any name-resolution path, don't replace it outright (Zach's explicit
   instruction).
 - **`crt-earcon.sh` device routing fixed**: used to POST to a
@@ -479,8 +479,8 @@ assumes the old dexter-bridge exists.
   main but had NEVER been copied to potato at all -- the game script's
   first run there crashed with `FileNotFoundError` until this was fixed).
 
-## Major open findings, fully specced in FOCUS.md's 2026-07-23 entries --
-## read FOCUS.md itself for full reasoning, this is just the index
+## Major open findings, fully specced in the 2026-07-23 backlog entries
+## (`gh issue list -R hf7y/crt`); this is just the index
 
 1. **Dormant autonomous wake-judge system**: `bin/crt-wake-pool.py` +
    `bin/crt-wake-judge.py` + `WAKE-TUNING-STATE.md` already implement
@@ -631,7 +631,7 @@ access this session).
 - `cad/ir_blaster_mount.scad`, `cad/earcon_grille.scad` — new speculative
   parts, no measurements, see `cad/CAD-BACKLOG.md`.
 
-## Open questions logged (`.claude/QUESTIONS.md`, need Chris)
+## Open questions logged (now `gh issue list -R hf7y/crt`, need Chris)
 1. **Is the handset earpiece guest-local ALSA or only host-bridged via
    dexter?** Blocks whether software sidetone is even possible — see
    `SIDETONE.md`. `crt-tts.py`'s `DEXTER_DEVICES` now includes `"handset"`
@@ -650,7 +650,7 @@ access this session).
   switch part sourced before the faceplate CAD can be drawn.
 - `bin/crt-secretary.py` — first real implementation of the secretary
   wrapper (`SECRETARY.md` steps 1-4). Local-answer path ("what's up" reads
-  `~/reports/crt/LATEST.md` + `QUESTIONS.md` directly, no Claude call)
+  `~/reports/crt/LATEST.md` + a questions feed directly, no Claude call)
   tested standalone and works. Claude-routing path (tmux send-keys + poll
   capture-pane for idle) is an **untested heuristic** — flagged as the
   riskiest part of the design, needs a live session to tune.
@@ -716,7 +716,7 @@ suite is now 56 checks, all green (`bash tests/run_tests.sh`).
 **Explicitly stopped here on the user's instruction** ("ramp this down")
 rather than continuing to expand scope.
 
-## Fifth wave: "full steam" — all 8 offline-safe FOCUS.md items shipped
+## Fifth wave: "full steam" — all 8 offline-safe backlog items shipped
 User asked to work through everything buildable without VM/dexter access,
 self-pacing usage (no live usage-% tool available, so paced by chunking +
 frequent commits instead). All landed, tested, committed, pushed:
@@ -740,11 +740,11 @@ diffs) —
    render only, not the interactive game).
 8. Claude-fallthrough requests now log to `~/.crt/fallthrough.log`.
 
-Test suite grew from 76 to **126 checks**, still all green. `FOCUS.md`'s
+Test suite grew from 76 to **126 checks**, still all green. The backlog's
 offline-safe section marked DONE — nothing left there for an unattended
 pass until a new batch gets registered. A recurring cron
 (`092c9b41`, every 3h, session-only/expires in 7 days) checks
-`BLOCKERS.md`'s crt section for anything you've cleared and reports back
+the crt blocker list for anything you've cleared and reports back
 — it does not resolve/delete entries itself.
 
 ## Not done / explicitly out of scope this session
@@ -794,7 +794,7 @@ own 2026-07-21 comment re: scanner-keystroke focus) — don't "fix" it in a
 future pass. Full blocker writeup + the one real code-shaped task
 (potato has no avahi/mDNS — `potato.local` doesn't resolve, install
 `avahi-daemon` once reachable so this can't happen again) is in
-`.claude/FOCUS.md`'s new "potato migration" section — read that before
+the backlog's new "potato migration" section — read that before
 resuming this thread, not just this file.
 
 ## Pick up next, in order

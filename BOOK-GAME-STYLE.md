@@ -143,7 +143,7 @@ kind of unattributed
 line-art that's been shared across ASCII-art collections for decades,
 not machine-scraped from a specific live URL. **Why not literally fetch
 from the internet at build or run time**: this project's offline-safe
-acceptance bar (`BOOK-GAME.md`, `FOCUS.md`) means nothing can depend on
+acceptance bar (`BOOK-GAME.md`) means nothing can depend on
 a fetch succeeding at the exact moment it's shown — a scan round is not
 the place to introduce a new possible network failure for a cosmetic
 flourish. `get_ascii_art(name)` returns `None` for an unknown name so a
