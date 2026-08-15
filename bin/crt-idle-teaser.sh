@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Watches ~/reports/crt/LATEST.md (crt-report.sh, or eventually the
-# nightly batch) and .claude/QUESTIONS.md for new entries, and turns each
+# nightly batch) and an optional open-questions file (CRT_QUESTIONS_FILE,
+# unset by default -- see below) for new entries, and turns each
 # new one into exactly one first-person teaser line on screen (via
 # crt-think.sh -> crt-monologue.sh) plus, for genuine judgment calls only,
 # one earcon -- see IDLE-BAIT.md for the full design and why this is
@@ -21,7 +22,11 @@ BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 REPORTS_DIR="${CRT_REPORTS_DIR:-$HOME/reports/crt}"
 REPO_DIR="${CRT_REPO_DIR:-$HOME/crt}"
-QUESTIONS="${CRT_QUESTIONS_FILE:-$REPO_DIR/.claude/QUESTIONS.md}"
+# No default: the repo-local questions file this used to watch was retired by
+# scheduler#66 in favour of GitHub issues and deleted by realisateur#293.
+# Unset = reports-only, and the question earcon never fires. Wiring this back
+# onto the issue tracker is crt#40.
+QUESTIONS="${CRT_QUESTIONS_FILE:-}"
 SEEN="${CRT_IDLE_SEEN:-$HOME/.crt/idle-bait.seen}"
 POLL_SECS="${CRT_IDLE_POLL:-30}"
 ANNOUNCE_LOCK="${CRT_ANNOUNCE_LOCK:-$HOME/.crt/announce.lastrun}"
@@ -187,7 +192,7 @@ process_new_lines() {
   [ -f "$file" ] || return 0
   while IFS= read -r line; do
     case "$line" in
-      "- "*) ;;   # only bullet lines are real entries, same convention QUESTIONS.md/reports use
+      "- "*) ;;   # only bullet lines are real entries, same convention the reports use
       *) continue ;;
     esac
     local h

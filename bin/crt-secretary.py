@@ -117,7 +117,13 @@ SSH_CONNECT_TIMEOUT = os.environ.get("CRT_CLAUDE_REMOTE_SSH_TIMEOUT", "5")
 CLAUDE_SSH_HOST = os.environ.get("CRT_CLAUDE_SSH_HOST", "").strip() or None
 REPORTS_DIR = os.path.expanduser(os.environ.get("CRT_REPORTS_DIR", "~/reports/crt"))
 REPO_DIR = os.path.expanduser(os.environ.get("CRT_REPO_DIR", "~/crt"))
-QUESTIONS = os.environ.get("CRT_QUESTIONS_FILE", os.path.join(REPO_DIR, ".claude/QUESTIONS.md"))
+# Open-questions feed for the status playbook. There is NO default path any
+# more: the repo-local questions file it used to point at was retired by
+# scheduler#66 (2026-08-07) in favour of GitHub issues, and a default aimed at
+# a file nothing writes is worse than none. Unset = the status playbook simply
+# reports on ~/reports/crt. Wiring the status playbook back onto the issue
+# tracker is crt#40.
+QUESTIONS = os.environ.get("CRT_QUESTIONS_FILE", "")
 TEST_SUITE = os.environ.get("CRT_TEST_SUITE", os.path.join(REPO_DIR, "tests/run_tests.sh"))
 CALIBRATE_BIN = os.environ.get(
     "CRT_CALIBRATE_BIN", os.path.join(BIN_DIR, "crt-calibrate-display.py"))

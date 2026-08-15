@@ -4,9 +4,9 @@ description: Nightly thorough pass on the crt voice console -- code-shaped backl
 
 <!-- Adapted from scheduler/examples/nightly-batch.md.template and the
      home-assistant project's own no-tracker variant. The backlog moved to
-     GitHub issues on 2026-08-14 (hf7y/scheduler#66, hf7y/realisateur#230);
-     `.scheduler/FOCUS.md` and `.scheduler/QUESTIONS.md` are retired
-     pointer stubs and must not be written to again. -->
+     GitHub issues on 2026-08-14 (hf7y/scheduler#66, hf7y/realisateur#230).
+     The retired coordination files were deleted outright by
+     hf7y/realisateur#293; there is no file backlog to read. -->
 
 Read the open issues first: `gh issue list -R hf7y/crt --limit 100`.
 Everything below is scoped BY that backlog -- if something looks like an
@@ -85,7 +85,7 @@ discovered, and any open questions that need a human decision.
 
 **File findings and questions as GitHub issues** -- `gh issue create -R
 hf7y/crt` -- not as a file in this repo. The `> ` inline-reply convention
-retired with `QUESTIONS.md` on 2026-08-14; Zach answers by commenting on
+retired with the file backlog on 2026-08-14; Zach answers by commenting on
 the issue and leaving it open.
 
 ## 6. Before finishing
