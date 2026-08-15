@@ -123,7 +123,7 @@ card 1: Device [USB PnP Sound Device], device 0: USB Audio [USB Audio]
 
 class TestGuessedDeviceIsAnnounced(unittest.TestCase):
     """A guessed capture device is a legitimate degraded mode; a SILENT one is
-    the failure this resolver was built to end (FOCUS.md 2026-07-23 07:10:
+    the failure this resolver was built to end (backlog note 2026-07-23 07:10:
     "the process restarted silently exits (no error, no capture)")."""
 
     def test_a_matched_card_says_nothing(self):

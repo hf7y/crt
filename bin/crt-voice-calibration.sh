@@ -123,7 +123,7 @@ check_window_one() {
 }
 
 check_marker_filter() {
-  head_ "6. the '>>' marker filter -- KNOWN BROKEN, see FOCUS.md"
+  head_ "6. the '>>' marker filter -- KNOWN BROKEN, see the crt issue backlog"
   # Deliberately a check and not a fix: the fix is a design decision
   # (where does the filter live now that the brain is on another host)
   # that Zach has not made yet. Failing loudly every run is the point.

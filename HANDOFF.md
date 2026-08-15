@@ -9,7 +9,7 @@ pointers below for depth on any one piece.
 **Read next, depending on what you're doing:**
 - `README.md` — the how-and-why of each original piece, incl. detailed audio
   troubleshooting.
-- `.claude/FOCUS.md` — current backlog/status, kept up to date per session.
+- `gh issue list -R hf7y/crt` — current backlog/status; the file backlog is retired.
 - `SECRETARY.md` — the actual product vision (phone secretary, not a raw STT
   terminal) and what's built vs. still design-only.
 - `AUDIO-DEBUG.md` — mic capture staleness debugging (5 parallel approaches).
@@ -26,7 +26,7 @@ pointers below for depth on any one piece.
   "USB passthrough fails" finding with a working network-forwarding path.
 - `BOOK-GAME.md` (2026-07-21) — barcode-scan book trivia game, standalone
   build, doubles as structured STT training-data collection and a personal
-  library registry. Offline-safe portion registered in `.claude/FOCUS.md`.
+  library registry. Offline-safe portion tracked in the issue backlog.
 
 ## Where it runs
 
@@ -195,7 +195,7 @@ Bun, not your code."). Findings, in order:
 **Scanner-to-book-game pipeline: dexter-side capture is a dead end,
 pivoting to stdin-in-the-guest (2026-07-21, same session)** — full
 writeup in `SCANNER.md`'s "2026-07-21 late session" section and
-`.claude/FOCUS.md`'s Book Game "NEXT" block, don't re-derive here. Spent
+the Book Game issues' own "NEXT" notes, don't re-derive here. Spent
 a long stretch trying to get `dexter-scanner-forward.ps1` (Windows-side
 RawInput capture + a low-level-hook keystroke-suppression layer, added
 by another agent working in parallel this session) to actually intercept

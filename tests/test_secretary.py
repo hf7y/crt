@@ -76,7 +76,7 @@ class TestStatusPlaybook(unittest.TestCase):
         self.sec = load_secretary()
         self.tmpdir = tempfile.mkdtemp()
         self.sec.REPORTS_DIR = self.tmpdir
-        self.sec.QUESTIONS = os.path.join(self.tmpdir, "QUESTIONS.md")
+        self.sec.QUESTIONS = os.path.join(self.tmpdir, "questions-feed.md")
         self.spoken = []
         self.printed = []
         self.sec.speak = lambda text, device="handset": self.spoken.append(text)

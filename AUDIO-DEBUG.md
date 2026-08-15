@@ -136,8 +136,8 @@ session with real speech.
 
 ## The handset "0.1x above baseline" measurement should be re-run (2026-07-25)
 
-FOCUS.md's 2026-07-23 entry records the strongest audio finding this project
-has: a tone played on the handset device (`plughw:1,0`) while capture was
+The 2026-07-23 backlog entry recorded the strongest audio finding this
+project has: a tone played on the handset device (`plughw:1,0`) while capture was
 running showed **0.1x above baseline** in the recording, read as "this USB
 adapter cannot reliably play and record at once — a hardware/driver limit,
 not a routing bug." The whole CTL-file capture-duck feature (cycles 3, 4 and
