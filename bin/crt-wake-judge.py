@@ -3,36 +3,7 @@
 # ask): "call claude, if it got ignored, tweak. if it sees a lot of
 # attempts to wake it failing... tweak. but also be available to help
 # (i.e. factor in whether it was genuinely used on wake)."
-#
-# Spawned (Popen, fire-and-forget) by crt-stt-solo.py once a wake event's
-# arm window has RESOLVED (either consumed by a real follow-up, or timed
-# out) -- not at the moment of arming itself, since "was this genuinely
-# used" is exactly the ground-truth signal this needs and that isn't
-# known until the window closes. Rate-limited via a simple lockfile-with-
-# timestamp so a burst of wake events (e.g. the book-title-noise flood
-# that motivated this whole pass) can't spawn a pile of overlapping
-# `claude -p` calls.
-#
-# This script's job ends at building the prompt and invoking `claude -p`
-# with write access to the tuning files -- it does NOT parse Claude's
-# output or apply any change itself. Claude's own file-editing tools do
-# the actual tuning (wake-pool-dict.txt, wake-tuning-config.json,
-# WAKE-TUNING-STATE.md), same "give it real tool access, trust the
-# judgment" posture as crt-secretary.py's Claude-escalation path, just
-# headless/non-interactive instead of typed into the live window-0
-# session (this must NOT interrupt/interleave with whatever Zach is
-# actually doing in window 0 right now).
-#
-# STATUS: written 2026-07-21, NOT hardware-verified -- no real claude -p
-# call has been observed live yet. The rate-limit/prompt-building logic
-# is pure and unit-tested (tests/test_wake_judge.py); the actual `claude
-# -p` invocation is a real subprocess call this test suite cannot safely
-# exercise (would spend real API usage in CI).
-#
-# Usage: crt-wake-judge.py --outcome consumed|timeout-with-leftover|timeout-empty
-#                           --trigger-text "..." --match-kind exact|pool|fuzzy
-#                           [--match-source dict|book-title] [--matched-word "..."]
-#                           [--followup-text "..."]
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import json
 import os
 import subprocess

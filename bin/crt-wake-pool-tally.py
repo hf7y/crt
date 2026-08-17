@@ -3,23 +3,7 @@
 # (2026-07-21, Zach's direct ask): crt-stt-solo.py's gate logs every
 # ungated utterance that also missed the wake pool to
 # CRT_WAKE_NEARMISS_LOG (one raw lowercased utterance per line). This
-# tallies repeats and surfaces the top candidates -- SURFACE ONLY, never
-# auto-adds to the pool dict file, same review-before-merge posture as
-# stt-fixups.json's human-curated tiers (crt-stt-training-merge.py's
-# analogous auto-merge is a narrower, already-load-bearing exception for
-# an existing consumer; this is a fresh mechanism, starting conservative).
-#
-# A human reviews the printed list and, if a candidate is a real
-# recurring near-wake-word worth adding, appends it by hand to
-# CRT_WAKE_POOL_DICT (crt-wake-pool.py's dict file).
-#
-# Pure functions except load_nearmiss_lines' file read -- covered by
-# tests/test_wake_pool_tally.py.
-#
-# Usage: crt-wake-pool-tally.py [--top N]
-# Env:
-#   CRT_WAKE_NEARMISS_LOG (default ~/.crt/wake-pool-nearmisses.log)
-#   CRT_WAKE_TALLY_MIN_REPEATS (default 2)
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import os
 import sys
 from collections import Counter

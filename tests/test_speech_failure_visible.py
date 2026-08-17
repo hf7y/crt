@@ -3,20 +3,7 @@
 # will find it (2026-07-25).
 #
 # Two defects, one chain. bin/crt-tts.py's play_wav() discarded aplay's exit
-# status and returned True unconditionally, so a device that does not exist,
-# is busy, or is misnamed reported a successful utterance from a silent room.
-# bin/crt-secretary.py's speak() then discarded crt-tts.py's exit status too
-# (sh() captures stdout/stderr and nothing read them), so the lie had no
-# chance of being caught downstream either.
-#
-# WHERE THIS INJECTS. At PATH, not above the function under test -- cycle six
-# learned twice that a stub placed above the code being tested reproduces
-# neither the bug nor the fix. `aplay` and `espeak-ng` here are real
-# executables that really exit with the status under test, found the same way
-# the real code finds them, and crt-tts.py is driven through its real CLI.
-# The secretary half injects one level out (a fake crt-tts.py at BIN_DIR),
-# which is that code's own real seam: it shells out to a separate process and
-# has nothing but an exit status to go on.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import shutil

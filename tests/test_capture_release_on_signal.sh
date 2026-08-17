@@ -3,38 +3,7 @@
 # i.e. its arecord child must actually be gone, not merely signalled.
 #
 # READ THIS BEFORE TRUSTING IT -- the four assertions per signal are not all
-# the same strength, and it matters which is which:
-#
-#   "released the capture device"  -- a REGRESSION GUARD. It passed before the
-#       2026-07-25 signal handlers existed too; the mic was never actually
-#       leaking (see below). Pinned because losing it would be expensive.
-#   "no false CAPTURE DIED"        -- same: a guard on behaviour that was
-#       already correct.
-#   "announced the deliberate stop" and "exited 0" -- REAL WITNESSES. These
-#       fail against the pre-2026-07-25 code, because an untrapped SIGTERM/
-#       SIGHUP killed the process outright: no message, and an exit status of
-#       128+signum that a supervisor reads as a crash.
-#
-# The story, recorded so nobody re-derives it. crt-stt-solo.py is the
-# documented SOLE reader of the capture device; a leftover arecord holding
-# that device would be serious, because capture death now exits 3 (db39b61),
-# so an orphan would turn one restart into a supervisor restart LOOP blocked
-# by the corpse of the previous run -- "second reader starving the first",
-# with the second reader being our own child. Python does skip finally: on an
-# untrapped SIGTERM/SIGHUP (verified the same day; it runs it on SIGINT only),
-# so the bare `finally: proc.terminate()` really was never reached.
-#
-# It still did not leak, for a reason that has nothing to do with the handler:
-# when this process exits, the read end of arecord's stdout pipe closes and
-# arecord dies of SIGPIPE on its next write. Measured both ways -- the child
-# was gone within ~3s with or without the fix. (An earlier probe that appeared
-# to show an orphan was signalling `setsid`'s already-exited pid instead of
-# python's, so nothing had been killed at all. Hence the pgrep below.)
-#
-# Each signal goes to the python process ALONE (setsid puts it in its own
-# process group), which is what `pkill -f crt-stt-solo.py`, `systemctl stop`,
-# and a supervisor restart all do. That isolation is deliberate: a signal
-# broadcast to the whole group would kill arecord for us and prove nothing.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0
@@ -148,14 +117,7 @@ done
 # The loop above signals a process whose stdout is a plain file, which is the
 # `systemctl stop` / `pkill` case. It is NOT the tmux case, and the difference
 # is load-bearing: tmux delivers SIGHUP *because* it destroyed the pty, so by
-# the time the handler runs, every write to stdout fails with EIO. An
-# unguarded farewell print at the end of a clean shutdown then raises, and the
-# process that just shut down perfectly exits 1 -- which a supervisor reads as
-# a crash, the exact confusion the message was added to remove.
-#
-# Caught by stress-testing the fix rather than by the fix's own first test,
-# which is why it is pinned here: closing the pty master reproduces it in
-# isolation, no tmux binary required.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 cat > "$WORK/pty_hangup.py" <<'PY'
 import os, pty, sys, time
 bindir, fakebin = sys.argv[1], sys.argv[2]

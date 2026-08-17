@@ -3,27 +3,7 @@
 # finding from a run in which nothing was played or nothing was recorded
 # (2026-07-25).
 #
-# Why this tool specifically. FOCUS.md and the nightly-batch skill both name
-# it as the one thing that can stand in for Zach's own ear -- "a concrete
-# measurement from a tool built for exactly that ... is real evidence and
-# worth acting on". Stability-bar item 2 is waiting on a re-run of it. So its
-# verdicts carry more weight than any other output in this repo, and until
-# now it had exactly two of them where the situation has three:
-#
-#   played, mic heard it          -> DETECTED
-#   played, mic did not hear it   -> NOT DETECTED   (a claim about hardware)
-#   never played at all           -> also "not detected", identical output
-#
-# The third indicts a device name; the second indicts the USB adapter. The
-# 2026-07-23 handset finding (0.1x above baseline, read as "this adapter
-# cannot play and record at once") rests on telling them apart, and the tool
-# could not.
-#
-# Two more from the same family, both fixed alongside:
-#   - a FAILED baseline recording returned rms 0.0, and the ratio is
-#     best/(base_rms + 1e-6) -- so a broken mic made every device DETECTED.
-#   - main() exited 0 no matter what it found (FOCUS.md item 6 asks for
-#     pass/fail plus numbers).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import unittest

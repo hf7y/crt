@@ -3,11 +3,7 @@
 # watching/​tuning speech-to-text: a scrolling log of recognized phrases on top,
 # the live mic level meter on the bottom. Use this to confirm the STT pipeline
 # works and to calibrate, decoupled from the full console.
-#
-#   Run:  bin/crt-stt.sh        (attaches; Ctrl-b d to detach, or just exit)
-#
-# Reuses stt-feed.sh in its 'stdout' sink mode (CRT_STT_SINK=stdout) so there is
-# a single source of truth for capture/VAD/whisper.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -euo pipefail
 
 export PATH="$HOME/.local/bin:$PATH"

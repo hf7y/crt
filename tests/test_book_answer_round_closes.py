@@ -3,37 +3,7 @@
 # (2026-07-25, thirteenth nightly cycle).
 #
 # crt-book-answer-listen.py derives "a question is pending" from the scan
-# timestamp alone: any utterance within CRT_BOOK_ANSWER_WINDOW_SECS (20s)
-# of the most recent scan gets graded against that book's question, logged
-# as a training row, and announced on the tube. Nothing recorded that the
-# round had already been answered, so the window kept grading for its full
-# 20 seconds.
-#
-# That is not a hypothetical "second answer". crt-stt-solo.py writes EVERY
-# recognized utterance to ~/.crt/stt.log (crt-stt-solo.py:1332), BEFORE the
-# wake gate -- this window is the one consumer in the project that sees
-# unaddressed room speech, and CLAUDE.md's whole premise is a room with
-# ambient chatter in it. So the utterance that got graded second was
-# whatever anyone said next:
-#
-#   scan -> "fiction" -> tube says "got it!" -> "nice, next one"
-#     -> graded -> tube says "nope, it was fiction"
-#     -> {"expected": "fiction", "heard": "nice next one"} in
-#        book-game-training.jsonl
-#
-# The 2026-07-21 fix caught the case where that next utterance is a
-# recognized voice COMMAND (find_playbook). Ordinary speech is not a
-# command, and ordinary speech is most of what a room contains.
-#
-# book-game-training.jsonl is the artifact this entire subsystem exists to
-# produce (.claude/FOCUS.md's 2026-07-21 end-goal statement), so a row whose
-# "heard" was never an answer attempt is worse than a missing row: it is
-# labelled training data that is mislabelled.
-#
-# Every test here fails against the parent commit. The load-bearing one is
-# test_the_next_utterance_after_a_graded_answer_is_not_graded_again, which
-# fails there by finding two rows in the training log where a person gave
-# one answer.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import json
 import os

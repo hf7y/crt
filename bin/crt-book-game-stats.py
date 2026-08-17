@@ -3,28 +3,7 @@
 # (.claude/FOCUS.md's 2026-07-21 statement: idle-bait -> scan -> question
 # -> spoken answer -> STT training log is one funnel) -- how many books
 # have been scanned, how many trivia rounds actually got a spoken answer,
-# and critically, the STT-training payoff itself: how often the local
-# grading agreed with what was actually said (correct_stt) vs. how often
-# the room's mic/whisper pipeline is still getting it wrong. That second
-# number is the entire point of this subsystem existing at all
-# (STT-MECHANISM.md/CLAUDE.md's "improve STT inference over time"), so it
-# gets top billing here, not buried under book trivia scores.
-#
-# Zero Claude/API calls -- pure local reads of books.db and
-# book-game-training.jsonl, same "90% offline supervisor" spirit as
-# crt-present-morning-report.py (SUPERVISOR.md).
-#
-# STATUS: NOT hardware-verified against real training data (no real scan
-# has been graded yet as of this writing) -- summarize_* functions are
-# pure/covered by tests/test_book_game_stats.py against synthetic
-# books.db + training.jsonl fixtures.
-#
-# Usage:
-#   crt-book-game-stats.py screen          # CRT-width one-liner summary
-#   crt-book-game-stats.py print-all       # full text for the printer
-#   crt-book-game-stats.py export-fixups   # candidate bin/stt-fixups.json
-#                                            entries generated from
-#                                            repeated STT mismatches
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import json
 import os

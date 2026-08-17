@@ -3,16 +3,7 @@
 # NONZERO -- it must not quietly return 0 and leave a console that looks
 # alive but hears nothing.
 #
-# This is the still-open half of the 2026-07-23 07:10 finding. That note has
-# two parts: the capture device was resolved by a hardcoded card index (fixed
-# 2026-07-24 by resolve_capture_device_by_name), AND "the process restarted
-# silently exits (no error, no capture) rather than failing loudly" -- which
-# was never actually closed. Name resolution removes one cause of a dead
-# device; it does nothing about the next one (USB replug mid-session, the
-# device grabbed by a second reader, an ALSA config change). The observable
-# contract tested here is what makes any of those debuggable: a real message
-# on the pane, arecord's own stderr quoted, and an exit code a supervisor or
-# a human reading `echo $?` can actually see.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

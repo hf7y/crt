@@ -3,38 +3,7 @@
 #
 # The bug: on the VirtualBox guest the emulated capture intermittently goes
 # STALE -- the signal flatlines mid-session while the ALSA mixer still reads
-# correct, so stt-feed hears nothing and STT silently "stops detecting". This
-# daemon holds ONE continuous reader on the mic, watches the level, and when the
-# signal stays flat for too long it RECOVERS the capture (re-asserts the mixer,
-# kills stale readers, optionally restarts the stt window so a fresh capture is
-# opened).
-#
-# NOT hardware-verified -- written on the dev box (no VM/handset). Opt-in: it
-# touches nothing unless you run it. Intended to run as a background tmux window
-# alongside the console, or standalone while debugging.
-#
-#   bin/crt-capture-watchdog.sh              # watch + recover, log to ~/.crt/watchdog.log
-#   CRT_WD_RESTART_STT=1 bin/crt-capture-watchdog.sh   # also bounce the stt tmux window on staleness
-#   CRT_WD_KEEPALIVE=1 bin/crt-capture-watchdog.sh     # proactively re-assert mixer periodically (Approach C)
-#
-# Tunables (env):
-#   CRT_WD_DEV            capture device to monitor (default: resolved by
-#                         name, see CRT_AUDIO_DEV_NAME below; use a dsnoop
-#                         device like 'crtmic' if the console shares one)
-#   CRT_WD_FLAT_SECS      seconds of flatline before declaring stale (default 8)
-#   CRT_WD_FLAT_PEAK      peak (fraction) below which a chunk counts as "flat"
-#                         -- i.e. dead, not speech (default 0.004 = 0.4%)
-#   CRT_WD_COOLDOWN       min seconds between recoveries (default 15)
-#   CRT_WD_KEEPALIVE      1 = periodically re-assert mixer even when healthy
-#   CRT_WD_KEEPALIVE_SECS keep-alive interval (default 60)
-#   CRT_WD_RESTART_STT    1 = on staleness, respawn the 'stt' window in $CRT_TMUX_SESSION
-#   CRT_ALSA_CARD         mixer card (default: resolved by name, see below)
-#   CRT_INPUT_SOURCE      capture source to re-assert (default Line)
-#   CRT_AUDIO_DEV_NAME    name substring to match in `arecord -l` when
-#                         CRT_WD_DEV/CRT_ALSA_CARD aren't set (default
-#                         "USB Audio" -- otherwise this defaulted to card 0,
-#                         which is a different device on every box. See
-#                         crt-lib-audio-device.sh.)
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

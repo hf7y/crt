@@ -3,42 +3,7 @@
 # the `mono` window has gone idle -- the other half of "switch back to
 # book game on idle, or by command" (2026-07-21, Zach's direct ask).
 # crt-secretary.py's handle() switches TO `mono` (and touches
-# CLAUDE_ACTIVE_STATE) the moment a request escalates to Claude, and the
-# `return_to_book_game` playbook handles the explicit voice-command half
-# -- this script is the idle half, and has to be a SEPARATE background
-# process: crt-secretary.py itself runs as a fresh short-lived process
-# per utterance (Popen'd from crt-stt-solo.py), gone long before any
-# idle timeout could fire from inside it.
-#
-# Deliberately conservative about WHEN to switch back: only when the
-# currently-DISPLAYED tmux window is actually `mono` (never yank focus
-# away from something else someone deliberately switched to by hand,
-# e.g. mid-calibration or checking `bookanswer`'s pane) AND the last
-# Claude activity is more than IDLE_SECS old AND this process has not
-# already returned from THAT SAME exchange (2026-07-25 -- without the
-# third condition, walking up and pressing prefix+1 to read window 1 an
-# hour later bounced you back to `book` inside one poll, forever, because
-# an ancient last_active passes an idle test just as well as a recent one
-# does. An exchange is spent once it has been returned from; only
-# crt-secretary.py touching the state file again re-arms this).
-#
-# NOT an AI call -- pure local tmux queries + a state-file read, same
-# "90% offline supervisor" spirit as everything else in this project.
-#
-# STATUS: NOT hardware-verified. should_return_to_book_game() is a pure
-# function covered by tests/test_window_switcher.py; the real tmux
-# polling loop has never been run against a live session.
-#
-# Usage: crt-window-switcher.py   (run as its own background tmux window)
-# Env:
-#   CRT_TMUX_SESSION (default claude)
-#   CRT_BOOK_WINDOW_NAME (default book), CRT_CLAUDE_VIEW_WINDOW_NAME (default mono)
-#   CRT_CLAUDE_ACTIVE_STATE (default ~/.crt/claude-window-active.state)
-#   CRT_WINDOW_SWITCHER_IDLE_SECS (default 30) -- how long mono stays
-#     focused after the last Claude activity before auto-returning
-#   CRT_WINDOW_SWITCHER_POLL_SECS (default 2)
-#   CRT_THOUGHT_LOG (default ~/.crt/thoughts.log) -- where a failed
-#     select-window says so, since window 1 is what it leaves you on
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import os
 import subprocess
 import time
@@ -50,11 +15,7 @@ CLAUDE_VIEW_WINDOW = os.environ.get("CRT_CLAUDE_VIEW_WINDOW_NAME", "mono")
 # (2026-07-28): under the idle-lean layout (CRT_NO_IDLE_CLAUDE=1) the
 # real resting state is the screensaver, not `book`. Landing on `book`
 # instead left the console stuck there -- crt-book-console.py's own
-# return-to-idle-face logic (should_release_tube()) only fires when BOOK
-# itself grabbed focus for an active question, so a focus handoff FROM
-# this script (which never took a question) never got released onward.
-# Empty (the historical/pre-idle-lean layout) preserves the old
-# mono->book behavior exactly.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 IDLE_FACE_WINDOW = os.environ.get("CRT_IDLE_FACE_WINDOW", "").strip()
 RETURN_WINDOW = IDLE_FACE_WINDOW or BOOK_WINDOW
 CLAUDE_ACTIVE_STATE = os.path.expanduser(

@@ -3,36 +3,7 @@
 # interactive calibration session, not a background service. Run it in a
 # tmux window, say the wake word (or whatever else it prompts for) into
 # the real mic, and watch the words STT actually heard splash around an
-# ASCII potato, sized/colored by similarity to the target word --
-# reuses crt-wake-pool.py's closest_pool_word() (difflib.SequenceMatcher),
-# which per its OWN header comment was built "2026-07-21, calibration-game
-# pass" -- this game is the thing that comment was anticipating, just
-# built two days later.
-#
-# Two rounds:
-#   wake     -- say the wake word repeatedly; each STT-recognized word
-#               gets scored against it and splashed. At the end, offers
-#               to save recurring near-misses into stt-fixups.json as
-#               CONFIRMED aliases (a live human-in-the-loop round IS the
-#               confirmation stt-fixups.json's tiers otherwise wait on).
-#   earcon   -- plays each known output device's tone in turn and asks
-#               you to confirm (by typing, not voice -- avoids a circular
-#               "did the mic hear the beep" dependency) which device it
-#               came from, so device routing can be re-verified any time
-#               the hardware changes without a hands-on SSH session. Each
-#               verdict is appended to CRT_EARCON_ROUTING_LOG (default
-#               ~/.crt/earcon-routing.jsonl) -- the answer is the point of
-#               the round, and it used to live only in the scrollback. A
-#               tone that fails to PLAY is reported as that, and not put to
-#               you as a question you cannot honestly answer.
-#
-# Reads ~/.crt/stt.log the same way crt-monologue.py does -- tails new
-# lines, doesn't touch the live capture process at all (crt-stt-solo.py
-# remains the sole mic reader; this is a passive downstream consumer of
-# its already-unfiltered log, same posture as crt-book-answer-listen.py).
-#
-# CRT-safe colors only (CLAUDE.md hard rule): 33/35/36/37 plus dim/bold,
-# never 31/32/34/91/92/94.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import difflib
 import importlib.util
 import json
@@ -305,10 +276,7 @@ def offer_to_save(seen, target):
     # tailer had EVER heard, which is every word said in the room since the
     # game launched -- so a typed "about" (18% similar, never on the list)
     # was written as a CONFIRMED mishear of the wake word, and confirmed is
-    # the tier crt-stt-solo.py's gate acts on with no further review. The
-    # console then woke on "what is this book about". The escape hatch for a
-    # word that genuinely belongs is the one that was always there and is
-    # reviewable: edit bin/stt-fixups.json, which is tracked in git.
+    #   [rest: vault:crt/header-archaeology-20260817.md]
     if choice not in offered:
         print("%r was not offered -- only the words listed above can be "
               "confirm-saved here." % choice)

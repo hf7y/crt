@@ -3,28 +3,7 @@
 # night): does an earcon played on a given output device actually reach
 # the mic? Answers this by measurement, not by trusting a subprocess exit
 # code -- exactly the gap that let the dexter-bridge earcon bug (silent
-# no-op, exit 0, no sound) go unnoticed earlier tonight.
-#
-# Method: record from the capture device for RECORD_SECS, and partway
-# through, play a pure sine tone (sox synth, not crt-earcon.sh's
-# synthesized earcons -- a single clean tone is easier to detect
-# reliably than a two-note contour) on the output device under test.
-# Then run a Goertzel-algorithm energy check (stdlib math only, no scipy)
-# for that exact frequency in the recording, compared against a silent
-# baseline recorded first -- if the tone's bin has meaningfully more
-# energy than the noise floor, the loopback path is real.
-#
-# Also reports the room's baseline peak/RMS (the noise-floor half of
-# FOCUS.md's loopback idea) -- directly useful for retuning
-# CRT_VAD_THRESHOLD without a live-by-ear session.
-#
-# Usage: crt-earcon-loopback-test.py [tv|handset|both]
-# Env:
-#   CRT_LOOPBACK_CAPTURE_DEV (default plughw:1,0 -- potato's only capture device)
-#   CRT_LOOPBACK_TV_DEV (default plughw:2,0)
-#   CRT_LOOPBACK_HANDSET_DEV (default plughw:1,0)
-#   CRT_LOOPBACK_TONE_HZ (default 1200 -- picked away from typical room-noise/AC-hum energy)
-#   CRT_LOOPBACK_RECORD_SECS (default 3.0)
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import math
 import os
 import subprocess

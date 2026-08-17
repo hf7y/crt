@@ -3,31 +3,7 @@
 # offline-safe slice registered in .claude/FOCUS.md 2026-07-21: ISBN
 # lookup, question generation (template + pluggable batched-Claude/Gemini
 # source), grading/logging, SQLite registry, naive LCC heuristic. Built
-# standalone (own CLI), NOT wired into crt-console.sh/crt-secretary.py --
-# per BOOK-GAME.md's "standalone first, merge later" direction.
-#
-# STATUS: NOT hardware-verified. Live scanner input, live mic/STT, and
-# console/secretary wiring are all explicitly out of scope for this pass
-# (need a hands-on crt-vm session, see BOOK-GAME.md Blockers). Everything
-# here is a pure function or a mockable-HTTP/real-sqlite unit, covered by
-# tests/test_book_game.py.
-#
-# Usage:
-#   crt-book-game.py --isbn 9780141439518          # full offline round, random source
-#   crt-book-game.py --isbn <n> --answer "fiction"  # grade a spoken/typed answer
-# Env:
-#   CRT_BOOKS_DB (default ~/.crt/books.db)
-#   CRT_BOOK_GAME_TRAINING_LOG (default ~/.crt/book-game-training.jsonl)
-#   CRT_BOOK_GAME_CLAUDE_RATE (default 0.5) -- fraction of fresh scans that
-#     get an AI-authored question instead of a template one. Actually
-#     routed through Gemini (2026-07-21, cheap-tier stand-in -- see
-#     call_gemini_batch()), since the live `claude -p` batch call still
-#     isn't wired; falls back to template if no Gemini key is configured.
-#   CRT_GEMINI_API_KEY / ~/.crt/gemini.key -- Gemini API key (install.sh
-#     writes the file, chmod 600, from CRT_GEMINI_API_KEY at install time;
-#     never committed to the repo). Neither set -> AI slot always falls
-#     back to template.
-#   CRT_GEMINI_MODEL (default gemini-2.5-flash)
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import argparse
 import hashlib
 import importlib.util
@@ -654,15 +630,7 @@ def _init_schema(conn, retries=5):
             # pipeline (bin/crt-book-facts-batch.py). facts_raw: candidate
             # sentences from a non-AI Wikipedia scrape (cheap, no API key,
             # re-runnable freely), NULL meaning "not yet scraped" not "no
-            # facts available". facts_json: VESTIGIAL, same day -- the
-            # first design distilled facts_raw into bare fact strings
-            # stored here and shown as flavor text; redesigned same
-            # session (Zach: "clean design is to phrase it as a
-            # question") to write real fact-grounded QUESTIONS straight
-            # into questions_json instead (see crt-book-facts-batch.py's
-            # ENRICHED_SOURCE). Column kept (harmless, already migrated
-            # onto potato) rather than dropped mid-session; nothing
-            # reads or writes it going forward.
+            #   [rest: vault:crt/header-archaeology-20260817.md]
             if "facts_raw" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN facts_raw TEXT")
             if "facts_json" not in existing_cols:
@@ -761,10 +729,7 @@ def get_book(conn, isbn):
 # Screen real estate: width/height variables, centering
 # ---------------------------------------------------------------------------
 # Same env-override > real-terminal-size > CLAUDE.md-40x15-fallback pattern
-# as bin/crt-pager.py -- kept as a small local copy (not an import) because
-# bin/ scripts here aren't packaged as a shared library; see BOOK-GAME-
-# STYLE.md "Screen real estate" for the full rationale and the layout
-# rules built on top of these two numbers.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 FALLBACK_WIDTH = 40
 FALLBACK_HEIGHT = 15
 # HARD RULE (2026-07-21, Zach): actual text content never spans more
@@ -889,29 +854,7 @@ def render_question_screen(book_title, question, width=None, height=None):
 # Color palette: register-matched, CRT-safe (see BOOK-GAME-STYLE.md)
 # ---------------------------------------------------------------------------
 # CRT PERSISTENT LIMITATION, flag every time this file is touched: this is
-# an analog composite/RF display, not a digital one. Fully-saturated
-# primaries -- red, green, and blue, AT ANY INTENSITY (not just the
-# bright/bold 91/92/94 variants -- confirmed live 2026-07-21 by Zach:
-# even standard-intensity 31/32/34 render badly) -- are exactly the
-# colors that bleed/smear/ring on a real CRT tube fed a composite or RF
-# signal (limited chroma bandwidth vs. luma, the same reason old
-# broadcast graphics avoided saturated primary text). This is a hardware
-# constraint of the device this project targets, not a taste preference.
-#
-# HARD RULE (2026-07-21, Zach, confirmed live -- do not reintroduce):
-# never use ANSI codes 31, 32, 34, 91, 92, or 94 anywhere in this
-# project's screen output, at any boldness/dimness. Only the secondary/
-# mixed hues -- yellow (33), magenta (35), cyan (36), white (37) -- plus
-# dim/bold modifiers on THOSE, are CRT-safe. Enforced mechanically by
-# tests/test_book_game.py's test_no_primary_rgb_codes_in_palette (not
-# just a comment -- a future palette edit that violates this will fail
-# the test suite). Same flag lives in CLAUDE.md so it survives outside
-# this one file.
-#
-# Palette below stays within that safe set only -- previously
-# COLOR_CORRECT/COLOR_WRONG used plain green(32)/red(31), which violated
-# this exact rule; reassigned to white/magenta instead, still visually
-# distinct per register.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 COLOR_QUESTION = "\033[33m"    # warm/curious register -- a question posed
 COLOR_CORRECT = "\033[1;37m"   # content/settled -- got it right (bold white, was green -- fixed)
 COLOR_WRONG = "\033[35m"       # clipped -- got it wrong (magenta, was red -- fixed)
@@ -928,13 +871,7 @@ def wrap_color(text, color_code):
 # ASCII art library: small curated set, book-themed
 # ---------------------------------------------------------------------------
 # Hand-curated, in the well-known public style of ASCII-art collections
-# shared across BBSes/forums/asciiart.eu for decades (bare line-art, no
-# single canonical author, the same category crt-screensaver.py's FRAMES
-# already draws from) -- NOT machine-scraped from a live URL at build or
-# run time, since this project's offline-safe acceptance bar (see
-# BOOK-GAME.md/FOCUS.md) means nothing here can depend on a fetch
-# succeeding at the moment it's shown. Each entry is sized to fit inside
-# the fallback 40x15 screen with room for a caption line below it.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 ASCII_ART = {
     "book": r"""
      .-------.
@@ -1138,12 +1075,7 @@ def scrape_quote(title, fetcher=None, rng=None):
 # Trivia-fact enrichment (2026-07-28, Zach-directed): two-stage pipeline,
 # same cache-once philosophy as quote/lcc -- see crt-book-facts-batch.py
 # for the runner. Stage 1 (here): a NON-AI Wikipedia scrape per book,
-# cheap and re-runnable, caches candidate sentences into `facts_raw`.
-# Stage 2 (also here, but a genuine AI call): distills those candidates
-# into ~3 high-quality trivia facts PER BOOK, batched across many books
-# in one call -- same batching shape as build_claude_batch_prompt/
-# call_gemini_batch above, reused rather than duplicated.
-# ---------------------------------------------------------------------------
+#   [rest: vault:crt/header-archaeology-20260817.md]
 
 WIKIPEDIA_SUMMARY_URL = "https://en.wikipedia.org/api/rest_v1/page/summary/{title}"
 
@@ -1265,17 +1197,7 @@ def pick_idle_quote(conn, rng=None):
 # bibliothecaire "bibquotes" integration (2026-07-28, Zach-directed):
 # the quotes-file publishing side realisateur's 2026-07-26 FOCUS.md entry
 # queued ("extend the idle-bait quote rotation to ALSO draw from an
-# external bibliothecaire-published quotes file when one is present")
-# turned out to already be live -- \\192.168.0.27\bibquotes (mandark,
-# Samba, read-only), publishing quotes.txt: "one publishable quote per
-# line, 'text -- author, work'. Already filtered; consumers need no
-# policy logic" (that share's own README.txt). NON-API-BY-DESIGN is kept
-# intact: this module only ever reads a LOCAL cached copy
-# (bin/crt-bibquotes-sync.sh's job, run separately/periodically, never
-# from inside an idle-bait render) -- no network call happens at
-# idle-bait time, same rule pick_idle_quote() above already follows for
-# books.db.
-# ---------------------------------------------------------------------------
+#   [rest: vault:crt/header-archaeology-20260817.md]
 
 BIBQUOTES_LOCAL_PATH = os.path.expanduser(
     os.environ.get("CRT_BIBQUOTES_PATH", "~/.crt/bibquotes.txt"))

@@ -3,20 +3,7 @@
 # killed mid-playback.
 #
 # Why this exists (2026-07-25): the CTL "mute" flag became a reference count
-# (0343f21) so overlapping ducks compose. That fixed one race and created a
-# worse failure mode -- under the old last-write-wins flag ANY later "mute 0"
-# restored capture, so a duck whose producer died mid-sound got cleaned up by
-# the next sound that played. With a counter, a leaked increment never comes
-# back down and crt-stt-solo.py goes permanently deaf: no error, no crash,
-# looks exactly like the mic died. Measured the same day: bash runs its EXIT
-# trap on SIGTERM, but Python skips finally: blocks entirely -- so crt-tts.py
-# (killed by `tmux kill-window`, a supervisor restart, pkill) was a real leak
-# source and crt-earcon.sh was not.
-#
-# This asserts the observable contract for both producers: killed mid-aplay,
-# the CTL file still ends with a balanced "mute 0". crt-stt-solo.py's
-# MUTE_MAX_SECS watchdog is the backstop for what no handler can catch
-# (SIGKILL, power loss) and is covered in tests/test_stt_solo_helpers.py.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

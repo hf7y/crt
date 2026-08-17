@@ -3,22 +3,7 @@
 # vision: the registry "documents the books for safe keeping... doubles
 # as a personal library catalog, independent of the game"). That vision
 # line was never actually implemented -- books.db has held every scanned
-# book's title/author/year/LCC all along, but there was no way to
-# actually SEE the catalog, only aggregate STT-training stats
-# (crt-book-game-stats.py, a distinct concern -- deliberately kept in its
-# own file rather than growing that one into unrelated territory).
-#
-# Zero Claude/API calls -- pure local sqlite reads, same "90% offline
-# supervisor" spirit as every other Book Game display tool.
-#
-# STATUS: NOT hardware-verified against real scanned data (no real scan
-# has been graded yet as of this writing) -- list_books()/render_*
-# are pure functions covered by tests/test_book_catalog.py against a
-# synthetic books.db fixture.
-#
-# Usage:
-#   crt-book-catalog.py screen      # CRT-width one-liner (most recent scan)
-#   crt-book-catalog.py print-all   # full catalog listing for the printer
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import json
 import os

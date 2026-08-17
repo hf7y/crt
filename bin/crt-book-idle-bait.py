@@ -3,36 +3,7 @@
 # quiet a while -- see BOOK-GAME-STYLE.md's "Idle-bait quotes" section.
 # Mirrors bin/crt-idle-bait.sh's shape (poll, check quiet-time, append a
 # line) but reuses bin/crt-book-game.py's registry/quote/entice logic
-# instead of a hardcoded LINES array, and matches crt-idle-teaser.sh's
-# ANSI color-per-register convention (EXPRESSIVE-TONE.md) instead of
-# plain text.
-#
-# TWO REGISTERS, not one (2026-07-21 direction -- the actual point of
-# this feature is enticing a NEW scan, not just admiring old ones):
-#   - Enticement lines (bg.pick_entice_line): "come scan a book" nudges,
-#     always available even with an empty registry -- an empty books.db
-#     used to mean this script silently did nothing at all, a real gap
-#     for a fresh install with zero scans yet.
-#   - Quote lines (bg.pick_idle_quote): only once at least one book is
-#     registered, celebrating what's already been scanned.
-# Mixed via ENTICE_RATE so an established registry keeps getting pulled
-# toward new scans instead of only ever showing off old ones.
-#
-# NON-API BY DESIGN: neither path ever calls Claude or hits the network
-# at idle-bait time -- pick_idle_quote() only reads books.db (cached at
-# scan time) or the small local FALLBACK_QUOTES pool, and pick_entice_line
-# is pure static text.
-#
-# STATUS: NOT hardware-verified -- polling loop untested against a real
-# quiet room. pick_and_format_line() is a pure function covered by
-# tests/test_book_idle_bait.py.
-#
-# Usage: crt-book-idle-bait.py   (run as its own tmux pane/background loop)
-# Env:
-#   CRT_BOOK_ENTICE_RATE (default 0.4) -- fraction of idle-bait rounds
-#     that show an enticement line instead of a quote, when the registry
-#     is non-empty (always 1.0 when the registry IS empty -- nothing to
-#     quote yet).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import random
@@ -131,12 +102,7 @@ def main():
     # of this loop; the rest of the body never got it. Still unguarded
     # until 2026-07-25: pick_and_format_line() reaches sqlite through
     # pick_idle_quote(), and the getmtime() below is a plain
-    # exists-then-stat race -- stt.log removed between the two raises
-    # FileNotFoundError. Either one ended idle-bait, which is step ONE of
-    # the funnel: no bait, no scan, no question, no training row.
-    # The loop's own POLL_SECS sleep is deliberately INSIDE the guard's
-    # reach only in the sense that it runs first -- pacing is unchanged
-    # whether the body raises or not.
+    #   [rest: vault:crt/header-archaeology-20260817.md]
     guard = loop_guard.LoopGuard("bookidle")
     while True:
         time.sleep(POLL_SECS)

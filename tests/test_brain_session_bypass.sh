@@ -3,18 +3,7 @@
 #
 # The bug: the dexter brain was started with a bare `claude`. Its only
 # input is `tmux send-keys` from potato, driven by someone speaking into
-# a landline -- there is no keyboard on that end. The first real question
-# asked of it ("look around for the pretty print script") raised a
-# read-only permission prompt, and the pane parked. Everything upstream
-# reported healthy: session UP, pane painted, CAPTURE returned text. The
-# text was a dialog box. The console went quiet mid-sentence.
-#
-# Two things under test, both about that: the brain must START with
-# permissions bypassed, and `status` must be able to SAY that a session
-# is up but not answering.
-#
-# No real tmux and no real claude: a shim records what it was asked to
-# do and replays a canned pane.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$DIR/../bin/crt-brain-session.sh"

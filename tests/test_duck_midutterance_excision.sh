@@ -3,28 +3,7 @@
 # already in progress must not end up inside that utterance's audio.
 #
 # The bug (Zach's note on the 2026-07-25 report): crt-stt-solo.py's VAD checked
-# MUTED only at utterance ONSET -- `if not MUTED and peak >= THRESH`. Nothing
-# checked it again once buffering had started, so handset playback that began
-# mid-utterance (the "heard" earcon, or the next sentence of a multi-sentence
-# spoken reply) was recorded into the middle of the speaker's sentence and
-# handed to whisper as if they had said it.
-#
-# The unit half lives in tests/test_stt_solo_helpers.py (UttChunkTest, the pure
-# decision function). THIS test drives the real CLI end to end, because the
-# thing that actually has to work is the wiring: a "mute 1" line landing in the
-# live CTL file while `in_utt` is true.
-#
-# It measures the one thing that is robust to timing jitter here -- the DURATION
-# of the WAV handed to whisper. The fake capture emits a fixed 1.0s of ducked
-# audio, so however far behind the consumer runs, exactly ~1.0s of frames are
-# seen while muted:
-#
-#   ~3.0s  fix present   -- the ducked second is excised, speech either side
-#                           spliced, the utterance still ends on real silence
-#   ~4.0s  pre-fix       -- the ducked second is buffered like any other audio
-#   ~1.1s  if the duck ended the utterance instead of freezing it (the
-#           truncating alternative this deliberately did NOT take, since with
-#           CRT_EARCON_ON_THRESHOLD=1 it would cut every utterance at onset)
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

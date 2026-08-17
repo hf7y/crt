@@ -3,20 +3,7 @@
 # directed): bin/crt-book-game.py's fetch_wikipedia_extract/
 # extract_fact_candidates/build_facts_batch_prompt, plus
 # bin/crt-book-facts-batch.py's two stages and bin/crt-book-console.py's
-# batch trigger. No network -- fetchers/posters are injected, same
-# pattern as every other AI/scrape call in this project.
-#
-# REDESIGNED same day, still live: the first version distilled facts_raw
-# into bare fact strings shown as flavor text next to the STILL-GENERIC
-# template question. Zach caught it live ("I'm still getting generic
-# facts?") and redirected: "clean design is to phrase it as a question
-# ... Who guest edited the 2016 edition? Answer: Junot Diaz." The
-# distill stage now writes real, fact-grounded two-option questions
-# DIRECTLY into questions_json (parsed by the pre-existing
-# parse_claude_batch_response, already covered in test_book_game.py --
-# not re-tested here), replacing the generic question outright. facts_json
-# is vestigial (column kept, nothing reads/writes it) -- see
-# bin/crt-book-game.py's schema-migration comment.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import json
 import os

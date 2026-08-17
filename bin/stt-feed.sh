@@ -87,22 +87,7 @@ while true; do
   # Why: the shared `dsnoop` device (so the level meter can read the mic at the
   # same time) is only reliably shared between `arecord` clients -- sox's own
   # ALSA open (whether via `rec` or `-t alsa`) does not coexist with the meter's
-  # arecord on dsnoop. arecord streams raw 16 kHz mono; sox does the VAD
-  # segmentation on the pipe: auto-stop after 1.2s of silence below the
-  # threshold, capped at 20s. Blocks until an utterance is captured.
-  # NOTE: don't check the pipeline's own exit status here. sox exits (VAD
-  # cutoff) by closing its stdin while arecord is still writing to it --
-  # arecord then dies of SIGPIPE, and with `pipefail` that non-zero exit
-  # propagates to the *whole pipeline* even though sox itself succeeded and
-  # wrote a valid file. That silently discarded every single utterance after
-  # capture (loop kept advancing, file was fine, but everything past this
-  # point -- whisper, the echo, tmux send-keys -- never ran). Found 2026-07-20
-  # by noticing whisper transcribed captured utterances correctly by hand
-  # while the live loop never echoed or typed anything. Check sox's own exit
-  # status via PIPESTATUS instead of the pipeline's.
-  # Wrapped in `if` (not bare) so `set -e` doesn't abort the script on
-  # arecord's expected SIGPIPE -- see the note above. Only sox's own exit
-  # status (via PIPESTATUS) decides whether to retry.
+  #   [rest: vault:crt/header-archaeology-20260817.md]
   if arecord -D "$AUDIODEV" -f S16_LE -c 1 -r 16000 -t raw 2>/dev/null \
     | sox -q -t raw -r 16000 -e signed -b 16 -c 1 - "$wav" \
         silence 1 0.3 "$VAD_THRESHOLD" 1 1.2 "$VAD_THRESHOLD" trim 0 20 \

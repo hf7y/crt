@@ -3,30 +3,7 @@
 # SSH debugging conversation, a second terminal, whatever) into the
 # physical console's `mono` display, tagged distinctly from window 0's
 # own [claude] dialogue (2026-07-21, twelfth pass, Zach's direct ask:
-# "show both sessions' output on mono, distinguished somehow").
-#
-# NOT wired into crt-console.sh's boot sequence on purpose -- there is
-# no SSH debugging session most of the time, and auto-starting this with
-# no fixed target would just fall back to crt-claude-bridge.py's old
-# recency-guessing heuristic, re-introducing the exact bug this session
-# spent all night fixing (a bridge picking whichever session was most
-# recently active, rather than a specific known one). Run this by hand
-# (or have a fresh Claude Code session run it for itself) whenever a
-# second live session should be visible on the console too.
-#
-# Must be run FROM WITHIN the Claude Code session you want mirrored --
-# reads $CLAUDE_CODE_SESSION_ID from its own environment (set by Claude
-# Code itself for any session, interactive or otherwise) to know which
-# transcript to pin to. Run it via Claude Code's own Bash tool (not a
-# separate manually-opened shell), since a plain shell won't have that
-# env var set at all.
-#
-#   bin/crt-attach-ssh-bridge.sh                 # tag "ssh", window "sshbridge"
-#   CRT_THOUGHT_TAG=debug bin/crt-attach-ssh-bridge.sh   # custom tag/color
-#
-# Add a NEW color for a custom tag in crt-monologue.py's COLOR_MAP if you
-# use something other than "ssh" -- an untagged/unknown tag just falls
-# back to DEFAULT_COLOR (plain white), same as any other unrecognized tag.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -euo pipefail
 
 if [ -z "${CLAUDE_CODE_SESSION_ID:-}" ]; then
@@ -48,15 +25,7 @@ fi
 # transcript file (2026-07-21, found live: deriving the dir name from
 # `pwd` -- the Bash tool's CURRENT cwd -- is wrong whenever the
 # conversation has `cd`'d around since Claude Code itself launched;
-# Claude Code's project-dir naming is fixed at session-START time, not
-# tied to whatever directory a later shell command happens to be in).
-# Search is fast -- these files are named by UUID, exactly one match.
-# `dirname ""` (no match at all) returns "." -- a real, existing
-# directory (the script's own cwd) -- so check the FOUND FILE PATH is
-# non-empty first, before ever calling dirname on it, rather than
-# checking the resulting dir alone (found live: that check silently
-# passed with CLAUDE_PROJECT_DIR="." on a no-match, using the wrong
-# directory instead of erroring out).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 FOUND_TRANSCRIPT="$(find "$HOME/.claude/projects" -maxdepth 2 -iname "${CLAUDE_CODE_SESSION_ID}.jsonl" 2>/dev/null | head -1)"
 if [ -z "$FOUND_TRANSCRIPT" ]; then
   echo "error: could not find a transcript file for session $CLAUDE_CODE_SESSION_ID under $HOME/.claude/projects" >&2

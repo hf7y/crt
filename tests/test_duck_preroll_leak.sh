@@ -3,29 +3,7 @@
 # whisper via the pre-roll deque either.
 #
 # f13c7a4 closed the mid-utterance half of this (a duck arriving while `in_utt`
-# is true now freezes and excises), and the VAD's start gate has always refused
-# to BEGIN an utterance while muted. Between those two there was still a hole:
-# `pre.append(data)` ran unconditionally, ducked or not. So the pre-roll deque
-# -- whose entire job is to prepend the moments just before onset, because the
-# attack of a first word sits below the VAD threshold -- happily filled up with
-# our own handset playback, and handed it to whisper as the opening of the
-# speaker's next utterance.
-#
-# Reachable on the live default path: `addressed` (CRT_EARCON_ON_ADDRESSED,
-# default ON) fires immediately after emit(), which is exactly when a speaker
-# carries on into a follow-up utterance -- the sticky-wake-window case.
-#
-# Measurement is the PEAK AMPLITUDE OF THE FIRST 100ms of the WAV handed to
-# whisper, not its duration: playback is emitted at 0.9 and speech at 0.3, so
-# "did our own noise open this utterance" is a 3x separation, not a
-# chunk-counting argument that timing jitter could flip.
-#
-# CRT_VAD_PREROLL is raised to 8 deliberately. At the default of 3 the same
-# leak is there but only for a speaker whose onset lands within ~100ms of the
-# duck lifting -- a real window, and a much narrower one to measure without
-# racing the CTL line against the audio it refers to. Turning the knob up
-# widens the window well past a one-chunk race, so this test pins the
-# MECHANISM unambiguously rather than a lucky sample.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

@@ -3,27 +3,7 @@
 # little AI in the loop as possible.
 #
 # WHY (Zach, 2026-07-29, going afk): "make it use mechanical script calls
-# including prompt injection so that I can re-run the calibration voice
-# interaction again with minimal ai." The 2026-07-29 session found the
-# voice path broken in four separate places, and every one of them was
-# found by a human noticing something felt wrong and a model going and
-# looking. That does not scale and it does not repeat. This script is
-# that same investigation, written down as commands.
-#
-# The target it is calibrating toward, in Zach's words: "potato makes
-# durable updates to its earcon expressiveness and margin/pretty print
-# rules via zach talk into headset, and updated dev box repo gets handled
-# well on later merge."
-#
-# Usage:
-#   crt-voice-calibration.sh stage    # brain up, primed, path verified
-#   crt-voice-calibration.sh check    # verify every hop, change nothing
-#   crt-voice-calibration.sh say TEXT # inject an utterance, no mic needed
-#   crt-voice-calibration.sh watch    # tail the voice path's logs
-#
-# `stage` is the one to run first when picking this up cold. It is
-# idempotent. `say` is the one that replaces talking, so a calibration
-# pass can be scripted instead of spoken.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -220,14 +200,7 @@ case "${1:-check}" in
     # cannot read a shell conf itself -- it takes CRT_CLAUDE_SSH_HOST
     # from its environment, which crt-console.sh supplies at boot. An ssh
     # command shell has none of it, so an unsourced invocation here picks
-    # no brain at all and reports "didn't catch a reply" -- which reads as
-    # a broken brain rather than a broken caller. Caught the first time
-    # this verb was run, 2026-07-29, which is the entire argument for
-    # having written the harness.
-    # A far longer timeout than the checks use: this one waits on a real
-    # brain round-trip, and the brain reads files and thinks. 25s (the
-    # check default) killed it mid-answer on the first try and reported
-    # exit 124, which looks like a hang rather than impatience.
+    #   [rest: vault:crt/header-archaeology-20260817.md]
     CRT_SSH_TIMEOUT="${CRT_SAY_TIMEOUT:-180}" \
       ssh_potato "cd $POTATO_BIN && . ./crt-conf.sh && python3 ./crt-secretary.py $(printf '%q' "$*")"
     rc=$?

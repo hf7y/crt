@@ -22,7 +22,7 @@ this file is the stable "how the pieces relate" reference.
   `CRT_EARCON_DEVICE=tv` (potato's `~/.bash_profile` testing default,
   toggle back to `handset`) are this path, live and correct.
 - Memory-constrained. Claude Code resident on potato was **~37% of RAM**
-  (`ARCHITECTURE-REVIEW-2026-07-23.md`) — the whole reason the brain moved
+  (`vault:crt/ARCHITECTURE-REVIEW-2026-07-23.md`) — the whole reason the brain moved
   off-box. Keep potato lean.
 
 ## The potato art files

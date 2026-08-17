@@ -3,56 +3,7 @@
 # the web-based scrape of better facts, non-AI pass for webscrape on
 # each, then ai-pass in batches to generate 3-ish high quality facts per
 # book for trivia."
-#
-# REDESIGNED same day, still live: the first version generated bare fact
-# strings shown as flavor text next to the STILL-GENERIC template
-# question (fiction/nonfiction, before/after-a-year) -- Zach caught it
-# live ("I'm still getting generic facts?") and redirected: "clean
-# design is to phrase it as a question... Who guest edited the 2016
-# edition? Answer: Junot Diaz." Stage 2 below now writes real,
-# fact-grounded two-option trivia questions DIRECTLY into questions_json,
-# replacing the generic question outright -- same schema
-# crt-book-answer-listen.py's grading already expects, so this needed
-# zero changes to display or grading code, only a better-grounded
-# question generator.
-#
-# Two independent stages, run in order each invocation, each cache-once
-# (never redoes a book that already has a value in the relevant column --
-# same philosophy as quote/lcc):
-#
-#   1. SCRAPE (non-AI): every registered book with facts_raw IS NULL gets
-#      a Wikipedia summary-API lookup by title (bin/crt-book-game.py's
-#      fetch_wikipedia_extract/extract_fact_candidates) -- cheap, no API
-#      key, no rate limit that matters at this scale. Cached into
-#      facts_raw regardless of whether anything useful came back (an
-#      empty list is itself a cached "nothing found", not a retry-forever
-#      signal -- same convention as quote's fallback chain).
-#
-#   2. DISTILL (AI, batched): every book with facts_raw IS NOT NULL and
-#      question_source != 'ai-enriched' gets grouped into batches of
-#      CRT_BOOK_FACTS_BATCH_SIZE and sent through ONE Gemini call per
-#      batch (bin/crt-book-game.py's build_facts_batch_prompt/
-#      call_gemini_batch/parse_claude_batch_response -- the SAME parser
-#      the pre-existing per-scan Gemini path uses, since the output
-#      schema is now identical) asking for exactly 3 fact-grounded
-#      two-option questions per book. Skipped entirely (loud, not
-#      silent) if no Gemini key is configured -- see bin/crt-book-game.py's
-#      _load_gemini_key.
-#
-# STATUS: both stages confirmed live against potato's real registered
-# books (2026-07-28) -- scrape stage and distill stage (with a real
-# provisioned Gemini key) both run end-to-end, producing genuinely
-# specific, high-quality questions (verified by reading the actual
-# stored questions_json).
-#
-# Usage:
-#   crt-book-facts-batch.py               # both stages
-#   crt-book-facts-batch.py --scrape-only  # stage 1 only
-#   crt-book-facts-batch.py --distill-only # stage 2 only
-#   crt-book-facts-batch.py --dry-run      # report what WOULD run, do nothing
-#
-# Env:
-#   CRT_BOOK_FACTS_BATCH_SIZE (default 10) -- books per Gemini call
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import argparse
 import importlib.util
 import json
@@ -180,10 +131,7 @@ def _timestamped_log(msg):
     # still default to plain print() so tests asserting on exact log
     # text don't have to match a timestamp. This is what actually lands
     # in ~/.crt/facts-batch.log when crt-book-console.py's fire-and-
-    # forget trigger fires (2026-07-28: that used to discard both
-    # streams entirely, see maybe_trigger_facts_batch's own comment) --
-    # a timestamp is the difference between a debuggable log and a wall
-    # of messages with no idea which run or how long ago.
+    #   [rest: vault:crt/header-archaeology-20260817.md]
     import datetime
     print("%s  %s" % (datetime.datetime.now().strftime("%H:%M:%S"), msg))
 

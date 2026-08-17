@@ -3,17 +3,7 @@
 # `catprint` tool (python-catprinter, ~/.local/bin/catprint on this machine
 # -- SECRETARY.md calls it `bin/catprint` but it's actually a system tool,
 # not part of this repo; adjust CRT_CATPRINT_BIN if it lives elsewhere on
-# the actual deploy target). catprint takes an image, not text, so this
-# rasterizes first (bin/crt-print-render.py, PIL-based).
-#
-# STATUS: NOT hardware-verified -- no Phomemo printer reachable from this
-# session. Rasterization logic is straightforward and should work; the
-# actual catprint invocation/device flag is copied from `catprint --help`
-# output, not from a real successful print.
-#
-# Usage:
-#   crt-print.sh "text to print"
-#   echo "text" | crt-print.sh
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -euo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CATPRINT="${CRT_CATPRINT_BIN:-$HOME/.local/bin/catprint}"

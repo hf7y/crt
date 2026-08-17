@@ -3,14 +3,7 @@
 # Approach F in AUDIO-DEBUG.md. Mirrors bin/crt-stt.sh's role for the batch
 # engine: a dedicated screen to watch/tune crt-stt-stream.py, decoupled from
 # the full console, so its live-partial-word behavior can be judged by ear/eye
-# without risking the working Claude pipeline.
-#
-# NOT hardware-verified -- written on the dev box (no VM/handset). The engine
-# itself compiles and its transcribe()/local_agreement_commit() logic is
-# unit-tested, but nobody has watched partial words scroll on a real CRT yet.
-#
-#   bin/crt-stt-stream-view.sh
-#   CRT_WHISPER_SERVER=http://192.168.0.22:8991/transcribe bin/crt-stt-stream-view.sh
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -euo pipefail
 
 export PATH="$HOME/.local/bin:$PATH"

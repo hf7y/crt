@@ -3,45 +3,7 @@
 # holding NO Claude brain (see POTATO.md). Renders Zach's braille-art
 # potato (potato-small.txt) centered on the 40x15 tube, breathing gently,
 # with a small caption line. On wake the console switches away from this
-# window to whichever brain crt-wake-router.py chose.
-#
-# Design notes:
-# - Art comes from an external file so the drawing lives with Zach, not in
-#   this code (default: ../potato-small.txt next to bin/). If it's missing
-#   or unreadable we fall back to a tiny inline spud rather than crash --
-#   a dark screen is worse than an ugly one.
-# - CRT-safe colors ONLY (CLAUDE.md hard rule): yellow/magenta/cyan/white
-#   + dim/bold. NO 31/32/34/91/92/94 -- saturated primaries smear on the
-#   real tube. The potato is dim cyan; the caption is dim yellow.
-# - "Breathing" is just alternating dim/normal on the same frame, cheap
-#   and calm -- not a flashy animation. This is a screensaver, not a demo.
-# - The CAPTION MOVES (2026-07-25, eighteenth cycle,
-#   CRT_SCREENSAVER_CAPTION_MOVE_SECS, 0 pins it). The breath proves this
-#   PROCESS is alive; it says nothing about the screen, which was one fixed
-#   layout -- same caption, same row, same alignment -- from boot to
-#   shutdown. The sibling resting screen (crt-book-console.py's shelf) was
-#   fixed for exactly this last cycle, and in the idle-lean layout THIS is
-#   the screen the tube boots into, so this is the one that was frozen in
-#   front of anybody. Zach on that feature, quoted twice in his reply:
-#   "rather than just sitting static -- the actual point of this feature",
-#   "so the idle screen doesn't look frozen in the same layout every single
-#   time".
-#
-# IT ALSO CATCHES SCANS (2026-07-25, fifteenth nightly cycle). The barcode
-# scanner is a USB HID keyboard: it types into whichever tmux window has
-# FOCUS (SCANNER.md's "2026-07-21 late session" finding, proven live), which
-# is why crt-console.sh made `book` the boot-default window. The idle-lean
-# layout selects THIS window instead -- so on potato, every scan has been
-# typing bare digits into a screensaver that never read its own stdin, and
-# the Book Game funnel's first link (idle-bait -> SCAN -> question) has been
-# dead in the only layout that actually boots there. A scan produced
-# nothing: no question, no answer window, no training row.
-#
-# Forwarding, not handling: an ISBN-shaped line goes into ~/.crt/scanner.log
-# in the exact shape crt-book-console.py already tails (bin/crt_scan_line.py
-# owns that contract for both ends), and the `book` window draws the
-# question and brings itself to the front. This window stays what it is --
-# an idle face with no brain, no database, and no book logic.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import argparse
 import importlib.util
 import os
@@ -55,15 +17,7 @@ BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 #   1. potato.txt introduced, alternated with the old potato-small.txt
 #      until a 30-day sunset.
 #   2. "hard prefer the new potato.txt, sunset old potato_small.txt
-#      now" -- sunset moved up to immediate.
-#   3. "replace potato_small.txt with potato2.txt in the slideshow to
-#      create an animation effect" -- potato-small.txt retired for
-#      good, replaced by potato2.txt: a near-identical second frame
-#      (a handful of characters differ -- see that file vs potato.txt)
-#      meant to alternate with potato.txt fast enough to read as a
-#      shimmer/breathe animation, not a slow content swap. No more
-#      sunset logic needed: neither frame ever retires, they're a
-#      permanent pair.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 DEFAULT_ART = os.path.join(BIN_DIR, "..", "potato.txt")
 NEW_ART = os.path.join(BIN_DIR, "..", "potato2.txt")
 
@@ -72,7 +26,7 @@ NEW_ART = os.path.join(BIN_DIR, "..", "potato2.txt")
 # else. Loading crt-book-console.py or crt-book-game.py to reuse the same
 # functions would drag sqlite3 and urllib into the window whose entire reason
 # for existing is holding no brain on a 1GB Pi (POTATO.md /
-# ARCHITECTURE-REVIEW-2026-07-23.md).
+# vault:crt/ARCHITECTURE-REVIEW-2026-07-23.md).
 def _load_sibling(name, filename):
     spec = importlib.util.spec_from_file_location(name, os.path.join(BIN_DIR, filename))
     mod = importlib.util.module_from_spec(spec)
@@ -92,12 +46,7 @@ caption_lib = _load_sibling("crt_caption_for_screensaver", "crt_caption.py")
 # crt-console.sh, i.e. by shell. A bare float() on a misspelled value raises
 # inside argparse's defaults -- before a single frame is drawn -- and leaves a
 # bash prompt on the window that IS the console's face in the idle-lean
-# layout. Negative is junk too; only 0 disables.
-#
-# One copy since 2026-07-25 (twentieth cycle): this was byte-for-byte
-# identical to crt-book-console.py's, docstring included. bin/crt_config.py
-# holds it now. Third light stdlib-only sibling loaded here, same rule as the
-# two above.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 crt_config = _load_sibling("crt_config_for_screensaver", "crt_config.py")
 _env_secs = crt_config.env_number
 
@@ -108,13 +57,7 @@ THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoug
 # stretches 'potato is asleep' ... on any sound, volume over threshold,
 # go to the blink animation ... potato wakes up. then have a >60s
 # silence resulting in sleep again." Reuses crt-stt-solo.py's own
-# STT_LOG/GATE_LOG paths as the "sound crossed threshold" signal rather
-# than reading the mic directly, which would violate that script's
-# sole-reader design (POTATO.md) -- EVERY utterance that crosses its
-# capture threshold gets a line in stt.log unconditionally, before any
-# gate/wake-word check, so its mtime alone is a real volume-over-
-# threshold signal, not a proxy for "reached Claude". gate.log checked
-# too, defensively, in case stt.log's write ever fails.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 GATE_LOG = os.path.expanduser(os.environ.get("CRT_STT_GATE_LOG", "~/.crt/gate.log"))
 SLEEP_SILENCE_SECS = _env_secs("CRT_SCREENSAVER_SLEEP_SILENCE_SECS", 60.0)
@@ -134,26 +77,7 @@ DIM, BOLD, RESET = "\x1b[2m", "\x1b[1m", "\x1b[0m"
 # three passes now): "tan, brown, logos don't need to be exactly read
 # safe" -> "more potato colored (brown, yellow, golden)" -> LIVE, on the
 # real CRT: "should not be flashing between grey and red... red is no
-# go." The bright gold/yellow picks (220, 178) were almost certainly the
-# culprit -- composite/RF chroma bleed toward red is a textbook failure
-# mode for exactly that hue family (high R+G, the same reason CLAUDE.md's
-# hard rule already bans basic yellow/orange-adjacent primaries), this
-# hardware just proved it again on the 256-color palette too. CLAUDE.md's
-# hard rule (never 31/32/34/91/92/94) covers BASIC codes; this file's own
-# earlier claim that 256-color desaturated ochres were automatically
-# "on the safe side of that concern" was an unverified guess, now
-# falsified live -- correcting the record here, not just the color.
-#
-# 2026-07-28, LIVE-CONFIRMED (Zach: "good"): olive/brown/tan
-# (38;5;100, 38;5;94, 38;5;137) tested on the real tube via this same
-# env override with no red-bleed -- this is now the real DEFAULT, not
-# just a manual test override. The earlier WHITE-only default was never
-# wired into the actual boot path (bin/crt-console.sh never set
-# CRT_SCREENSAVER_LOGO_COLORS), so every real boot rendered the "awake"
-# gradient as flat white -- indistinguishable from the asleep state
-# (Zach: "awake potato still blinking white"). Override still available
-# for further live testing without a redeploy: CRT_SCREENSAVER_LOGO_
-# COLORS, comma-separated 256-color-or-basic codes.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 LOGO_COLORS = [
     c.strip() for c in os.environ.get(
         "CRT_SCREENSAVER_LOGO_COLORS", "38;5;100,38;5;94,38;5;137"
@@ -194,12 +118,7 @@ def gradient_colors(n, palette=None, offset=0):
 # on potato.txt with a quick potato2.txt, random delay, about 80-90% on
 # potato one. this is a blink. shouldn't be predictable, just a flash."
 # REPLACES the earlier fixed-cadence art_idx cycling entirely -- a
-# biological blink, not a metronome. REST (arts[0], potato.txt) holds
-# for a long, random stretch; a BLINK (arts[1], potato2.txt) is a
-# single short, random stretch, then reverts to REST. Whether a blink
-# happens at all is its own coin flip each time a REST decision is due,
-# not a scheduled alternation -- "shouldn't be predictable" is the
-# point, not a side effect.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 BLINK_PROBABILITY = float(os.environ.get("CRT_SCREENSAVER_BLINK_PROBABILITY", "0.15"))
 REST_HOLD_RANGE = (4.0, 14.0)   # seconds potato.txt is held between blink rolls
 # 2026-07-28, live, Zach: "blink should be on the order of a human
@@ -549,11 +468,7 @@ def main(argv=None):
     # a 2.5s repaint cadence meant a 0.3-0.9s blink hold (BLINK_HOLD_RANGE)
     # could never actually be SEEN as short; the loop just repainted once
     # or twice during it and moved on, reading as a long hold rather than
-    # a flash. 0.15s gives a blink room to render for 1-2 real frames
-    # instead of being swallowed by the repaint rate itself, and makes
-    # the gradient rotation (GRADIENT_ROTATE_SECS) and sleep/wake cut
-    # feel immediate rather than laggy. Still cheap: this is a 40x15
-    # ASCII repaint, not real rendering work.
+    #   [rest: vault:crt/header-archaeology-20260817.md]
     p.add_argument("--interval", type=float,
                     default=_env_secs("CRT_SCREENSAVER_INTERVAL", 0.15))
     p.add_argument("--caption-move-secs", type=float,
@@ -601,12 +516,7 @@ def main(argv=None):
     # grey, have rotating gradient of olive, brown, tan (all at once,
     # but the gradient crossover changes)"). gradient_offset only
     # advances while awake -- sleep already renders flat WHITE
-    # (frame_color_for_state), so there is nothing to rotate then, and
-    # freezing the counter during sleep means waking always resumes the
-    # rotation from wherever it left off rather than jumping. Blinks
-    # (potato2.txt) intentionally do NOT reset or skip the offset --
-    # frame_color_for_state() only depends on asleep, never on which art
-    # is showing, so a blink keeps whatever gradient position is current.
+    #   [rest: vault:crt/header-archaeology-20260817.md]
     gradient_offset = 0
     gradient_move_at = 0.0
     GRADIENT_ROTATE_SECS = float(os.environ.get("CRT_SCREENSAVER_GRADIENT_ROTATE_SECS", "3.0"))
@@ -614,11 +524,7 @@ def main(argv=None):
     # `itertools.cycle([True, False])` step per loop iteration, which
     # was fine when --interval defaulted to 2.5s (a 5s breathing cycle)
     # but ties the pulse's cadence directly to the repaint rate. Now
-    # that --interval defaults to 0.15s (2026-07-28, for blink/gradient
-    # responsiveness), that coupling would flicker the pulse ~17x/sec
-    # instead of breathing -- give it its own timer, same pattern as
-    # gradient_offset above, so repaint rate and breathing rate are
-    # independent again.
+    #   [rest: vault:crt/header-archaeology-20260817.md]
     dim = True
     dim_move_at = 0.0
     BREATHE_SECS = float(os.environ.get("CRT_SCREENSAVER_BREATHE_SECS", "2.5"))
@@ -632,10 +538,7 @@ def main(argv=None):
         # "potato is asleep") after SLEEP_SILENCE_SECS with no sound
         # heard (is_asleep() reads crt-stt-solo.py's own STT_LOG/
         # GATE_LOG mtimes -- see that function's docstring for why this
-        # doesn't read the mic directly). The blink state machine below
-        # only runs while awake; going from asleep to awake forces an
-        # immediate fresh blink decision (art_move_at = 0) rather than
-        # waiting out whatever hold was queued before sleep started.
+        #   [rest: vault:crt/header-archaeology-20260817.md]
         asleep = len(arts) > 1 and is_asleep(time.time())
         if asleep:
             if not was_asleep:
@@ -666,21 +569,7 @@ def main(argv=None):
         # shade per frame (2026-07-28, live, replacing an earlier
         # discrete per-tick LOGO_COLORS rotation -- Zach: "colors are
         # wrong... can get mixed color output yellow and brown and
-        # inbetween?"). See GRADIENT/_frame_rows()/gradient_colors().
-        # The caption moves (2026-07-25, eighteenth cycle). The breathing
-        # proves this process is alive; it does not stop the SCREEN from
-        # being one fixed layout from boot until someone speaks, which is
-        # what the sibling resting screen was just fixed for -- and in the
-        # idle-lean layout THIS is the screen the tube boots into, so it is
-        # the one that was actually frozen in front of anybody. Zach, on the
-        # book console's version of this, twice: "rather than just sitting
-        # static -- the actual point of this feature", "so the idle screen
-        # doesn't look frozen in the same layout every single time".
-        #
-        # Its own cadence, not the breath's: 8s reads as a screen with
-        # something going on, 2.5s reads as a twitch. 0 pins it where it has
-        # always been (last row, centered) -- an automatic behaviour keeps
-        # its manual escape hatch, same rule as CRT_BOOK_IDLE_ROTATE_SECS.
+        #   [rest: vault:crt/header-archaeology-20260817.md]
         if args.caption_move_secs and time.time() >= move_at:
             slot = pick_caption_slot(art, cols, rows, avoid=slot,
                                      reserve_caption=bool(args.caption))

@@ -3,30 +3,7 @@
 # side, and check whether it's actually reachable right now.
 #
 # WHY THIS EXISTS: the console can run its Claude Code brain in one of a
-# few places (see POTATO.md's "wake routing" section). The preferred one
-# is mandark -- potato holds no Claude process at all, saving ~37% of its
-# 1GB RAM (ARCHITECTURE-REVIEW-2026-07-23.md). "on" = route escalations to
-# mandark's remote Claude over the reverse-tunneled localhost socket;
-# "off" = don't, fall back to a local/onsite brain (or none). This is the
-# one knob Zach flips; everything downstream reads the flag file it writes.
-#
-# WHAT IT ACTUALLY TOUCHES: just one small config file,
-# ~/.crt/mandark.conf, a shell fragment sourced by bin/crt-console.sh at
-# boot. It sets CRT_CLAUDE_REMOTE_PORT, which bin/crt-secretary.py already
-# consumes (port set -> talk to the bridge; 0/unset -> local tmux pane).
-# It does NOT start/stop the tunnel or the mandark-side bridge server --
-# those live on mandark and are mandark-initiated by design (the tunnel is
-# `ssh -N -R` OUT from mandark; potato has no path INTO mandark, on
-# purpose -- see bin/crt-remote-claude-bridge.py's threat-model header).
-#
-# Usage:
-#   crt-mandark.sh on        # route the console's brain to mandark
-#   crt-mandark.sh off        # keep the brain local/onsite (or none)
-#   crt-mandark.sh status     # show config + live reachability probe
-#   crt-mandark.sh            # same as status
-#
-# Env: CRT_MANDARK_CONF (default ~/.crt/mandark.conf)
-#      CRT_MANDARK_PORT (default 8993) -- the reverse-tunneled local port
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -euo pipefail
 
 CONF="${CRT_MANDARK_CONF:-$HOME/.crt/mandark.conf}"
@@ -49,14 +26,7 @@ EOF
 # (reverse-tunneled) socket, send CAPTURE, expect a non-empty pane back.
 # Returns 0 if the bridge answered, 1 otherwise. Never blocks longer than
 # the timeout. Uses python3 (always present here) so we match the real
-# client's behavior rather than guessing with nc.
-#
-# Takes the port as $1 (2026-07-25). It used to always read $PORT -- the
-# DEFAULT -- while current_port() below read the CONFIGURED one, so
-# `CRT_MANDARK_PORT=9001 crt-mandark.sh on` followed by a plain
-# `crt-mandark.sh status` printed "config: ON (port 9001)" and then
-# reported the reachability of 8993. A status command that answers about a
-# port the console isn't using is worse than no status command.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 probe_bridge() {
   python3 - "$1" <<'PY'
 import socket, sys

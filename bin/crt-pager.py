@@ -3,37 +3,7 @@
 #
 # VISION (per 2026-07-19 direction): the printer is the channel for long-form
 # output (job reports, logs) -- the CRT stays terse. But when longer text DOES
-# need to show on the CRT (a paragraph reply, a long status), it should scroll
-# slowly line-by-line rather than dumping/wrapping unreadably, and be
-# controllable: a MIDI knob jogs the scroll position, or voice commands
-# (next/back/pause/resume) step it, arriving via the same CRT_CTL_FILE
-# mechanism already used for STT live-tuning (bin/crt-stt-solo.py) -- one
-# control channel, multiple consumers.
-#
-# STATUS: NOT hardware-verified (written without a live CRT to check layout
-# against). Terminal-based (curses-free, plain ANSI) so it works over the
-# existing tmux pane.
-#
-# WIDTH/HEIGHT (2026-07-19, was hardcoded 40x14): CRT_PAGER_WIDTH/HEIGHT env
-# vars win if set; otherwise auto-detect the real terminal size
-# (shutil.get_terminal_size) so this renders correctly whether it's the
-# actual small CRT tmux pane, a resized VM window, or a dev machine's
-# terminal during testing -- a hardcoded assumption silently misrenders the
-# moment any of those differ. Only falls back to the CLAUDE.md 40x15 CRT
-# default when detection itself fails (e.g. no tty at all, like a cron job).
-#
-# Usage:
-#   crt-pager.py file.txt
-#   some_command | crt-pager.py
-#   CRT_CTL_FILE=~/.crt/ctl crt-pager.py notes.txt   # knob/voice control
-#
-# Control file lines this reads (in addition to whatever crt-stt-solo.py's
-# CTL_MAP already uses -- these are namespaced with "page " so the two
-# scripts can share one file without colliding):
-#   page next   / page back    -- jump one screen-height
-#   page pause  / page resume  -- stop/start auto-scroll
-#   page scroll <n>            -- jog by n lines (+forward/-back), e.g. from
-#                                  a MIDI knob's relative/delta mode
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import sys, os, time, shutil, textwrap
 
 FALLBACK_WIDTH = 40   # CLAUDE.md's assumed CRT geometry -- last resort only

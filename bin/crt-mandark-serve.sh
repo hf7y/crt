@@ -3,32 +3,7 @@
 # potato run with no Claude of its own. Run this ON MANDARK (needs sudo
 # only for the systemd-managed pieces -- that's why it's a script for you,
 # not something the console runs itself). Three components:
-#
-#   whisper  -- bin/mandark-whisper-server.py, LAN STT on :8991
-#   bridge   -- bin/crt-remote-claude-bridge.py, 127.0.0.1:8993 -> tmux
-#               session `potato-claude` (the actual Claude brain)
-#   tunnel   -- the reverse tunnel you're calling the "reverse proxy":
-#               `ssh -N -R 8993:localhost:8993 potato`, so potato reaches
-#               the bridge over ITS OWN localhost (mandark dials OUT; potato
-#               never gets a path into mandark -- see
-#               bin/crt-remote-claude-bridge.py's threat-model header).
-#
-# Each component is handled by whichever mechanism is present: if a systemd
-# unit is installed (via setup-mandark-*-persistence.sh) it's used
-# (`sudo systemctl`); otherwise an ad-hoc background process is started
-# (survives this shell via nohup+disown, but NOT a reboot -- install the
-# units for that). Idempotent: a component already up is left alone.
-#
-# RELATED KNOBS (don't confuse them):
-#   bin/crt-mandark.sh              -- POTATO side: routes the console's
-#                                      brain to mandark (on) or local (off).
-#   setup-mandark-whisper-persistence.sh
-#   setup-mandark-remote-claude-persistence.sh
-#                                   -- one-time systemd installers (reboot
-#                                      persistence). This script is the
-#                                      day-to-day on/off.
-#
-# Usage: crt-mandark-serve.sh {on|off|status}
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 
 BRIDGE_PORT="${CRT_REMOTE_BRIDGE_PORT:-8993}"

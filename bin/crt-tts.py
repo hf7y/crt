@@ -3,41 +3,7 @@
 # better/faster neural voices, fully offline) or espeak-ng (fallback, always
 # available on Debian, no model download). Params come from ~/.crt/tts.conf
 # (written by crt-tts-calibrate.py) with env vars as override, so the runtime
-# and the calibration tool share one profile.
-#
-# STATUS: NOT hardware-verified -- written without access to crt-vm. Backend
-# detection, argument shapes, and the aplay pipeline are correct as designed
-# but need a real run once the VM is reachable: `pip`/`apt` for piper voices
-# aren't installed there yet either (see crt-tts-calibrate.py header).
-#
-# Usage:
-#   crt-tts.py "text to speak"          # speak once
-#   echo "text" | crt-tts.py            # or via stdin
-#   crt-tts.py --device tv "ring the TV"        # route via dexter's native
-#   crt-tts.py --device handset "..."           # audio-out service (see below)
-#   crt-tts.py --mood urgent "hurry"            # EXPRESSIVE-TONE.md register preset
-#   crt-tts.py --pitch-semitones -1 --rate-mult 0.85 --volume-mult 0.8 "..."
-#
-# ROUTING: on the old dexter/crt-vm setup (2026-07-19), --device tv|handset
-# POSTed to dexter-audio-server.py so VirtualBox's one-audio-device-per-VM
-# limit could still reach two named outputs (see AUDIO-ROUTING.md, now
-# legacy). potato is bare-metal with real ALSA, so tv/handset now default to
-# local aplay against the same plughw devices crt-earcon.sh already uses
-# (CRT_EARCON_TV_DEVICE/CRT_EARCON_HANDSET_DEVICE). The dexter path only
-# still fires if CRT_AUDIO_OUT_URL is explicitly set (2026-07-24 fix -- it
-# used to default to a dead dexter URL and silently no-op on potato, the
-# same bug class the earcon routing had, see REFACTOR-ASSESSMENT.md #1).
-#
-# PER-CALL PROSODY (2026-07-20, EXPRESSIVE-TONE.md): pitch/rate/volume used
-# to only come from flat tts.conf/env config, so every utterance sounded
-# the same regardless of register. Backends differ too much to control this
-# uniformly at synthesis time (piper's CLI has no pitch knob at all; espeak's
-# flags are baked in before synthesis, not adjustable after) -- instead,
-# apply_prosody() below post-processes whichever backend's raw wav with
-# sox (pitch/tempo/vol effects), one mechanism for both backends. --mood
-# is a shortcut onto EXPRESSIVE-TONE.md's register table; --pitch-semitones/
-# --rate-mult/--volume-mult (or the speak() kwargs) override individually.
-# No flags at all = byte-identical behavior to before this existed.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import sys, os, signal, subprocess, shlex, tempfile, urllib.request
 
 DEXTER_URL = os.environ.get("CRT_AUDIO_OUT_URL")  # unset = no dexter, use local ALSA below
@@ -129,17 +95,7 @@ def _sideband_mute(muted):
 # capture item): crt-earcon-loopback-test.py measured that the handset
 # output (plughw:1,0) is the SAME USB adapter as the live capture device,
 # and playing through it while crt-stt-solo.py's arecord is running leaves
-# the recording at ~0.1x baseline -- this hardware can't reliably play+
-# record at once. Software can't fix the missing signal, but it CAN stop
-# treating that corrupted window as real audio: crt-stt-solo.py already has
-# a CTL-file "mute N" reference count (apply_ctl_line) that suppresses VAD
-# triggering without tearing down the sole-reader arecord process (see
-# CRT_CTL_FILE in HANDOFF.md) -- ref-counted, not a last-write-wins flag, so
-# an overlapping earcon duck can't get unmuted early by this one finishing
-# first. Route handset playback through it, same duck-around-the-call shape
-# as _sideband_mute above, so a stray earcon/TTS blip on the handset can't
-# be misread as speech (or drown out a real utterance's start) while the
-# adapter is deaf to the mic anyway.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 CTL_FILE = os.path.expanduser(os.environ.get("CRT_CTL_FILE", "~/.crt/ctl"))
 
 
@@ -234,12 +190,7 @@ def play_wav(wav, device):
         # anything out loud (2026-07-25). It used to be discarded and `True`
         # returned unconditionally, so a device that does not exist, is busy,
         # or is misnamed produced a confident "spoken" from a silent room --
-        # and every caller downstream believed it. That is the same defect
-        # this project already hit twice on the capture side (plughw:0,0 with
-        # no capture stream) and once on the earcon side; the output half was
-        # simply never checked. `-q` suppresses aplay's chatter, not its
-        # errors, so its stderr is the real diagnosis and is repeated here
-        # rather than swallowed.
+        #   [rest: vault:crt/header-archaeology-20260817.md]
         alsa_device = resolve_alsa_device(device)
         r = subprocess.run(["aplay", "-D", alsa_device, "-q", wav],
                            capture_output=True, text=True)

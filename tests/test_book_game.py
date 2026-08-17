@@ -347,14 +347,7 @@ class TestConcurrentAccess(unittest.TestCase):
         # initialize a brand-new file at the exact same instant (only
         # plausible in practice if several real processes all happened
         # to start at the same literal moment against a database that's
-        # never existed before -- a fresh-install edge case, not ongoing
-        # operation). _init_schema()'s retry-with-backoff is a best-
-        # effort mitigation for this, not a guarantee -- so this test
-        # asserts every thread that DOES raise gets a real
-        # sqlite3.OperationalError (never crashes some other way) and
-        # that at least most attempts succeed, rather than demanding
-        # zero errors under a genuinely adversarial thundering-herd
-        # scenario stricter than real usage.
+        #   [rest: vault:crt/header-archaeology-20260817.md]
         results = []
 
         def register_one(i):
@@ -436,10 +429,7 @@ class TestColorAndArt(unittest.TestCase):
         # (standard-intensity red/green/blue) or 91/92/94 (their bright
         # variants), at ANY boldness/dimness -- these are exactly the
         # colors that bleed/smear on a real composite/RF CRT. Only
-        # yellow/magenta/cyan/white (33/35/36/37) are safe. This isn't
-        # just a comment -- this test mechanically blocks a future
-        # palette edit from reintroducing a banned code. See the flag
-        # comment above the palette in crt-book-game.py and in CLAUDE.md.
+        #   [rest: vault:crt/header-archaeology-20260817.md]
         banned_codes = {31, 32, 34, 91, 92, 94}
         palette = [bg.COLOR_QUESTION, bg.COLOR_CORRECT, bg.COLOR_WRONG, bg.COLOR_QUOTE, bg.COLOR_TITLE]
         for code in palette:

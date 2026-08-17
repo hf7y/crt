@@ -3,14 +3,7 @@
 # any tmux window is created, so crt-stt-solo.py (which only reads its own
 # CTL file when CRT_CTL_FILE is non-empty) actually picks it up. Found
 # 2026-07-24: this was never exported anywhere in the script, so the whole
-# CTL-file mechanism (crt-ring.sh, crt-midi-knobs.py, and the new capture-
-# duck "mute" flag crt-tts.py/crt-earcon.sh's handset paths now write) was
-# silently dead on potato even though every writer assumed ~/.crt/ctl.
-#
-# No real tmux session is ever created: a fake `tmux` shim on PATH records
-# whether CRT_CTL_FILE was present in ITS OWN environment (i.e. actually
-# exported by crt-console.sh, not just referenced inline in one command
-# string) before doing anything else.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$DIR/../bin/crt-console.sh"

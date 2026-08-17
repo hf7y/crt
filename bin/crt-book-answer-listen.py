@@ -3,51 +3,7 @@
 # question -> SPOKEN ANSWER -> STT training log, see .claude/FOCUS.md's
 # 2026-07-21 end-goal statement): watches ~/.crt/stt.log (already written
 # by crt-stt-solo.py for every recognized utterance, whether or not it's
-# addressed to Claude) for the next utterance after a scan, and grades it
-# against that scan's pending question automatically -- no more manual
-# `crt-book-game.py --answer` required for the common case.
-#
-# NOT a new Claude/API call, NOT a new STT engine -- purely reads a log
-# that already exists and reuses crt-book-game.py's existing
-# grade_answer()/log_training_row() functions. Deliberately its own file
-# rather than an edit to crt-book-console.py or crt-book-game.py, since
-# both are mid-live-debug elsewhere as of 2026-07-21 (missing `random`
-# import, quote-column migration) -- avoids colliding with that work.
-#
-# "Pending question" is derived, not stored as new shared state: the
-# most recently SCANNED book (MAX of last_scanned, falling back to
-# first_scanned) counts as pending only while
-# CRT_BOOK_ANSWER_WINDOW_SECS hasn't elapsed since that scan -- after
-# that, the next STT utterance is assumed to be unrelated chatter, not a
-# trivia answer, and is left alone (not graded, not consumed). Until
-# 2026-07-25 this read first_scanned alone, which meant a book could only
-# ever be answered the very first time it was scanned.
-#
-# STATUS: NOT hardware-verified. Timestamp math and the tail-follow/grade
-# logic are pure functions covered by tests/test_book_answer_listen.py
-# against a fixture books.db + stt.log; never run against a real scan +
-# real spoken answer.
-#
-# Usage: crt-book-answer-listen.py   (run as its own tmux window/background loop)
-# Env:
-#   CRT_BOOKS_DB (default ~/.crt/books.db, same as crt-book-game.py)
-#   CRT_STT_LOG (default ~/.crt/stt.log, same as crt-stt-solo.py)
-#   CRT_THOUGHT_LOG (default ~/.crt/thoughts.log) -- where the graded
-#     result announcement is appended (crt-monologue.sh already tails
-#     this and shows it on screen, same channel crt-book-idle-bait.py
-#     and crt-idle-teaser.sh already write to)
-#   CRT_BOOK_ANSWER_WINDOW_SECS (default 35, was 20 -- 2026-07-28,
-#     Zach-directed: "need more of a delay between question and answer",
-#     kept in step with crt-book-console.py's IDLE_SECS so the question
-#     doesn't leave the screen before an answer would still be graded)
-#     -- how long after a scan an utterance still counts as "the answer
-#     to that question"
-#   CRT_WAKE_WORD (default claude) and CRT_STT_FIXUPS -- read only to
-#     recognize an utterance addressed to the console and leave it alone;
-#     both resolved exactly as crt-stt-solo.py's gate resolves them, via
-#     bin/crt_wake_gate.py. crt-console.sh hands every window one
-#     environment, so the two cannot disagree unless someone sets one of
-#     them for a single tmux window.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import calendar
 import importlib.util
 import json
@@ -258,7 +214,7 @@ def grade_pending_answer(conn, spoken_text, window_secs=ANSWER_WINDOW_SECS, now=
     able to answer the question on the tube instead of going to Claude.
     Today it goes to Claude -- the engine has already routed it by the time
     this runs -- and grading it here as well is double-handling, not a
-    second opinion. Open for Zach in BATCH-NOTES.md."""
+    second opinion. Open for Zach in vault:crt/BATCH-NOTES.md."""
     if secretary.find_playbook(spoken_text)[0] is not None:
         return None
     if wake_gate.addressed_to_console(spoken_text):
@@ -360,12 +316,7 @@ def main():
     # item. Before 2026-07-25 one raising utterance ended it for the rest
     # of the console's uptime: grade_pending_answer() reaches sqlite (a
     # locked or corrupt books.db), json.loads (a malformed questions_json
-    # row), and log_training_row's own write. Any of those took the whole
-    # window down silently, and the only symptom was that answering a
-    # trivia question stopped doing anything ever again.
-    #
-    # Guarding the body, not the tail: new lines only arrive as fast as
-    # someone speaks, so a body that fails every time cannot spin.
+    #   [rest: vault:crt/header-archaeology-20260817.md]
     guard = loop_guard.LoopGuard("bookanswer")
     for line in tail_new_lines(STT_LOG):
         if line is None:

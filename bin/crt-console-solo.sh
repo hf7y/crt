@@ -3,19 +3,7 @@
 #
 # Same as bin/crt-console.sh (full-screen Claude Code, voice typed in), but the
 # mic is read by exactly ONE process: bin/crt-stt-solo.py in CRT_STT_SINK=claude
-# mode does metering + VAD + whisper + typing off a single continuous arecord
-# stream. There is NO dsnoop and NO separate crt-levels meter -- which removes
-# the entire class of "second reader starves the capture" staleness the shared
-# dsnoop design is prone to on the VirtualBox guest.
-#
-# Trade-off vs crt-console.sh: the live meter isn't a separate always-on strip;
-# it's the bottom line the solo engine itself redraws, shown in a small pane
-# that also logs what got typed. If this proves more reliable than the dsnoop
-# console, promote it (or wire CRT_CONSOLE=solo into crt-console.sh).
-#
-# NOT hardware-verified -- written on the dev box (no VM/handset).
-#
-#   bin/crt-console-solo.sh
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -euo pipefail
 
 export PATH="$HOME/.local/bin:$PATH"

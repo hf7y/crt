@@ -3,22 +3,7 @@
 # never rang (2026-07-25).
 #
 # bin/crt-stt-solo.py's ring path had the same shape as the TTS one fixed
-# alongside it, one layer worse:
-#
-#   - ring_tone_path() ignored sox's exit status AND its stderr, then cached
-#     `path` regardless. mkstemp has already created that file, so with no sox
-#     installed the cache held a real, existing, ZERO-BYTE wav -- and
-#     os.path.exists() said yes for the rest of the process's life. Every ring
-#     thereafter handed aplay an empty file.
-#   - the ring itself was subprocess.Popen(..., stderr=DEVNULL) and its exit
-#     status was never read, only poll()'d to decide whether to terminate.
-#
-# So a console with no working sound output printed "[ring] ringing (4)",
-# waited out four silent cycles, and printed "[ring] no answer" -- blaming the
-# person for not picking up a phone that had never made a sound.
-#
-# Injected at PATH: `sox` and `aplay` here are real executables that really
-# exit with the status under test, found the way the real code finds them.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import shutil

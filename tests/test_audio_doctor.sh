@@ -3,20 +3,7 @@
 # AUDIO-DEBUG.md calls Approach D.
 #
 # Why this file exists (2026-07-25): tests/run_tests.sh has printed the header
-# "== crt-audio-doctor.sh BUSY/DEAD/ERROR/LIVE verdicts ==" since 38607bd, one
-# of the four commits cherry-picked off potato -- but the cherry-pick brought
-# the runner's reference across without the test file itself, and the
-# `if [ -f ... ]` guard around it turned that into an exit-0 no-op. The suite
-# printed a header claiming this coverage and reported ALL GREEN with nothing
-# behind it. Same class as the three `command -v sox || skip` no-ops found the
-# cycle before; the guards are gone from run_tests.sh now, so a test file that
-# goes missing fails loud instead of going quiet.
-#
-# The old header named four verdicts. The script in THIS repo emits two
-# (LIVE / DEAD-STALE) plus a usage exit -- so these cases are written against
-# what the code actually does, not what the inherited header claimed. If
-# potato's copy really does have BUSY/ERROR verdicts, that is a divergence to
-# reconcile when potato is reachable again, not something to fake here.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

@@ -3,23 +3,7 @@
 # cheap, instant, local filler line the moment a request is about to
 # escalate to Claude, so the console feels alive during the real
 # wait (`wait_for_claude_reply`'s poll loop, up to CLAUDE_MAX_WAIT
-# seconds) instead of going silent. Distinct from bin/crt-predict.py
-# (which predicts what was SAID, i.e. the STT text) -- this predicts
-# nothing about the content of the answer, just acknowledges instantly
-# in the warm/curious register (EXPRESSIVE-TONE.md) while the real one
-# is on its way.
-#
-# Only worth using on the Claude-escalation path, not a locally-answered
-# playbook -- a filler for something that already answers instantly is
-# pointless (PARKING-LOT.md's own conclusion). See crt-secretary.py's
-# CRT_SECRETARY_SPECULATE wiring for where this actually gets called.
-#
-# NOT an AI call -- pure local text, zero network/API cost, same
-# "minimize live calls" spirit as everything else in this project.
-#
-# STATUS: NOT hardware-verified. pick_filler_line() is a pure function
-# covered by tests/test_speculate.py; never watched on a real screen
-# during a real Claude round-trip.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import random
 
 # A handful of warm/curious-register lines (EXPRESSIVE-TONE.md's table),

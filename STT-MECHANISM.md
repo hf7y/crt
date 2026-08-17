@@ -91,7 +91,7 @@ reason about *why* a given transcription got garbled the way it did.
    first failure of a run and every tenth after it, plus one when it
    recovers. What the console should *do* about a dead server — fall back to
    local whisper.cpp, or just say so — is still an open decision
-   (`BATCH-NOTES.md`).
+   (`vault:crt/BATCH-NOTES.md`).
 5. **Filtering before it reaches you**: a hardcoded set of whisper's known
    noise-hallucination outputs get dropped entirely (`HALLU` in
    `crt-stt-solo.py` — things like "thank you", "music playing"), as does

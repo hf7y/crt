@@ -3,22 +3,7 @@
 # note, and say so loudly in-session.
 #
 # WHY A REMINDER AND NOT AN AUTO-FILE (decided 2026-07-28 with Zach). The
-# obvious version of this hook pipes the command straight into
-# notify-senechal. That would file a note nobody wrote: senechal's whole
-# value is a human-legible record of WHAT changed, WHERE, and WHO OWNS IT
-# -- a machine-generated "someone ran systemctl enable foo" is noise
-# wearing a note's clothes, and worse, it would mark the debt PAID while
-# leaving the actual knowledge unrecorded. So this hook makes forgetting
-# loud, and a human/agent still writes the sentence. The failure mode we
-# want is "reminded twice", not "filed wrong once".
-#
-# Fires on the ecosystem-protocol surface named in CLAUDE.md: systemd
-# units, systemctl enable/disable, crontab, autostart, ~/.local/bin,
-# ~/.claude settings hooks, and marker files under ~/.local/share.
-#
-# Deliberately NOT firing on: read-only inspection (systemctl status/
-# is-active/list-*, crontab -l). Probing the machine is how you find out
-# what's there; only changing it owes a note.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 
 payload="$(cat)"

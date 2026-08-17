@@ -3,26 +3,7 @@
 # a fix: characterize the capture so we can tell whether the "stops detecting"
 # staleness correlates with idle time, utterance boundaries, or a fixed
 # interval -- which decides whether the watchdog (A) or single-reader (B) is the
-# real fix.
-#
-# NOT hardware-verified -- written on the dev box (no VM/handset). Read-only wrt
-# the pipeline (only reads the mic + reads mixer state); safe to run anytime.
-#
-#   bin/crt-audio-doctor.sh check              # one-shot health report; exit!=0 if capture looks dead
-#   bin/crt-audio-doctor.sh monitor            # append RMS/peak sample every N s to ~/.crt/liveness.csv
-#   CRT_DOC_DEV=crtmic bin/crt-audio-doctor.sh check
-#
-# Tunables (env):
-#   CRT_DOC_DEV        capture device (default: resolved by name, see below)
-#   CRT_DOC_SECS       sample window per reading, seconds (default 3 for check, 2 for monitor)
-#   CRT_DOC_INTERVAL   monitor: seconds between samples (default 10)
-#   CRT_DOC_DEAD_PEAK  check: peak below this => "dead" exit code (default 0.004)
-#   CRT_ALSA_CARD      mixer card (default: resolved by name, see below)
-#   CRT_AUDIO_DEV_NAME name substring to match in `arecord -l` when CRT_DOC_DEV/
-#                      CRT_ALSA_CARD aren't set (default "USB Audio", same
-#                      lookup crt-stt-solo.py uses -- otherwise this defaulted
-#                      to card 0, which is potato's USB mic but mandark's own
-#                      onboard card. See crt-lib-audio-device.sh.)
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -3,44 +3,7 @@
 # twentieth nightly cycle).
 #
 # This is the fourteenth cycle's defect (tests/test_book_answer_wake_word.py)
-# through the one door that file could not close. Two programs read
-# ~/.crt/stt.log with opposite rules -- crt-stt-solo.py routes anything
-# addressed to the console to Claude, crt-book-answer-listen.py grades
-# anything inside a scanned book's answer window as a trivia answer -- and
-# "addressed to the console" stopped meaning "carries the wake word" the day
-# bin/crt-wake-arm.py landed. Inside an open arm window, follow-ups reach
-# Claude with NO wake word at all, deliberately: the live 2026-07-23 bug this
-# whole mechanism exists for was four follow-ups in one breath, every one of
-# them gate-dropped for not repeating it.
-#
-#   scan -> tube shows "Fiction or nonfiction?"
-#        -> "claude, are you there?"     wake: not graded (14th cycle), ARMS
-#        -> "what is this book about?"   follow-up: routed to Claude...
-#        -> tube: "nope, it was fiction"          ...and graded anyway
-#        -> {"expected": "fiction", "heard": "what is this book about"}
-#        -> "fiction"  (the real answer) -- NOT graded: 2776f99 closed the
-#           round on the row above
-#
-# Both bar items in .claude/FOCUS.md's stability milestone are involved: the
-# arm window is item 1 and the Book Game funnel is item 4, and turning the
-# first one on live is what makes the fourth one start writing corrupt rows
-# into the file this console exists to fill. CRT_WAKE_ARM_ENABLED is still
-# default-OFF, so nothing here changes today's live behaviour -- these tests
-# are the reason it can be turned on without taking the funnel with it.
-#
-# The arm state machine is in-process (one ArmState in the engine), so the
-# reader is told about it through a published DEADLINE, not a flag: the wake
-# utterance opens the window, which puts the file on disk before the
-# follow-up it describes is ever spoken. See crt-wake-arm.py's
-# ARM_STATE_FILE block.
-#
-# Against the parent commit every test here errors, since the mechanism they
-# describe does not exist there (no ARM_STATE_FILE to point anywhere). The
-# BEHAVIOUR they pin was reproduced separately against the parent's own
-# crt-book-answer-listen.py, with the published window in place: the
-# follow-up graded as wrong, one row reading heard='what is this book about'
-# went into the training log, and the real answer two seconds later returned
-# None -- ungraded, the round already closed.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import json
 import os

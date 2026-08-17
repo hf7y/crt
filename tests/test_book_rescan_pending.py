@@ -3,22 +3,7 @@
 #
 # The Book Game funnel is idle-bait -> scan -> question -> SPOKEN ANSWER ->
 # STT training log, and its whole premise is a shelf of books someone picks
-# up again and again. crt-book-game.py's register_book() caches on purpose:
-# a re-scan returns the existing row untouched, keeping the question, the
-# quote and the LCC computed once. But `first_scanned` was the only time the
-# books table carried, so a re-scan left no record anywhere that a scan had
-# happened -- and crt-book-answer-listen.py derives "a question is pending"
-# entirely from a timestamp.
-#
-# So the last link of the funnel worked exactly once per book. Scan a book
-# already on the shelf: crt-book-console.py renders its question on the tube
-# exactly as for a new one, the person answers aloud, and nothing grades it,
-# nothing is logged, nothing is announced.
-#
-# The second mode is worse than silence. With another book registered inside
-# CRT_BOOK_ANSWER_WINDOW_SECS, the answer to the re-scanned book was graded
-# against THAT book's question -- a training row whose "expected" belongs to
-# a different book, written into the file this console exists to fill.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import json
 import os

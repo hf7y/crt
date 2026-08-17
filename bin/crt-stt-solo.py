@@ -3,21 +3,7 @@
 #
 # WHY THIS EXISTS: on the VirtualBox guest the emulated capture does NOT fan out
 # through dsnoop -- a *second* reader gets a starved signal (measured: sole
-# reader ~12% peak, second reader ~0.7%). So the old design (stt-feed + a
-# separate crt-levels meter, both reading the 'crtmic' dsnoop) had the meter
-# quietly stealing stt-feed's audio. This engine is instead the ONE process that
-# reads the mic: it keeps a single arecord open continuously (which also keeps
-# the emulated capture warm, no per-utterance open/close) and does metering,
-# voice-activity detection, and whisper transcription all off that one stream.
-#
-# VAD is PEAK-based, not average/RMS. sox's `silence` gates on average level,
-# which at the current low input gain (~0.3% speech RMS) never crosses a usable
-# threshold. Speech *peaks*, though, hit 2-12% while the noise floor peaks ~0.5%
-# -- so a per-chunk peak gate separates them cleanly without the Windows mic
-# boost. Raise CRT_VAD_THRESHOLD once input gain is restored.
-#
-# Output: transcriptions scroll; a live "MIC [####|....] 12.3% TALK" meter is
-# redrawn on the bottom line (same widget as crt-meter.py). Ctrl-C to quit.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, urllib.error, json, re, signal, fcntl, termios
 import importlib.util
 from collections import deque
@@ -42,21 +28,7 @@ _wg_spec.loader.exec_module(wake_gate)
 #   stdout (default) -- scroll transcriptions; standalone STT/debug view.
 #   claude           -- type into the tmux Claude Code pane + voice-control keys,
 #                       exactly like stt-feed.sh, but from this SINGLE-reader
-#                       engine (no dsnoop, no second reader) -- Approach B in
-#                       AUDIO-DEBUG.md. Use via bin/crt-console-solo.sh.
-#   secretary        -- fire-and-forget to crt-secretary.py (PARKING-LOT.md's
-#                       "Local-first STT routing" plan, 2026-07-21) instead of
-#                       typing straight into Claude's pane. Control keystrokes
-#                       (yes/no/enter/etc, see CONTROL below) still go straight
-#                       to tmux -- those are meta-interactions with whatever's
-#                       on screen, not routable utterances. Non-blocking
-#                       (Popen, not run) so the capture loop never stalls on
-#                       crt-secretary.py's own Claude-escalation wait (up to
-#                       CRT_SECRETARY_MAX_WAIT seconds). Deliberately NOT the
-#                       default -- needs a live human to confirm playbooks
-#                       actually fire correctly against real (not synthetic)
-#                       transcriptions before it replaces `claude` as the
-#                       boot default in crt-console.sh.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 SINK    = os.environ.get("CRT_STT_SINK", "stdout")
 SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
 PANE    = os.environ.get("CRT_TMUX_PANE", "0")
@@ -125,16 +97,7 @@ def send_to_claude(text, key):
 # boot config this is THE destination for every utterance that gets past the
 # wake gate -- crt-console.sh runs this engine with CRT_STT_SINK=secretary --
 # and both of the child's streams went to /dev/null with its exit status read
-# nowhere. crt-secretary.py exec_module()s three other bin/ scripts at import
-# time, so any one of them failing takes it down before main() runs; the
-# console's answer to that was an "addressed" earcon and then nothing, which
-# is exactly what a gate drop looks like from the room.
-#
-# So: keep the handle, send stderr to a file, and let the capture loop read
-# the status once it is there (reap_dispatches, called every ~100ms chunk).
-# Nothing blocks -- poll(), never wait() -- because this runs inside the sole
-# mic reader and an unmatched request can hold crt-secretary.py for
-# CRT_SECRETARY_MAX_WAIT seconds.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 DISPATCH_MAX_TRACKED = int(os.environ.get("CRT_DISPATCH_MAX_TRACKED", "8"))
 DISPATCH_ERR_TAIL = 8192          # bytes of a chatty child's stderr worth keeping
 _dispatches = []
@@ -304,11 +267,7 @@ FULL   = 32768.0
 # card INDEX (plughw:0,0) silently breaks whenever a USB replug/reboot
 # renumbers cards -- hit live on potato when "KT USB Audio" moved from card 0
 # to card 1 mid-session. resolve_capture_device_by_name() parses `arecord -l`
-# for a card whose name matches CRT_AUDIO_DEV_NAME (default "USB Audio", case-
-# insensitive) and returns "plughw:<card>,<device>" for it. CRT_AUDIO_DEV
-# stays a hard override on top of this -- if set, it always wins outright and
-# name-resolution never runs (same "never remove the manual escape hatch"
-# posture as stt-fixups.json's tiered confidence).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 DEV_NAME_PATTERN = os.environ.get("CRT_AUDIO_DEV_NAME", "USB Audio")
 DEV_FALLBACK = "plughw:0,0"
 
@@ -319,16 +278,7 @@ ARECORD_CARD_RE = re.compile(
 # it used to return only the device, so the caller had to re-derive which one
 # had happened -- and did it by testing whether DEV_NAME_PATTERN appeared
 # anywhere in the raw `arecord -l` text. That is not the same question.
-# "USB Audio" is the DEVICE description of essentially every USB audio-class
-# adapter, not just of a card whose NAME matches:
-#
-#   card 1: Device [USB PnP Sound Device], device 0: USB Audio [USB Audio]
-#                   ^ the name that must match      ^ but this matched instead
-#
-# so the substring test passed while no card name had matched, and the one
-# case the warning exists for was the one case it could not see. On a box
-# with two capture cards that silently opened the wrong one. The resolver
-# knows which outcome it took; it now says so instead of being guessed at.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 BY_NAME      = "name"           # a card's bracketed name actually matched
 FIRST_LISTED = "first-listed"   # no name matched; guessed a real capture card
 NO_CARDS     = "no-cards"       # the listing named no capture cards at all
@@ -444,50 +394,26 @@ MUTED   = False
 # reply and an earcon both duck capture around the same handset playback
 # (2026-07-24 fe46ac1's known limitation), one finishing and writing
 # "mute 0" must not unmute while the other duck is still active. Each
-# "mute 1"/"mute 0" line increments/decrements this counter instead of
-# setting an absolute state; MUTED is true iff the count is still > 0.
-# Also makes crt-midi-knobs.py's manual mute toggle compose correctly with
-# an in-flight duck instead of racing it.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 MUTE_COUNT = 0
 # Safety net on that reference count (2026-07-25). Ref-counting made
 # overlapping ducks compose, but it also removed the old flag's accidental
 # self-healing: with last-write-wins, ANY later "mute 0" restored capture,
 # so a duck whose producer died mid-playback (aplay SIGKILLed, crt-tts.py
-# killed before its finally:, crt-earcon.sh's EXIT trap skipped on an
-# untrapped fatal signal) got cleaned up by the next sound that played.
-# With a counter, that leaked increment never comes back down and the
-# console goes permanently deaf -- exactly this project's worst failure
-# class (silent, no error, looks like the mic died). So: a mute is held for
-# at most CRT_CTL_MUTE_MAX_SECS of wall clock, then force-cleared LOUDLY.
-# Longer than any real handset duck (a tone is <1s, a spoken reply a few
-# seconds); 0 disables the watchdog. Clearing early only risks VAD hearing
-# our own playback -- which this adapter can barely record anyway (0.1x,
-# the measurement that motivated the duck) -- so the safe direction is
-# unmuting, not staying muted.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 MUTE_MAX_SECS = float(os.environ.get("CRT_CTL_MUTE_MAX_SECS", "45"))
 MUTE_SINCE = 0.0
 # How long an ALREADY-OPEN utterance may stay frozen by a duck that arrived
 # mid-utterance before we give up and close it out (2026-07-25). See
 # utt_chunk() for what "frozen" means and why the duck is not simply ignored
 # once speech has started. 0 = never close on a duck alone (freeze until it
-# lifts, with MUTE_MAX_SECS above as the only backstop).
-#
-# 2.0s default: the reachable mid-utterance duck today is one short earcon
-# (~0.3s), so this never fires in normal use; it exists for the long case --
-# a multi-sentence spoken reply, where each sentence ducks separately and the
-# speaker can start talking in a gap between them. Once playback has covered
-# two seconds of an open utterance, whatever was being said is over as far as
-# this buffer is concerned, and holding it open only delays the transcription
-# of the speech we DID capture.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 MUTE_UTT_MAX_SECS = float(os.environ.get("CRT_MUTE_UTT_MAX_SECS", "2.0"))
 # Control lines that are MOMENTARY (an edge/command owned by a live
 # producer) rather than a LEVEL that should persist. The CTL file is an
 # append-only log and main() replays it from byte 0 on startup, which is
 # deliberate for levels -- a threshold tuned by knob survives a restart.
-# Replaying momentary commands is nonsense and was actively harmful: one
-# leaked "mute 1" left in the history muted capture on EVERY subsequent
-# start (and stayed leaked, since the file is never truncated), and a
-# stale "ring 4" re-rang the phone at every boot.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 MOMENTARY_CTL = ("mute", "ring")
 # "Ring" the phone: play a bursty tone N times; if the handset is picked up
 # (voice detected) it stops immediately; if all rings finish unanswered, a
@@ -632,10 +558,7 @@ def ring_unplayable_report(detail):
 # instead of invoking whisper.cpp on this one. Same VAD/capture/denoise
 # pipeline either way -- only the inference step moves. Live shape as of
 # 2026-07-25: potato POSTs to bin/mandark-whisper-server.py on mandark, wired
-# in crt-console.sh's stt window. (This comment named dexter's Ryzen host and
-# bin/dexter-whisper-server.py, neither of which survived the crt-vm->potato
-# move -- same stale-topology class as the STT-MECHANISM.md fix in 81d78db.)
-# Empty = local whisper.cpp (default, unchanged behavior).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 WHISPER_SERVER = os.environ.get("CRT_WHISPER_SERVER", "")   # e.g. http://192.168.0.22:8991/transcribe
 WHISPER_SERVER_TIMEOUT = float(os.environ.get("CRT_WHISPER_SERVER_TIMEOUT", "8"))
 
@@ -662,13 +585,7 @@ def set_hud(msg, secs=None):
 # instant an utterance ends, flash a cheap local guess (bin/crt-predict.py,
 # trained on this room's own ~/.crt/stt.log history) BEFORE whisper -- which
 # genuinely takes real wall-clock time -- has run at all. emit() unconditionally
-# overwrites hud_msg/hud_until with the real transcription once transcribe()
-# returns, so the guess is always superseded, never mistaken for the real
-# thing (marked with a "~" prefix regardless). This is PARKING-LOT.md's
-# predictive-typing-then-overwrite aesthetic applied to the STT step itself.
-# Off by default until someone can watch it run live and judge whether a
-# wrong guess flashing for ~1s reads as charming or confusing (see
-# PHILOSOPHY.md #6 on where the imperfection-as-character line is).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 PREDICT_FLASH = os.environ.get("CRT_PREDICT_FLASH", "0") != "0"
 PREDICT_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt-predict.py")
 PREDICT_TIMEOUT = float(os.environ.get("CRT_PREDICT_TIMEOUT", "0.3"))
@@ -691,10 +608,7 @@ def predictive_flash():
 # SIDEBAND.md). While CRT_SIDEBAND=1, this is the sole writer of
 # "listening" (mic actively capturing, the default while running) and
 # "thinking" (a real transcribe() call is in flight -- the same latency
-# window predictive_flash() above addresses visually, now also audible).
-# Never writes "idle"/"speaking" -- those belong to crt-idle-teaser.sh's
-# screensaver gate and whatever's actually playing TTS, respectively, not
-# to the mic-capture loop.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 SIDEBAND = os.environ.get("CRT_SIDEBAND", "0") != "0"
 SIDEBAND_SET_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt-sideband-set.sh")
 SIDEBAND_TIMEOUT = float(os.environ.get("CRT_SIDEBAND_SET_TIMEOUT", "0.5"))
@@ -728,23 +642,14 @@ HALLU = set("you thankyou thanks thankyouforwatching bye music musicplaying "
 # this, every utterance that clears VAD becomes a live Claude Code turn --
 # including room chatter never addressed to the console. Opt-in, default
 # off -- not hardware-verified against real room noise yet (see
-# nightly-batch.md's acceptance-bar note); the raw always-escalate path
-# below is unchanged when this is off. Only gates the free-text ->
-# Claude-turn path, not single-word CONTROL keystrokes (see emit()) --
-# those answer a prompt already on screen mid-interaction and shouldn't
-# need the wake word repeated.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 GATE       = os.environ.get("CRT_STT_GATE", "0") != "0"
 WAKE_WORD  = os.environ.get("CRT_WAKE_WORD", "claude").lower()
 # 2026-07-28, live, Zach-directed ("clean up claude output to mono ...
 # junk on screen"): this defaulted to the SAME file as THOUGHT_LOG below
 # -- window 1 (mono, crt-monologue.py) renders thoughts.log directly, so
 # every ambient utterance in the room that never reached Claude (gated,
-# no wake word) was landing on the one screen meant to show the
-# conversation, indistinguishable from an actual reply. Genuinely
-# separate file now; nothing else reads CRT_STT_GATE_LOG expecting it to
-# equal thoughts.log except test isolation setup pointing BOTH env vars
-# at one scratch path for convenience (those still work -- they set the
-# var explicitly, this only changes what happens when nobody does).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 GATE_LOG   = os.environ.get("CRT_STT_GATE_LOG", os.path.expanduser("~/.crt/gate.log"))
 # Resolved through bin/crt_config.py rather than read here, so this gate
 # and the two scripts that WRITE stt-fixups.json can no longer be pointed
@@ -756,10 +661,7 @@ FIXUPS_PATH = crt_config.fixups_path()
 # own header for the full story -- this is the "sticky conversation
 # window" fix, wired to crt-wake-judge.py's dormant autonomous tuning
 # judge). Opt-in, default OFF: with CRT_WAKE_ARM_ENABLED unset, every
-# line below that references ARM_STATE/wake_arm is dead code and the
-# gate behaves EXACTLY as it did before this change -- do not flip the
-# default on without a live session confirming the arm window feels
-# right (see crt-wake-arm.py's own STATUS note).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 WAKE_ARM_ENABLED = os.environ.get("CRT_WAKE_ARM_ENABLED", "0") == "1"
 if WAKE_ARM_ENABLED:
     import importlib.util as _importlib_util
@@ -1031,29 +933,14 @@ def read_exact(f, n):
 #
 # transcribe() runs INSIDE this capture loop: for however long whisper takes,
 # nobody is reading arecord's stdout. The only thing holding the audio that
-# arrives meanwhile is the kernel pipe, which defaults to 65536 bytes -- at
-# 16kHz S16 mono that is 2.05 seconds. Past that arecord's own write blocks,
-# its ALSA ring overruns, and the audio is gone. Its "overrun!!!" complaints
-# go to a temp file this process only ever reads if capture DIES, so the loss
-# has been completely invisible.
-#
-# That window is exactly where a follow-up utterance lands -- the person
-# finishes a sentence, the console goes away to transcribe it, and the next
-# thing they say falls in the hole. Widening the pipe covers a normal
-# transcription; drain_capture_backlog() below bounds what widening it costs.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 CAPTURE_PIPE_BYTES = int(os.environ.get("CRT_CAPTURE_PIPE_BYTES", str(256 * 1024)))
 
 # A bigger pipe trades dropped audio for STALE audio: whatever queued up gets
 # transcribed and answered later, at its own pace, while the room has moved
 # on. So after each transcription anything older than this is discarded --
 # and said out loud, because silently dropping audio is the failure mode this
-# whole section is about. 0 disables the drain entirely (pure buffering).
-#
-# The default is not a by-ear number: it has to be comfortably longer than a
-# healthy transcription's stall (measured 1-3s against mandark, 2026-07-23
-# 07:45) so a working console never drops anything, and short enough that the
-# console never answers a question the room asked a whole conversational turn
-# ago. 3s is the smallest value that satisfies the first constraint.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 BACKLOG_MAX_SECS = float(os.environ.get("CRT_CAPTURE_BACKLOG_MAX_SECS", "3.0"))
 
 PIPE_MAX_SIZE_PATH = "/proc/sys/fs/pipe-max-size"
@@ -1469,22 +1356,7 @@ def emit(text, peak=1.0, heard_at=None):
         # bin/crt-wake-arm.py) -- MUST run before the normal gate below,
         # since its entire point is letting a follow-up through WITHOUT
         # repeating the wake word. When disarmed/expired/disabled this is
-        # a no-op and every line below is completely unaffected -- the
-        # existing gate logic is untouched otherwise.
-        #
-        # The consume path is handed this utterance's OWN wake
-        # classification, because the re-wake case can only be resolved
-        # here: an utterance arriving while armed returns below and never
-        # reaches the arm() call at the bottom of this function, so before
-        # 2026-07-25 a deliberate re-wake mid-conversation slid inside the
-        # OLD session's ARM_MAX_SECS ceiling instead of starting a fresh
-        # one. arm()'s documented "always starts a FRESH session" was
-        # unreachable from the only state where it meant anything.
-        #
-        # Classified at most once per utterance either way (it costs an
-        # os.stat of stt-fixups.json, same as the gate below): only when
-        # already armed here, and reused rather than recomputed at the arm
-        # call below.
+        #   [rest: vault:crt/header-archaeology-20260817.md]
         arm_match = None
         if WAKE_ARM_ENABLED and not is_control and ARM_STATE.armed:
             arm_match = classify_wake_match(text)
@@ -1542,10 +1414,7 @@ def emit(text, peak=1.0, heard_at=None):
         # replies (crt-claude-bridge.py tailing its transcript) -- flagged
         # repeatedly in HANDOFF.md/crt-console.sh as the missing other half
         # of the conversation. Free-text utterances that actually got past
-        # the gate (not bare control keystrokes -- those're just yes/no/up/
-        # down, not worth the clutter) get a tagged line into the same
-        # thoughts.log crt-monologue.py already renders, so the person's
-        # own speech and Claude's reply show up interleaved.
+        #   [rest: vault:crt/header-archaeology-20260817.md]
         if not is_control:
             log_user_thought(text)
         # Control keystrokes are meta-interactions with whatever's already
@@ -1849,14 +1718,7 @@ def main():
                 # The deque's whole job is to prepend the moments before onset,
                 # since the attack of a first word sits under the threshold --
                 # so anything in it is handed to whisper as the opening of the
-                # next utterance. The start gate below refuses to BEGIN an
-                # utterance while muted and utt_chunk() excises a duck that
-                # arrives mid-utterance, but neither helps if our own handset
-                # playback is already sitting in the deque when the speaker
-                # starts. Skipping the append splices the pre-roll across the
-                # duck, exactly as utt_chunk() splices the utterance body:
-                # what leads the utterance is then the room tone from just
-                # before playback started, not the tail of the playback.
+                #   [rest: vault:crt/header-archaeology-20260817.md]
                 if not MUTED:
                     pre.append(data)
                 if not MUTED and peak >= THRESH:
@@ -1932,12 +1794,7 @@ def main():
         # ambiguous about whether it stopped on purpose. Cheap, and it is the
         # human-readable half of "the device was actually released".
         #
-        # Guarded, because the single most likely reason we are here is
-        # `tmux kill-window` -- which delivers SIGHUP precisely BECAUSE the
-        # pty went away, so this write can fail with EIO/EPIPE. Unguarded it
-        # would raise at the very end of a clean shutdown and exit 1, turning
-        # the deliberate stop back into something a supervisor reads as a
-        # crash -- the exact thing this message exists to prevent.
+        #   [rest: vault:crt/header-archaeology-20260817.md]
         try:
             print("\n[crt-stt] stopped; released %s" % DEV)
         except OSError:

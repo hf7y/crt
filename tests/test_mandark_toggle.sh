@@ -53,11 +53,7 @@ fi
 # Before this, probe_bridge() always read $PORT while current_port() read
 # the conf, so status could report "config: ON (port 9001)" and then answer
 # about 8993. Asserted by standing a real listener on one port only: the
-# status line must name the port it actually probed, and reachability must
-# follow the configured port, not the default.
-# Behavioural, not just a message check: a real listener stands on 19001
-# and NOTHING listens on the default 8993, so "reachable: yes" is only
-# possible if status probed the port it was configured with.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 python3 -c '
 import socketserver, sys
 class H(socketserver.StreamRequestHandler):

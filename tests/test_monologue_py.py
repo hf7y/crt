@@ -1,15 +1,9 @@
 #!/usr/bin/env python3
 # Offline test suite for bin/crt-monologue.py's pure render() logic --
 # the "mono" window's actually-live script (crt-monologue.sh is a dead
-# wrapper, see REFACTOR-ASSESSMENT.md), never had a direct test before
+# wrapper, see vault:crt/REFACTOR-ASSESSMENT.md), never had a direct test before
 # (coverage gap tracked in FOCUS.md's batch backlog item 5c).
-#
-# main()'s tail-a-real-file loop isn't unit-testable without a live
-# terminal/log, so this only exercises render(): fresh-vs-stale styling,
-# width wrapping, and view height padding/truncation -- the parts that
-# would silently misrender on the real tube with no test to catch it.
-#
-# Run: python3 tests/test_monologue_py.py
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import contextlib
 import importlib.util
 import io

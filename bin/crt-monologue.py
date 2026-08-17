@@ -3,34 +3,7 @@
 # plain `tail -f | fold` version: a scrolling tail can't fade/re-style
 # already-printed lines, so this redraws the whole visible buffer instead.
 #
-# Look: fresh lines show with NO timestamp (bare text, feels like a live
-# stream of thought). Once a line goes stale (STALE_SECS old), it gains a
-# hex timestamp prefix and dims -- the timestamp is a "this is old" signal,
-# not a routine label. Lines older than DROP_SECS are dropped entirely
-# (ephemeral, not a permanent transcript -- that's what thoughts.log/stt.log
-# on disk are for).
-#
-# STATUS: written 2026-07-19, not yet hardware-verified for how dim/bold
-# ANSI actually reads on the real CRT phosphor -- tune DIM_CODE if it's
-# unreadable.
-#
-# SIZE IS PER-FRAME, NOT PER-PROCESS (2026-07-25). Both dimensions used to be
-# fixed at import: width hardcoded to 40, height from one get_terminal_size()
-# call. crt-console.sh creates this window with `tmux new-window -d` and only
-# runs `exec tmux attach` at the very end, after every window exists -- so this
-# process starts inside a DETACHED session, which tmux sizes 80x24 regardless
-# of the tube. (crt-console.sh knows: it pins CRT_COLS/CRT_ROWS for
-# crt-screensaver.py with a comment saying exactly that, and gives this window
-# no such pin.) A height of 24 in a 15-row pane means the redraw is 9 lines
-# taller than the pane, so `\x1b[H\x1b[2J` homes to a top that immediately
-# scrolls away -- the failure this file's own comment already described
-# ("bit us once: pane was 11 rows, default height was 12").
-#
-# So: re-read the size every frame, the same fix crt-screensaver.py got, and
-# honor the same CRT_COLS/CRT_ROWS pins crt-console.sh already exports. Width
-# also consumes the overscan safe margin from ~/.crt/display.conf, which
-# crt-pager.py and crt-monologue.sh both honor and this -- the one actually on
-# window 1 -- did not.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import os, sys, time, textwrap, shutil, importlib.util
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -147,11 +120,7 @@ def main():
                 # writer appending to thoughts.log, so it can land inside a
                 # multi-byte character (a book title's accent, an em-dash
                 # in a quote) that a writer's buffer split across two
-                # flushes. Strict decoding raises UnicodeDecodeError, which
-                # is a ValueError -- NOT caught by the `except OSError`
-                # below -- and this is window 1: the one screen every
-                # honest-failure line this project has added reports to.
-                # One torn byte must not be what takes it down.
+                #   [rest: vault:crt/header-archaeology-20260817.md]
                 with open(LOG, encoding="utf-8", errors="replace") as f:
                     f.seek(pos)
                     chunk = f.read()

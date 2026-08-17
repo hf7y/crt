@@ -3,18 +3,7 @@
 #
 # play_earcon() is fire-and-forget by design -- it runs inside the sole mic
 # reader's capture loop (crt-stt-solo.py) and in front of a wait the person is
-# already sitting through (crt-secretary.py), so nothing may wait on its exit
-# status. But both call sites also sent its stderr to /dev/null, and
-# crt-earcon.sh is silent on success: it writes to stderr only to say sox is
-# missing, the name is unknown, or (via `set -e`) that aplay failed. So the
-# combination discarded the only evidence that existed, for free.
-#
-# EARCON_ON_ADDRESSED defaults on, which makes the earcon the console's only
-# "I heard you". The secretary's "oops" is worse: an inaudible apology for an
-# inaudible answer.
-#
-# Verified across a real process boundary -- the child's stderr has to reach
-# the PARENT's, which cannot be asserted from inside one process.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import os
 import shutil
 import stat

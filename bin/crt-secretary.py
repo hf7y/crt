@@ -3,27 +3,7 @@
 # playbook model, first real implementation. Sits between stt-feed.sh and
 # the claude tmux pane: runs an ordered list of PLAYBOOKS, each a plain
 # (match, handle) pair -- the first one whose match() fires handles the
-# request entirely locally (no Claude Code call at all). Only a request
-# nothing matches falls through to the existing Claude-routing path
-# (tmux send-keys + capture-pane), which then decides printer vs. CRT vs.
-# TTS for the reply instead of leaving it to sit in tmux scrollback.
-#
-# STATUS: NOT hardware-verified. Playbooks are covered by
-# tests/test_secretary.py against synthetic files (status) and a real
-# invocation of this repo's own tests/run_tests.sh (run_tests). The
-# Claude-routing path (send via tmux send-keys, then poll capture-pane for
-# "the reply has stopped changing") is the riskiest part of this whole
-# design -- it's a real heuristic (idle-detect by diffing repeated
-# captures) with no live Claude Code CLI to test it against. Treat
-# CLAUDE_IDLE_SECS/CLAUDE_MAX_WAIT as first-draft guesses, and expect the
-# pane-diff to need real tuning once someone can watch it run against the
-# actual CLI's prompt chrome/spinner output.
-#
-# Usage:
-#   crt-secretary.py "text"          # one utterance, decide + act
-# Env (matches conventions used elsewhere in bin/):
-#   CRT_TMUX_SESSION (default claude), CRT_TMUX_PANE (default 0)
-#   CRT_REPORTS_DIR (default ~/reports/crt), CRT_REPO_DIR (default ~/crt)
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import datetime
 import importlib.util
 import os
@@ -93,10 +73,7 @@ IDLE_FACE_PANE_REPORT = crt_config.idle_face_pane_report(PANE)
 # cut -- see FOCUS.md's "move Claude off potato" note for the API-based
 # version planned for later, and bin/crt-remote-claude-bridge.py's own
 # header for the full design/threat-model reasoning). Empty by default:
-# local tmux, byte-identical to before this change. Set
-# CRT_CLAUDE_REMOTE_PORT to instead talk to a bridge server tunneled in
-# on that LOCAL port (127.0.0.1 only -- potato never connects to mandark
-# directly, mandark's own outbound ssh reverse-tunnels the port in).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 CLAUDE_REMOTE_PORT = int(os.environ.get("CRT_CLAUDE_REMOTE_PORT", "0")) or None
 SSH_CONNECT_TIMEOUT = os.environ.get("CRT_CLAUDE_REMOTE_SSH_TIMEOUT", "5")
 
@@ -104,16 +81,7 @@ SSH_CONNECT_TIMEOUT = os.environ.get("CRT_CLAUDE_REMOTE_SSH_TIMEOUT", "5")
 # Set CRT_CLAUDE_SSH_HOST to an ssh alias (dexter) whose authorized_keys
 # pins bin/crt-brain-shell.py as a forced command. Same two-verb protocol as
 # the bridge -- only the transport differs, so everything downstream of
-# capture_pane()/send_to_claude() is untouched.
-#
-# Why this replaced the tunnel: the reverse-tunnel shape existed because
-# mandark was an intermittent laptop with no inbound path. dexter is always
-# on and already runs sshd, so the tunnel bought nothing and cost a moving
-# part that could drop silently. See DEXTER-MOVE.md section 2.
-#
-# Precedence is deliberate and checked in exactly one place (brain_mode()):
-# ssh wins over port. Both set at once is a misconfiguration, not a
-# fallback chain -- two brains would answer the same utterance.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 CLAUDE_SSH_HOST = os.environ.get("CRT_CLAUDE_SSH_HOST", "").strip() or None
 REPORTS_DIR = os.path.expanduser(os.environ.get("CRT_REPORTS_DIR", "~/reports/crt"))
 REPO_DIR = os.path.expanduser(os.environ.get("CRT_REPO_DIR", "~/crt"))
@@ -150,16 +118,7 @@ CAPTURE_MISS_TOLERANCE = int(os.environ.get("CRT_SECRETARY_CAPTURE_MISSES", "3")
 # send_to_claude()/capture_pane() above type into and read from window
 # 0's pane directly, regardless of which tmux window is actually
 # DISPLAYED -- so with `book` as the boot-default window (crt-console.sh),
-# a Claude exchange happened entirely invisibly to anyone just looking at
-# the tube. `mono` (crt-monologue.sh, the pretty-print dialogue view) is
-# the one window that actually shows Claude's replies -- switch there
-# the moment a request escalates, and back to `book` once things go quiet
-# (bin/crt-window-switcher.py, a separate background poller -- watching
-# tmux's active window from inside crt-secretary.py itself doesn't work,
-# since each utterance is a fresh short-lived process, gone long before
-# an idle timeout could ever fire from within it) or on an explicit
-# "book game"/"back to the game" voice command (the return_to_book_game
-# playbook below).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 BOOK_WINDOW = os.environ.get("CRT_BOOK_WINDOW_NAME", "book")
 CLAUDE_VIEW_WINDOW = os.environ.get("CRT_CLAUDE_VIEW_WINDOW_NAME", "mono")
 CLAUDE_ACTIVE_STATE = os.path.expanduser(
@@ -338,12 +297,7 @@ def handle_run_tests(text):
 # The overscan calibration game's single-shot entry point (DISPLAY-
 # CALIBRATION.md) -- SUPERVISOR.md named this as the natural next
 # playbook. Deliberately only runs `show`, not the interactive `run` loop:
-# `run` blocks on real voice-driven back-and-forth (its own `input()`
-# loop), which doesn't fit handle()'s one-shot request/response shape --
-# launching it here would just hang this call until a multi-round
-# conversation finished. `show` renders the CURRENT saved margin's test
-# pattern once; a human decides from there whether to actually run the
-# full game by hand.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 CALIBRATE_TRIGGERS = ("calibrate the display", "calibrate the screen", "run the calibration")
 
 
@@ -548,23 +502,7 @@ def find_playbook(text):
 # 2026-07-23 (first cut -- an API-based version, for delegating to any
 # VM rather than one specific tunnel, is the planned next step, see
 # FOCUS.md). Deliberately NOT ssh-from-potato-to-mandark: mandark has no
-# SSH server at all, and potato having any network path INTO mandark is
-# a real vulnerability Zach flagged directly -- installing/exposing
-# sshd on a personal dev laptop just so potato can reach in was
-# rejected in favor of this instead. mandark's own crt-remote-claude-
-# bridge.py binds 127.0.0.1-only (see that file) and mandark's own
-# outbound ssh (already trusted, already working) reverse-tunnels that
-# port to potato (`ssh -R <port>:localhost:<port> potato -N`) -- potato
-# only ever talks to ITS OWN localhost, never to mandark directly, and
-# mandark never accepts an unsolicited inbound connection. The bridge
-# server's own protocol (two commands only: CAPTURE, SEND) is a much
-# smaller surface than generic shell/SSH access would be, too.
-#
-# capture_pane()/send_to_claude() are the ONLY two functions that know
-# whether Claude Code runs locally or remotely -- everything else in
-# this file (playbooks, wait_for_claude_reply, earcon/composing-line
-# hooks) stays completely agnostic. With CLAUDE_REMOTE_PORT unset (the
-# default), these are byte-identical to the old local-only versions.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import socket as _socket
 
 
@@ -656,10 +594,7 @@ def capture_pane():
         # that is the danger. Its frames CHANGE on their own (the potato
         # breathes, and since 4f7c17e its caption moves every 8s), so
         # wait_for_claude_reply() would watch it "grow" and hand back the
-        # caption as Claude's answer, which route_claude_reply() then speaks
-        # into the earpiece. None is the honest reading: there is no brain
-        # here to have a pane. send_to_claude() refuses first, so in practice
-        # nothing gets this far -- this is the belt to that brace.
+        #   [rest: vault:crt/header-archaeology-20260817.md]
         return None
     r = sh(["tmux", "capture-pane", "-t", "%s:%s" % (SESSION, PANE), "-p", "-S", "-200"])
     return r.stdout if r.returncode == 0 else None
@@ -709,10 +644,7 @@ def send_to_claude(text):
         # plain `crt-mandark.sh off` (its own help: "keep the brain
         # local/onsite (or none)"). tmux would ACCEPT these keys -- the pane
         # is real, it just holds the potato -- so the delivery check below
-        # cannot catch this; the utterance would be typed onto the console's
-        # own face and answered by a screensaver. This is the third way an
-        # utterance never leaves the building, and it gets the same honest
-        # line as a dropped tunnel because it is the same fact.
+        #   [rest: vault:crt/header-archaeology-20260817.md]
         log_brain_unreachable(text, IDLE_FACE_PANE_REPORT)
         return False
     r = sh(["tmux", "send-keys", "-t", "%s:%s" % (SESSION, PANE), "-l", text])
@@ -875,20 +807,7 @@ def wait_for_claude_reply(before_snapshot, on_partial=None):
 #
 # With the brain LOCAL, yes: bin/crt-claude-bridge.py tails Claude Code's own
 # session transcript under ~/.claude/projects/ and forwards its marked lines
-# to thoughts.log, which is what window 1 renders. Mirroring here too would
-# double every reply -- and every reply at all, once that bridge's
-# no-marked-line fallback kicks in.
-#
-# With the brain on mandark (CRT_CLAUDE_REMOTE_PORT, potato's live config
-# since 2026-07-23) that transcript is on mandark. potato's bridge window
-# tails a directory the remote Claude never writes to, so it forwards
-# nothing, and NOTHING else on the success path writes the answer down:
-# handle() switches the tube to `mono` to show the exchange, log_user_thought
-# puts "[you] ..." there, the earpiece says the answer, and the screen the
-# console just switched to stays exactly as it was. That is the same blank
-# window _report_bad_news() was written to avoid on the failure path -- the
-# migration moved the brain and left this half behind, the same way it left
-# the scan path behind (0fc83a6) and the CTL file behind (fe46ac1).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 MIRROR_REPLY_TO_TUBE = CLAUDE_REMOTE_PORT is not None
 
 

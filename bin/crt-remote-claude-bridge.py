@@ -3,28 +3,7 @@
 #
 # THREAT MODEL / WHY THIS SHAPE, NOT A GENERIC SSH SERVER: mandark
 # (a personal dev laptop) has never run an SSH server -- it has only
-# ever been the SSH CLIENT reaching out to potato. Giving potato a
-# network path INTO mandark (installing sshd, opening a port) was
-# flagged directly by Zach as a real vulnerability, not something to do
-# casually just to wire this up. This server instead:
-#   - binds 127.0.0.1 ONLY -- never reachable from the LAN at all, only
-#     from whatever mandark itself tunnels out.
-#   - speaks a tiny, deliberately narrow protocol (two commands: CAPTURE
-#     returns the pane; SEND <text> types text + Enter into ONE named
-#     tmux session) -- not a shell, not SSH, nothing else is possible
-#     over this socket even if something upstream of it were somehow
-#     compromised.
-#   - never itself opens a connection TO potato -- potato reaches this
-#     server only via a reverse tunnel mandark's own OUTBOUND ssh
-#     establishes (`ssh -R <port>:localhost:<port> potato -N`), the same
-#     direction (mandark -> potato) that's already trusted and working.
-#     Potato ends up talking to ITS OWN localhost:<port>, never to
-#     mandark directly -- there is no new inbound path to mandark at
-#     all, in either the network-topology sense or the SSH-trust sense.
-#
-# Usage: crt-remote-claude-bridge.py [--port N] [--session NAME]
-# Env: CRT_REMOTE_BRIDGE_PORT (default 8993), CRT_REMOTE_BRIDGE_SESSION
-#      (default "potato-claude")
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import argparse
 import os
 import socketserver
