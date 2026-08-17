@@ -1,0 +1,13 @@
+# prose.yml -- the estate's prose guard. The whole integration.
+#
+# The guard itself lives in hf7y/etalon and is maintained ONLY there, so this
+# file never needs to change when the guard does. .prose-ratchet is this
+# repo's own floor and only ever falls.
+name: prose
+
+on:
+  pull_request:
+
+jobs:
+  prose:
+    uses: hf7y/etalon/.github/workflows/guard.yml@main
