@@ -217,9 +217,8 @@ python3 "$DIR/test_stt_confidence.py" || fail=1
 echo
 
 # 2026-07-25 (sixth cycle): the reply channel this tier gets its only human
-# feedback through. Includes the enforcement pass over .reports-fallback/, so
-# a cycle that nests an earlier report inside the current one fails here
-# instead of silently costing the next cycle's feedback.
+# feedback through. A cycle that nests an earlier report inside the current one
+# fails here instead of silently costing the next cycle's feedback.
 echo "== crt-report-lint.py (a report an inline reply can anchor to) =="
 python3 "$DIR/test_report_lint.py" || fail=1
 echo

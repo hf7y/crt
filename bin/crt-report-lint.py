@@ -20,10 +20,11 @@
 # question. That is a report-format defect, not a misreading.
 #
 # So: one heading text per report file. Earlier cycles get their own file
-# and a link. This is the mechanical check for that, wired into
-# tests/run_tests.sh over .reports-fallback/ -- the reports themselves live
-# in ~/reports/crt/ outside the repo, but the fallback copies are committed,
-# and a report that lints clean there was written clean.
+# and a link. This is the mechanical check for that, pinned by
+# tests/test_report_lint.py. Reports live in ~/reports/crt/, outside the repo;
+# run it over them. Committed fallback copies used to be re-linted on every
+# run as a proxy and were deleted 2026-08-17 -- a three-week-old archive is
+# not evidence about the report written tonight.
 #
 # Usage:
 #   crt-report-lint.py FILE [FILE...]

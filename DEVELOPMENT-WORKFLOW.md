@@ -25,9 +25,9 @@ one place. Read the linked doc for depth on any one piece.
    pointing at a bug already fixed two cycles earlier, because the text it
    quoted was still in the file. **One cycle per file.** Earlier cycles go
    to `~/reports/crt/<date>-cycle-N.md` and get linked, not nested.
-   `bin/crt-report-lint.py` is the mechanical check (run over
-   `.reports-fallback/` by `tests/run_tests.sh`), not a note asking the next
-   instance to remember.
+   `bin/crt-report-lint.py` is the mechanical check, pinned by
+   `tests/test_report_lint.py` -- not a note asking the next instance to
+   remember.
 2. **VM-resident hardware check** (new, `VM-JOBS.md`) — a systemd timer
    running `claude -p` directly on crt-vm, real mic/display/printer
    access, narrow scope: verify what can be mechanically verified, report
