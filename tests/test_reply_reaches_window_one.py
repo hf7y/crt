@@ -3,18 +3,7 @@
 # tube as well as the earpiece (2026-07-25, nineteenth nightly cycle).
 #
 # handle() switches the tube to `mono` the moment a request escalates,
-# because that is the one window that shows a Claude exchange. What fills it
-# is ~/.crt/thoughts.log: log_user_thought() writes the person's own words
-# there, and bin/crt-claude-bridge.py writes Claude's -- by tailing Claude
-# Code's LOCAL session transcript under ~/.claude/projects/.
-#
-# Since 2026-07-23 the brain runs on mandark (CRT_CLAUDE_REMOTE_PORT), so
-# that transcript is on mandark; potato's bridge window tails a directory
-# nothing writes to. The reply was spoken and never written down, on a screen
-# the console had just switched to on purpose.
-#
-# The other half of the test matters just as much: with a LOCAL brain the
-# bridge IS doing this job, and mirroring here too would double every line.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import unittest

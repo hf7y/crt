@@ -3,49 +3,7 @@
 # fourteenth nightly cycle).
 #
 # BOOK-GAME.md is explicit about why the Book Game logs two axes: "a wrong
-# content-answer with correct STT is a fine game round and useless training
-# noise; a right content-answer with wrong STT is the valuable case." The
-# code could not tell those apart. grade_answer() computed
-#
-#   correct_stt     = normalize(expected)      == normalize(heard)
-#   correct_content = normalize(correct_option) == normalize(heard)
-#
-# and BOTH live callers pass the same string twice --
-# crt-book-answer-listen.py:233 and crt-book-game.py's own --answer CLI both
-# say expected=q["correct"], correct_option=q["correct"]. So the two flags
-# were identical in every row this console has ever been able to write.
-#
-# What it cost, in the most ordinary event a two-option game has:
-#
-#   "Is Dune fiction or nonfiction?"  ->  someone says "nonfiction"
-#     -> heard perfectly by whisper, and simply wrong
-#     -> correct_stt: false
-#     -> counted against "STT accuracy" on the tube and in the printed report
-#     -> listed under "STT mismatches ... the actual training data"
-#     -> generate_candidate_fixups() at 2 occurrences emits
-#        {"nonfiction": {"intent": "fiction"}}
-#     -> crt-stt-training-merge.py auto-merges it into the live
-#        bin/stt-fixups.json, confidence "auto"
-#
-# The console teaching itself that a word it heard correctly is a mishear.
-# And the same corrupted number drives pick_response_tier(), so honest wrong
-# answers held the game in short-response mode.
-#
-# The always-available fallback question was worse: "Have you read this
-# before?" has correct=None, so normalize(expected) was "" and EVERY answer
-# anyone could give it -- "yes", "no", anything -- logged correct_stt false.
-#
-# The fix asks the question this side can actually answer: did the
-# transcription land on one of the options the person was offered?
-#
-# All 12 tests fail against the parent commit, but nine of them fail as
-# TypeErrors on grade_answer's new `options=` argument, which is a weak
-# witness -- an API change, not a behaviour change. The two that pin the
-# actual defect go through the live path with no new argument anywhere, and
-# fail there as plain assertion failures:
-# TestTheLiveCallerPassesTheOptions's two tests, where a person speaks a
-# wrong answer, whisper hears it perfectly, and the parent files it as a
-# mishear and then hands it to the fixups merger.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import json
 import os

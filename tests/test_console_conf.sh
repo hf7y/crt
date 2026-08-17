@@ -3,16 +3,7 @@
 #
 # The bug, live 2026-07-29: the console's identity (CRT_WAKE_WORD,
 # CRT_EARCON_DEVICE, ...) lived only as exports in ~/.bash_profile.
-# Restarting the `stt` tmux window over ssh -- a non-login shell -- gave
-# crt-stt-solo.py NONE of them, so it fell back to its library defaults:
-# earcons into the handset instead of the room, wake word "claude"
-# instead of "potato". Everything downstream reported healthy. The mic
-# worked, the meter moved, the log filled. It was just deaf to its own
-# name and beeping somewhere nobody was listening.
-#
-# So the contract under test is specifically: capture restarted WITHOUT a
-# login shell, and with an environment stripped of every CRT_* var, still
-# comes up with the configured identity.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN="$DIR/../bin"

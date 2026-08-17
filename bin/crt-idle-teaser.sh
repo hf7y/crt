@@ -3,20 +3,7 @@
 # nightly batch) and an optional open-questions file (CRT_QUESTIONS_FILE,
 # unset by default -- see below) for new entries, and turns each
 # new one into exactly one first-person teaser line on screen (via
-# crt-think.sh -> crt-monologue.sh) plus, for genuine judgment calls only,
-# one earcon -- see IDLE-BAIT.md for the full design and why this is
-# deliberately NOT a repeating notification.
-#
-# Deliberately a separate watcher rather than baked into crt-monologue.sh
-# itself -- see PHILOSOPHY.md's open thread on whether always-on narration
-# already competes for the same scarce attention idle-bait needs; keeping
-# this additive and optional means that tension can be resolved later
-# without touching the base monologue.
-#
-# STATUS: NOT hardware-verified -- polling loop and hashing logic are
-# correct as designed but never run against live report/question traffic.
-#
-# Usage: crt-idle-teaser.sh   (run as its own tmux pane/background loop)
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -36,17 +23,7 @@ ANNOUNCE_MIN_GAP="${CRT_ANNOUNCE_MIN_GAP:-900}"
 # idea per Chris: "like a screensaver... a combination of low handset
 # volume and other markers going idle"). The WHOLE idle-bait mechanism --
 # teaser line AND chime, not just audio -- only activates once the room's
-# been quiet for a while, the way a screensaver only appears after
-# inactivity. See IDLE-BAIT.md for the full writeup.
-#
-# "Activity" = the newest mtime across CRT_IDLE_MARKERS: today that's just
-# ~/.crt/stt.log (someone spoke) and ~/.crt/sideband.state (a state
-# transition happened, SIDEBAND.md) -- both already exist/get touched by
-# other pieces of this project. ~/.crt/mic-level is a placeholder for a
-# future marker (a raw peak-level ping from crt-stt-solo.py even below the
-# VAD utterance threshold, i.e. "someone's near the phone" without having
-# said anything yet) -- nothing writes it yet, harmless to list since a
-# missing marker file just doesn't count toward "recent."
+#   [rest: vault:crt/header-archaeology-20260817.md]
 IDLE_TIMEOUT_SECS="${CRT_IDLE_TIMEOUT_SECS:-1200}"   # 20min, first guess, tune once live
 IDLE_MARKERS="${CRT_IDLE_MARKERS:-$HOME/.crt/stt.log $HOME/.crt/mic-level $HOME/.crt/sideband.state}"
 
@@ -93,24 +70,7 @@ chime() {
   # a TV announcement can never stack (IDLE-BAIT.md's single-rate-limit rule).
   #
   # 2026-07-25: this was `crt-earcon.sh "$1" >/dev/null 2>&1 || true` with
-  # the stamp written first and never taken back, which is two of this
-  # project's own recurring bugs in three lines.
-  #
-  #   - The earcon's failure went to /dev/null and then to `|| true`. sox
-  #     missing, a device that will not open, a name this script and that
-  #     one disagree about -- all identical to a chime that played. Same
-  #     class as cdf05cc's silent earcon and f187a45's discarded exit
-  #     status; the fix is the same one, say what it said on its way out.
-  #   - The stamp was spent whether or not anything was heard, and the
-  #     window is SHARED with crt-announce.sh's TV voice. So an earcon that
-  #     cannot play would also mute working TV announcements for fifteen
-  #     minutes at a time, which is a fault spreading between channels, not
-  #     a rate limit.
-  #
-  # Stamp first (a concurrent chime must still be blocked while this one is
-  # attempting), roll back if nothing played. No retry storm: the caller
-  # mark_seen()s each line before chiming, so a failing chime is retried at
-  # most once per new report/question line, not once per poll.
+  #   [rest: vault:crt/header-archaeology-20260817.md]
   local prev had_lock=0 err status=0
   can_chime || return 0
   if [ -f "$ANNOUNCE_LOCK" ]; then
@@ -139,25 +99,7 @@ chime() {
 # dimension, named but not reached until now): each teaser kind gets a
 # color matching its register in that doc's table -- clipped/urgent
 # (blocker) reads bold magenta, a real question reads yellow (present, not
-# alarming), an ordinary find reads the same cyan "warm/curious" register
-# as the `curious`/`bait` earcons. crt-think.sh just appends whatever text
-# it's given, so the color codes ride along into thoughts.log and
-# crt-monologue.sh's tail+fold displays them as-is -- terminals interpret
-# ANSI codes regardless of exactly where fold's byte-counting wraps, so
-# this works even though fold (correctly) doesn't know the escape bytes
-# are zero-width; given how short these teaser lines are, in practice
-# that just doesn't come up.
-#
-# CRT-SAFE PALETTE (2026-07-25): this was `1;31` (bold red) from the day it
-# was written, which CLAUDE.md and BOOK-GAME-STYLE.md both name as banned
-# outright -- 31/32/34 and 91/92/94 bleed and smear on a real composite/RF
-# tube at any boldness. The book-game palette was reassigned for exactly
-# this on 2026-07-21 and this file was missed, so the ONE teaser register
-# most likely to be worth reading (a blocker) was the one drawn in the
-# worst color the tube has. Magenta is where that doc's corrected table
-# already puts the clipped register (`COLOR_WRONG`); bold carries the
-# urgency red was doing. Enforced repo-wide now, not just for the book
-# game's palette: tests/test_crt_safe_colors.sh.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 COLOR_URGENT=$'\033[1;35m'    # blocker (clipped register, CRT-safe)
 COLOR_QUESTION=$'\033[33m'    # a real judgment call
 COLOR_CURIOUS=$'\033[36m'     # ordinary find

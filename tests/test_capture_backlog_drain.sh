@@ -3,19 +3,7 @@
 # transcription is bounded, said out loud, and never eats a real utterance.
 #
 # The unit half lives in tests/test_capture_backpressure.py (real pipes, real
-# fcntl/ioctl, measured capacities). THIS test drives the real CLI end to end,
-# because the thing that actually has to work is the wiring: transcribe()
-# blocking the capture loop is what creates the backlog in the first place, so
-# a test that never blocks the loop proves nothing about it.
-#
-# Shape: one utterance, then a whisper that takes 5 seconds while the fake
-# capture keeps producing audio in real time, then a second utterance. What
-# must be true afterwards:
-#   - the startup line says how deep the capture buffer is
-#   - the loop reports dropping backlogged audio (pre-fix: nothing at all,
-#     the queued seconds were answered late or lost with no trace)
-#   - BOTH utterances still reach the STT log -- the drain runs between
-#     utterances precisely so it can never excise live speech
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

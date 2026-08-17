@@ -3,76 +3,7 @@
 # before/instead of speaking words. Deliberately small, deliberately warm:
 # see IDLE-BAIT.md for why these must read as curious/playful, never as an
 # alarm (that's the thing that gets the TV turned off).
-#
-# STATUS: NOT hardware-verified. sox synth math is correct as designed but
-# nobody has listened to these yet -- treat frequencies/durations below as a
-# first draft, retune by ear once the VM is reachable.
-#
-# Usage:
-#   crt-earcon.sh <name> [--device tv|handset]
-#   CRT_EARCON_FADE_SCALE=0.3 crt-earcon.sh bait   # clipped/urgent register
-#   CRT_EARCON_FADE_SCALE=2.5 crt-earcon.sh bait   # wistful/quiet register
-#
-# Names (see the `case` below for the actual tone recipe of each):
-#   bait      new idle-bait item landed on screen (curiosity-gap chime,
-#             fast-ish rise -- "look over here")
-#   curious   a gentler, slower rise than `bait` -- "hm, interesting" rather
-#             than "psst" -- a real register difference in contour, not
-#             just a slower `bait` (see EXPRESSIVE-TONE.md)
-#   question  a real judgment call needs Chris (a little more present than
-#             `bait`, still not urgent -- see IDLE-BAIT.md's rule that only
-#             genuine judgment calls get audio at all)
-#   content   something that was pending finally resolved -- rises then
-#             settles back down, the "ahh, good" sound
-#   success   a job finished clean (bright, quick, satisfied)
-#   ack       pickup acknowledged / now listening (a soft click, not a tone
-#             -- confirms the line is live without announcing anything)
-#   thinking  added 2026-07-23 (live latency-tuning session): fires the
-#             instant crt-secretary.py escalates to Claude, before
-#             wait_for_claude_reply()'s real (multi-second) round-trip --
-#             kills the dead-air feeling that made the wait read as
-#             "broken" rather than "working." Deliberately a single fixed
-#             sound for now (two soft rising ticks, "on it") -- the
-#             intended evolution (not built yet) is a whole expressive
-#             layer here: contour/urgency could vary with expected wait
-#             length, escalation type (secretary fallthrough vs confirmed
-#             playbook), or elapsed time if a reply is running long. Treat
-#             this one sound as the seed of that, not the final design.
-#   oops      something broke in a way that's actually funny/self-aware,
-#             not scary (a little descending "whoop," cartoon-stumble, NOT
-#             a klaxon -- reserve real klaxon energy for nothing, ever)
-#   heard     added 2026-07-23: VAD threshold crossed, an utterance is
-#             being captured -- lowest-stakes, highest-frequency sound in
-#             this whole file (fires on ALL room speech, not just
-#             wake-worded requests -- see crt-stt-solo.py's
-#             CRT_EARCON_ON_THRESHOLD, default OFF for exactly that
-#             reason). A single very short, quiet tick -- must stay
-#             nearly subliminal if it's ever turned on for real, not a
-#             per-sentence intrusion.
-#   addressed added 2026-07-23: the STT wake-word gate passed (request is
-#             actually addressed to the console, whether or not it later
-#             matches a local playbook or escalates to Claude) -- fires
-#             in crt-stt-solo.py right after addressed_to_console()
-#             succeeds, earlier than `thinking` (which only fires for the
-#             Claude-escalation branch specifically).
-#   control   added 2026-07-23: a single-word CONTROL keystroke was
-#             recognized (yes/no/enter/up/down/etc, see CONTROL dict) --
-#             the "watchword" gate, structurally separate from the
-#             addressed/gate-drop wake-word path since control words
-#             bypass that gate entirely.
-#
-# CRT_EARCON_FADE_SCALE (default 1.0) is the "how urgent does this feel
-# right now" dial, orthogonal to which tone/contour is picked above -- see
-# EXPRESSIVE-TONE.md's register table. Scales every tone's fade-out only
-# (attack stays put so the sound is still recognizable at any scale);
-# small (~0.3) reads clipped/urgent, large (~2.5+) reads wistful/unhurried.
-#
-# All idle-bait-triggered calls (bait/curious/question) MUST go through the
-# same 15-minute shared lockfile crt-announce.sh uses (CRT_ANNOUNCE_LOCK) so
-# a chime and a TV announcement can never stack into a barrage -- enforce
-# that at the call site (whatever triggers the earcon), not here; this
-# script just plays the sound on request, it doesn't rate-limit itself,
-# since `ack`/`success` during an active call should never be throttled.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -euo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -215,14 +146,7 @@ trap 'rm -rf "$TMP"; unduck' EXIT
 # used to POST to a dexter-hosted audio bridge -- a VirtualBox
 # one-sink-per-VM workaround from the old dexter+crt-vm architecture,
 # meaningless on bare-metal potato, and the actual reason earcons never
-# reached the TV/handset here: DEXTER_URL pointed at a host/service that
-# doesn't exist in this architecture at all). Confirmed live 2026-07-23
-# by ear (Zach on the handset): plughw:2,0 (card 2, vc4-hdmi) is the
-# TV/RF-modulator path; plughw:1,0 (card 1, "KT USB Audio" -- the same
-# USB device the mic itself uses) is the handset earpiece. `plug` (not
-# bare `hw`) because these devices don't accept sox's raw synth format
-# directly (tested: bare hw:2,0 fails with "Sample format non
-# available", hw:1,0 fails with "Channels count non available").
+#   [rest: vault:crt/header-archaeology-20260817.md]
 TV_DEVICE="${CRT_EARCON_TV_DEVICE:-plughw:2,0}"
 HANDSET_DEVICE="${CRT_EARCON_HANDSET_DEVICE:-plughw:1,0}"
 
@@ -230,11 +154,7 @@ HANDSET_DEVICE="${CRT_EARCON_HANDSET_DEVICE:-plughw:1,0}"
 # rationale): the handset output is the same USB adapter as the live mic
 # capture, and playing on it while crt-stt-solo.py's arecord is running
 # leaves the recording near-dead (measured by crt-earcon-loopback-test.py).
-# Suppress VAD triggering for the duration via the same CTL-file "mute"
-# reference count crt-tts.py's handset path now uses (ref-counted, not a
-# last-write-wins flag, so this can't unmute early out from under a
-# concurrent TTS duck), so a played tone can't be misread as speech while
-# the adapter can't hear the room anyway.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
 CAPTURE_MUTED=0
 capture_mute() {
@@ -250,11 +170,7 @@ trap 'rm -rf "$TMP"; unduck; [ "$CAPTURE_MUTED" = 1 ] && capture_mute 0; true' E
 # actually comes out of -- not from the caller having used the word
 # "handset". See ducks_capture() in crt-tts.py for the full reasoning; the
 # short version is that crt-idle-teaser.sh's chime() and crt-secretary.py's
-# play_earcon() both call this script with no --device at all, landed in the
-# `*)` branch below, and so played into the console's own mic without ever
-# ducking it. An unknown device (`default`) now ducks: an unnecessary duck
-# costs one chime's worth of suppressed VAD and clears itself, a missing one
-# feeds our own tone back into whisper.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 case "$DEVICE" in
   tv)      ALSA_DEVICE="$TV_DEVICE" ;;
   handset) ALSA_DEVICE="$HANDSET_DEVICE" ;;

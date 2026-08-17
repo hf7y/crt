@@ -3,37 +3,7 @@
 # tuning judge to a real live trigger -- the ONE missing piece identified
 # 2026-07-23: consume_arm_with_followup()/check_arm_timeout() are
 # referenced by name in crt-wake-judge.py's own prompt-building code and
-# in WAKE-TUNING-STATE.md's judgment-log vocabulary, but grep confirmed
-# zero implementations existed anywhere in bin/*.py before this file --
-# only comments/docs referenced them (that log almost certainly comes
-# from this mechanism running once on the old crt-vm, lost in the
-# migration to potato).
-#
-# This is ALSO the real implementation of the separately-identified
-# "sticky conversation window" gap, not a second feature: once a wake
-# genuinely fires, a follow-up utterance shouldn't need to repeat the
-# wake word to get through. Confirmed live 2026-07-23 as a real bug --
-# "Potato, this is Zach" woke the console, but four follow-up utterances
-# in the same breath right after all got silently gate-dropped.
-#
-# 2026-07-25: a consumed follow-up SLIDES the window forward rather than
-# closing it. As first written, the window was single-shot -- which would
-# have let follow-up #1 of that live report through and still dropped
-# #2/#3/#4, i.e. the same complaint one utterance later. Sliding is
-# bounded by CRT_WAKE_ARM_MAX_SECS (default 60s) so that in this
-# specifically noisy room it can't ratchet itself into an always-on mic;
-# saying the wake word again starts a fresh session with a fresh ceiling.
-#
-# Pure functions except spawn_judge()'s subprocess call -- covered by
-# tests/test_wake_arm.py.
-#
-# STATUS: built 2026-07-23 (unattended nightly-batch pass, no live mic
-# access this run). NOT hardware-verified -- wired into crt-stt-solo.py
-# fully opt-in (CRT_WAKE_ARM_ENABLED, default OFF) so potato's current
-# live/stable gate behavior is completely unchanged unless a human
-# deliberately turns this on and confirms the arm-window duration feels
-# right (doesn't cause unwanted "sticky" follow-ups, isn't too short to
-# be useful) in a live session.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import os
 import re
 import subprocess
@@ -46,18 +16,7 @@ JUDGE_BIN = os.path.join(BIN_DIR, "crt-wake-judge.py")
 # twentieth cycle). The state machine itself is in-process -- one ArmState
 # held by crt-stt-solo.py for the life of the engine -- and that was enough
 # while the engine was the only thing that cared. It is not: bin/crt-book-
-# answer-listen.py reads the SAME ~/.crt/stt.log with the opposite rule
-# (anything inside a scanned book's answer window is a trivia answer), and an
-# arm-window follow-up carries no wake word BY DESIGN, so from over there it
-# is indistinguishable from someone answering the question on the tube. See
-# that file's grade_pending_answer() for what it costs.
-#
-# A DEADLINE, not a flag: the wake utterance opens the window, so the file is
-# already on disk before the follow-up it describes is ever spoken -- no
-# ordering race with emit()'s own stt.log append, which happens before the
-# routing decision. A stale file (a crash, a reboot, arming turned back off)
-# describes a deadline in the past and reads as closed, so there is nothing
-# to clean up and no second env var for the reader to agree about.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 ARM_STATE_FILE = os.path.expanduser(
     os.environ.get("CRT_WAKE_ARM_STATE", "~/.crt/wake-arm.state"))
 
@@ -66,11 +25,7 @@ ARM_SECS = float(os.environ.get("CRT_WAKE_ARM_SECS", "12"))
 # SLIDES the window forward -- the live bug this exists for was four
 # follow-ups in one breath, of which a single-shot window would still have
 # dropped three -- but sliding with no ceiling is dangerous in this
-# specific room: CLAUDE.md's premise is ambient chatter and a noisy mic, and
-# an unbounded window would let room noise keep re-arming itself until the
-# console is effectively always listening. The wake word can always start a
-# fresh session (a deliberate re-wake resets this ceiling); what it can't do
-# is drift into always-on.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 ARM_MAX_SECS = float(os.environ.get("CRT_WAKE_ARM_MAX_SECS", "60"))
 JUDGE_ENABLED = os.environ.get("CRT_WAKE_JUDGE_ENABLED", "0") == "1"
 

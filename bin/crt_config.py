@@ -1,32 +1,9 @@
 #!/usr/bin/env python3
 # One place to resolve a config value that more than one script needs.
 #
-# WHY THIS FILE EXISTS: REFACTOR-ASSESSMENT.md / ranked-backlog item 1
+# WHY THIS FILE EXISTS: vault:crt/REFACTOR-ASSESSMENT.md / ranked-backlog item 1
 # ("introduce one config source ... for the port 8993, whisper URL, and
-# ALSA device now retyped across many files") names exactly this, and the
-# same defect keeps arriving one value at a time. This is the landing spot
-# for that work, opened with the instance found on 2026-07-25 rather than
-# left as a plan.
-#
-# THE INSTANCE: bin/stt-fixups.json -- what this console has learned about
-# how this room says its wake word -- is read/written by three scripts, and
-# they did not agree on the env var that moves it:
-#
-#   bin/crt-stt-solo.py          CRT_STT_FIXUPS       (reader: the wake gate)
-#   bin/crt-calibration-game.py  CRT_STT_FIXUPS       (writer: a human's ear)
-#   bin/crt-stt-training-merge.py  CRT_STT_FIXUPS_PATH  (writer: unattended)
-#
-# They agree on the DEFAULT, so nothing is broken with neither set -- which
-# is why it has gone unnoticed. Set one of them alone and the writers and
-# the reader are pointed at different files, with no error anywhere: the
-# calibration game says `Saved`, the merge loop says `auto-merged`, and the
-# word still does not wake it. That is the same silent shape 0ccdf13 just
-# fixed one layer up, and worth closing before someone actually sets it.
-#
-# CANONICAL NAME: CRT_STT_FIXUPS (two of the three, plus
-# tests/test_fixups_reload.py). CRT_STT_FIXUPS_PATH stays honoured rather
-# than retired, because retiring it would break any live shell/tmux env on
-# potato that already sets it, and this tier cannot see potato to check.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import os
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -40,21 +17,7 @@ FIXUPS_ENV_LEGACY = "CRT_STT_FIXUPS_PATH"
 # put in this env var, and what if it isn't one?"
 #
 # Every tunable in bin/ is read as a bare int()/float() of an env var, and
-# every one of those is set by crt-console.sh -- i.e. by shell, where a value
-# is just text and nothing checks it. A typo raises ValueError at IMPORT,
-# before the window has drawn anything, and crt-console.sh wraps each window
-# in `; exec bash`: the window does not close, it becomes a bash prompt where
-# the console's face used to be. Nothing anywhere says why.
-#
-# Two windows already grew a private `_env_secs` for exactly this --
-# crt-book-console.py (the question screen) and crt-screensaver.py (the face
-# the idle-lean layout boots into), each with its own copy of the same seven
-# lines and the same docstring. This is that helper, once, so the funnel's
-# remaining windows can have it without a third copy.
-#
-# NOT a sweep of all ~80 call sites: .claude/FOCUS.md's milestone parks the
-# refactor sweep, and the ones that matter here are the ones that take a
-# console window down at boot.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 def env_number(name, default, env=None, minimum=0.0):
     """A numeric env var, junk-tolerant. Returns `default` for unset, for
     anything float() refuses, and for anything below `minimum`.
@@ -103,37 +66,7 @@ def env_flag(name, default=False, env=None):
 # console types into a Claude brain, or the idle face?"
 #
 # bin/crt-console.sh hands the stt window CRT_TMUX_PANE=0.0 on ONE line, for
-# BOTH layouts -- but what sits on window 0 depends on the layout:
-#
-#   CRT_NO_IDLE_CLAUDE unset  window 0 = `claude`, a live Claude Code pane
-#   CRT_NO_IDLE_CLAUDE=1      window 0 = crt-screensaver.py, the potato
-#
-# The second is the layout potato boots. Two callers type into that pane
-# believing a brain is behind it:
-#
-#   crt-stt-solo.py's send_to_claude()  single-word CONTROL utterances
-#     ("yes"/"no"/"next"/"clear"...) -- which BYPASS the wake gate by
-#     design, so any ambient one of them in the room qualifies. They land on
-#     the screensaver's stdin, the tty echoes them onto the idle face, and
-#     Enter scrolls the potato until the next repaint. Nothing acts on them,
-#     and the console beeps its "control" earcon as if something had.
-#   crt-secretary.py's send_to_claude()/capture_pane()  the whole escalation
-#     path, whenever CRT_CLAUDE_REMOTE_PORT is 0 -- i.e. after a plain
-#     `crt-mandark.sh off`, whose own help calls it "keep the brain
-#     local/onsite (or none)". In the idle-lean layout there IS no local
-#     brain, so the utterance is typed into the potato, tmux send-keys
-#     SUCCEEDS (the pane exists), and wait_for_claude_reply() then diffs the
-#     screensaver's own frames looking for an answer. Since 4f7c17e that
-#     screen's caption MOVES every 8s, so the pane text really does change:
-#     the reply can come back as the caption and get spoken into the
-#     earpiece as Claude's answer.
-#
-# The rule both need is one string comparison, and it belongs here rather
-# than twice in two engines: the window CRT_TMUX_PANE names is the idle face
-# exactly when it matches CRT_IDLE_FACE_WINDOW, which crt-console.sh exports
-# (before any window is created) ONLY in the idle-lean layout. In the
-# historical layout the var is unset and every caller behaves exactly as it
-# did before this existed.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 PANE_ENV = "CRT_TMUX_PANE"
 PANE_DEFAULT = "0"
 IDLE_FACE_ENV = "CRT_IDLE_FACE_WINDOW"

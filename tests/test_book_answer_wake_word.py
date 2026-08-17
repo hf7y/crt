@@ -3,36 +3,7 @@
 # nightly cycle).
 #
 # crt-stt-solo.py writes EVERY recognized utterance to ~/.crt/stt.log before
-# its wake gate runs, and two programs read that file with opposite rules:
-# the engine routes anything carrying the wake word to Claude, and
-# crt-book-answer-listen.py grades anything inside a book's answer window as
-# a trivia answer. Nothing arbitrated between them.
-#
-#   scan -> tube shows "Fiction or nonfiction?"
-#        -> "claude, what is this book about?"
-#        -> tube: "nope, it was fiction"
-#        -> {"expected": "fiction", "heard": "claude what is this book
-#           about"} in book-game-training.jsonl
-#        -> "fiction"  (the real answer) -- NOT graded, because 2776f99
-#           closes the round on the first graded utterance
-#
-# So the defect costs twice: one mislabelled row in the file this whole
-# console exists to fill, and the loss of the good row that was about to
-# follow it. Asking Claude about the book you just scanned is not an exotic
-# utterance -- it is the most natural thing in the room.
-#
-# The 2026-07-21 fix already covers this exact shape for voice COMMANDS by
-# reusing crt-secretary.py's find_playbook(). A wake-word utterance is not a
-# command: nothing in PLAYBOOKS matches "claude, what is this book about?",
-# which is precisely why it falls through to Claude. The fix is the same
-# move for the other half -- ask bin/crt_wake_gate.py, which is the gate's
-# own rule, aliases included.
-#
-# Every test in TestAQuestionForClaudeIsNotAnAnswer fails against the parent
-# commit. The load-bearing one is
-# test_the_real_answer_after_it_still_grades: against the parent it finds
-# one training row reading heard='claude what is this book about', instead
-# of one reading heard='fiction'.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import json
 import os

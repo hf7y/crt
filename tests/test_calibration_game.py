@@ -3,25 +3,7 @@
 #
 # bin/crt-calibration-game.py is the one place a HUMAN can teach the wake
 # gate a new alias by ear -- FOCUS.md's second top-priority item, running
-# live in tmux window 9 on potato -- and until this file it had no test at
-# all.
-#
-# What it does with the answer is load-bearing. A saved entry goes into
-# bin/stt-fixups.json at `"confidence": "confirmed"`, and crt-stt-solo.py's
-# gate acts on any entry whose `intent` is the wake word with no further
-# review (see crt_wake_gate.py). So the words the prompt will accept are
-# effectively the words that can be wired into the live gate by typing.
-#
-# It accepted any word the tailer had EVER heard -- which, since the Tailer
-# deliberately runs for the whole session (including through this blocking
-# prompt), is every word said in the room since the game launched. The list
-# on screen is bounded to real near-misses; the acceptance was not. Typing
-# "about" -- 18% similar, never offered -- wrote it as a confirmed mishear
-# of "claude", and the console then woke on "what is this book about".
-#
-# The two are now one thing: save_candidates() computes what is offered AND
-# what is accepted, from a snapshot, so the set on screen and the set the
-# answer is checked against cannot differ -- in content or in time.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import io
 import json

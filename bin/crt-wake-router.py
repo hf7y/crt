@@ -3,22 +3,7 @@
 # actually fires -- the small pure decision at the center of the
 # "screensaver at idle, no Claude resident to save RAM; on wake reach for
 # mandark, else fall back onsite, else nothing" design (see POTATO.md).
-#
-# potato is a 1GB Pi 3B+ and Claude Code was ~37% of its RAM
-# (ARCHITECTURE-REVIEW-2026-07-23.md), so the win is: hold NO brain while
-# the potato screensaver is up, and only choose one when someone speaks
-# the wake word. This module is just the chooser -- it does not itself
-# spawn or tunnel anything (a supervisor does that; see POTATO.md's
-# "remaining live wiring" note). Kept pure + CLI-thin so it's fully
-# offline-testable (tests/test_wake_router.py); the only impure part is
-# the optional live socket probe, isolated in probe_bridge().
-#
-# Decision, in order:
-#   mandark ON  + reachable        -> "remote"  (0 RAM on potato)
-#   mandark ON  + unreachable      -> fall back: local if available else "none"
-#   mandark OFF                    -> local if available else "none"
-# "none" means: woken, but no brain available -- the caller should give a
-# short honest earcon/line ("can't reach my brain right now"), NOT silence.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import argparse
 import json
 import os

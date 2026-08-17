@@ -16,16 +16,7 @@ export CRT_TEST_SUITE_RUNNING=1
 # Measured, not assumed: five test files were appending to the real
 # ~/.crt/ctl -- the capture-duck control channel a RUNNING crt-stt-solo.py
 # reads live -- and stamping the real ~/.crt/claude-window-active.state,
-# which crt-window-switcher.py reads to decide whether a brain is behind
-# the screen. On potato, running this suite meant muting and unmuting the
-# console's own mic a few hundred times and holding window 1 for the next
-# 30 seconds. Each of those tests carefully made a tmpdir for the files it
-# knew it wrote, then let the module-level DEFAULTS point at the live box.
-#
-# So the defaults are pinned here, once, for every test at once -- cycle
-# 21's lesson after the same class recurred within one cycle: pin the
-# default, not each path. Individually pinned in the five as well, for a
-# standalone `python3 tests/test_secretary.py`.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 CRT_TEST_STATE_DIR="$(mktemp -d)"
 export CRT_CTL_FILE="$CRT_TEST_STATE_DIR/ctl"
 export CRT_CLAUDE_ACTIVE_STATE="$CRT_TEST_STATE_DIR/claude-window-active.state"
@@ -499,19 +490,7 @@ echo
 # above, and every name above must exist. Both directions had really drifted:
 #
 #   - test_audio_doctor.sh and test_mic_footer.sh were NAMED but absent, left
-#     behind by 38607bd (one of the four potato cherry-picks, which brought the
-#     runner's references across without the files). Each sat inside an
-#     `if [ -f ... ]; then` guard, so the suite printed a header claiming that
-#     coverage, ran nothing, and reported ALL GREEN. Those guards are gone --
-#     every test is invoked unconditionally now, so a missing file fails loud.
-#   - test_remote_claude_bridge.py and test_stt_confidence.py EXISTED but were
-#     never named, so 18 passing tests -- including the only coverage of the
-#     mandark brain bridge -- were not in the suite at all.
-#
-# Same family as the three `command -v sox || skip` no-ops found the cycle
-# before: a check that quietly does nothing reads exactly like a check that
-# passed. This is the mechanical enforcement, not a comment asking the next
-# person to remember.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 echo "== senechal guard hook (machine-config changes owe a note) =="
 bash "$DIR/test_senechal_guard.sh" || fail=1
 echo

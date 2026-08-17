@@ -3,45 +3,7 @@
 # processes that both read ~/.crt/stt.log (2026-07-25, fourteenth cycle).
 #
 # WHY THIS EXISTS. crt-stt-solo.py writes EVERY recognized utterance to
-# stt.log before its wake gate runs, and two different programs read that
-# file for opposite reasons:
-#
-#   crt-stt-solo.py            an utterance WITH the wake word is a request
-#                              to Claude -- route it.
-#   crt-book-answer-listen.py  an utterance inside the answer window is a
-#                              trivia answer -- grade it and write a row to
-#                              book-game-training.jsonl.
-#
-# Those two rules overlap, and nothing arbitrated between them. Scan a book
-# and then say "claude, what is this book about?" -- an entirely ordinary
-# thing to say to a console that just put a question on the tube -- and the
-# grader took it as your answer: the tube said "nope, it was fiction", a row
-# went into the training log whose `heard` was never an answer attempt, and
-# (since 2776f99 closes a round on the first graded utterance) your real
-# answer a moment later was not graded at all.
-#
-# The 2026-07-21 fix in grade_pending_answer() covers the same shape for
-# voice COMMANDS by reusing crt-secretary.py's find_playbook() -- exactly so
-# the two halves cannot drift apart. This module is that move again for the
-# wake gate: the grader asks the gate's own question, with the gate's own
-# learned aliases, rather than carrying a second opinion about what counts
-# as talking to the console.
-#
-# WHY THE ALIASES MATTER, not just the literal word: stt-fixups.json is what
-# this room has taught the console about how it says "claude" (see
-# STT-MECHANISM.md). If a calibration session confirms "slide" is a mishear
-# of the wake word, then "slide, what is this book about?" wakes the console
-# -- and must therefore stop being graded as a trivia answer in the same
-# instant, not at the next reboot. Passing fixups=None re-reads the live file
-# per call, which is once per utterance (human-paced), not per audio chunk.
-#
-# WHAT THIS DOES NOT COVER, deliberately, and it is written up in
-# BATCH-NOTES.md: an arm-window FOLLOW-UP (CRT_WAKE_ARM_ENABLED, see
-# crt-wake-arm.py) carries no wake word by design, so a follow-up spoken
-# inside a book's answer window still looks like an answer from here. The
-# arm state lives in crt-stt-solo.py's memory and nothing writes it down;
-# closing that hole means giving stt.log a way to say what the engine DID
-# with a line, which is a log-format decision, not a bug fix.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import re

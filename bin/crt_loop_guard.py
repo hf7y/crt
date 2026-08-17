@@ -3,44 +3,7 @@
 # raised once and the whole `while True` ended.
 #
 # crt-console.sh runs eight long-lived Python windows and wraps each in
-# `; exec bash`, so a dead loop does not close its window -- it leaves a
-# shell prompt sitting where the console's face used to be, and nothing
-# anywhere says so. Cycles 9 and 10 (2026-07-25) each filed this and each
-# deferred it to "the supervisor question". This module is the half of that
-# question which does NOT need a supervisor: an exception that a *later*
-# iteration would have been fine after should not end the loop at all.
-#
-# Split it that way and the two halves are genuinely different jobs:
-#   - transient, per-iteration: one sqlite hiccup, one malformed row, one
-#     ENOSPC on the SD card -> skip that iteration, SAY SO, keep going.
-#     That is this file, and it needs nothing but the process itself.
-#   - the process is gone (killed, or raised outside the loop) -> only
-#     something outside it can notice. Still ranked-backlog item 8, [hw].
-#
-# WHAT IT DELIBERATELY DOES NOT DO:
-#   - It does not sleep. Pacing stays where the caller can see it; a guard
-#     that quietly inserted a backoff would make a hot loop look healthy.
-#     The caller's loop must already have its own poll/sleep -- all four
-#     current callers do (blocking tail, POLL_SECS, MERGE_INTERVAL_SECS).
-#   - It does not catch BaseException. KeyboardInterrupt and SystemExit
-#     pass straight through, so Ctrl-C and a deliberate stop still stop
-#     (the distinction cycle 2 drew for crt-stt-solo.py's own shutdown).
-#   - It does not guard the *iterator* of a `for` loop, only the body. A
-#     generator that raises while producing the next item still ends the
-#     loop; wrap the iteration itself if that matters.
-#
-# Reporting follows the convention the rest of bin/ already settled on:
-# once per distinct cause (window 1 fades the person's own words off the
-# top, so a repeating fault must not own the screen), on stdout AND on
-# ~/.crt/thoughts.log, and a recovery line naming how many were swallowed
-# so nothing this suppressed is left without a trace.
-#
-# Env:
-#   CRT_THOUGHT_LOG (default ~/.crt/thoughts.log) -- same channel every
-#     other honest-failure line in this project goes to.
-#   CRT_LOOP_GUARD_TRACEBACK (default 0) -- 1 to also dump full frames to
-#     the window's own pane. Off by default because one of these windows
-#     (`book`) has the tube itself for a pane.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import time
@@ -135,17 +98,7 @@ class LoopGuard:
         # so that pane's stdout/stderr IS the tube -- a traceback there is
         # painted over the console's face and stays until the next draw(),
         # which may be a long time if nothing is scanned. The one-line report
-        # already carries the exception type and message; set
-        # CRT_LOOP_GUARD_TRACEBACK=1 when you are attached to a window and
-        # want the frames.
-        #
-        # Junk-tolerant since 2026-07-25: `int()` of a value a person actually
-        # types -- CRT_LOOP_GUARD_TRACEBACK=true, =yes, =on -- raised
-        # ValueError right here, in the constructor every guarded window calls
-        # before its loop starts. All four of them (book, bookanswer,
-        # bookidle, stttrain) would have dropped to a bash prompt at once,
-        # from inside the module written to stop a window dying, triggered by
-        # the flag someone sets while investigating a window that keeps dying.
+        #   [rest: vault:crt/header-archaeology-20260817.md]
         self.verbose = crt_config.env_flag("CRT_LOOP_GUARD_TRACEBACK") \
             if verbose is None else verbose
 

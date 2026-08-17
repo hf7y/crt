@@ -3,19 +3,7 @@
 #
 # Holds ONE continuous arecord on the shared ALSA capture ('crtmic', the dsnoop
 # device from systemd/asound.conf) and pipes raw PCM to crt-meter.py. Two
-# continuous arecord readers coexist on dsnoop fine (the meter + stt-feed); the
-# failure modes we hit were (1) a stale/stuck arecord holding dsnoop in a bad
-# state, and (2) feeding the python script in via a `python3 -` heredoc, which
-# stole stdin from the audio pipe. Keeping one stream open also keeps
-# VirtualBox's emulated capture warm.
-#
-# Draws a bar with the VAD trigger threshold marked ('|') so you can see whether
-# your voice reaches the mic and crosses the gate stt-feed needs:
-#
-#   MIC [####|............]  12.4% TALK
-#
-# Run standalone anytime to check mic health; crt-console.sh also shows it in a
-# strip at the bottom of the screen.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

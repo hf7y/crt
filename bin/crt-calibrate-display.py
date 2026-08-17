@@ -3,15 +3,7 @@
 # design. Renders a numbered-ruler/corner-letter test pattern inset by a
 # safe-margin guess, asks (by voice, in real use) which edges are cut off,
 # and hill-climbs the margin until it converges.
-#
-# STATUS: NOT hardware-verified. render_pattern() and adjust_margins() are
-# pure functions covered by tests/test_calibrate_display.py. main()'s
-# interactive loop has never run against a real screen/STT -- treat it as
-# a first draft, not a verified flow (see DISPLAY-CALIBRATION.md).
-#
-# Usage:
-#   crt-calibrate-display.py show                 # render current margins once
-#   crt-calibrate-display.py run                   # interactive calibration loop
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import json
 import os
 import sys

@@ -3,21 +3,7 @@
 #
 # stt-fixups.json has two writers -- crt-calibration-game.py (a human
 # confirming a mishear by ear) and crt-stt-training-merge.py's `stttrain`
-# window (unattended, every 600s) -- and since 24a94ac they agree on which
-# file that is. Both did read-modify-write-whole-file through a temp path
-# named `<file>.tmp`. The same one.
-#
-# Two things follow. A TORN FILE: open(tmp, "w") truncates, so a merge tick
-# landing inside a calibration save can truncate that save's half-written
-# temp and put the wreckage where the real file was -- destroying every
-# hand-authored "confirmed" entry, which this project can only re-earn by
-# someone standing at the mic. And a LOST UPDATE: each writer computes from
-# a snapshot and writes the whole file, so the later write silently drops
-# whatever the earlier one added.
-#
-# The concurrency tests here use real processes and real threads, because
-# the defect is in what two of them do to one file -- an assertion about
-# the source string would be the "grep proves it" shape ad41f5a called out.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import json
 import os

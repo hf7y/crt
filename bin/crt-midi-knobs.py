@@ -3,19 +3,7 @@
 #
 # Turn a knob on the Arturia MiniLab mkII and the mapped parameter updates AND a
 # level bar flashes on the console screen (the engine renders it). This script is
-# just the thin translator: MIDI CC/notes -> "<param> <value>" lines appended to
-# CRT_CTL_FILE.
-#
-# STATUS: NOT runnable yet on crt-vm -- the MiniLab isn't passing through to the
-# guest (see AUDIO-DEBUG / FOCUS: USB passthrough is the blocker) and mido/
-# python-rtmidi aren't installed there. This is ready for when both are fixed:
-#   pip install mido python-rtmidi
-#   CRT_CTL_FILE=~/.crt/ctl python3 crt-midi-knobs.py --port <name>
-# List ports with:  python3 crt-midi-knobs.py --list
-#
-# The CC numbers below are the MiniLab mkII factory defaults for the first four
-# top knobs; if yours differ, either remap in Arturia MIDI Control Center or edit
-# CC_MAP. Ranges MUST match crt-stt-solo.py's CTL_MAP.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import argparse, os, sys, time
 
 # cc number -> (param, lo, hi)  -- value scaled 0..127 into [lo,hi], written in

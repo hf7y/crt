@@ -3,38 +3,7 @@
 #
 # That file is what this console has learned about how this room says its
 # wake word, and it has TWO writers and a live reader:
-#
-#   crt-calibration-game.py    a human confirming a mishear by ear
-#   crt-stt-training-merge.py  the `stttrain` window, every 600s unattended
-#   crt-stt-solo.py            the wake gate, re-reading on every utterance
-#                              since 0ccdf13
-#
-# Both writers did read-modify-write-whole-file through a temp path named
-# `<file>.tmp` -- the SAME temp path, since 24a94ac made them agree on which
-# file they were writing. Two failures follow from that:
-#
-#   TORN FILE. open(tmp, "w") truncates. If the merge loop's 600s tick lands
-#   while someone is in the calibration game, one writer truncates the
-#   other's half-finished temp and whichever os.replace() runs second (or
-#   first) puts the wreckage where the real file was. os.replace protects
-#   the READER from seeing a half-written file; it does nothing to protect
-#   two writers from each other. What is lost is every hand-authored
-#   "confirmed" entry -- the calibration game's own docstring calls those
-#   "the strongest evidence this project ever collects", and they cannot be
-#   re-derived, only re-earned by someone standing at the mic saying a word
-#   until it is misheard the same way twice.
-#
-#   LOST UPDATE. Even with the tearing gone, each writer computes its new
-#   dict from a snapshot read moments earlier and then writes the WHOLE
-#   file. The later write silently drops whatever the earlier one added.
-#
-# update() closes both: the read and the write happen inside one exclusive
-# flock, so the mutate callback always sees the file as it is right now, and
-# the temp path carries the pid so no two writers can ever share one.
-#
-# Readers need nothing from this module. os.replace() is atomic, so a reader
-# either sees the old file or the new one, never a mix -- which is why
-# crt-stt-solo.py's FixupsFile is left alone.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import fcntl
 import json
 import os

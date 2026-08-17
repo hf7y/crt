@@ -3,10 +3,7 @@
 # width is the standard for this model -- CRT_PRINT_WIDTH overrides if the
 # real hardware differs). Reads text on stdin, writes PNG to argv[1].
 #
-# STATUS: NOT hardware-verified -- 384px is the Phomemo M02's documented
-# head width, not measured against the real printer. A monospace fallback
-# font is used since no specific font is bundled with this repo; swap in
-# something nicer once someone's looking at actual printed output.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import sys, os, textwrap
 from PIL import Image, ImageDraw, ImageFont
 

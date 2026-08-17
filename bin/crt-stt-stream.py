@@ -3,41 +3,7 @@
 # AUDIO-DEBUG.md. NEW, OPT-IN, does not touch crt-stt-solo.py's working batch
 # pipeline. NOT hardware-verified -- written on the dev box (no VM/handset).
 #
-# WHY: crt-stt-solo.py (and stt-feed.sh) both transcribe once, after the whole
-# utterance has ended (VAD trail). That's simple and accurate but feels dead --
-# nothing happens on screen until you stop talking. Browser/streaming ASR
-# instead emits partial words *while you're still speaking* and revises them
-# as more audio arrives. Whisper isn't natively streaming, but re-decoding a
-# growing buffer every ~0.5s and only committing a word once two consecutive
-# decodes agree on it (the "LocalAgreement-2" trick from whisper_streaming)
-# approximates it without swapping out the model.
-#
-# COST WARNING: this re-decodes the ENTIRE utterance-so-far on every tick, so
-# a 6s utterance with a 0.5s tick does ~12 decodes instead of crt-stt-solo.py's
-# one. On a CPU-capped VirtualBox guest this may be too slow to feel live --
-# that's an open question this prototype exists to let a human answer, not
-# something claimed solved here. Point CRT_WHISPER_SERVER at
-# bin/dexter-whisper-server.py (native-host faster-whisper) to sidestep the
-# guest's CPU cap entirely; that is the expected way to make this usable.
-#
-# Reuses the same VAD/capture shape, hallucination filter, and CRT_STT_LOG /
-# sink conventions as crt-stt-solo.py so it's a drop-in alternative, not a
-# parallel universe. Does NOT reuse crt-stt-solo.py's ring/ctl-file/HUD
-# machinery -- kept minimal on purpose for a first prototype.
-#
-#   bin/crt-stt-stream.py                                  # stdout, local whisper.cpp
-#   CRT_WHISPER_SERVER=http://192.168.0.22:8991/transcribe bin/crt-stt-stream.py
-#   CRT_STT_SINK=claude bin/crt-stt-stream.py               # types into tmux, like solo
-#
-# Tunables (env), on top of the ones shared with crt-stt-solo.py
-# (CRT_AUDIO_DEV, CRT_VAD_THRESHOLD, CRT_WHISPER_BIN/MODEL, CRT_WHISPER_SERVER):
-#   CRT_STREAM_INTERVAL   seconds between re-decodes while speech is ongoing
-#                         (default 0.7 -- shorter feels livelier, costs more CPU)
-#   CRT_STREAM_AGREE      consecutive matching decodes required to commit a
-#                         word (default 2, the LocalAgreement-2 baseline)
-#   CRT_STREAM_MIN_DECODE minimum buffered speech (s) before the first partial
-#                         decode fires -- avoids wasting a decode on 0.3s of
-#                         audio that's almost certainly garbage (default 1.0)
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request
 from collections import deque
 

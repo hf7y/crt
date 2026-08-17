@@ -3,17 +3,7 @@
 # seventh cycle).
 #
 # The property under test: transcribe() runs inside the capture loop, so for
-# as long as whisper takes, nobody is reading arecord's stdout and the only
-# thing holding the audio is the kernel pipe. The default pipe is 65536
-# bytes = 2.05s of 16kHz S16 mono, which is shorter than a transcription
-# takes -- so the seconds right after an utterance (exactly where a follow-up
-# lands) were being dropped by arecord, invisibly, into a stderr temp file
-# this process only reads if capture dies.
-#
-# Everything here runs against a REAL os.pipe() with real fcntl/ioctl calls
-# and real bytes -- the capacity numbers below are measured, not asserted
-# from a mock. Same reason test_transcribe_failure.py talks to a real socket:
-# a stub in front of the kernel call would test nothing about the kernel.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import unittest

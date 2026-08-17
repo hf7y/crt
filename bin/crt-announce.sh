@@ -3,16 +3,7 @@
 # audio device (distinct from the phone earpiece device) so Chris can hear a
 # simple request without touching anything -- he can only respond by talking
 # into the phone. Hard rate limit: at most one announcement per 15 minutes,
-# enforced by a lockfile timestamp, so this can be called freely from job
-# completion hooks etc. without risking a barrage.
-#
-# STATUS (2026-07-24): potato is bare-metal, so this now routes through
-# crt-tts.py's local-ALSA tv/handset path (plughw:2,0 by default -- see
-# crt-tts.py) rather than the old dexter-audio-server.py bridge, which only
-# ever applied to the VirtualBox-hosted crt-vm setup (AUDIO-ROUTING.md,
-# now legacy). Set CRT_AUDIO_OUT_URL explicitly to restore the old bridge.
-#
-# Usage: crt-announce.sh "the batch job needs your input"
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -euo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -46,23 +37,7 @@ fi
 # (2026-07-25). Both halves matter and they pull in opposite directions:
 #
 #   - Stamping first is what stops a barrage. Two hooks firing at once must
-#     not produce two overlapping voices on the TV, and the second one is
-#     only blocked if the first has already claimed the window. This used to
-#     `exec` straight into crt-tts.py, so stamping first was the only
-#     option available.
-#   - But a stamp that survives a FAILED attempt spends fifteen minutes of
-#     silence on an announcement nobody heard -- and the window is shared:
-#     crt-idle-teaser.sh's chime() rate-limits against this same file on
-#     purpose (IDLE-BAIT.md's single-rate-limit rule), so a TV device that
-#     is missing, busy or misnamed would also mute the earpiece chimes. A
-#     broken speaker silencing a working one is not a rate limit, it is a
-#     fault spreading.
-#
-# Rolling back on failure keeps the barrage protection (the window IS
-# claimed for the duration of the attempt) and gives it up the moment the
-# attempt is known to have produced no sound. crt-tts.py's exit status is
-# real evidence as of 2026-07-25: play_wav() returns aplay's own verdict
-# rather than an unconditional True.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 echo "$now" > "$LOCK"
 # `status=0; cmd || status=$?` rather than `if cmd; then ... fi; status=$?`:
 # an `if` with no else branch that takes the false path leaves `$?` at 0,

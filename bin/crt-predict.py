@@ -3,26 +3,7 @@
 # room's own history (~/.crt/stt.log). Used to flash a guess on screen the
 # instant an utterance ends -- before whisper (which takes real wall-clock
 # time) has actually run -- then get overwritten by the real transcription.
-# This is PARKING-LOT.md's predictive-typing-then-overwrite aesthetic,
-# applied to the STT step itself rather than Claude's reply, and
-# PHILOSOPHY.md principle #1 (answer first, be right later) in its most
-# literal form: the "answer" here is honestly just a guess, and looks like
-# one, but appearing in ~0ms beats appearing in 1-3s of dead air.
-#
-# Deliberately NOT a real language model -- whole-utterance + bigram
-# frequency counts over this room's own transcript history. Whatever this
-# room says most, in this hour of the day, is a genuinely reasonable guess
-# for a home console with a small repeated vocabulary (checking on jobs,
-# control words, common requests) -- see STT-MECHANISM.md on how small/
-# repetitive this room's real vocabulary tends to be.
-#
-# STATUS: NOT hardware-verified against real stt.log traffic (no VM access
-# this session) -- logic is covered by tests/test_predict.py against
-# synthetic log data instead.
-#
-# Usage:
-#   crt-predict.py build     # (re)build ~/.crt/predict-model.json from stt.log
-#   crt-predict.py guess     # print one guessed utterance, or "" if no model
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import collections
 import datetime
 import json

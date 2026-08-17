@@ -1,7 +1,7 @@
 **Unrelated side task in progress, not STT work**: an Intel Compute Stick
 (STK1AW32SC) migration — flashing/preseeding a USB installer for Debian.
 Full details, current status, and next steps in
-`COMPUTE-STICK-MIGRATION.md` (project root). If a diagnostic/install boot
+`vault:crt/COMPUTE-STICK-MIGRATION.md` (project root). If a diagnostic/install boot
 was mid-flight when this session ended, that doc says exactly where to
 pick up.
 
@@ -267,7 +267,7 @@ Built + deployed live to potato this session (see POTATO.md):
   0.0.0.0:8993, colliding with the Claude bridge tunnel. Was inactive on
   potato, no live impact. scanner.log now written by crt-book-console.py.
 - Commits 806ba31 (brain-placement scaffolding + POTATO.md +
-  REFACTOR-ASSESSMENT.md + the batch backlog) and de37a06 pushed.
+  vault:crt/REFACTOR-ASSESSMENT.md + the batch backlog) and de37a06 pushed.
 - **`bin/crt-mandark-serve.sh {on|off|status}`** (MANDARK side) — toggles
   the whole remote path (whisper + bridge + reverse tunnel). Prefers
   systemd, falls back to ad-hoc. whisper on/off needs sudo. Committed
@@ -310,7 +310,7 @@ running there. Capture-pane before assuming a window is safe to write to.
 ## Claude runs locally on potato's window 0.
 
 **The single biggest architecture change of the whole day.** Following
-the morning's `ARCHITECTURE-REVIEW-2026-07-23.md` finding (potato is a
+the morning's `vault:crt/ARCHITECTURE-REVIEW-2026-07-23.md` finding (potato is a
 1GB Pi 3B+, memory-constrained, Claude Code itself was 37% of its RAM),
 Zach asked what moving Claude off potato would look like — this session
 built and live-tested it, and it's **currently live**:

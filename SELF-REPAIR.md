@@ -2,7 +2,7 @@
 
 Scoped 2026-07-22 with Zach. This is `potato`-specific (the Raspberry Pi at
 192.168.0.45, replacing dexter/crt-vm as the migration target — see
-`COMPUTE-STICK-MIGRATION.md` and the potato memory in the assistant's own
+`vault:crt/COMPUTE-STICK-MIGRATION.md` and the potato memory in the assistant's own
 memory store). Not yet mirrored onto crt-vm/dexter.
 
 ## What "self-repair" means here (Zach's answers, verbatim scope)

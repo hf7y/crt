@@ -3,30 +3,7 @@
 # 2026-07-29). ecosim can't write into this repo -- categorically forbidden by
 # its own CLAUDE.md -- so the two projects meet at a named line protocol and
 # each builds its own side. This is our side, and the whole surface is:
-#
-#   stdin, line-buffered, forever:   CHANNEL<TAB>TEXT
-#
-#     SEE   -- paint one line on the tube (stdout; point a tmux window here)
-#     SAY   -- speak through the TV device, under crt-announce.sh's own
-#              15-minute rate limit (NOT a second limiter -- IDLE-BAIT.md's
-#              single-rate-limit rule: one clock for the TV voice, shared)
-#     MARK  -- into the monologue pane, with OUR guillemet prefix (CLAUDE.md's
-#              window-1 marker), which is exactly why ecosim doesn't hardcode
-#              it on its side
-#
-# Unknown channels are ignored AND COUNTED, never dropped silently -- the
-# counted part is the point. A sink that quietly eats a channel ecosim
-# thinks it's sending looks identical to a sink that's working, which is the
-# one-symbol-for-two-world-states failure both repos exist to complain about.
-# Counters go to stderr on exit, and to stdout on `stats` (see below).
-#
-# The emitter promises SEE lines already fit 40 columns. We do not trust it:
-# a too-wide line is truncated to the calibrated width and counted, because
-# the alternative is the tube wrapping into mush and nobody knowing why.
-#
-# Usage:
-#   ecosim-cast.py --cast | ssh potato 'crt-cast-sink.py'
-#   crt-cast-sink.py --dry-run      # echo what WOULD be said/marked
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import os
 import sys
 import subprocess

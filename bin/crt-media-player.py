@@ -3,45 +3,7 @@
 # product surface" job (alongside morning reports): "play the thing",
 # "next", "pause" via handset voice, no Claude call for the common case
 # (same "90% offline supervisor" spirit as SUPERVISOR.md).
-#
-# v1 scope, deliberately: command PARSING and a pluggable Backend
-# interface, not a real media library search or a tuned VLC/mpv
-# integration -- neither is buildable/testable without real audio
-# hardware and an actual media collection, which this account's sandbox
-# has neither of. FakeBackend below proves the dispatch logic end to
-# end; VlcBackend is a real (untested-live) implementation using `cvlc`
-# subprocess control, the same class of tool PARKING-LOT.md names.
-#
-# NOT an AI call anywhere in this file -- pure string parsing + shelling
-# out to a media player, same as every other locally-answered
-# crt-secretary.py playbook.
-#
-# STATUS: NOT hardware-verified. parse_media_command()/handle_media_command()
-# are pure functions (given an injected backend) covered by
-# tests/test_media_player.py. VlcBackend has never been run against a
-# real cvlc/mpv install or real media files.
-#
-# KNOWN CONFLICT, narrowed and pragmatically mitigated 2026-07-21 --
-# still flagged for a human, not silently closed: crt-stt-solo.py's
-# CONTROL dict already claims bare "next" -> Down arrow, and
-# is_control's own check (`" " not in text and key in CONTROL`) only
-# ever fires for a SINGLE-WORD utterance with no space -- so the actual
-# collision is narrower than first flagged: only the bare word "next"
-# is contested (CONTROL has no "pause"/"resume"/"stop" entries at all,
-# and every multi-word phrasing here, e.g. "next song"/"next track",
-# fails is_control's space check and reaches this playbook fine either
-# way). Rather than leave bare "next" permanently unreachable as a media
-# command, _NEXT_TRIGGERS below drops it and relies on "skip" (never
-# claimed by CONTROL) plus the multi-word phrasings instead -- a narrow,
-# reversible mitigation of the CONCRETE bug (a word that could never be
-# routed here), not an answer to the broader question PERSONA-CHANNEL.md
-# raises (should "next" ever mean "skip the song" depending on active
-# mode/persona) -- that design decision is still open for Zach, and
-# reverting this one-line trigger change is easy if he'd rather resolve
-# it differently (e.g. changing CONTROL instead).
-#
-# Usage (library use, not really a standalone CLI):
-#   from crt-media-player import parse_media_command, handle_media_command, VlcBackend
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import os
 import re
 import subprocess

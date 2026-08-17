@@ -3,23 +3,7 @@
 # (2026-07-25, nineteenth nightly cycle). See bin/crt_config.py's PANE_ENV
 # block for the finding; the short version:
 #
-# bin/crt-console.sh hands the stt window CRT_TMUX_PANE=0.0 on one line, for
-# both layouts. In the idle-lean layout -- the one potato boots
-# (CRT_NO_IDLE_CLAUDE=1) -- window 0 is crt-screensaver.py, not Claude Code.
-# Two engines typed into it anyway:
-#
-#   crt-stt-solo.py       single-word CONTROL utterances, which bypass the
-#                         wake gate by design, so any ambient "okay"/"no" in
-#                         the room got typed onto the console's own face.
-#   crt-secretary.py      the entire escalation path whenever
-#                         CRT_CLAUDE_REMOTE_PORT is 0 -- i.e. after a plain
-#                         `crt-mandark.sh off`. tmux ACCEPTS those keys (the
-#                         pane is real), so every delivery check passed, and
-#                         wait_for_claude_reply() then diffed the potato's
-#                         own moving caption looking for an answer.
-#
-# The tests that matter here are the negative ones: nothing is sent, and the
-# historical layout is byte-for-byte unaffected.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import unittest

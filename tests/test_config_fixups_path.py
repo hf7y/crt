@@ -3,10 +3,7 @@
 # that used to resolve bin/stt-fixups.json for themselves.
 #
 # The defect: crt-stt-solo.py (the wake gate, the only READER) and
-# crt-calibration-game.py read CRT_STT_FIXUPS; crt-stt-training-merge.py
-# read CRT_STT_FIXUPS_PATH. Same default, so nothing looks wrong -- until
-# someone sets one, at which point a writer and the reader are pointed at
-# different files and every surface still says it worked.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import unittest

@@ -3,17 +3,7 @@
 # (2026-07-25, seventh cycle). The bug these pin down: transcribe_remote()
 # returned "" for BOTH "the server transcribed this clip as nothing" and
 # "there is no server" -- so an unreachable mandark made potato go silent
-# with no line anywhere saying why (FOCUS.md's own 2026-07-23 00:40 note).
-#
-# These inject at the SOCKET -- a real http.server on a real port, and for
-# the unreachable case a port with nothing listening -- rather than stubbing
-# urllib. Cycle six learned that the hard way twice: a stub placed above the
-# function under test reproduces neither the bug nor the fix, and reports
-# both as unchanged. The boundary this bug lives at is the HTTP call, so
-# that is where the test has to sit.
-#
-# No mic, no whisper, no mandark, no potato: everything here is localhost
-# and pure string builders.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import http.server
 import importlib.util
 import json

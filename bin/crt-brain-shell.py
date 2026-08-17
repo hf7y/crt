@@ -3,38 +3,7 @@
 # successor to crt-remote-claude-bridge.py, which this replaces.
 #
 # WHY THIS SHAPE, AND WHY THE OLD ONE IS GONE. The bridge existed because
-# mandark was a laptop with no inbound network path: it bound 127.0.0.1
-# only, and potato reached it through a reverse tunnel mandark itself
-# initiated outward. That whole design was a consequence of the brain host
-# being intermittent and unreachable, not a property anyone wanted for its
-# own sake -- see DEXTER-MOVE.md section 2, where migrating it verbatim was
-# rejected precisely so a retired threat model would not be fossilized on
-# an always-on box.
-#
-# dexter already runs sshd and potato already holds a key to it. So the
-# transport is just SSH, and this program is what that key is allowed to
-# run -- nothing else. The security argument the bridge made for its tiny
-# two-verb protocol still holds and is deliberately kept: a compromised
-# potato gets CAPTURE and SEND against ONE named tmux session, not a
-# shell. That is enforced twice over:
-#
-#   1. authorized_keys pins this program as a forced command with
-#      `restrict`, so sshd will not run anything else, will not forward
-#      ports, and will not allocate a pty.
-#   2. This program never execs a shell, never interpolates the request
-#      into one, and passes SEND's payload to tmux as a single argv
-#      element. There is no code path here that runs client-supplied text.
-#
-# The protocol is byte-identical to the bridge's on purpose: one request
-# line in, one response body out, then close. potato's crt-secretary.py
-# speaks it over an ssh pipe instead of a socket, and nothing else in that
-# file had to learn where the brain lives.
-#
-# Usage (as a forced command -- the request arrives on stdin):
-#   command="/home/zach/.local/bin/crt-brain-shell",restrict ssh-ed25519 ...
-# Also:
-#   crt-brain-shell --print-session   -> the tmux session name, so the
-#                                        start script does not retype it
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import argparse
 import os
 import subprocess

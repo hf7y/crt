@@ -3,27 +3,7 @@
 #
 # bin/crt-monologue.py is the live script on the "mono" window -- the console's
 # only text surface, and where every "the fault is here" line this project has
-# added lands. It sized itself once, at import:
-#
-#     WIDTH = int(os.environ.get("CRT_PAGER_WIDTH", "40"))
-#     _term_h = shutil.get_terminal_size(fallback=(40, 11)).lines
-#     HEIGHT = int(os.environ.get("CRT_MONO_HEIGHT", str(_term_h)))
-#
-# crt-console.sh creates this window with `tmux new-window -d` and runs
-# `exec tmux attach` only at the very end, after every window exists. So the
-# one get_terminal_size() call happens inside a DETACHED session, which tmux
-# sizes 80x24 no matter what the tube is. crt-console.sh knows this -- it pins
-# CRT_COLS/CRT_ROWS for crt-screensaver.py with a comment saying exactly that,
-# and gives this window no such pin.
-#
-# 24 rows of redraw in a 15-row pane means `\x1b[H\x1b[2J` homes to a top that
-# scrolls away immediately: the failure crt-monologue.py's own comment already
-# described ("bit us once: pane was 11 rows, default height was 12"). Width had
-# it worse -- a hardcoded 40 that never consulted the terminal at all, and
-# never consumed the overscan safe margin that crt-pager.py and
-# crt-monologue.sh both honor. The two dedicated width/margin test files in
-# this directory test crt-monologue.SH, the dead wrapper; the live .py had
-# neither.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import io
 import os

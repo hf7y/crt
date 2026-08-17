@@ -3,17 +3,7 @@
 #
 # THE BUG. crt-console.sh made `book` the boot-default window for one
 # concrete reason, recorded in its own comment: the barcode scanner is a USB
-# HID keyboard and types into whichever tmux window has FOCUS (SCANNER.md's
-# "2026-07-21 late session" finding, proven live). The idle-lean layout
-# (CRT_NO_IDLE_CLAUDE=1 -- what potato's ~/.bash_profile actually sets, per
-# .claude/SESSION-STATE.md) selects the screensaver instead, and nothing
-# ever handed focus back. So the `book` window drew its question onto a
-# window nobody was looking at, and the tube kept showing a sleeping potato.
-#
-# The integration test at the bottom is the load-bearing one: it runs the
-# real crt-book-console.py against a fake `tmux` on PATH (same shim idea as
-# tests/test_console_book_game_layout.sh) and asserts the select-window
-# actually happens on a scan -- not that a helper function exists.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import subprocess

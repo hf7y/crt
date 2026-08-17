@@ -3,14 +3,7 @@
 # very-quiet, state-dependent texture in the earpiece: silent when idle,
 # a faint steady bed while listening, a gently pulsed version while
 # thinking, silent again while speaking. Distinct from SIDETONE.md (your
-# own voice) and crt-earcon.sh (one-shot chimes).
-#
-# STATUS: NOT hardware-verified -- never run against a real device, never
-# heard. select_state_spec() (the pure state->tone-spec mapping) is
-# covered by tests/test_sideband.sh; the loop/duck/regeneration logic
-# below has not been exercised live.
-#
-# Usage: crt-sideband.sh   (run as its own background process/tmux pane)
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

@@ -3,16 +3,7 @@
 # (.claude/FOCUS.md's 2026-07-21 end-goal: idle-bait -> scan -> question
 # -> spoken answer -> STT training log -> actionable fixup). Every piece
 # already has its own unit tests against synthetic fixtures; this file's
-# job is different -- it runs SEVERAL of those pieces together against
-# one shared books.db + training.jsonl, the way they'd actually interact
-# live, to catch data-shape mismatches unit tests (each mocking its own
-# neighbor) can't see. No mic/tmux/network -- pure sqlite + JSONL, same
-# offline-safe bar as everything else in this project.
-#
-# Covers: crt-book-game.py (registration/quote/lcc) -> crt-book-console.py
-# (scan handling) -> crt-book-answer-listen.py (grading against a
-# pending question) -> crt-book-game-stats.py (summarizing the result and
-# exporting a candidate fixup from a repeated mismatch).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import json
 import os

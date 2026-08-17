@@ -24,21 +24,7 @@ trap 'rm -rf "$TMPDIR" "$FAKE_BIN"' EXIT
 # 2026-07-25 by run_tests.sh's live-state guard and by reading what it
 # actually runs. Neither is about what is under test here.
 #
-#  1. `chime` stamps CRT_ANNOUNCE_LOCK -- default ~/.crt/announce.lastrun,
-#     the 15-minute rate limit SHARED with crt-announce.sh's TV
-#     announcements (IDLE-BAIT.md's single-rate-limit rule). Running the
-#     suite on potato therefore bought the console fifteen minutes of
-#     silence: the next real bait chime AND the next real TV announcement
-#     both suppressed, for no reason anyone could have traced.
-#  2. `chime` then execs the real bin/crt-earcon.sh, which on a box with
-#     sox installed ends in `aplay -D default` -- the suite makes the
-#     console beep. The guard cannot ever catch that one; sound is not a
-#     file. Faked on PATH the same way test_earcon_capture_duck.sh and
-#     test_earcon_sideband_duck.sh already do.
-#
-# CRT_IDLE_SEEN is pinned too: this script `touch`es it at SOURCE time, so
-# every case below (not just the two that tease) reached the live
-# ~/.crt/idle-bait.seen ledger.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 export CRT_ANNOUNCE_LOCK="$TMPDIR/announce.lastrun"
 export CRT_IDLE_SEEN="$TMPDIR/seen.default"
 cat > "$FAKE_BIN/aplay" <<'EOF'

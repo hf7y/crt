@@ -3,32 +3,7 @@
 #
 # WHY THIS EXISTS. Zach replies to these reports inline, and the reply
 # arrives at the next cycle anchored by section heading plus a quoted line:
-#
-#     ### REPLY
-#     Section: ## New issues found
-#     Re: "  when *starting* an utterance (`bin/crt-stt-solo.py`, ...
-#
-# That anchor is only unambiguous if the heading occurs once. It stopped
-# being unambiguous the moment a day's report began carrying earlier cycles
-# of the same day verbatim under "# Earlier cycles ... preserved verbatim":
-# by the fifth cycle, ~/reports/crt/LATEST.md held five copies of
-# "# crt nightly batch", four of "## New issues found", four of
-# "## Deferred / needs a human". Three consecutive cycles then opened with a
-# reply pointing at a bug that had already been fixed two cycles earlier,
-# because the text it quoted was still sitting in the file -- three nights of
-# the one feedback channel this tier has, spent re-answering a closed
-# question. That is a report-format defect, not a misreading.
-#
-# So: one heading text per report file. Earlier cycles get their own file
-# and a link. This is the mechanical check for that, pinned by
-# tests/test_report_lint.py. Reports live in ~/reports/crt/, outside the repo;
-# run it over them. Committed fallback copies used to be re-linted on every
-# run as a proxy and were deleted 2026-08-17 -- a three-week-old archive is
-# not evidence about the report written tonight.
-#
-# Usage:
-#   crt-report-lint.py FILE [FILE...]
-# Exit: 0 clean, 1 duplicate headings found, 2 a file could not be read.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import re
 import sys
 

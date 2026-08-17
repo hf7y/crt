@@ -3,28 +3,7 @@
 # to say so (2026-07-25).
 #
 # bin/crt-console.sh boots the engine with CRT_STT_SINK=secretary, so
-# send_to_secretary() is THE destination for every utterance that gets past the
-# wake gate. It was:
-#
-#     subprocess.Popen([...], stdout=DEVNULL, stderr=DEVNULL)
-#
-# -- no handle kept, no exit status read, both streams discarded. And
-# crt-secretary.py exec_module()s three other bin/ scripts at import time
-# (crt-stt-confidence.py, crt-speculate.py, crt-media-player.py), so any one of
-# them failing kills it before main() runs. What the room got in that case: the
-# "addressed" earcon, and then nothing -- identical to a gate drop, which is
-# the opposite fact.
-#
-# The Popen call was also unguarded, so an OSError from the spawn itself
-# (ENOMEM on a 905MB Pi is the realistic one) propagated out of the sole mic
-# reader's capture loop: one utterance's bad luck cost the console its hearing.
-#
-# Real child processes throughout. "The child's exit status reaches the parent"
-# cannot be asserted from inside one process, and the fake secretary is a
-# PYTHON file, not a /bin/sh stub, because send_to_secretary() invokes it as
-# `python3 crt-secretary.py` -- a shell stub would exit nonzero with a
-# SyntaxError and every failure assertion here would pass without ever reaching
-# the code under test.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import io
 import os

@@ -183,7 +183,7 @@ grant push while wiring the URL.
 8. Grep the docs for `mandark` (currently ~10 files: `POTATO.md`,
    `STT-MECHANISM.md`, `SELF-REPAIR.md`, `AUDIO-ROUTING.md`, `HANDOFF.md`,
    `SECRETARY.md`, `MORNING-REPORT-PRESENTATION.md`, `AUDIO-DEBUG.md`,
-   `PARKING-LOT.md`, `REFACTOR-ASSESSMENT.md`) and fix the ones that state
+   `PARKING-LOT.md`, `vault:crt/REFACTOR-ASSESSMENT.md`) and fix the ones that state
    host facts, not history. Leave the historical retrospectives alone.
 
 ## What is NOT part of this move

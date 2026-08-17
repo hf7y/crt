@@ -3,17 +3,7 @@
 # of the rate-limit window that crt-idle-teaser.sh's chime() shares with it
 # (IDLE-BAIT.md's single-rate-limit rule: a chime and an announcement must
 # never stack).
-#
-# It had no test at all until 2026-07-25, which is how it kept a defect
-# nobody would call subtle: it stamped the shared window, then `exec`d into
-# crt-tts.py and could not know whether anything was said. A TV device that
-# is missing, busy or misnamed therefore bought fifteen minutes of silence
-# on BOTH channels -- the announcement nobody heard, and the earpiece
-# chimes that rate-limit against the same file. A broken speaker silencing
-# a working one is a fault spreading, not a rate limit.
-#
-# crt-tts.py is faked via a `python3` first on PATH: what is under test is
-# the lock protocol, and the real one needs piper/espeak plus a sound card.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

@@ -3,31 +3,7 @@
 # fifteenth cycle).
 #
 # WHY THIS EXISTS. The barcode scanner is a USB HID keyboard: it types into
-# whichever tmux window has focus (SCANNER.md's "2026-07-21 late session"
-# finding, proven live). That makes "a scan line" a contract between
-# processes, not a detail of one file:
-#
-#   the window that HAS focus   sees bare digits + Enter on its own stdin,
-#                               and has to hand the scan on
-#   ~/.crt/scanner.log          'ISO_TIMESTAMP\tISBN' -- the audit trail
-#                               AND, since crt-scanner-feed.py was retired
-#                               (de37a06), the only channel between a
-#                               window that catches a scan and the window
-#                               that draws the question
-#   crt-book-console.py         reads both, and is the only writer of the
-#                               log until now
-#
-# crt-screensaver.py is now a second writer of that log (it holds focus in
-# the idle-lean layout, so scans land on IT), and a second opinion about
-# what an ISBN looks like or what a log line looks like would break the
-# funnel silently -- a scan forwarded in a shape the reader rejects is
-# indistinguishable from no scan at all. Same anti-drift move as
-# crt_wake_gate.py: the readers and the writers ask one module.
-#
-# Deliberately free of heavy imports: the screensaver is the face of the
-# NO-brain-attached layout on a 1GB Pi (POTATO.md), and pulling
-# crt-book-game.py in for a regex would drag sqlite3/urllib into the idle
-# window. crt-book-game.py's own is_isbn_like() delegates here instead.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import datetime
 import re
 

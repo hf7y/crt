@@ -3,21 +3,7 @@
 # Plays short secretary-style phrases at different rate/pitch/voice/backend
 # combos and lets you pick + save a profile to ~/.crt/tts.conf, which
 # crt-tts.py (and everything downstream: announcements, spoken confirmations)
-# reads by default.
-#
-# STATUS: NOT hardware-verified -- no TTS backend installed on the dev box
-# this was written on. Needs a real run on crt-vm once reachable:
-#   sudo apt-get install espeak-ng      # baseline, always works
-# Piper (better quality, optional): download a voice from
-# https://github.com/rhasspy/piper/blob/master/VOICES.md into ~/.crt/voices/,
-# and the piper binary to ~/.local/bin/piper.
-#
-# Usage: crt-tts-calibrate.py            # interactive menu
-#        crt-tts-calibrate.py --auto     # non-interactive: writes a sane
-#                                         # default profile without audition
-#                                         # (for unattended setup; re-run
-#                                         # interactively later to actually
-#                                         # tune it by ear).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import os, sys, subprocess
 
 # crt-tts.py has a hyphen in its name, can't `import` it -- shell out instead.

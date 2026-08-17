@@ -3,14 +3,7 @@
 # bookidle, bookanswer, windowswitch) plus mono/bridge/stt must compose
 # identically regardless of CRT_NO_IDLE_CLAUDE (FOCUS.md stability-bar item
 # 4 -- "Book Game funnel re-verified... post VM->potato move"). Reading the
-# script shows these windows are created unconditionally -- CRT_NO_IDLE_CLAUDE
-# only swaps window 0 (screensaver vs resident claude) and the boot-selected
-# window -- this test makes that claim mechanically checked instead of just
-# read-and-assumed.
-#
-# No real tmux session is ever created: a fake `tmux` shim on PATH logs every
-# invocation instead of executing it, so this is pure argv-shape checking, the
-# same offline-safe bar as every other test here.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$DIR/../bin/crt-console.sh"

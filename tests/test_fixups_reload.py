@@ -3,18 +3,7 @@
 # boot (2026-07-25, tenth nightly cycle).
 #
 # Three things write that file while the console is up: the `stttrain`
-# window (crt-stt-training-merge.py --loop), crt-calibration-game.py's wake
-# round (a live human confirming a mishear by ear), and a person with an
-# editor. Its only consumer -- crt-stt-solo.py's addressed_to_console() --
-# read it once at import and bound the result as a DEFAULT ARGUMENT, so on
-# a console that stays up for days none of those three ever changed what
-# the gate does.
-#
-# Every test here loads the real crt-stt-solo.py with CRT_STT_FIXUPS
-# pointed at a temp file and then changes that file, because the defect was
-# in the module-level wiring, not in a function that could be handed a
-# dict. All of them pass trivially against a snapshot taken at import only
-# if the snapshot happens to be right; the first four fail against it.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import json
 import os

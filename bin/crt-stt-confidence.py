@@ -3,30 +3,7 @@
 # be understood/handled -- or whether this room's history has seen it (or its
 # normalized shape) often enough that a local/cheap path can take it instead.
 #
-# THE IDEA (Zach, 2026-07-21, live voice session): at first, every utterance
-# should go to Claude -- there's no local model yet. Over time, as specific
-# utterance shapes recur (the same control phrases, the same handful of
-# real requests this console actually gets), the probability of needing
-# Claude for THAT SHAPE decays exponentially toward a floor (never to zero --
-# an occasional re-check catches drift/hallucination in the local answer).
-# Genuinely new/unseen phrasing always starts back at probability 1.0 --
-# decay is per-key, not a blanket session-wide clock, so novelty is never
-# silently swallowed just because the system as a whole has "matured".
-#
-# THIS FILE IS THE DECISION FUNCTION ONLY, not the router. It answers
-# "should this utterance still cost a Claude call?" -- wiring that answer
-# into an actual skip-Claude path is crt-secretary.py's job (its local-answer
-# playbooks already exist; this is what should eventually gate whether they
-# get tried before Claude, and let hit counts grow for playbooks that already
-# handle a phrase correctly). See STT-CONFIDENCE.md for the full design and
-# open questions (confirmation signal, decay constants, per-key vs semantic
-# clustering).
-#
-# STATUS 2026-07-21: fresh scaffold, unit-tested against synthetic data
-# (tests/test_stt_confidence.py) -- NOT yet wired into the live STT/secretary
-# pipeline. Do that once the confirmation-signal question (see the doc) has
-# a real answer, not before -- decaying based on an unconfirmed guess would
-# just teach the system to be confidently wrong faster.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import json
 import os
 import re

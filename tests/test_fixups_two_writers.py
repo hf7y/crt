@@ -3,28 +3,7 @@
 #
 # bin/stt-fixups.json is what this console has learned about how this room
 # says its wake word, and it has two writers -- crt-calibration-game.py (a
-# human confirming a mishear by ear) and crt-stt-training-merge.py's
-# `stttrain` window (unattended, every 600s) -- plus a live reader, the wake
-# gate itself, re-reading on every utterance since 0ccdf13. Since 24a94ac
-# the two writers agree on which file they are writing.
-#
-# Both did read-modify-write-whole-file through a temp path named
-# `<file>.tmp`. The same one. Two things follow:
-#
-#   LOST UPDATE. Each computes its new dict from a snapshot read moments
-#   earlier and writes the WHOLE file. The later write silently drops
-#   whatever the earlier one added -- and what the calibration game adds is
-#   a human-confirmed wake-word alias, which this project cannot re-derive,
-#   only re-earn by someone standing at the mic saying a word until it is
-#   misheard the same way twice.
-#
-#   TORN FILE. open(tmp, "w") truncates. A merge tick landing inside a
-#   calibration save truncates that save's half-written temp, and whichever
-#   os.replace() runs puts the wreckage where the real file was.
-#
-# This file deliberately does NOT import bin/crt_fixups_store.py, so it runs
-# against the parent as well as against the fix -- the point is what the two
-# real writers do to one real file, not what a new module claims about it.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import json
 import os

@@ -3,11 +3,7 @@
 # that replaced the mandark reverse-tunnel bridge. See DEXTER-MOVE.md
 # section 2 and bin/crt-brain-shell.py's header.
 #
-# These run anywhere: no dexter, no potato, no tmux session, no network.
-# The point is the DEGRADE contract, because that is what actually decides
-# whether a dead brain is a short honest reply or a console that waits two
-# minutes and then lies about having sent something. Every case below is one
-# of the ways this path can fail in the house.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import subprocess

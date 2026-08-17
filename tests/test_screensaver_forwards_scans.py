@@ -3,16 +3,7 @@
 #
 # The barcode scanner is a USB HID keyboard -- it types into whichever tmux
 # window has FOCUS (SCANNER.md, proven live), which is why crt-console.sh
-# made `book` the boot-default window. The idle-lean layout
-# (CRT_NO_IDLE_CLAUDE=1, what potato's ~/.bash_profile sets) selects the
-# screensaver instead, and crt-screensaver.py never read its own stdin. So
-# on potato every scan has been typing bare digits into an animation loop:
-# no question, no answer window, no training row -- the Book Game funnel's
-# first link, dead in the only layout that boots there.
-#
-# It forwards rather than handles: scanner.log in the exact shape
-# crt-book-console.py already tails, so the idle face stays a face with no
-# database and no book logic in it.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import io
 import os

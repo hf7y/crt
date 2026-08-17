@@ -3,17 +3,7 @@
 # brain host (dexter, as of 2026-07-28 -- see DEXTER-MOVE.md).
 #
 # This is the piece the old mandark bridge never had: there, a human
-# started `claude` in a tmux window by hand and the bridge simply assumed
-# it. When the session died, every SEND failed with a tmux error and the
-# console just went quiet -- correct behavior from the bridge, but nothing
-# ever put the brain BACK. Being always-on is the whole reason dexter was
-# chosen, so "the session exists" has to be a thing something asserts,
-# not a thing someone remembers.
-#
-# Usage:
-#   crt-brain-session.sh ensure    # create if missing (idempotent)
-#   crt-brain-session.sh status    # report, exit 1 if absent
-#   crt-brain-session.sh restart   # kill and recreate
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,17 +23,7 @@ fi
 # questions about its own project without being told where it lives.
 #
 # But NOT the same working tree a human is editing in. The brain now runs
-# with permissions bypassed (below) and is expected to make real, durable
-# changes -- Zach's stated goal 2026-07-29 is to talk into the handset and
-# have potato commit its own earcon/margin rules. Two writers in one
-# checkout means the brain's spoken commit and a hand edit collide in the
-# index, and the person who finds out is whoever pushes second.
-#
-# So: prefer a dedicated git worktree if one exists. Create it once with
-#   git -C <crt-repo> worktree add ~/crt-brain -b voice
-# and the brain's work lands on its own branch, mergeable on purpose
-# rather than by luck. Falls back to the repo root so a box that has not
-# set one up still gets a working brain, just a colliding one.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 CRT_BRAIN_VOICE_TREE="${CRT_BRAIN_VOICE_TREE:-$HOME/crt-brain}"
 if [ -z "${CRT_BRAIN_CWD:-}" ] && [ -d "$CRT_BRAIN_VOICE_TREE" ]; then
   CRT_BRAIN_CWD="$CRT_BRAIN_VOICE_TREE"
@@ -55,22 +35,7 @@ CLAUDE_BIN="${CRT_BRAIN_CLAUDE:-claude}"
 # for THIS process, decided by Zach 2026-07-29 after watching it happen.
 #
 # The brain has no keyboard. Its only input is `tmux send-keys` from
-# potato, over ssh, from someone speaking into a landline. When Claude
-# raises a modal "Do you want to proceed?", there is nobody on this end
-# to answer it: the pane parks, the secretary's capture-and-wait scrapes
-# a dialog instead of a reply, and the console goes quiet mid-sentence.
-# Live tonight, first real question asked of the dexter brain -- a
-# read-only `ls`/`grep` stalled the whole voice path.
-#
-# potato sets CRT_CLAUDE_ARGS='--permission-mode bypassPermissions' in its
-# own config for exactly this reason, but that variable lives in potato's
-# environment and stops at the ssh boundary. The brain host has to make
-# the same choice for itself, so it is spelled out here rather than
-# assumed to arrive from somewhere.
-#
-# Scoped, not blanket: this is one named tmux session, on a trusted box,
-# running the console's own project, doing work its owner asked for out
-# loud. Override with CRT_BRAIN_CLAUDE_ARGS='' for a prompting brain.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 CRT_BRAIN_CLAUDE_ARGS="${CRT_BRAIN_CLAUDE_ARGS:---permission-mode bypassPermissions}"
 
 have_session() { tmux has-session -t "$SESSION" 2>/dev/null; }
@@ -171,10 +136,7 @@ Clear it with: tmux attach -t $SESSION, or restart: $0 restart" >&2
       # dexter 2026-07-28: the first start in an untrusted directory
       # parks on "Do you trust the files in this folder?" and waits.
       # That pane paints beautifully, so the old check called it UP --
-      # and every SEND after it would have been typed into a modal
-      # dialog and answered by nobody. parked_reason() names each such
-      # state; the permission-prompt case was added 2026-07-29 after the
-      # brain stalled on a read-only ls mid-conversation.
+      #   [rest: vault:crt/header-archaeology-20260817.md]
       if reason="$(parked_reason "$pane")"; then
         echo "crt-brain-session: $SESSION is $reason -- not a usable brain. \
 Clear it with: tmux attach -t $SESSION" >&2

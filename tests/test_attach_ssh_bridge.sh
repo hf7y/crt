@@ -3,14 +3,7 @@
 # (2026-07-21, twelfth pass, REAL BUG FOUND LIVE): the first version
 # derived the Claude Code project directory from `pwd` (the Bash tool's
 # CURRENT working directory), which is wrong whenever the conversation
-# has `cd`'d around since Claude Code itself launched -- confirmed live,
-# a session launched from ~/crt but whose Bash tool had since `cd`'d
-# elsewhere resolved to the WRONG project dir entirely. Fixed to SEARCH
-# for the session's own transcript file by UUID instead of guessing from
-# cwd. This test exercises just that resolution logic (mirrors the real
-# script's find command by hand, same pattern as test_monologue_width.sh)
-# against a fake ~/.claude/projects tree -- no real tmux/bridge process
-# involved.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 fail=0
 

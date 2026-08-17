@@ -3,15 +3,7 @@
 # mandark so the bin/crt-remote-claude-bridge.py server and its reverse
 # tunnel into potato survive reboots, instead of the ad-hoc `nohup`
 # processes this session started manually.
-#
-# FLAG FOR LATER CLEANUP (2026-07-23): kills the ad-hoc nohup processes
-# below by exact PID -- if this script is re-run later after those PIDs
-# are gone/reused, the `kill` lines are harmless no-ops (real PIDs won't
-# match), but this hardcoding is scaffolding, not a template to copy for
-# future setup scripts. Also: CRT_REMOTE_BRIDGE_PORT/8993 is hardcoded in
-# both unit files below AND in crt-console.sh's stt launch line
-# (CRT_CLAUDE_REMOTE_PORT) -- if this port ever changes, update all three
-# places, they're not currently derived from one source of truth.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -euo pipefail
 
 echo "Stopping ad-hoc nohup processes (harmless if already gone)..."

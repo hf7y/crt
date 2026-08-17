@@ -3,21 +3,7 @@
 # See HOOKSWITCH.md for the full behavior spec.
 #
 # Hardware: the printed hook (cad/hook_lever.scad) presses a mini
-# microswitch mounted in cad/switch_mount.scad. That switch is wired to a
-# cheap USB arcade-button/keyboard-encoder board (NOT a relay — this is a
-# logic-level signal, not a load worth switching), configured to send one
-# key when closed. Set CRT_HOOK_KEY below to that key's name from `evtest`.
-#
-# Convention: handset ON the hook (switch closed, key held) -> session
-# paused. Handset OFF the hook (lifted) -> session resumes listening.
-#
-# DEBOUNCE (2026-07-19, HOOKSWITCH.md): a mechanical switch chatters for a
-# few ms around each real transition. Un-debounced, that chatter fires a
-# real STOP/CONT at stt-feed.sh per bounce, and a reordered STOP-after-CONT
-# can leave STT silently stopped while the handset is genuinely off-hook.
-# Fix: only commit a state change once the raw signal has held steady
-# (no new bounce) for a full CRT_HOOK_DEBOUNCE_MS window -- trailing-edge
-# debounce via `read -t`'s timeout as the "has it gone quiet" signal.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -30,17 +16,7 @@ DEBOUNCE_S=$(awk -v ms="$DEBOUNCE_MS" 'BEGIN{printf "%.3f", ms/1000}')
 # against in 2026-07-19 -- and crt-console.sh has not run it since
 # 2026-07-20, when the sole-mic-reader layout replaced the old
 # stt-feed.sh + crt-levels.sh dsnoop pair (see that file's own HISTORY
-# comment). So on potato today, `pkill -f stt-feed.sh` matches nothing.
-#
-# Left pointing where it points (2026-07-25). What on-hook SHOULD do is
-# not decidable from the code: SIGSTOP on crt-stt-solo.py stops the reader
-# while its arecord child keeps filling the pipe, which is the stale-capture
-# class this project has spent cycles on, and the CTL-file mute channel
-# (CRT_CTL_FILE, ref-counted, already read live by crt-stt-solo.py) is the
-# mechanism actually designed for "suppress capture" -- but choosing
-# between them changes what picking up the handset does, which is Zach's
-# call and is what FOCUS.md's ranked item 7 already reserves for him. This
-# env var is so that call costs a line of config, not an edit.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 STT_PROCESS="${CRT_HOOK_STT_PROCESS:-stt-feed.sh}"
 
 apply_state() {
@@ -48,12 +24,7 @@ apply_state() {
   # and swallowed its status with `2>/dev/null || true`, so the one thing
   # it reported was the one thing it had not checked -- for five days it
   # has been announcing a pause it did not perform, against a process name
-  # nothing has run since 2026-07-20. Same class as "spoken" not meaning
-  # audible (3244250) and a phone that never rang (99a8dc3).
-  #
-  # The transition itself still prints unconditionally -- that part IS
-  # known, the debounce committed it -- and the claim about STT is now
-  # whatever pkill actually did.
+  #   [rest: vault:crt/header-archaeology-20260817.md]
   local sig verb
   case "$1" in
     on)  sig=STOP; verb=paused ;;

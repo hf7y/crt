@@ -3,25 +3,7 @@
 # morning report -- parses bin/morning-report.sh's own output and decides
 # what becomes a CRT one-liner vs. a printer page. See
 # MORNING-REPORT-PRESENTATION.md for the full design/contract this
-# implements and what it still needs from the scheduler side.
-#
-# Deliberately does NOT reimplement morning-report.sh's own logic (report
-# discovery, DEPLOY_FRESH_CMD evaluation, QUESTIONS.md filtering) --  that
-# engine is already correct and shared across every project; this only
-# adds a presentation layer on top of its stdout. No LLM involved anywhere
-# in this file, on purpose -- this is the "90% offline supervisor" applied
-# to the morning report specifically (SUPERVISOR.md).
-#
-# STATUS: parsing logic is covered by tests/test_present_morning_report.py
-# against a synthetic sample matching morning-report.sh's real output
-# shape. Never run against the real scheduler script end-to-end (no VM,
-# and even on mandark this session never actually invoked the real script
-# successfully -- see SESSION-STATE.md).
-#
-# Usage:
-#   crt-present-morning-report.py screen        # one-liners, CRT-width
-#   crt-present-morning-report.py print <name>  # full text for one section
-#   crt-present-morning-report.py print-all     # full text, every section
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import os
 import re
 import subprocess
@@ -77,10 +59,7 @@ def fetch_raw(script=SCRIPT):
     # (unrelated to this file -- confirmed by running it standalone) on
     # this same evaluation, plausibly a slow/unreachable per-project
     # DEPLOY_FRESH_CMD probe (e.g. a network check against an
-    # unreachable host, per home-assistant's own report elsewhere in
-    # this project archive). A hang in a shared script this presenter
-    # depends on must never hang the CRT console -- timeout defensively
-    # here rather than trying to fix the shared script from this repo.
+    #   [rest: vault:crt/header-archaeology-20260817.md]
     try:
         r = subprocess.run(["bash", script], capture_output=True, text=True,
                             timeout=FETCH_TIMEOUT)

@@ -3,13 +3,7 @@
 # runs faster-whisper on mandark's full i7 CPU instead of on-device (Pi) or
 # the old resource-capped crt-vm guest. Same request/response contract as
 # dexter-whisper-server.py (POST raw WAV -> {"text": ...}) so any client
-# that already speaks CRT_WHISPER_SERVER can point at either host.
-#
-# Run on mandark:  ~/.venvs/crt-whisper-server/bin/python bin/mandark-whisper-server.py
-#
-# From the client, call:
-#   POST http://<mandark-lan-ip>:8991/transcribe   body: raw WAV bytes
-#   -> {"text": "..."}
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import os
 import tempfile
 from flask import Flask, request, jsonify

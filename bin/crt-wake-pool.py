@@ -3,28 +3,7 @@
 # instead of a single fixed wake word ("claude"), ungated utterances are
 # checked against a POOL of candidate wake words that grows over time --
 # some hand-seeded (CRT_WAKE_POOL_DICT, a plain one-per-line word list),
-# some pulled live from the Book Game's own scanned-book titles
-# (books.db, via crt-book-game.get_db() -- already-cached real data, zero
-# extra scanning/API cost). An EXACT match against any pool word is
-# treated exactly like saying the real wake word (see
-# crt-stt-solo.py's addressed_to_console() gate, which calls into this
-# module). Fuzzy/near matches are NOT auto-promoted -- see
-# crt-wake-pool-tally.py for the offline "which near-misses keep
-# recurring" step that surfaces candidates for a human to add to the
-# dict file by hand, same review-before-merge posture as
-# stt-fixups.json's confidence tiers.
-#
-# Pure functions except load_pool's file/db reads -- covered by
-# tests/test_wake_pool.py.
-#
-# Env:
-#   CRT_WAKE_POOL_DICT (default ~/.crt/wake-pool-dict.txt) -- one
-#     candidate word per line, '#'-prefixed lines ignored (comments).
-#     Missing file = empty, not an error (same tolerant-read convention
-#     as stt-fixups.json).
-#   CRT_WAKE_POOL_MAX_BOOK_TITLES (default 200) -- cap on how many book
-#     titles feed the pool, most-recently-scanned first (an unbounded
-#     library shouldn't make every gate check slower forever).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import difflib
 import importlib.util
 import os
@@ -99,13 +78,7 @@ def check_pool_match(text, pool):
 # pass): "a longer set of words requiring less precision on one word but
 # more reliable matching across words -- many close matches means it's
 # probably the same." Rather than requiring one word to match a pool
-# entry EXACTLY (check_pool_match's job, unchanged/still the primary
-# gate), this counts how many DISTINCT words in the utterance are each
-# individually CLOSE (but not necessarily exact) to some pool word --
-# redundant weak signals across several words are treated as more
-# trustworthy evidence of "this was addressed to the console" than
-# demanding one word be heard perfectly, which is exactly the failure
-# mode a noisy room's STT errors create (FOCUS.md's whole premise).
+#   [rest: vault:crt/header-archaeology-20260817.md]
 FUZZY_CLOSE_RATIO = float(os.environ.get("CRT_WAKE_FUZZY_CLOSE_RATIO", "0.72"))
 FUZZY_CLUSTER_MIN = int(os.environ.get("CRT_WAKE_FUZZY_CLUSTER_MIN", "2"))
 

@@ -3,15 +3,7 @@
 # in this project will actually see -- and a checksum so drift (like the
 # CRT_AUDIO_DEV / stale-bash_profile bug found 2026-07-21) is DETECTABLE
 # instead of silently assumed. Appends one timestamped block to
-# .claude/AUDIT-LOG.md (durable, synced like any other repo file, hand-
-# copied to potato same as everything else) -- never overwrites, so the
-# log itself is a history.
-#
-# Usage: bin/crt-session-audit.sh          # append a record, print summary
-#        bin/crt-session-audit.sh verify   # recompute hashes, diff against
-#                                           # the last recorded block, exit
-#                                           # nonzero + list mismatches if
-#                                           # anything drifted since then
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -euo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$BIN_DIR/.." && pwd)"

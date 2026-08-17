@@ -3,31 +3,7 @@
 # tube -- not just one program's palette constants.
 #
 # HARD RULE (CLAUDE.md; BOOK-GAME-STYLE.md's color section, updated
-# 2026-07-21 by Zach and confirmed live on the real tube): this is a real
-# analog CRT over composite/RF, so chroma bandwidth is far below luma and
-# saturated primaries bleed/smear/ring. Never ANSI 31, 32, 34 (standard
-# red/green/blue) or 91, 92, 94 (their bright variants), at ANY
-# boldness/dimness. Only 33 (yellow), 35 (magenta), 36 (cyan) and 37
-# (white), plus dim/bold modifiers on those.
-#
-# WHY THIS FILE EXISTS (2026-07-25). That rule already had mechanical
-# enforcement -- `tests/test_book_game.py`'s
-# `test_no_primary_rgb_codes_in_palette`, which CLAUDE.md cites by name as
-# the proof it is "not just a comment". But it checks five named constants
-# inside one Python module. `bin/crt-idle-teaser.sh` had carried
-# `COLOR_URGENT=$'\033[1;31m'` since the day it was written, straight onto
-# window 1 via crt-think.sh -> thoughts.log, and no test could see it: the
-# book game's palette was reassigned to comply on 2026-07-21 and this file
-# was simply missed. An enforcement that only covers the place someone
-# already thought about is the same silent-pass class this project keeps
-# finding elsewhere -- so this one reads the files.
-#
-# Scope: bin/ (everything that renders to the tube) plus tests/, because a
-# test asserting a banned code is how a violation gets pinned in place --
-# which is exactly what happened here (test_idle_teaser.sh asserted the red
-# it was supposed to catch). Deliberately a plain grep over source text
-# rather than an import: half of bin/ is shell, and the point is to cover
-# every file regardless of language.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$DIR/.." && pwd)"
@@ -37,23 +13,7 @@ fail=0
 # ($'\033[..m' in shell, "\033[..m"/"\x1b[..m" in Python, or a literal ESC
 # byte), whose parameter list contains a banned code as a WHOLE parameter:
 # `1;31` and `31` fire, `131` and `3` do not. The leading `([0-9]+;)*`
-# insists every earlier parameter ends at a semicolon, which is what makes
-# 131 a near miss rather than a hit.
-#
-# The over-match this file originally accepted came true (2026-07-28): the
-# screensaver's live-tuned olive/brown palette uses real 256-color
-# sequences (`\x1b[38;5;94m` -- palette index 94, a brown, nothing like
-# bright blue), and `tests/test_screensaver.py` grew its own tokenizer
-# plus a regression test naming those sequences. This check flagged that
-# test file, i.e. the two enforcements of the same rule disagreed. The
-# premise for the cheap trade ("nothing in this repo uses 256-color") is
-# simply no longer true, so the check now excludes the 256-color
-# selector form the way the Python tokenizer does: a banned code
-# preceded by `;5;` is a palette index, not an SGR color code. Everything
-# else still fires. Remaining accepted over-match: a TRUEcolor
-# `\033[38;2;0;92;0m` (green component 92) would trip this -- nothing in
-# the repo uses `38;2;`/`48;2;` and no lookbehind can tell a colour
-# component from a code, so that one stays a loud false positive.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 BANNED='31|32|34|91|92|94'
 PATTERN='(\\033|\\x1b|\\e|'$'\x1b'')\[([0-9]+;)*(?<!;5;)('"$BANNED"')(;[0-9]+)*m'
 GREP=(grep -P)

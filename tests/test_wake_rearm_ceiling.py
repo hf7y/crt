@@ -3,31 +3,7 @@
 # (2026-07-25, twelfth nightly cycle).
 #
 # bin/crt-wake-arm.py's ArmState.arm() documents itself as "Always starts a
-# FRESH session, including when one is already open -- saying the wake word
-# again is deliberate, so it resets the ARM_MAX_SECS ceiling rather than
-# being swallowed by the conversation already in progress", and
-# tests/test_wake_arm.py asserted exactly that. But it asserted it by
-# CALLING arm() directly, and in the live wiring an utterance arriving while
-# armed can never reach that call: crt-stt-solo.py's emit() runs the
-# consume-follow-up check first and returns as soon as it consumes, so
-# arm() was only ever reachable from a disarmed state -- the one state where
-# resetting the ceiling means nothing.
-#
-# Live consequence, with CRT_WAKE_ARM_ENABLED=1 as potato's ~/.bash_profile
-# actually sets it: someone who re-says the wake word out of habit (which is
-# what this room's own 2026-07-23 log shows people doing) still hits the
-# 60s ceiling measured from their FIRST wake, and the utterance after it is
-# gate-dropped in silence.
-#
-# The two emit()-driven tests below fail against the parent with that exact
-# symptom -- an utterance the person spoke seconds after saying the wake
-# word, never delivered -- not with an AttributeError about a missing kwarg.
-#
-# CONFIRMED BY ZACH 2026-07-25 (thirteenth cycle, replying inline on that
-# report): "saying the wake word again is deliberate, so it resets the
-# ARM_MAX_SECS ceiling rather than being swallowed by the conversation
-# already in progress." These tests are therefore pinning a decision the
-# human has made, not an inference from a docstring.
+#   [rest: vault:crt/header-archaeology-20260817.md]
 import importlib.util
 import os
 import shutil
@@ -228,13 +204,7 @@ class TestRewakeThroughEmit(unittest.TestCase):
         # arm window's clock starting from the wrong reference point given
         # transcription/network lag? Answer, pinned here: emit() is called
         # AFTER transcribe() returns, but heard_at is captured by the
-        # capture loop BEFORE transcribe() runs (VAD-end) -- so the window
-        # measures from when the person stopped talking, not from whenever
-        # whisper/the network got around to finishing. Decoy proves it:
-        # wake_arm.time is left pointing at a wildly wrong "now" (999.0,
-        # standing in for the moment emit() actually executes after a slow
-        # transcription), and the published deadline still comes out
-        # relative to heard_at=100.0, not 999.0.
+        #   [rest: vault:crt/header-archaeology-20260817.md]
         self.clock.now = 999.0
         self.stt.emit("potato what is the weather", heard_at=100.0)
         read = lambda: self.stt.wake_arm.read_arm_deadline(self.arm_state)
