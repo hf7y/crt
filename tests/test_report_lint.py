@@ -132,18 +132,16 @@ class TestCli(unittest.TestCase):
         self.assertIn("usage", r.stderr)
 
 
-class TestCommittedReports(unittest.TestCase):
-    """The enforcement itself: every report copy tracked in this repo must be
-    answerable. A future cycle that nests an earlier one fails here."""
-
-    def test_reports_fallback_is_clean(self):
-        repo = os.path.dirname(BIN)
-        d = os.path.join(repo, ".reports-fallback")
-        reports = sorted(os.path.join(d, f) for f in os.listdir(d) if f.endswith(".md"))
-        self.assertTrue(reports, ".reports-fallback/ has no reports to check")
-        r = subprocess.run([sys.executable, LINT] + reports,
-                           capture_output=True, text=True)
-        self.assertEqual(r.returncode, 0, r.stderr)
+# TestCommittedReports was here. It scanned .reports-fallback/ -- 24 committed
+# copies of nightly-batch reports, all dated 2026-07-23 or 2026-07-25 -- and
+# asserted the directory was non-empty. Those copies are deleted; the lint is
+# NOT. It still runs on live reports in ~/reports/crt/, and every unit test
+# above still pins its behaviour on synthetic fixtures.
+#
+# The enforcement that mattered is unchanged: a cycle that nests an earlier
+# report inside the current one still fails, because the lint still checks
+# that. What is gone is a three-week-old archive being re-linted on every run
+# as a proxy for it.
 
 
 if __name__ == "__main__":
