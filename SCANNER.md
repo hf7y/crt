@@ -172,7 +172,7 @@ as part of a broader pass on how STT/scanner streams get routed: that
 send-keys call was a second, uncontrolled path for a scan to land as
 literal keystrokes in whatever window had focus -- including window 0's
 live Claude pane, exactly the kind of unrouted escalation the STT side
-already has a wake-word gate (`STT-GATE.md`) to prevent. Since nothing
+already has a wake-word gate (`vault:crt/STT-GATE.md`) to prevent. Since nothing
 still depends on it (`crt-book-console.py` tails `scanner.log` directly,
 per the pivot above), removed outright rather than left dormant --
 `crt-scanner-feed.py` is now log-only. See `tests/test_scanner_feed.py`.

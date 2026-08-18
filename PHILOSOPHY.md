@@ -95,7 +95,7 @@ mostly load-bearing locally.
 - Does `crt-monologue.sh`'s always-on narration conflict with principle #3
   once idle-bait is layered in? (noted above)
 - If principle #5 (one body, several selves) is taken seriously, does the
-  *gallery/payphone* installations (`RFP-GALLERY.md`, `RFP-PAYPHONE.md`)
+  *gallery/payphone* installations (`vault:crt/RFP-GALLERY.md`, `vault:crt/RFP-PAYPHONE.md`)
   count as new "channels" of the same character, or genuinely separate
   beings? Affects whether they should ever share a backend/persona store.
 - Principle #6 says imperfection is character — where's the line? A

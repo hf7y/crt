@@ -65,7 +65,7 @@ this path**, pure parsing of `morning-report.sh`'s existing stdout.
   scheduler ever adds a third cross-cutting block, worth confirming it
   keeps the same header shape rather than inventing a new one.
 
-## Deployment gap (see VM-JOBS.md)
+## Deployment gap (see vault:crt/VM-JOBS.md)
 This all runs correctly on mandark today (where `morning-report.sh` and
 the `~/reports/*/`, `~/reports/*/vm/` trees already exist). For the VM to
 ever run this playbook itself, it needs the scheduler's aggregate data

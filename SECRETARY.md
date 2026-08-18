@@ -22,7 +22,7 @@ eventually replaces the raw "type into Claude's pane" model.
 - **TTS through the TV** (`bin/crt-announce.sh`, rate-limited to 1/15min) —
   for getting **Chris's** attention when he's in the room but not on the
   phone. He can only respond by talking into the handset (no clicking/typing).
-  See `AUDIO-ROUTING.md` for why this is likely a host (Windows), not guest
+  See `vault:crt/AUDIO-ROUTING.md` for why this is likely a host (Windows), not guest
   (VM), problem, and the current state of that bridge (not yet built).
 
 ## What a "secretary" interaction should feel like (not yet built)

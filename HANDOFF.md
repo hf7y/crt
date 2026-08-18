@@ -13,7 +13,7 @@ pointers below for depth on any one piece.
 - `SECRETARY.md` — the actual product vision (phone secretary, not a raw STT
   terminal) and what's built vs. still design-only.
 - `AUDIO-DEBUG.md` — mic capture staleness debugging (5 parallel approaches).
-- `AUDIO-ROUTING.md` — TV vs. phone-earpiece audio output separation (still
+- `vault:crt/AUDIO-ROUTING.md` — TV vs. phone-earpiece audio output separation (still
   unsolved — this is the active priority, see below).
 - `PARKING-LOT.md` — the deep end-state vision (RF power-on, hidden
   transcription, predictive-text feel, morning-reports + media-playback as
@@ -73,7 +73,7 @@ host hop; the VM sits behind dexter's NAT at `ssh -p 2222 zach@dexter.local`
 scp/ssh pipe by hand or script (see `scp`/`sftp` caveat above; use the
 base64-pipe trick for binaries). `bin/crt-sync-vm-reports.sh` already
 walks this exact path nightly-job-side to pull VM reports back to mandark
-— see `VM-JOBS.md` for that job's status (written, not yet wired into
+— see `vault:crt/VM-JOBS.md` for that job's status (written, not yet wired into
 `schedule/crt.conf`).
 
 **svc-vaporwave (planned, not yet done):** a service account needs SSH
@@ -299,7 +299,7 @@ something else broke.
 - `crt-announce.sh` — rate-limited (1/15min) TV-facing TTS for Chris. Code
   done; the actual bridge to reach the TV's audio device from inside the VM
   does not exist yet (VirtualBox maps only one host audio device per VM) —
-  **this is the current top priority**, see AUDIO-ROUTING.md.
+  **this is the current top priority**, see vault:crt/AUDIO-ROUTING.md.
 - `crt-pager.py` — slow auto-scroll pager for long text on the CRT
   (control-file driven, same channel as the knob HUD). Not wired to anything
   real yet.
@@ -320,7 +320,7 @@ something else broke.
    getting `crt-announce.sh` to actually reach the TV (not just whatever
    device the VM happens to be mapped to) needs either a small always-on
    listener on dexter that the guest posts to, or moving TTS-for-Chris
-   entirely to a native-dexter process. See AUDIO-ROUTING.md for the
+   entirely to a native-dexter process. See vault:crt/AUDIO-ROUTING.md for the
    options and the dead-end already tried (raw COM PolicyConfig from
    PowerShell reproducibly fails QueryInterface; `nircmd.exe` would work but
    needs the user's OK to fetch a third-party binary).
