@@ -73,7 +73,7 @@ print done and confirmed fine — Ender 3 SD path is not a blocker anymore.
 
 ## Named but not yet stubbed (mechanism decided, part status noted)
 - ~~Persona-channel indicator (rotary switch)~~ — **abandoned 2026-07-21**,
-  see `PERSONA-CHANNEL.md`'s superseded note. Chris: use the CRT's actual
+  see `vault:crt/PERSONA-CHANNEL.md`'s superseded note. Chris: use the CRT's actual
   TV channels instead of a separate switch — IR blaster emits the channel
   code to reinforce the active persona, TV's built-in speaker beeps a
   confirmation tone, handset mic picks it up to confirm the channel
@@ -94,7 +94,7 @@ print done and confirmed fine — Ender 3 SD path is not a blocker anymore.
   once real hardware is in hand.
 
 ## Unrelated to the personal crt, tracked here anyway since they're CAD
-- `RFP-GALLERY.md` / `RFP-PAYPHONE.md` will need their own hardware once
+- `vault:crt/RFP-GALLERY.md` / `vault:crt/RFP-PAYPHONE.md` will need their own hardware once
   (if) either moves past the brief stage — a gallery unit reuses the
   hookswitch assembly design directly; the payphone brief explicitly
   recommends off-the-shelf coin-mechanism hardware, not custom CAD, so

@@ -25,7 +25,7 @@ distortion). Sidetone isn't cosmetic here — it's upstream of the actual
 transcription-quality problem this project is already trying to solve.
 
 ## The complication: where does the handset earpiece actually live?
-`AUDIO-ROUTING.md` (written before the dexter bridge existed) assumed the
+`vault:crt/AUDIO-ROUTING.md` (written before the dexter bridge existed) assumed the
 handset earpiece stays a **guest-local** ALSA device while only the TV
 output moves to the host. But `bin/crt-tts.py`'s current `DEXTER_DEVICES`
 tuple is `("tv", "handset")` — **both** now route through

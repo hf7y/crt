@@ -603,7 +603,7 @@ access this session).
   cost-of-ignoring-near-zero, restraint-as-trust, verbs-not-menus,
   one-body-several-selves, imperfection-as-character, local-first) plus
   open threads at the bottom worth revisiting.
-- `RFP-GALLERY.md`, `RFP-PAYPHONE.md` — design briefs for the two
+- `vault:crt/RFP-GALLERY.md`, `vault:crt/RFP-PAYPHONE.md` — design briefs for the two
   gallery/art installation ideas in `PARKING-LOT.md`, fleshed out enough
   to hand to a collaborator. **Payphone brief has a real legal-risk
   section** (real-money payout = gambling device in most jurisdictions) —
@@ -636,14 +636,14 @@ access this session).
    dexter?** Blocks whether software sidetone is even possible — see
    `SIDETONE.md`. `crt-tts.py`'s `DEXTER_DEVICES` now includes `"handset"`
    alongside `"tv"`, which is a real architecture drift from
-   `AUDIO-ROUTING.md`'s original assumption (handset stays guest-local).
+   `vault:crt/AUDIO-ROUTING.md`'s original assumption (handset stays guest-local).
    Worth resolving early since it also affects the hardware-sidetone
    recommendation (design the mic/earpiece wiring with a passive tap from
    the start, per `SIDETONE.md` option 1).
 2. **Idle-bait quiet hours** — what hours should the earcon go silent?
 
 ## Second wave, after the first push (uncommitted)
-- `PERSONA-CHANNEL.md` — decided the persona-channel indicator mechanism
+- `vault:crt/PERSONA-CHANNEL.md` — decided the persona-channel indicator mechanism
   (`cad/CAD-BACKLOG.md`'s open item): a real detented rotary switch Chris
   turns by hand, not a servo/LED display — control and indicator are the
   same object, can't desync, works unpowered. Still needs a specific
@@ -697,9 +697,9 @@ offline-buildable/testable, unlike waves 1-2's mostly-design docs:
   synth-tested this session (sox renders clean); still unheard by a human.
 
 ## Fourth wave: vision + scheduler wiring, then ramped down
-`DEVELOPMENT-WORKFLOW.md` ties everything into a three-tier autonomy model
+`vault:crt/DEVELOPMENT-WORKFLOW-20260818.md` ties everything into a three-tier autonomy model
 (mandark disposable-clone batch / new VM-resident hardware check / this
-kind of interactive session). New this wave: `VM-JOBS.md` +
+kind of interactive session). New this wave: `vault:crt/VM-JOBS.md` +
 `.claude/commands/vm-hardware-check.md` + `systemd/crt-vm-hardware-check.
 {service,timer}` (not installed, no VM access) + `bin/crt-sync-vm-reports.
 sh` (pull-based, untested). **Real scheduler wiring done**: `schedule/

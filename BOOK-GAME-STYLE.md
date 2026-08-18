@@ -29,7 +29,7 @@ voice, not a new character:
   the persona, thumbing through the stacks while no one's around.
 
 Same voice as the rest of the console, just wearing this game's specific
-hat — consistent with `PERSONA-CHANNEL.md`'s "one body, several selves."
+hat — consistent with `vault:crt/PERSONA-CHANNEL.md`'s "one body, several selves."
 
 ## Screen real estate
 

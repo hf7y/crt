@@ -18,7 +18,7 @@ memory store). Not yet mirrored onto crt-vm/dexter.
 - **Sensitivity target: STT/audio first** (`CRT_VAD_THRESHOLD`,
   `CRT_VAD_START_CHUNKS`, `CRT_VAD_TRAIL`, `CRT_VAD_MAX/MIN`,
   `CRT_VAD_PREROLL` — see `bin/crt-stt-solo.py`'s own env-var block — plus
-  the STT_GATE/STT_CONFIDENCE knobs in `STT-GATE.md`/`STT-CONFIDENCE.md`),
+  the STT_GATE/STT_CONFIDENCE knobs in `vault:crt/STT-GATE.md`/`STT-CONFIDENCE.md`),
   but Zach's explicit instruction: **"maximally aggressive as long as it
   uses git right"** — read as license to tune broadly, not just audio,
   provided the git-commit discipline below is never skipped.

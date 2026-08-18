@@ -47,7 +47,7 @@ full debounce window, collapsing any bounce train into exactly one action.
   — is this a meaningful gesture (e.g. "never mind, restart") or just
   noise? Real telephones don't assign it meaning either; probably fine to
   leave unassigned, noting it here so it's a decision, not an oversight.
-- **Persona-channel knob interaction** (`PERSONA-CHANNEL.md`) — the
+- **Persona-channel knob interaction** (`vault:crt/PERSONA-CHANNEL.md`) — the
   hookswitch and the channel knob are two independent physical inputs;
   worth deciding whether turning the channel knob while on-hook should do
   anything (probably not — picking up is still the actual "begin"
@@ -141,7 +141,7 @@ read the transition via `gpiozero`/`RPi.GPIO`/sysfs instead of an
   values, not HID-specific parsing.
 
 **No recommendation made here on purpose** (Zach's call, same posture
-`RFP-GALLERY.md`'s architecture writeup used) — options 2 and 3 are not
+`vault:crt/RFP-GALLERY.md`'s architecture writeup used) — options 2 and 3 are not
 mutually exclusive with each other (3 is really "how option 2 gets its
 raw signal"), while option 1 is a genuinely different, stronger-but-
 costlier guarantee that could also be layered *underneath* either 2 or 3

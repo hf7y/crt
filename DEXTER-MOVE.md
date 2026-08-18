@@ -181,7 +181,7 @@ grant push while wiring the URL.
    change; a stale senechal entry pointing at a dead mandark unit is the
    failure this protocol exists to prevent.
 8. Grep the docs for `mandark` (currently ~10 files: `POTATO.md`,
-   `STT-MECHANISM.md`, `SELF-REPAIR.md`, `AUDIO-ROUTING.md`, `HANDOFF.md`,
+   `STT-MECHANISM.md`, `SELF-REPAIR.md`, `vault:crt/AUDIO-ROUTING.md`, `HANDOFF.md`,
    `SECRETARY.md`, `MORNING-REPORT-PRESENTATION.md`, `AUDIO-DEBUG.md`,
    `PARKING-LOT.md`, `vault:crt/REFACTOR-ASSESSMENT.md`) and fix the ones that state
    host facts, not history. Leave the historical retrospectives alone.
