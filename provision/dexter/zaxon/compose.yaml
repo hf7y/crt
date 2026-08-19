@@ -7,16 +7,15 @@
 # Zach's phone. The deploy script refuses to start these while that distro is
 # up; it is not a comment, it is a check.
 #
-# Two services, not one process with two threads: when the bridge dies, only
-# the bridge restarts, and the gateway's own supervision does not mask it.
+# Two services, not one process: when the bridge dies only the bridge restarts.
 services:
   gateway:
     build: .
     image: zaxon-gateway:local
     container_name: zaxon-gateway
     restart: always
-    # The whole app directory, at the SAME path it has inside the distro --
-    # the venv's shebangs are absolute and would break at any other mount point.
+    # The whole app dir at its SAME in-distro path: the venv's shebangs are
+    # absolute and break at any other mount point.
     volumes:
       - ./data:/home/zaxon/.hermes
       # THE INTERPRETER IS NOT IN ~/.hermes. The venv's `python` is a symlink to
@@ -26,11 +25,14 @@ services:
       # python, and the gateway crash-loops on ModuleNotFoundError: hermes_cli.
       # Mounted at its original path because the symlink is absolute.
       - ./uv:/home/zaxon/.local/share/uv
-    # 8643 is published HERE, on behalf of the relay: the relay shares this
-    # container's network namespace so it can reach the bridge hermes-agent
-    # spawns on localhost:3000.
+    # Published HERE on the relay's behalf -- it shares this namespace (see below).
+    # BOUND, NOT AUTHENTICATED: this distro carries the tailnet on eth3 AND
+    # 192.168.0.22 on eth4, so "8643:8643" gave the whole house LAN ask_zach
+    # (realisateur#402). Naming both IS the guard, and a moved tailnet address
+    # fails the container to start rather than reopening the hole quietly.
     ports:
-      - "8643:8643"
+      - "127.0.0.1:8643:8643"
+      - "100.107.253.56:8643:8643"
   # THE MCP DOOR. Separate from the gateway on purpose, and it was separate in
   # the distro too (zaxon-relay-mcp.service): the relay owns ask_zach /
   # check_zach_reply and shells out to hermes-agent's `hermes send` to deliver,
@@ -45,12 +47,11 @@ services:
       - ./uv:/home/zaxon/.local/share/uv
     working_dir: /home/zaxon/.hermes/zaxon_relay
     # SHARE THE GATEWAY'S NETWORK NAMESPACE. `hermes send` talks to the Baileys
-    # bridge on localhost:3000, and that bridge is a child of the gateway
-    # process -- from its own namespace the relay saw "Cannot connect to host
-    # localhost:3000", which is exactly this (observed live 2026-08-14).
+    # bridge on localhost:3000, a child of the gateway process; from its own
+    # namespace the relay saw "Cannot connect to host localhost:3000" (2026-08-14).
     network_mode: "service:gateway"
-    # The IMAGE's python, explicitly: PATH puts hermes-agent's venv first and
-    # that venv has no `mcp`. The relay's own venv is 3.14-compiled and unusable.
+    # The IMAGE's python: PATH puts hermes-agent's venv first and it has no `mcp`
+    # (the relay's own venv is 3.14-compiled and unusable).
     command: ["/usr/local/bin/python", "/home/zaxon/.hermes/zaxon_relay/zaxon_relay_server.py"]
     depends_on:
       - gateway
