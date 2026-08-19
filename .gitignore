@@ -5,6 +5,11 @@ __pycache__/
 .scheduler-autocommit.log
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+# Session transcripts carry the Anthropic OAuth token verbatim -- one was found
+# in /home/crt/.claude/projects/ on monkey. This repo tracks other .claude/
+# files, so without these two lines an autocommit publishes a live credential.
+.claude/projects/
+*.jsonl
 
 # Secrets -- real credentials never live in a tracked file; keep them in an
 # untracked .env / secrets/ instead (see DEV-DISCIPLINE-RETROSPECTIVE §5).
