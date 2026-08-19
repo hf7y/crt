@@ -45,14 +45,14 @@ services:
     volumes:
       - ./data:/home/zaxon/.hermes
       - ./uv:/home/zaxon/.local/share/uv
-    working_dir: /home/zaxon/.hermes/zaxon_relay
+    working_dir: /opt/zaxon-relay
     # SHARE THE GATEWAY'S NETWORK NAMESPACE. `hermes send` talks to the Baileys
     # bridge on localhost:3000, a child of the gateway process; from its own
     # namespace the relay saw "Cannot connect to host localhost:3000" (2026-08-14).
     network_mode: "service:gateway"
     # The IMAGE's python: PATH puts hermes-agent's venv first and it has no `mcp`
     # (the relay's own venv is 3.14-compiled and unusable).
-    command: ["/usr/local/bin/python", "/home/zaxon/.hermes/zaxon_relay/zaxon_relay_server.py"]
+    command: ["/usr/local/bin/python", "/opt/zaxon-relay/zaxon_relay_server.py"]
     depends_on:
       - gateway
     healthcheck:
@@ -72,8 +72,8 @@ services:
     volumes:
       - ./data:/home/zaxon/.hermes
       - ./uv:/home/zaxon/.local/share/uv
-    working_dir: /home/zaxon/.hermes/zaxon_relay
+    working_dir: /opt/zaxon-relay
     network_mode: "service:gateway"
-    command: ["/usr/local/bin/python", "/home/zaxon/.hermes/zaxon_relay/zaxon_relay_watcher.py"]
+    command: ["/usr/local/bin/python", "/opt/zaxon-relay/zaxon_relay_watcher.py"]
     depends_on:
       - relay
