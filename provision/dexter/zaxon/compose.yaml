@@ -1,17 +1,16 @@
 # zaxon on dexter -- deployed to /srv/zaxon/ by bin/dexter-service-deploy.sh.
 #
 # THE ONE-OWNER RULE, stated where it can be acted on. `data/` holds a WhatsApp
-# LINKED-DEVICE session (Baileys). Exactly one process may own it. If the
-# `hermes` WSL distro is running its own bridge against the same session at the
-# same time, WhatsApp logs the link out and recovering costs a QR scan on
-# Zach's phone. The deploy script refuses to start these while that distro is
-# up; it is not a comment, it is a check.
+# LINKED-DEVICE session (Baileys) and exactly one process may own it: if the
+# `hermes` distro runs its own bridge against it, WhatsApp logs the link out and
+# recovery costs a QR scan. The deploy script refuses -- a check, not a comment.
 #
 # Two services, not one process: when the bridge dies only the bridge restarts.
 services:
   gateway:
-    build: .
-    image: zaxon-gateway:local
+    # PULLED, NOT BUILT: /srv/zaxon needs only this file and data/, so a dexter
+    # that lost its checkout recovers with `compose pull && up -d`.
+    image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-gateway
     restart: always
     # The whole app dir at its SAME in-distro path: the venv's shebangs are
@@ -38,8 +37,7 @@ services:
   # check_zach_reply and shells out to hermes-agent's `hermes send` to deliver,
   # deliberately not touching the gateway's own process or storage.
   relay:
-    build: .
-    image: zaxon-gateway:local
+    image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-relay
     restart: always
     volumes:
@@ -65,8 +63,7 @@ services:
   # Tails hermes-agent's agent.log for Zach's replies and matches them to
   # tickets. Reads only; it does not touch the gateway's process or source.
   watcher:
-    build: .
-    image: zaxon-gateway:local
+    image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-watcher
     restart: always
     volumes:
