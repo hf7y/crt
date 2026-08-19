@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# demande -- ask Zach a question and get his answer back, from any host.
+#
+# STANDALONE BY CONSTRUCTION. This file carries the endpoint and the whole MCP
+# handshake itself and execs nothing outside its own tree. The sibling `sonne`
+# is the counter-example: it resolves subcommands through
+# SONNE_LEGACY_ROOT=/home/zach/Documents/Projects/crt, so it works only on the
+# one machine that happens to hold a checkout. A verb is installed host-wide
+# into /usr/local/bin on machines with no clone at all, so a verb that needs a
+# repo is a verb that is broken everywhere it matters.
+#
+# SELF-LOCATING THROUGH THE SYMLINK. /usr/local/bin/demande is a symlink into a
+# dated build; without readlink -f, lib/verb.sh is sought beside the NAME rather
+# than beside the FILE, and the verb dies on a host where it is only linked.
+
+SELF="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+
+VERB_NAME=demande
+VERB_SUMMARY="ask Zach a question over WhatsApp and read his reply"
+VERB_USAGE="demande ask <question> [from-agent]
+  demande check <ticket-id>"
+VERB_CAN_SUMMON=0        # a WhatsApp message costs nothing; it spends Zach's attention
+# shellcheck source=../lib/verb.sh
+. "$SELF/lib/verb.sh"
+
+# WHERE THE RELAY IS, IN ONE PLACE. Tried in order; the first that answers wins,
+# so the same verb works from mandark and monkey (tailnet) and from dexter
+# itself (loopback) with no per-host config. zaxon is bound to exactly these two
+# addresses and no longer to the LAN -- see provision/dexter/zaxon/compose.yaml.
+ZAXON_ENDPOINTS="${ZAXON_MCP_URL:-http://127.0.0.1:8643/mcp http://100.107.253.56:8643/mcp}"
+
+need() { command -v "$1" >/dev/null 2>&1 || verb_blind "$1 is not on PATH; cannot reach the relay"; }
+need curl; need python3
+
+# mcp_open -> prints "<url> <session-id>" for the first endpoint that completes a
+# handshake. BLIND if none do: an unreachable relay is "I cannot ask", never
+# "there was nothing to ask", and the difference is the whole point of exit 6.
+mcp_open() {
+  local url hdr sid
+  hdr="$(mktemp)"; trap 'rm -f "$hdr"' RETURN
+  # Every exit below is the caller's to see: this runs in a command
+  # substitution, so the caller must test the status, not the string.
+  for url in $ZAXON_ENDPOINTS; do
+    : > "$hdr"
+    curl -s -D "$hdr" -o /dev/null -m 10 \
+      -H 'Content-Type: application/json' -H 'Accept: application/json,text/event-stream' \
+      -X POST "$url" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demande","version":"1"}}}' \
+      >/dev/null 2>&1 || continue
+    sid="$(tr -d '\r' < "$hdr" | awk 'tolower($1)=="mcp-session-id:"{print $2}')"
+    [ -n "$sid" ] || continue
+    curl -s -o /dev/null -m 10 -H 'Content-Type: application/json' \
+      -H 'Accept: application/json,text/event-stream' -H "mcp-session-id: $sid" \
+      -X POST "$url" -d '{"jsonrpc":"2.0","method":"notifications/initialized"}' >/dev/null 2>&1
+    printf '%s %s\n' "$url" "$sid"
+    return 0
+  done
+  verb_blind "no zaxon relay answered on: $ZAXON_ENDPOINTS"
+}
+
+# mcp_call <url> <sid> <tool> <json-args> -- the body is built by a real encoder
+# because a question carries newlines and quotes, and a hand-built one 400s in a
+# way that reads exactly like the relay being down.
+mcp_call() {
+  local url="$1" sid="$2" tool="$3" args="$4" body out
+  body="$(mktemp)"; trap 'rm -f "$body"' RETURN
+  python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":sys.argv[1],"arguments":json.loads(sys.argv[2])}}))' "$tool" "$args" > "$body" \
+    || verb_die "could not encode the request"
+  out="$(curl -s -m 30 -H 'Content-Type: application/json' \
+          -H 'Accept: application/json,text/event-stream' -H "mcp-session-id: $sid" \
+          -X POST "$url" --data-binary "@$body" 2>/dev/null)" \
+    || verb_broke "the relay accepted the handshake but not the call"
+  printf '%s' "$out" | tr -d '\r'
+}
+
+verb_parse "$@"
+set -- "${VERB_ARGS[@]+"${VERB_ARGS[@]}"}"
+[ $# -ge 1 ] || { verb_usage; exit 2; }
+
+case "$1" in
+  ask)
+    shift
+    [ $# -ge 1 ] || verb_die "ask needs a question"
+    open="$(mcp_open)" || exit $?
+    read -r url sid <<< "$open"
+    args="$(python3 -c 'import json,sys; print(json.dumps({"question":sys.argv[1],"from_agent":sys.argv[2]}))' "$1" "${2:-demande}")"
+    out="$(mcp_call "$url" "$sid" ask_zach "$args")"
+    tid="$(printf '%s' "$out" | grep -oE '"ticket_id\\?": ?\\?"[0-9a-f]+' | grep -oE '[0-9a-f]{6,}$' | head -1)"
+    [ -n "$tid" ] || verb_broke "the relay answered but named no ticket: $(printf '%s' "$out" | head -c 200)"
+    if [ "$VERB_JSON" = 1 ]; then printf '{"ticket_id":"%s"}\n' "$tid"; else
+      printf '%s\n' "$tid"
+      [ "$VERB_QUIET" = 1 ] || printf 'asked. poll with: demande check %s\n' "$tid" >&2
+    fi
+    ;;
+  check)
+    shift
+    [ $# -ge 1 ] || verb_die "check needs a ticket-id"
+    open="$(mcp_open)" || exit $?
+    read -r url sid <<< "$open"
+    out="$(mcp_call "$url" "$sid" check_zach_reply "$(python3 -c 'import json,sys; print(json.dumps({"ticket_id":sys.argv[1]}))' "$1")")"
+    # Unwrap the JSON-RPC envelope: a front door prints the answer, not the
+    # transport. A pending ticket is exit 0 -- Zach not having replied yet is a
+    # normal state, not a broken promise. Only an unreadable relay is 6.
+    printf '%s' "$out" | python3 -c '
+import json,re,sys
+raw = sys.stdin.read()
+m = [l[6:] for l in raw.splitlines() if l.startswith("data: ")] or [raw]
+try:
+    r = json.loads(m[-1])["result"]["content"][0]["text"]
+    d = json.loads(r)
+except Exception:
+    sys.stderr.write("demande: BROKEN: unreadable reply from the relay\n"); sys.exit(5)
+if len(sys.argv) > 1 and sys.argv[1] == "1":
+    print(json.dumps(d))
+else:
+    print(d.get("status","?"))
+    for k in ("answer","error"):
+        if d.get(k): print(d[k])
+' "$VERB_JSON" || exit $?
+    ;;
+  *) verb_die "unknown subcommand: $1  (try --help)" ;;
+esac

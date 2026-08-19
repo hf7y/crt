@@ -1,0 +1,57 @@
+.TH DEMANDE 1 "2026-08-19" "crt" "Ecosystem verbs"
+.SH NAME
+demande \- ask Zach a question over WhatsApp and read his reply
+.SH SYNOPSIS
+.B demande ask
+.I question
+.RI [ from-agent ]
+.br
+.B demande check
+.I ticket-id
+.SH DESCRIPTION
+.B demande
+is the client half of zaxon, crt's WhatsApp relay. It is the only channel that
+carries a question from an unattended agent to a human, so every other failure
+in the estate is meant to reach Zach through this.
+.PP
+.B ask
+sends the question and prints a ticket id immediately \- it does
+.B not
+wait. A human reply takes minutes to hours.
+.B check
+polls that ticket; a
+.I pending
+status is exit 0, because Zach not having answered yet is a normal state and
+not a broken promise.
+.SH ENDPOINT
+The relay is tried at
+.I http://127.0.0.1:8643/mcp
+then
+.IR http://100.107.253.56:8643/mcp ,
+and the first that completes an MCP handshake wins. That covers dexter itself
+(loopback) and mandark and monkey (tailnet) with no per-host configuration.
+zaxon is bound to exactly those two addresses and deliberately not to the LAN.
+Override with
+.BR ZAXON_MCP_URL .
+.SH EXIT STATUS
+.TP
+.B 0
+the question was relayed, or the ticket was read
+.TP
+.B 2
+usage error
+.TP
+.B 5
+the relay handshook but would not carry the message
+.TP
+.B 6
+BLIND \- no relay answered. This is "I cannot ask", never "there was nothing
+to ask", and the distinction is why it is not exit 0.
+.SH NOTES
+This verb carries the endpoint and the whole MCP handshake itself and execs
+nothing outside its own tree. Verbs install host-wide on machines that hold no
+checkout, so a verb that reaches into a clone is broken everywhere it matters.
+.SH SEE ALSO
+.BR sonne (1),
+crt's
+.I provision/dexter/zaxon/README.md
