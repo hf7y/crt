@@ -1,52 +1,35 @@
 # zaxon -- the relay that carries a question to a human, as a container.
-#
 # WHAT IS AND IS NOT BAKED IN. The image carries the RUNTIME only: python 3.11
-# (matching the venv the app already has), node 22 (the Baileys bridge), and a
-# zaxon user at uid 1000 so the bind-mounted data keeps its ownership. The app
-# itself -- ~/.hermes, 558M including its own .venv and node_modules -- is a
-# BIND MOUNT, not a COPY.
+# (matching the app's venv), node 22 (the Baileys bridge), and a zaxon user at
+# uid 1000 so bind-mounted data keeps its ownership. ~/.hermes itself -- 558M,
+# and holder of the WhatsApp session, kanban db and memories -- is a BIND MOUNT,
+# not a COPY: baking it in would make the image secret-bearing and would fork
+# the state the moment anyone rebuilt. The image is runtime; the mount is identity.
 #
-# That is deliberate and worth defending: ~/.hermes holds the WhatsApp
-# linked-device session, the kanban db, and the memories. Baking it into an
-# image would make the image secret-bearing and would fork the state the moment
-# anyone rebuilt. The image is the runtime; the mount is the identity.
-#
-# The venv's shebangs are absolute (/home/zaxon/.hermes/hermes-agent/.venv/...),
-# so the mount point MUST be /home/zaxon/.hermes. Same path in, same path out.
+# The venv's shebangs are absolute, so the mount point MUST be /home/zaxon/.hermes.
 FROM python:3.11-slim
 
-# node 22 to match what the hermes distro runs (v22.22.1, probed 2026-08-14);
-# the Baileys bridge is ESM and version-sensitive.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates gnupg ffmpeg procps \
  && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && rm -rf /var/lib/apt/lists/*
 
-# uid 1000 matches zaxon inside the hermes distro (probed: uid=1000(zaxon)),
-# so the bind-mounted session files stay readable and stay owned by a
-# non-root user.
-# The relay's OWN venv is compiled for python 3.14 (the old distro's system
-# python) and cannot be reused here, so its one dependency is installed into
-# the image instead. zaxon_relay_server.py imports mcp; everything else it uses
-# is stdlib, and it shells out to hermes-agent's venv for delivery.
+# The relay's venv is python 3.14 and unusable here, so its one dependency (mcp)
+# is installed into the image; the rest is stdlib, delivery uses hermes's venv.
 RUN pip install --no-cache-dir mcp
 
 RUN useradd -m -u 1000 -s /bin/bash zaxon
 
-# Pre-create the XDG dirs OWNED BY zaxon. Docker creates a bind mount's parent
-# directories as root, so mounting ./uv at ~/.local/share/uv makes ~/.local and
-# ~/.local/share root-owned -- and the gateway then cannot create ~/.local/state
-# for its session lock ("Could not acquire session lock ... Permission denied",
-# seen live 2026-08-14). Creating them first means the mount replaces only the
-# leaf it names.
+# Pre-create the XDG dirs OWNED BY zaxon: docker creates a bind mount's parents
+# as root, so mounting ./uv made ~/.local root-owned and the gateway could not
+# write its session lock (2026-08-14). Created first, the mount replaces only its leaf.
 RUN mkdir -p /home/zaxon/.local/share /home/zaxon/.local/state /home/zaxon/.cache \
  && chown -R zaxon:zaxon /home/zaxon/.local /home/zaxon/.cache
 
-# THE RELAY'S SOURCE IS IMAGE, NOT MOUNT -- unlike ~/.hermes above. It lived in
-# the mount until 2026-08-19, so .deploykeep rightly refused to overwrite it and
-# no deploy could reproduce it: source wearing state's clothes. Its db and offset
-# resolve through Path.home(), so they stay in the mount; the code no longer does.
+# THE RELAY'S SOURCE IS IMAGE, NOT MOUNT. It lived in the mount until 2026-08-19,
+# so .deploykeep rightly refused to overwrite it and no deploy could reproduce
+# it. Its db and offset resolve through Path.home() and stay put; the code moved.
 COPY relay/ /opt/zaxon-relay/
 
 USER zaxon
@@ -58,7 +41,6 @@ ENV HOME=/home/zaxon \
     VIRTUAL_ENV=/home/zaxon/.hermes/hermes-agent/.venv \
     PATH=/home/zaxon/.hermes/hermes-agent/.venv/bin:/home/zaxon/.local/bin:/usr/local/bin:/usr/bin:/bin
 
-# One process per container: this one is the gateway. The Baileys bridge is a
-# second service in compose.yaml, not a second process here -- so that when one
-# dies, `restart: always` restarts the one that died.
+# One process per container. The bridge is a second SERVICE, not a second
+# process here, so `restart: always` restarts whichever one actually died.
 CMD ["python", "-m", "hermes_cli.main", "gateway", "run"]
