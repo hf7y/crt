@@ -1,0 +1,40 @@
+# Publish the image so dexter needs no repo to come back up: `build: .` meant a
+# host that lost its checkout could not restart the relay. Package is PUBLIC, so
+# no credential is on the recovery path -- safe, the image is runtime only.
+name: zaxon-image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'provision/dexter/zaxon/Dockerfile'
+      - 'provision/dexter/zaxon/relay/**'
+      - '.github/workflows/zaxon-image.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: provision/dexter/zaxon
+          push: true
+          tags: |
+            ghcr.io/hf7y/zaxon:latest
+            ghcr.io/hf7y/zaxon:${{ github.sha }}
