@@ -43,6 +43,12 @@ RUN useradd -m -u 1000 -s /bin/bash zaxon
 RUN mkdir -p /home/zaxon/.local/share /home/zaxon/.local/state /home/zaxon/.cache \
  && chown -R zaxon:zaxon /home/zaxon/.local /home/zaxon/.cache
 
+# THE RELAY'S SOURCE IS IMAGE, NOT MOUNT -- unlike ~/.hermes above. It lived in
+# the mount until 2026-08-19, so .deploykeep rightly refused to overwrite it and
+# no deploy could reproduce it: source wearing state's clothes. Its db and offset
+# resolve through Path.home(), so they stay in the mount; the code no longer does.
+COPY relay/ /opt/zaxon-relay/
+
 USER zaxon
 WORKDIR /home/zaxon/.hermes
 ENV HOME=/home/zaxon \

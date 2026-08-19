@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec /home/zaxon/.hermes/zaxon_relay/.venv/bin/python3 /home/zaxon/.hermes/zaxon_relay/bin/zaxon_client.py check "$1"
