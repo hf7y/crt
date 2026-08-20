@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # demande -- ask Zach a question and get his answer back, from any host.
 #
+# KIND: verb
+#
 # STANDALONE BY CONSTRUCTION. This file carries the endpoint and the whole MCP
 # handshake itself and execs nothing outside its own tree. The sibling `sonne`
 # is the counter-example: it resolves subcommands through
