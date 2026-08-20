@@ -644,7 +644,7 @@ HALLU = set("you thankyou thanks thankyouforwatching bye music musicplaying "
 # off -- not hardware-verified against real room noise yet (see
 #   [rest: vault:crt/header-archaeology-20260817.md]
 GATE       = os.environ.get("CRT_STT_GATE", "0") != "0"
-WAKE_WORD  = os.environ.get("CRT_WAKE_WORD", "claude").lower()
+WAKE_WORD  = wake_gate.wake_word()   # one source: bin/crt_wake_gate.py
 # 2026-07-28, live, Zach-directed ("clean up claude output to mono ...
 # junk on screen"): this defaulted to the SAME file as THOUGHT_LOG below
 # -- window 1 (mono, crt-monologue.py) renders thoughts.log directly, so
