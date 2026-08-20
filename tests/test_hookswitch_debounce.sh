@@ -59,13 +59,10 @@ check "bounce train collapses to one final action" "off" "$got"
 
 # Case 3: two genuinely separate transitions (separated by more than the
 # debounce window) both commit -- debounce must not eat real events, only
-# rapid chatter. Use `sleep` between writes via a background feeder so the
-# gap is real wall-clock time, not just line order.
+# rapid chatter.
 run_spaced_case() {
-  # No wall-clock budget: the feeder holds the pipe open until the harness
-  # has SEEN both commits (or a 10s ceiling trips), so a loaded box makes
-  # this slower, never red. A fixed 0.35s budget here was green standalone
-  # and red under full-suite load -- crt#30.
+  # No wall-clock budget: the feeder holds the pipe open until both commits
+  # are SEEN (10s ceiling), so load makes this slower, never red (crt#30).
   local out; out="$(mktemp)"
   CRT_HOOK_TEST_MODE=1 CRT_HOOK_DEBOUNCE_MS=30 CRT_HOOK_KEY=KEY_F13 \
     bash -c '
