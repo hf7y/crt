@@ -61,8 +61,7 @@ check "bounce train collapses to one final action" "off" "$got"
 # debounce window) both commit -- debounce must not eat real events, only
 # rapid chatter.
 run_spaced_case() {
-  # No wall-clock budget: the feeder holds the pipe open until both commits
-  # are SEEN (10s ceiling), so load makes this slower, never red (crt#30).
+  # No wall-clock budget: waits until both commits are SEEN, 10s ceiling.
   local out; out="$(mktemp)"
   CRT_HOOK_TEST_MODE=1 CRT_HOOK_DEBOUNCE_MS=30 CRT_HOOK_KEY=KEY_F13 \
     bash -c '
