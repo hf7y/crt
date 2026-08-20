@@ -62,15 +62,24 @@ check "bounce train collapses to one final action" "off" "$got"
 # rapid chatter. Use `sleep` between writes via a background feeder so the
 # gap is real wall-clock time, not just line order.
 run_spaced_case() {
+  # No wall-clock budget: the feeder holds the pipe open until the harness
+  # has SEEN both commits (or a 10s ceiling trips), so a loaded box makes
+  # this slower, never red. A fixed 0.35s budget here was green standalone
+  # and red under full-suite load -- crt#30.
+  local out; out="$(mktemp)"
   CRT_HOOK_TEST_MODE=1 CRT_HOOK_DEBOUNCE_MS=30 CRT_HOOK_KEY=KEY_F13 \
     bash -c '
       source "'"$BIN_DIR"'/hookswitch-listen.sh"
-      { echo "'"$line_on"'"; sleep 0.1; echo "'"$line_off"'"; sleep 0.1; } | debounce_loop &
+      { echo "'"$line_on"'"; sleep 0.1; echo "'"$line_off"'"; sleep 30; } | debounce_loop &
       pid=$!
-      sleep 0.35
+      for _ in $(seq 100); do
+        [ "$(grep -c "\[hookswitch\] \(on\|off\)-hook$" "'"$out"'" 2>/dev/null)" -ge 2 ] && break
+        sleep 0.1
+      done
       kill "$pid" 2>/dev/null
       wait "$pid" 2>/dev/null
-    ' 2>/dev/null | grep -oE '\[hookswitch\] (on|off)-hook$' \
+    ' >"$out" 2>/dev/null
+  grep -oE '\[hookswitch\] (on|off)-hook$' "$out" \
     | sed -e 's/.*\[hookswitch\] //' -e 's/-hook//' \
     | paste -sd, -
 }
