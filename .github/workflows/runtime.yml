@@ -1,0 +1,14 @@
+name: runtime
+
+on:
+  pull_request:
+    branches: [bashified]
+  push:
+    branches: [bashified]
+
+jobs:
+  runtime:
+    uses: hf7y/etalon/.github/workflows/guard.yml@main
+    with:
+      runtime: true
+      prose: false
