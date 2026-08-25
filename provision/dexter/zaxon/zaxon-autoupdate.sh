@@ -1,17 +1,9 @@
 #!/usr/bin/env bash
 # zaxon-autoupdate.sh -- pull what crt published, and prove it is running.
-#
-# WHY. #70 shipped the anti-spam question queue, zaxon-image.yml rebuilt the
-# image the same minute, and the container on dexter kept running the old code
-# for an hour -- during which two junk messages reached Zach's phone that the
-# queue would have held. Merging is not shipping, and nothing noticed.
-#
-# WHAT IT WATCHES IS DERIVED, NOT TYPED. The image list comes from compose.yaml,
-# so a service added there is watched without editing this file. Retyping the
-# list is how the two drift, and this repo has that failure written down.
-#
-# crt is DEV and does not operate dexter. It vendors this; a human installs it
-# once (see --install), and after that nobody has to remember.
+# Merging is not shipping: #70's queue sat unrun on dexter for an hour while
+# junk it would have held reached Zach's phone. Watches the image: lines in
+# compose.yaml, so a new service needs no edit here. crt vendors, a human
+# installs once with --install. See hf7y/crt#71.
 set -uo pipefail
 
 CLI_NAME='zaxon-autoupdate.sh'
@@ -24,13 +16,10 @@ for a in "$@"; do
     -h|--help)
       cat <<USAGE
 $CLI_NAME -- pull what crt published, and prove it is running
-
-  --check     report whether any watched image has moved; writes nothing
+  --check     has any watched image moved? writes nothing
   --apply     pull + up -d when it has, then verify the relay answers
-  --install   write the systemd unit+timer that runs --apply hourly (root)
-
-exit: 0 up to date, or updated and verified   1 update failed or unverified
-      2 usage   4 compose.yaml unreadable      6 BLIND -- registry unreachable
+  --install   write the systemd unit+timer running --apply hourly (root)
+exit: 0 ok  1 update failed/unverified  2 usage  4 no compose.yaml  6 BLIND
 USAGE
       exit 0 ;;
     *) echo "$CLI_NAME: unknown argument $a" >&2; exit 2 ;;
@@ -40,7 +29,7 @@ done
 COMPOSE="$COMPOSE_DIR/compose.yaml"
 [ -r "$COMPOSE" ] || { echo "$CLI_NAME: cannot read $COMPOSE" >&2; exit 4; }
 
-# ONE SOURCE for what is watched: every image: line in the compose file.
+# ONE SOURCE: every image: line in the compose file.
 mapfile -t IMAGES < <(grep -oE '^[[:space:]]*image:[[:space:]]*\S+' "$COMPOSE" \
   | awk '{print $2}' | sort -u)
 [ "${#IMAGES[@]}" -gt 0 ] || { echo "$CLI_NAME: no image: lines in $COMPOSE" >&2; exit 4; }
@@ -76,15 +65,12 @@ UNIT
   exit 0
 fi
 
-# A registry read that fails must never look like "nothing to do" -- that is
-# exactly the silence this script exists to end.
+# A failed registry read must never look like "nothing to do".
 moved=0; blind=0
-# HASH THE OUTPUT ONLY AFTER PROVING THERE IS OUTPUT. `docker manifest inspect
-# X | sha256sum` on a failed lookup hashes the EMPTY STRING and returns a
-# perfectly valid-looking digest, so the BLIND branch below could never fire --
-# and two unreachable images would both hash to that same empty-sha and compare
-# EQUAL, reporting "up to date" for a registry nobody could read. Caught by
-# pointing --check at a nonexistent repo, 2026-08-25; it answered MOVED.
+# HASH ONLY AFTER PROVING THERE IS OUTPUT. A failed `docker manifest inspect`
+# piped to sha256sum hashes the EMPTY STRING into a valid-looking digest, so
+# BLIND could never fire and two unreadable images would compare EQUAL and
+# report "up to date". Caught by pointing --check at a nonexistent repo.
 digest_of() {
   local out rc
   out="$(docker manifest inspect "$1" 2>/dev/null)"; rc=$?
@@ -118,9 +104,8 @@ cd "$COMPOSE_DIR" || exit 4
 docker compose pull  || { echo "$CLI_NAME: pull failed" >&2; exit 1; }
 docker compose up -d || { echo "$CLI_NAME: up -d failed" >&2; exit 1; }
 
-# VERIFY BY ASKING THE RELAY, not by trusting `up -d`. A container that starts
-# and crashes reports Started. The tool surface is the thing callers depend on,
-# so that is what gets checked.
+# VERIFY BY ASKING THE RELAY: a container that starts and crashes still
+# reports Started. The tool surface is what callers depend on.
 for _ in $(seq 1 20); do
   sid="$(curl -s -m 5 -D- -X POST "$PROBE_URL" \
       -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
