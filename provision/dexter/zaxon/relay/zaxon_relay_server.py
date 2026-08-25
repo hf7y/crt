@@ -11,7 +11,8 @@ file, not in hermes-agent's own storage.
 
 ask_zach never sends more than one question at a time -- see
 zaxon_relay_queue.py for the single-slot queue, staleness TTL, and the
-<140-char/multiple-choice style guard that lives there.
+<=140-char/multiple-choice style guard that lives there -- measured on
+the rendered message, repo tag and options included.
 """
 import json
 import time
@@ -20,7 +21,7 @@ import uuid
 from mcp.server.mcpserver import MCPServer
 
 from zaxon_relay_db import get_conn
-from zaxon_relay_queue import MAX_QUESTION_CHARS, sweep_and_promote, validate_question
+from zaxon_relay_queue import MAX_QUESTION_CHARS, sweep_and_promote, validate_message
 
 mcp = MCPServer(
     "zaxon",
@@ -30,9 +31,12 @@ mcp = MCPServer(
         "ticket_id until status is 'answered'. Do not block waiting -- this "
         "is a human reply, it can take minutes. Only one question reaches "
         "Zach's phone at a time -- extra ones queue and are sent in order "
-        "as earlier ones are answered or go stale. Keep the question under "
-        f"{MAX_QUESTION_CHARS} characters and prefer a multiple-choice poll "
-        "(pass options) over free text."
+        "as earlier ones are answered or go stale. from_agent is your REPO "
+        "name -- it renders bold as the first thing Zach reads. The whole "
+        f"rendered message must be at most {MAX_QUESTION_CHARS} characters, "
+        "repo tag and option lines included; prefer a multiple-choice poll "
+        "(pass options) over free text. To change a question already sent, "
+        "call revise_zach_question -- never ask a second time."
     ),
 )
 
@@ -44,9 +48,10 @@ def ask_zach(question: str, from_agent: str = "agent", options: list[str] | None
     with the returned ticket_id to poll for the answer. Only one question
     is ever in flight to his phone; if another is already pending, this one
     queues and is sent once the slot frees (answered or stale). Raises if
-    question is MAX_QUESTION_CHARS or longer -- shorten it, don't rely on
-    truncation. options, if given, renders as a numbered poll."""
-    validate_question(question)
+    the rendered message exceeds MAX_QUESTION_CHARS -- shorten it, don't
+    rely on truncation; the limit counts the bold repo tag and every option
+    line, not the question alone. from_agent is your REPO name. options, if given, renders as a numbered poll."""
+    validate_message(from_agent, question, options)
     ticket_id = uuid.uuid4().hex[:8]
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 

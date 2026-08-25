@@ -35,32 +35,63 @@ def _insert(conn, ticket_id, question, status, created_at=None, options=None):
     conn.commit()
 
 
-class TestValidateQuestion(unittest.TestCase):
-    def test_under_limit_ok(self):
-        q.validate_question("short question")
+class TestValidateMessage(unittest.TestCase):
+    """140 is inclusive (Zach 2026-08-25): the budget is the rendered
+    message, not the question that goes inside it."""
 
-    def test_at_or_over_limit_raises(self):
+    def _question_rendering_to(self, length):
+        """A question whose RENDERED message is exactly `length` chars."""
+        overhead = len(q.format_message("musc", "", None))
+        return "x" * (length - overhead)
+
+    def test_at_the_limit_is_accepted(self):
+        text = q.validate_message("musc", self._question_rendering_to(q.MAX_QUESTION_CHARS))
+        self.assertEqual(len(text), q.MAX_QUESTION_CHARS)
+
+    def test_one_over_the_limit_raises(self):
         with self.assertRaises(ValueError):
-            q.validate_question("x" * q.MAX_QUESTION_CHARS)
+            q.validate_message("musc", self._question_rendering_to(q.MAX_QUESTION_CHARS + 1))
+
+    def test_options_count_against_the_budget(self):
+        """The regression this fixes: a question that fits alone but whose
+        rendered poll does not."""
+        question = self._question_rendering_to(q.MAX_QUESTION_CHARS)
+        q.validate_message("musc", question)  # fits with no options
+        with self.assertRaises(ValueError):
+            q.validate_message("musc", question, ["yes", "no"])
+
+    def test_repo_tag_counts_against_the_budget(self):
+        question = self._question_rendering_to(q.MAX_QUESTION_CHARS)
+        with self.assertRaises(ValueError):
+            q.validate_message("a-much-longer-repo-name", question)
 
     def test_does_not_truncate(self):
-        """A caller over the limit gets an exception, not a silently shortened question."""
         long_q = "x" * (q.MAX_QUESTION_CHARS + 50)
         with self.assertRaises(ValueError) as ctx:
-            q.validate_question(long_q)
-        self.assertIn(str(len(long_q)), str(ctx.exception))
+            q.validate_message("musc", long_q)
+        self.assertIn(str(len(q.format_message("musc", long_q, None))), str(ctx.exception))
+
+    def test_repo_must_be_a_repo(self):
+        for bad in ("", "   ", "my repo", "agent"):
+            with self.assertRaises(ValueError):
+                q.validate_message(bad, "Coffee or tea?")
 
 
 class TestFormatMessage(unittest.TestCase):
-    def test_free_text_has_no_boilerplate_header(self):
-        text = q.format_message("agent", "abc123", "Coffee or tea?", None)
-        self.assertNotIn("Question 1 of", text)
-        self.assertNotIn("---", text)
+    def test_bold_repo_leads_and_nothing_decorates_it(self):
+        text = q.format_message("musc", "Coffee or tea?", None)
+        self.assertTrue(text.startswith("*musc* "), text)
         self.assertIn("Coffee or tea?", text)
-        self.assertIn("#abc123", text)
+
+    def test_no_ticket_id_and_no_brackets(self):
+        """The watcher matches on the WhatsApp quote, never on the id text --
+        so the id is screen spent on nobody."""
+        text = q.format_message("musc", "Coffee or tea?", None)
+        for junk in ("(#", "[", "]", "\U0001F500"):
+            self.assertNotIn(junk, text)
 
     def test_options_render_as_numbered_poll(self):
-        text = q.format_message("agent", "abc123", "Pick one", ["Coffee", "Tea"])
+        text = q.format_message("musc", "Pick one", ["Coffee", "Tea"])
         self.assertIn("1. Coffee", text)
         self.assertIn("2. Tea", text)
 
