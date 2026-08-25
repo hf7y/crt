@@ -1,9 +1,8 @@
 # zaxon — crt's WhatsApp channel
 
-**crt owns zaxon as of 2026-08-14 (Zach's call.)** It was previously nobody's — it
-ran in a WSL distro (`hermes`) no document named, dead ten days before a groc-mangr
-run happened to try it. An MCP server over streamable-http exposing `ask_zach` and
-`check_zach_reply`; loopback and tailnet only (#52). See `compose.yaml` for the rest.
+**crt owns zaxon as of 2026-08-14 (Zach's call.)** An MCP server over
+streamable-http exposing `ask_zach` and `check_zach_reply`; loopback and tailnet
+only (#52). See `compose.yaml` for the rest.
 
 ## The one rule that matters
 
@@ -13,10 +12,9 @@ boots `systemd` with `hermes-gateway.service` enabled, so *starting that distro 
 all* takes it — mount its `.vhdx` offline instead. `dexter-service-deploy.sh` used
 to refuse for you; realisateur#511 deleted it, so the rule is yours now.
 
-```
-cd /srv/zaxon && docker compose pull && docker compose up -d
-# then verify from anywhere: confirm a real transcript, not just a port
-```
+Deploys are automatic — `zaxon-autoupdate.timer` pulls hourly and verifies the
+relay answers. By hand: `sudo docker compose pull && sudo docker compose up -d`
+(`sudo` because `zach` is not in the `docker` group).
 
 `data/` is service state, never overwritten from a repo; the relay's SOURCE ships in the image.
 
