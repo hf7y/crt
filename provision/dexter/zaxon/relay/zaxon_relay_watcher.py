@@ -12,6 +12,10 @@ watcher restart (crash, redeploy, systemd bounce) can never silently skip a
 reply that landed in the gap. resolve_reply() only updates rows still
 'pending', so replaying already-seen lines on top of a stale/missing
 checkpoint is always safe -- prefer reprocessing over ever risking SEEK_END.
+
+Also the only long-running loop the relay has, so it carries crt#67's
+staleness sweep too (STALE_SWEEP_EVERY_TICKS): otherwise a queued question
+only gets promoted next time some agent happens to poll, which may be never.
 """
 import os
 import re
@@ -19,9 +23,12 @@ import time
 from pathlib import Path
 
 from zaxon_relay_db import get_conn
+from zaxon_relay_queue import sweep_and_promote
 
 LOG_PATH = Path.home() / ".hermes" / "logs" / "agent.log"
 OFFSET_PATH = Path.home() / ".hermes" / "zaxon_relay" / "watcher.offset"
+
+STALE_SWEEP_EVERY_TICKS = 60  # ~30s at the 0.5s idle sleep below
 
 LINE_RE = re.compile(
     r"inbound message: platform=whatsapp .*?msg='(?P<msg>.*)' "
@@ -44,6 +51,7 @@ def resolve_reply(reply_id: str, msg: str) -> None:
             (msg, now, row[0]),
         )
         conn.commit()
+        sweep_and_promote(conn)
     finally:
         conn.close()
 
@@ -74,11 +82,21 @@ def main() -> None:
         start = _load_checkpoint(size)
         f.seek(start)
 
+        idle_ticks = 0
         while True:
             line = f.readline()
             if not line:
+                idle_ticks += 1
+                if idle_ticks >= STALE_SWEEP_EVERY_TICKS:
+                    idle_ticks = 0
+                    conn = get_conn()
+                    try:
+                        sweep_and_promote(conn)
+                    finally:
+                        conn.close()
                 time.sleep(0.5)
                 continue
+            idle_ticks = 0
 
             m = LINE_RE.search(line)
             if m:
