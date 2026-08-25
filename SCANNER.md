@@ -55,7 +55,7 @@ nothing could reach IN to the guest before this for a new port).
    normal VM power cycles (it's stored in the VM's own settings, same as
    the `ssh` forward). If it ever goes missing, re-add with that same
    command from dexter.
-3. **`bin/crt-scanner-feed.py`** (runs on crt-vm, plain stdlib
+3. **The scanner-feed listener** (runs on crt-vm, plain stdlib
    `http.server`, no new dependency). Listens on `0.0.0.0:8993`, `POST
    /scan {"text": "..."}`. Logs every scan unfiltered to
    `~/.crt/scanner.log` (mirrors `~/.crt/stt.log`'s "log first, judge
@@ -67,7 +67,7 @@ nothing could reach IN to the guest before this for a new port).
      `systemctl enable --now crt-scanner-feed.service`, confirmed
      `enabled`/`active`. Survives reboot.
    - **Port-conflict gotcha hit and fixed during install**: an earlier ad
-     hoc `nohup python3 bin/crt-scanner-feed.py &` (from initial testing)
+     hoc `nohup python3` run of the listener (from initial testing)
      was still holding port 8993 when the systemd unit was enabled, so the
      systemd-managed process crash-looped on `OSError: [Errno 98] Address
      already in use` while `systemctl status` still showed "active
@@ -151,7 +151,7 @@ that instead of fighting it:
    going to reach claude usefully anyway, only ever as page-of-numbers
    garbage). `claude` stays one `prefix+0` away.
 3. This drops `bin/dexter-scanner-forward.ps1`, the NAT port-forward,
-   and `bin/crt-scanner-feed.py`'s systemd service down to "nice to have,
+   and the scanner-feed listener's systemd service down to "nice to have,
    not load-bearing" -- leave them in place (harmless, and the
    TickCount64 fix + suppression logic may be worth revisiting once
    there's time to actually attach a debugger/interactive session to

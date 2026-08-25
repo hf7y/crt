@@ -71,8 +71,8 @@ Full chain, mandark to VM: `ssh dexter.local` (key auth, Windows) is the
 host hop; the VM sits behind dexter's NAT at `ssh -p 2222 zach@dexter.local`
 (also key auth). There is **no git link VM→mandark** — files move by
 scp/ssh pipe by hand or script (see `scp`/`sftp` caveat above; use the
-base64-pipe trick for binaries). `bin/crt-sync-vm-reports.sh` already
-walks this exact path nightly-job-side to pull VM reports back to mandark
+base64-pipe trick for binaries). A nightly job script already
+walks this exact path to pull VM reports back to mandark
 — see `vault:crt/VM-JOBS.md` for that job's status (written, not yet wired into
 `schedule/crt.conf`).
 
@@ -222,7 +222,7 @@ a level indicator. (2026-07-21: the VM-resident Claude was briefed to
 pick this up live — check its own SESSION-STATE.md update before
 assuming it's still open.)
 
-**Durability, closed 2026-07-21**: `bin/crt-vm-watchdog.sh` +
+**Durability, closed 2026-07-21**: a watchdog script +
 `systemd/crt-vm-watchdog.timer` (installed + enabled, ticks every 5 min)
 now catches the gap tty1-autologin doesn't cover: a single window's
 process (crt-stt-solo.py / crt-monologue.py / crt-claude-bridge.py)

@@ -70,7 +70,7 @@ This all runs correctly on mandark today (where `morning-report.sh` and
 the `~/reports/*/`, `~/reports/*/vm/` trees already exist). For the VM to
 ever run this playbook itself, it needs the scheduler's aggregate data
 (or at least crt's own slice of it) synced TO the VM — the reverse
-direction of `bin/crt-sync-vm-reports.sh`, not built. Until then, the
+direction of the nightly VM-reports sync, not built. Until then, the
 `morning_report` playbook only works from an interactive session running
 on mandark, not from crt-vm.
 

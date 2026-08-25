@@ -15,7 +15,7 @@ to refuse for you; realisateur#511 deleted it, so the rule is yours now.
 
 ```
 cd /srv/zaxon && docker compose pull && docker compose up -d
-realisateur/bin/dexter-liveness.sh     # verifies from anywhere, asserts a transcript
+# then verify from anywhere: confirm a real transcript, not just a port
 ```
 
 `data/` is service state, never overwritten from a repo; the relay's SOURCE ships in the image.

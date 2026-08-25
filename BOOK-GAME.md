@@ -292,10 +292,10 @@ then-print pattern `crt-print.sh` already uses for reports.
   see `SCANNER.md` for the full build.** The dexter-side network-bridge
   path predicted below was exactly right: `bin/dexter-scanner-forward.ps1`
   (runs on dexter, Win32 RawInput API, filtered to this scanner's
-  `HID\VID_0145&PID_0012`) POSTs each decoded barcode to
-  `bin/crt-scanner-feed.py` (runs on crt-vm, systemd-managed, survives
-  reboot) over a new NAT port-forward (host 8993 → guest 8993).
-  `crt-scanner-feed.py` delivers into the tmux Claude Code pane prefixed
+  `HID\VID_0145&PID_0012`) POSTs each decoded barcode to a listener
+  (runs on crt-vm, systemd-managed, survives
+  reboot) over a new NAT port-forward (host 8993 → guest 8993), which
+  delivers into the tmux Claude Code pane prefixed
   `[scan] <isbn>` — same channel STT transcriptions already use, just
   visibly tagged as a scan event, not a spoken sentence. **Confirmed
   working end-to-end with a real physical scan**, not just a synthetic

@@ -98,7 +98,7 @@ working one must not look alike.
 potato main` FROM DEXTER (potato's `origin` is a mandark-local path and has
 never worked). Putting it on potato's PATH is a shared-host footprint that
 owes `notify-senechal`, which is itself not installed on dexter.
-ecosim's side (`bin/ecosim-cast.py`) is also unbuilt as of this writing.
+ecosim's side is also unbuilt as of this writing.
 
 **Flake noticed, unresolved**: one full `run_tests.sh` run printed
 SOMETHING FAILED with no `not ok` line recoverable (output was
@@ -401,7 +401,7 @@ its OWN separate git history (no common ancestor -- confirmed via
 `git fetch potato; git log potato/master`, "no common commits") and its
 working tree has ~127 files that show as untracked relative to ITS OWN
 git state, meaning it was seeded by copying files in, not a real clone.
-Files move mandark<->potato by hand (`scp bin/whatever.py potato:~/crt/bin/`),
+Files move mandark<->potato by hand (`scp bin/<file> potato:~/crt/bin/`),
 same posture HANDOFF.md already documented for mandark<->dexter<->crt-vm.
 **Always diff after scp'ing to confirm it landed** (`diff <(cat) ~/crt/bin/X.py < X.py` over ssh),
 and always `git status`/read `WAKE-TUNING-STATE.md`-style files on potato
@@ -424,7 +424,7 @@ potato's `crt-stt-solo.py` offloads transcription here via
 `CRT_WHISPER_SERVER` (wired into `crt-console.sh`'s stt window tonight).
 
 **dexter/crt-vm (the old Windows-host+VirtualBox setup) is now legacy** --
-`bin/dexter-whisper-server.py` and any `CRT_AUDIO_OUT_URL`/dexter-bridge
+its whisper server and any `CRT_AUDIO_OUT_URL`/dexter-bridge
 reference is from that era and does NOT apply to potato's real hardware.
 Tonight's earcon fix (below) is the concrete example of this era-mismatch
 causing a real silent bug -- expect more like it if anything else still
@@ -526,7 +526,7 @@ older (2026-07-20, now-superseded-by-the-above) live layout description.
 ## Sixth wave (2026-07-20): live access, real bugs found and fixed on hardware
 - **VM deploy gap closed**: the VM's `~/crt` (no git, plain deploy target)
   was ~a day behind this repo; nothing from waves 1-5 had ever been
-  deployed. New `bin/crt-sync-vm.sh` (status/pull/push, sha256 diff +
+  deployed. A new sync script (status/pull/push, sha256 diff +
   tar-over-ssh, no rsync on either box) replaces manual diffing. Policy:
   safe to overwrite the VM, never dexter; always `pull` VM-only work first.
   Recovered 4 files that only ever existed on the VM (`stt-fixups.json` —
@@ -535,10 +535,9 @@ older (2026-07-20, now-superseded-by-the-above) live layout description.
 - **VM hardware-check timer**: installed and *actually verified* (not just
   written) — ran the real offline test suite against real ALSA/tmux on
   crt-vm (126+ checks, all green), confirmed earcons/TTS/sideband all exit
-  0 on real hardware. Reworked to a plain script
-  (`bin/crt-vm-hardware-check.sh`), not a `claude -p` call — Zach's
-  question ("can't this be done without claude?") was right, every check
-  is mechanical.
+  0 on real hardware. Reworked to a plain script, not a `claude -p` call —
+  Zach's question ("can't this be done without claude?") was right, every
+  check is mechanical.
 - **OctoPrint confirmed reachable** at `192.168.0.43` (HTTP 302, alive).
 - **Real STT pipeline bug found and fixed live**: `stt-feed.sh` was
   silently discarding every utterance after capture (pipefail + arecord's

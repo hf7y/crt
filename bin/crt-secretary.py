@@ -341,7 +341,7 @@ def handle_what_time(text):
 # The scheduler's CROSS-PROJECT morning report (chezz, wtul, crt itself,
 # etc. -- see MORNING-REPORT-PRESENTATION.md), presented entirely without
 # a Claude call via bin/crt-present-morning-report.py, which just parses
-# bin/morning-report.sh's own output. Distinct from the `status` playbook
+# the morning-report script's own output. Distinct from the `status` playbook
 # above, which only covers crt's OWN reports/questions.
 MORNING_REPORT_TRIGGERS = (
     "morning report", "give me the morning report", "read me the morning report",

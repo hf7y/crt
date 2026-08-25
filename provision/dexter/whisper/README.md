@@ -8,5 +8,5 @@ lives in `../zaxon/compose.yaml`.
 
 ```
 cd /srv/zaxon && docker compose pull && docker compose up -d
-realisateur/bin/dexter-liveness.sh     # asserts a real transcript, not a port
+# then confirm with a real transcript, not just a port check
 ```
