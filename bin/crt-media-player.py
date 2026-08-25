@@ -10,10 +10,15 @@ import subprocess
 
 MEDIA_LIBRARY_DIR = os.path.expanduser(os.environ.get("CRT_MEDIA_LIBRARY_DIR", "~/Music"))
 
+# crt#34: read by crt-stt-solo.py to decide if bare "next" is a keystroke or
+# a skip; a file because both processes are fresh-per-utterance.
+MEDIA_STATE_FILE = os.path.expanduser(os.environ.get("CRT_MEDIA_STATE_FILE", "~/.crt/media-state"))
+
 # Ordered so longer/more specific phrasings match before a generic
 # "play" fragment could steal them -- e.g. "play the next one" should
-# resolve as "next", not "play" with query "the next one".
-_NEXT_TRIGGERS = ("skip", "play the next one", "next track", "next song")
+# resolve as "next", not "play" with query "the next one". Bare "next" is
+# back (crt#34) now that is_media_active() resolves its CONTROL collision.
+_NEXT_TRIGGERS = ("next", "skip", "play the next one", "next track", "next song")
 _PAUSE_TRIGGERS = ("pause", "hold on", "wait a second")
 _RESUME_TRIGGERS = ("resume", "unpause", "keep going", "continue playing")
 _STOP_TRIGGERS = ("stop", "stop the music", "stop playing", "turn it off")
@@ -125,6 +130,32 @@ class VlcBackend:
         return self._run(["cvlc-control", "stop"])
 
 
+def write_media_state(state):
+    """Best-effort: a persona check that can't write is no worse than one
+    that was never active -- never raises into the calling playbook."""
+    try:
+        os.makedirs(os.path.dirname(MEDIA_STATE_FILE), exist_ok=True)
+        with open(MEDIA_STATE_FILE, "w") as f:
+            f.write(state)
+    except OSError:
+        pass
+
+
+def read_media_state():
+    try:
+        with open(MEDIA_STATE_FILE) as f:
+            return f.read().strip()
+    except OSError:
+        return "stopped"
+
+
+def is_media_active():
+    """Playing or paused counts -- there's something to skip/resume/stop.
+    Only "stopped" (or never having played anything) releases "next" back
+    to CONTROL's Down-arrow meaning."""
+    return read_media_state() in ("playing", "paused")
+
+
 def handle_media_command(text, backend):
     """Parses `text` and dispatches to `backend`, returning a spoken
     confirmation string, or None if this wasn't a media command at all
@@ -136,17 +167,21 @@ def handle_media_command(text, backend):
     action, query = cmd["action"], cmd["query"]
     if action == "play":
         backend.play(query)
+        write_media_state("playing")
         return f"playing {query}."
     if action == "pause":
         backend.pause()
+        write_media_state("paused")
         return "paused."
     if action == "resume":
         backend.resume()
+        write_media_state("playing")
         return "resuming."
     if action == "next":
         backend.next()
         return "skipping to the next one."
     if action == "stop":
         backend.stop()
+        write_media_state("stopped")
         return "stopped."
     return None

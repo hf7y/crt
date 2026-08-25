@@ -24,6 +24,12 @@ _wg_spec = importlib.util.spec_from_file_location(
 wake_gate = importlib.util.module_from_spec(_wg_spec)
 _wg_spec.loader.exec_module(wake_gate)
 
+_mp_spec = importlib.util.spec_from_file_location(
+    "crt_media_player_for_stt_solo",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt-media-player.py"))
+media_player = importlib.util.module_from_spec(_mp_spec)
+_mp_spec.loader.exec_module(media_player)
+
 # SINK: where recognized text goes.
 #   stdout (default) -- scroll transcriptions; standalone STT/debug view.
 #   claude           -- type into the tmux Claude Code pane + voice-control keys,
@@ -46,6 +52,9 @@ CONTROL = {
     "down": "Down", "next": "Down",
     "clear": "C-u", "scratch": "C-u", "backspace": "C-u",
 }
+
+# crt#34: True releases a CONTROL word to whatever playbook wants it instead.
+PERSONA_CONTROL_OVERRIDES = {"next": lambda: media_player.is_media_active()}
 
 
 # Is the pane above a Claude brain, or the potato idle face? One shared
@@ -1350,7 +1359,8 @@ def emit(text, peak=1.0, heard_at=None):
     except OSError:
         pass
     if SINK in ("claude", "secretary"):
-        is_control = " " not in text and key in CONTROL
+        overridden = key in PERSONA_CONTROL_OVERRIDES and PERSONA_CONTROL_OVERRIDES[key]()
+        is_control = " " not in text and key in CONTROL and not overridden
 
         # Arm-window follow-up check (opt-in, WAKE_ARM_ENABLED, see
         # bin/crt-wake-arm.py) -- MUST run before the normal gate below,

@@ -88,5 +88,41 @@ class TestSecretarySinkRouting(unittest.TestCase):
         self.assertNotIn("[you]", contents)
 
 
+class TestPersonaControlOverride(unittest.TestCase):
+    """crt#34: "next" is CONTROL's Down-arrow AND crt-media-player.py's
+    skip -- the persona owns the word, so is_control must check which
+    persona is active rather than always favoring CONTROL."""
+
+    def setUp(self):
+        self.stt = load_stt_solo()
+        self.tmpdir = tempfile.mkdtemp()
+        self.stt.STT_LOG = os.path.join(self.tmpdir, "stt.log")
+        self.stt.GATE_LOG = os.path.join(self.tmpdir, "thoughts.log")
+        self.stt.SINK = "secretary"
+        self.stt.GATE = False
+        self.claude_calls = []
+        self.secretary_calls = []
+        self.stt.send_to_claude = lambda text, key: self.claude_calls.append((text, key))
+        self.stt.send_to_secretary = lambda text: self.secretary_calls.append(text)
+
+    def test_next_is_the_down_arrow_when_media_is_not_active(self):
+        self.stt.media_player.is_media_active = lambda: False
+        self.stt.emit("next")
+        self.assertEqual(self.claude_calls, [("next", "next")])
+        self.assertEqual(self.secretary_calls, [])
+
+    def test_next_reaches_the_media_playbook_when_media_is_active(self):
+        self.stt.media_player.is_media_active = lambda: True
+        self.stt.emit("next")
+        self.assertEqual(self.secretary_calls, ["next"])
+        self.assertEqual(self.claude_calls, [])
+
+    def test_other_control_words_are_unaffected_by_media_state(self):
+        self.stt.media_player.is_media_active = lambda: True
+        self.stt.emit("yes")
+        self.assertEqual(self.claude_calls, [("yes", "yes")])
+        self.assertEqual(self.secretary_calls, [])
+
+
 if __name__ == "__main__":
     unittest.main()

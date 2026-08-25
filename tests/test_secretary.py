@@ -20,6 +20,8 @@ os.environ.setdefault("CRT_CLAUDE_ACTIVE_STATE",
                       os.path.join(_state, "claude-window-active.state"))
 os.environ.setdefault("CRT_THOUGHT_LOG", os.path.join(_state, "thoughts.log"))
 os.environ.setdefault("CRT_STT_GATE_LOG", os.path.join(_state, "thoughts.log"))
+# A sixth live file (crt#34): crt-media-player.py's persisted playback state.
+os.environ.setdefault("CRT_MEDIA_STATE_FILE", os.path.join(_state, "media-state"))
 
 BIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin")
 REPO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
@@ -349,10 +351,7 @@ class TestMediaPlaybook(unittest.TestCase):
         self.assertEqual(name, "media")
 
     def test_matches_control_words(self):
-        # Bare "next" deliberately excluded -- see crt-media-player.py's
-        # header: it's claimed by crt-stt-solo.py's own CONTROL dict for
-        # single-word utterances, "skip" is the reachable equivalent.
-        for phrase in ("pause", "resume", "skip", "stop"):
+        for phrase in ("pause", "resume", "skip", "stop", "next"):
             name, _ = self.sec.find_playbook(phrase)
             self.assertEqual(name, "media", phrase)
 

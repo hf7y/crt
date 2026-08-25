@@ -36,6 +36,8 @@ export CRT_STT_GATE_LOG="$CRT_TEST_STATE_DIR/thoughts.log"
 # touched at source time by every case in that file.
 export CRT_ANNOUNCE_LOCK="$CRT_TEST_STATE_DIR/announce.lastrun"
 export CRT_IDLE_SEEN="$CRT_TEST_STATE_DIR/idle-bait.seen"
+# A seventh (crt#34): crt-media-player.py's persisted playback state.
+export CRT_MEDIA_STATE_FILE="$CRT_TEST_STATE_DIR/media-state"
 trap 'rm -rf "$CRT_TEST_STATE_DIR"' EXIT
 
 # ...and a guard, because pinning only covers the vars known TODAY and this
