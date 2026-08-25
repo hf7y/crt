@@ -1,41 +1,30 @@
-# zaxon on dexter -- deployed to /srv/zaxon/ by bin/dexter-service-deploy.sh.
-#
-# THE ONE-OWNER RULE, stated where it can be acted on. `data/` holds a WhatsApp
-# LINKED-DEVICE session (Baileys) and exactly one process may own it: if the
-# `hermes` distro runs its own bridge against it, WhatsApp logs the link out and
-# recovery costs a QR scan. The deploy script refuses -- a check, not a comment.
-#
-# Two services, not one process: when the bridge dies only the bridge restarts.
+# zaxon on dexter, at /srv/zaxon/. Deploy and the one-owner rule: see README.
 services:
   gateway:
-    # PULLED, NOT BUILT: /srv/zaxon needs only this file and data/, so a dexter
-    # that lost its checkout recovers with `compose pull && up -d`.
+    # PULLED, NOT BUILT: a dexter that lost its checkout recovers from this file.
     image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-gateway
     restart: always
-    # The whole app dir at its SAME in-distro path: the venv's shebangs are
-    # absolute and break at any other mount point.
     volumes:
+      # ORIGINAL absolute paths, both: the venv's shebangs and its python symlink
+      # (to the uv-managed 3.11) are absolute and dangle at any other mount point.
       - ./data:/home/zaxon/.hermes
-      # THE INTERPRETER IS NOT IN ~/.hermes. The venv's `python` is a symlink to
-      # a uv-managed build at ~/.local/share/uv/python/cpython-3.11-.../bin/
-      # python3.11 -- outside the app directory. Without this mount the venv is
-      # a pile of dangling symlinks, PATH falls through to the image's own
-      # python, and the gateway crash-loops on ModuleNotFoundError: hermes_cli.
-      # Mounted at its original path because the symlink is absolute.
       - ./uv:/home/zaxon/.local/share/uv
-    # Published HERE on the relay's behalf -- it shares this namespace (see below).
-    # BOUND, NOT AUTHENTICATED: this distro carries the tailnet on eth3 AND
-    # 192.168.0.22 on eth4, so "8643:8643" gave the whole house LAN ask_zach
-    # (realisateur#402). Naming both IS the guard, and a moved tailnet address
-    # fails the container to start rather than reopening the hole quietly.
+    # BOUND, NOT AUTHENTICATED: this distro also carries 192.168.0.22, so
+    # "8643:8643" gave the house LAN ask_zach (#402). Naming addresses IS the guard.
     ports:
       - "127.0.0.1:8643:8643"
       - "100.107.253.56:8643:8643"
-  # THE MCP DOOR. Separate from the gateway on purpose, and it was separate in
-  # the distro too (zaxon-relay-mcp.service): the relay owns ask_zach /
-  # check_zach_reply and shells out to hermes-agent's `hermes send` to deliver,
-  # deliberately not touching the gateway's own process or storage.
+      # whisper's: a `network_mode: service:` container may not publish its own.
+      # Loopback only, no tailnet twin -- nothing off-host may post audio.
+      - "127.0.0.1:8090:8090"
+    environment:
+      # NOT in data/.env, which .deploykeep shields from every deploy -- which is
+      # why the repo's whisper_stt.sh never ran. But .env is loaded with
+      # override=True and BEATS this, so the old line stays commented out there.
+      HERMES_LOCAL_STT_COMMAND: /opt/zaxon-relay/bin/whisper_stt.sh {input_path} {output_dir} {language}
+
+  # THE MCP DOOR, separate as it was in the distro: it owns ask_zach.
   relay:
     image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-relay
@@ -44,12 +33,9 @@ services:
       - ./data:/home/zaxon/.hermes
       - ./uv:/home/zaxon/.local/share/uv
     working_dir: /opt/zaxon-relay
-    # SHARE THE GATEWAY'S NETWORK NAMESPACE. `hermes send` talks to the Baileys
-    # bridge on localhost:3000, a child of the gateway process; from its own
-    # namespace the relay saw "Cannot connect to host localhost:3000" (2026-08-14).
+    # `hermes send` reaches the Baileys bridge on localhost:3000, a gateway child.
     network_mode: "service:gateway"
-    # The IMAGE's python: PATH puts hermes-agent's venv first and it has no `mcp`
-    # (the relay's own venv is 3.14-compiled and unusable).
+    # The IMAGE's python: hermes-agent's venv leads PATH and has no `mcp`.
     command: ["/usr/local/bin/python", "/opt/zaxon-relay/zaxon_relay_server.py"]
     depends_on:
       - gateway
@@ -60,8 +46,7 @@ services:
       retries: 3
       start_period: 30s
 
-  # Tails hermes-agent's agent.log for Zach's replies and matches them to
-  # tickets. Reads only; it does not touch the gateway's process or source.
+  # Tails agent.log for Zach's replies, matching them to tickets. Reads only.
   watcher:
     image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-watcher
@@ -74,3 +59,28 @@ services:
     command: ["/usr/local/bin/python", "/opt/zaxon-relay/zaxon_relay_watcher.py"]
     depends_on:
       - relay
+
+  # STT, dead 2026-08-02 to 2026-08-25: it was a unit in the `hermes` distro,
+  # which stopped unsupervised, and no sensor named 8090. Built from ../whisper/.
+  whisper:
+    image: ghcr.io/hf7y/whisper:latest
+    container_name: zaxon-whisper
+    restart: always
+    # whisper_stt.sh curls 127.0.0.1:8090 from INSIDE the gateway, so sharing
+    # that namespace is what keeps the existing URL correct.
+    network_mode: "service:gateway"
+    depends_on:
+      - gateway
+    # 141 MiB of model, off the image and out of data/.
+    volumes:
+      - whisper-models:/models
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-m", "5", "http://127.0.0.1:8090/health"]
+      interval: 60s
+      timeout: 10s
+      # A cold volume downloads the model before the port opens.
+      start_period: 300s
+      retries: 3
+
+volumes:
+  whisper-models:
