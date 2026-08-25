@@ -143,77 +143,16 @@ discarding every utterance before whisper ever ran, no error output
 anywhere. Fixed by checking `sox`'s own exit status via `PIPESTATUS`
 instead of the pipeline's combined status.
 
-**Bun segfault on `claude` launch, investigated 2026-07-21 (mandark
-session, remote via SSH — not yet deployed to crt-vm, see below)**:
-`claude` started segfaulting in Bun's native code on launch (`panic(main
-thread): Segmentation fault`, "Bun has crashed. This indicates a bug in
-Bun, not your code."). Findings, in order:
-- The VM had self-updated to Claude Code v2.1.216; that build segfaulted
-  on full interactive launch (not on `--version`) while v2.1.215 (still
-  on disk at `~/.local/share/claude/versions/`) launched clean.
-  `autoUpdates` is already `false` in `~/.claude.json`, so it won't
-  silently re-flip.
-- Pinning the `~/.local/bin/claude` symlink back to 2.1.215 stopped the
-  *first* crash, but the crash recurred later against 2.1.215 too (one
-  run lasted ~128s before segfaulting) — so the version wasn't the real
-  root cause, just correlated with the first occurrence.
-- Direct evidence pointing at the real trigger: after one crash, a plain
-  SSH window filled with raw escape-sequence garbage
-  (`35;68;14M35;69;14M...` — SGR mouse-motion reports). Bun/Ink's TUI
-  enables terminal mouse-tracking on startup; dying via segfault instead
-  of a normal exit means it never runs the matching disable sequence.
-  The terminal then keeps encoding every mouse move as raw bytes fed to
-  whatever reads next — plausibly including the *next* `claude` launch,
-  the instant it starts reading raw input, as a flood of malformed input
-  hitting a fresh process's parser. This is a real class of Bun/Ink bug
-  (crash skips cleanup handlers), not something fixable by picking a
-  build.
-- **Fix written, NOT yet deployed to crt-vm** (holding for another
-  agent's in-flight push to land first, then a single combined
-  `crt-sync-vm.sh push`): `bin/claude`, a thin wrapper that resets mouse
-  tracking (`\e[?1000l\e[?1003l\e[?1006l\e[?1015l\e[?1002l`) before every
-  launch, then execs the real binary by hardcoded path (never recurses).
-  Shadows the real `claude` via PATH order — wired into both
-  `crt-console.sh` (the scripted boot launch, and anything forked from
-  that shell, including a manual re-launch typed after the `; exec bash`
-  crash fallback) and `systemd/bash_profile.append` (unconditionally, so
-  a fresh independent SSH login gets it too, not just shells descended
-  from the tmux console). Once deployed, existing live `~/.bash_profile`
-  on crt-vm still needs the *new* `bash_profile.append` block re-applied
-  (it was appended once at install time; editing the repo's copy alone
-  doesn't retroactively patch what's already in `~/.bash_profile`) —
-  re-run the relevant part of `install.sh`'s append step, or hand-patch.
-- **UPDATE, same session, later**: deployed and confirmed. Full merged
-  repo pushed to crt-vm, `~/.bash_profile` re-patched live (the repo-only
-  edit didn't retroactively apply), session killed and let autologin
-  respawn it clean. `claude` (v2.1.216, the build that segfaulted
-  earlier) launched successfully with no crash, `PATHCHECK: $PATH`
-  confirmed `~/crt/bin` first. Hasn't been running long enough to call
-  the theory fully proven (no repeat crash *yet* isn't the same as
-  *can't* recur), but this is real evidence, not just a plausible story.
+**Bun segfault on `claude` launch (2026-07-21, resolved and deployed)**:
+Bun/Ink's TUI leaves mouse-tracking enabled on a segfault (no clean exit
+to disable it), and the leaked SGR mouse bytes then feed as garbage input
+to the next `claude` launch. Fixed by `bin/claude`, a wrapper that resets
+mouse tracking before exec'ing the real binary; wired into
+`crt-console.sh` and `systemd/bash_profile.append` — see those files for
+the live mechanism, not reproduced here.
 
-**Scanner-to-book-game pipeline: dexter-side capture is a dead end,
-pivoting to stdin-in-the-guest (2026-07-21, same session)** — full
-writeup in `SCANNER.md`'s "2026-07-21 late session" section and
-the Book Game issues' own "NEXT" notes, don't re-derive here. Spent
-a long stretch trying to get `dexter-scanner-forward.ps1` (Windows-side
-RawInput capture + a low-level-hook keystroke-suppression layer, added
-by another agent working in parallel this session) to actually intercept
-real scans before they leak into whatever has focus on crt-vm's console.
-Never got it working across three different process-launch mechanisms;
-also found and fixed a real bug along the way (`Environment.TickCount64`
-doesn't compile against this dexter's PowerShell 5.1, and the resulting
-`Add-Type` error dump was silently hanging the process while every
-health check reported it as fine). Declared a dead end rather than keep
-debugging Windows session/window-station internals blind over SSH.
-**Decided pivot, not yet implemented**: since the scanner's raw
-keystrokes reliably reach crt-vm's focused tmux window every time
-(proven repeatedly), have `crt-book-console.py` read scans directly off
-its own stdin instead of relying on the dexter round-trip, and make
-`book` the default tmux window instead of `claude` so that's where scans
-land. Next session should implement and *actually verify live* before
-marking done — this exact area already produced one false "confirmed
-working" claim this session from a hung-but-healthy-looking process.
+**Scanner-to-book-game pipeline** — full writeup and current state in
+`SCANNER.md`, not duplicated here.
 
 **Not yet built** (so it doesn't get assumed-done next time): a visual
 signal of the USER's own speech in the "mono" window — right now it only
