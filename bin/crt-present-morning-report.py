@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Pure-code (zero Claude calls) presenter for the scheduler's cross-project
-# morning report -- parses bin/morning-report.sh's own output and decides
+# morning report -- parses the morning-report script's own output and decides
 # what becomes a CRT one-liner vs. a printer page. See
 # MORNING-REPORT-PRESENTATION.md for the full design/contract this
 #   [rest: vault:crt/header-archaeology-20260817.md]

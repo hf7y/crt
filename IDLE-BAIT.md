@@ -32,10 +32,10 @@ The two ends of this loop already exist independently and just need
 connecting:
 - **Report/question side**: the scheduler's existing convention
   (`~/reports/<project>/LATEST.md`, `.claude/QUESTIONS.md`,
-  `bin/morning-report.sh` in `Project Archive/scheduler`) — crt should
+  the morning-report script in `Project Archive/scheduler`) — crt should
   **reuse this verbatim**, not invent its own format. Every other project
   (chezz, wtul, vkv-inventory, home-assistant) already writes reports this
-  shape; `morning-report.sh` already aggregates them. crt's Tier 2 nightly
+  shape; that script already aggregates them. crt's Tier 2 nightly
   batch is registered (`schedule/crt.conf`) but not yet actually producing
   `~/reports/crt/LATEST.md` — see "What's missing" below.
 - **Pickup side**: `bin/crt-ring.sh` (tone + voice-in-the-gap pickup

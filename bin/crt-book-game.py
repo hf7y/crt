@@ -1248,7 +1248,7 @@ def pick_bibquotes_line(path=None, rng=None):
 
 
 # ---------------------------------------------------------------------------
-# Scanner-feed integration: bridges bin/crt-scanner-feed.py's delivery
+# Scanner-feed integration: bridges the scanner-feed listener's delivery
 # convention (SCANNER.md) with this CLI's plain --isbn argument
 # ---------------------------------------------------------------------------
 

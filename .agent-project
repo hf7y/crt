@@ -1,7 +1,7 @@
 # .agent-project -- this repo is an agent PROJECT, not merely a repository.
 #
-# Read by realisateur/bin/cut-verb-build.sh, which resolves this path across
-# every non-archived repo in one GraphQL query and records the ones that
+# Read by the verb build, which resolves this path across every
+# non-archived repo in one GraphQL query and records the ones that
 # carry it as the registry block of the verb build's manifest.tsv.
 #
 # WHY A FILE AND NOT A LIST SOMEWHERE. The registry used to be
