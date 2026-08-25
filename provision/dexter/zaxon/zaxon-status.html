@@ -105,6 +105,9 @@ fetch("status.json?t="+Date.now()).then(r=>r.json()).then(d=>{
   if (L.slot && L.slot.age_hours > (L.ttl_hours||1)) items.push(`<span class="bad">the slot is
     past its TTL</span> — <code>${H(L.slot.id)}</code> has held it ${L.slot.age_hours} h and the
     sweep has not freed it.`);
+  (d.hazards||[]).forEach(h=>items.push(`<span class="warn">a second holder for the
+    WhatsApp session</span> — the WSL distro <code>${H(h.distro)}</code> is registered, and
+    ${H(h.why)}. Booting it logs the link out and costs a QR scan.`));
   const top=(L.senders||[]).filter(s=>s.sent>=3 && !s.answered);
   top.forEach(s=>items.push(`<span class="warn"><code>${H(s.from)}</code> sent ${s.sent},
     none answered</span> — a repeating automated sender is not just unheard, it is

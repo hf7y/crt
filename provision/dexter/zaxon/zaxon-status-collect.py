@@ -1,23 +1,10 @@
 #!/usr/bin/env python3
 """Read the zaxon relay's real state and print it as status.json.
 
-WHY THIS IS NOT A PING. The relay answering is the easy half and the half
-that is always green: on 2026-08-25 all four containers were up, the MCP
-port answered in 21ms, and the channel had delivered NOTHING Zach answered
-for two days -- 86 stale tickets against 15 answered, lifetime. `ausculte`
-pages the human first precisely because a green estate report with a dead
-human channel reaches nobody; a zaxon page that only reports the port has
-the same defect one layer down.
-
-THE SLOT IS THE SCARCE RESOURCE. crt#67 made the queue single-slot so three
-questions are not three pings. The cost is that one ignored question holds
-the only slot for QUESTION_TTL_SECS (1h) before going stale and freeing it.
-A repeating automated sender therefore does not just go unanswered -- it
-occupies the channel. 18 tickets expired on 2026-08-25, which is 18 of 24
-hours in which a human-blocking question from any other agent would have
-queued behind alarm traffic. stale_slot_hours is that number.
-
-Runs ON dexter (the ledger is a local sqlite file). Reads only.
+Runs ON dexter; the ledger is a local sqlite file. Reads only. The verdict
+ladder is pinned by tests/test_zaxon_status_collect.py, and stale_slot_hours
+by its SlotCost cases -- a single slot (crt#67) means an ignored question
+holds the channel for its full TTL, so a miss is a cost to every other caller.
 """
 import json
 import os
@@ -41,8 +28,6 @@ def collect():
             "SELECT id, from_agent, status, created_at, answered_at, question FROM tickets"
         ).fetchall()
     except sqlite3.Error as e:
-        # BLIND, never an empty-but-healthy-looking ledger: a page that cannot
-        # read the ticket store knows nothing about whether Zach is reachable.
         return {"readable": False, "path": DB, "error": str(e)}
 
     now = time.time()
@@ -82,7 +67,6 @@ def collect():
         "totals": tally(tickets),
         "window": tally(win),
         "window_sent": len(win),
-        # The channel's cost to every other caller, not just its own miss rate.
         "stale_slot_hours": round(tally(win).get("stale", 0) * TTL_H, 1),
         "queued": sum(1 for t in open_now if t["status"] == "queued"),
         "slot": None if pending is None else {
@@ -126,6 +110,7 @@ def verdict(ledger, relay):
 if __name__ == "__main__":
     relay = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {"answers": False}
     containers = json.loads(sys.argv[2]) if len(sys.argv) > 2 else []
+    hazards = json.loads(sys.argv[3]) if len(sys.argv) > 3 else []
     ledger = collect()
     v, why = verdict(ledger, relay)
     cadence = int(os.environ.get("CADENCE_MIN", "60"))
@@ -143,5 +128,6 @@ if __name__ == "__main__":
         "why": why,
         "relay": relay,
         "containers": containers,
+        "hazards": hazards,
         "ledger": ledger,
     }, indent=2))

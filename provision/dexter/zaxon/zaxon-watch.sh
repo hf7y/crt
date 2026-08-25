@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 # zaxon-watch.sh -- publish the state of the human channel at hf7y.com/zaxon.
-# Every other sensor reports THROUGH zaxon, so nothing else can report on it.
-# LOOPBACK IS CORRECT HERE: this runs ON dexter. Do not "fix" it to the tailnet
-# address, which is the route for callers that are not dexter.
-# ALWAYS PUBLISHES -- a publisher that needs its subject healthy cannot report
-# the outage (monkey-watch.sh's header, at length).
+# Behaviour is pinned by tests/test_zaxon_watch_guards.sh, not by this header.
 set -uo pipefail
 
 CLI_NAME='zaxon-watch.sh'
@@ -37,7 +33,6 @@ done
 if [ "$MODE" = --install ]; then
   [ "$(id -u)" -eq 0 ] || { echo "$CLI_NAME: --install needs root" >&2; exit 2; }
   self="$(readlink -f "${BASH_SOURCE[0]}")"
-  # As the SSH user, not root: publishing needs that user's gh credential.
   cat > /etc/systemd/system/zaxon-watch.service <<UNIT
 [Unit]
 Description=Publish the zaxon human-channel status at hf7y.com/zaxon
@@ -67,8 +62,6 @@ UNIT
 fi
 
 # --- 1. does the relay answer? ----------------------------------------------
-# An mcp-session-id, not a 200: this endpoint returns 200 for shapes it refuses.
-# curl times ITSELF; dexter's date ignores %3N and printed whole nanoseconds.
 hdr="$(mktemp)"; trap 'rm -f "$hdr"' EXIT
 ms="$(curl -s -D "$hdr" -o /dev/null -m 10 -w '%{time_total}' -X POST "$PROBE_URL" \
   -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
@@ -83,8 +76,6 @@ else
 fi
 
 # --- 2. the containers ------------------------------------------------------
-# A relay answering inside a stack whose gateway is restarting is about to go
-# dark; docker is the only place that distinction exists.
 CONTAINERS="$(sudo -n docker ps -a --filter 'name=zaxon-' \
   --format '{{.Names}}\t{{.State}}\t{{.Status}}' 2>/dev/null \
   | python3 -c 'import json,sys
@@ -92,8 +83,21 @@ print(json.dumps([dict(zip(("name","state","status"),l.rstrip("\n").split("\t"))
                   for l in sys.stdin if l.strip()]))')"
 [ -n "$CONTAINERS" ] || CONTAINERS='[]'
 
-# --- 3. the ledger -----------------------------------------------------------
-payload="$(python3 "$COLLECTOR" "$RELAY" "$CONTAINERS")"
+# --- 3. who else could seize the WhatsApp session ----------------------------
+WSL_EXE="${WSL_EXE:-/mnt/c/Windows/System32/wsl.exe}"
+HAZARDS='[]'
+if [ -x "$WSL_EXE" ]; then
+  HAZARDS="$("$WSL_EXE" -l -v 2>/dev/null | tr -d '\0\r' | tail -n +2 \
+    | awk '{n=$1; if(n=="*"){n=$2}} n!="" && n!="Ubuntu" && n!="docker-desktop" {print n}' \
+    | python3 -c 'import json,sys
+print(json.dumps([{"distro": l.strip(),
+  "why": "a registered WSL distro boots hermes-gateway.service and seizes the linked-device session"}
+  for l in sys.stdin if l.strip()]))')"
+  [ -n "$HAZARDS" ] || HAZARDS='[]'
+fi
+
+# --- 4. the ledger -----------------------------------------------------------
+payload="$(python3 "$COLLECTOR" "$RELAY" "$CONTAINERS" "$HAZARDS")"
 [ -n "$payload" ] || { echo "$CLI_NAME: collector produced nothing" >&2; exit 6; }
 
 VERDICT="$(printf '%s' "$payload" | python3 -c 'import json,sys; print(json.load(sys.stdin)["verdict"])')"
@@ -103,9 +107,7 @@ printf '%s: %s -- %s\n' "$CLI_NAME" "$VERDICT" "$WHY" >&2
 
 [ "$MODE" = --apply ] || { printf '%s: NOT published (need --apply)\n' "$CLI_NAME" >&2; exit 0; }
 
-# --- 4. publish --------------------------------------------------------------
-# NEVER through zaxon_ask: a channel cannot page a human about being unable to
-# page a human. The page IS the alert, read by eye.
+# --- 5. publish --------------------------------------------------------------
 WORK="$(mktemp -d)"; trap 'rm -f "$hdr"; rm -rf "$WORK"' EXIT
 gh repo clone "$PUBLISH_REPO" "$WORK/site" -- -q --depth 1 2>/dev/null \
   || { echo "$CLI_NAME: could not clone $PUBLISH_REPO -- nothing published" >&2; exit 1; }
