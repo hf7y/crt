@@ -21,7 +21,12 @@ import uuid
 from mcp.server.mcpserver import MCPServer
 
 from zaxon_relay_db import get_conn
-from zaxon_relay_queue import MAX_QUESTION_CHARS, sweep_and_promote, validate_message
+from zaxon_relay_queue import (
+    MAX_QUESTION_CHARS,
+    edit_delivered,
+    sweep_and_promote,
+    validate_message,
+)
 
 mcp = MCPServer(
     "zaxon",
@@ -74,6 +79,49 @@ def ask_zach(question: str, from_agent: str = "agent", options: list[str] | None
         if status == "failed":
             result["error"] = answer
         return result
+    finally:
+        conn.close()
+
+
+@mcp.tool()
+def revise_zach_question(
+    ticket_id: str, question: str, options: list[str] | None = None
+) -> dict:
+    """Change a question you have already asked, IN PLACE. If it has reached
+    Zach's phone the message there is edited; he is not pinged twice. This
+    is the only sanctioned way to change your mind -- asking again spends a
+    second notification on the same question, which is what the single-slot
+    queue exists to prevent.
+
+    Only 'queued' (not yet sent, so the row is simply updated) and 'pending'
+    (sent, so the message is edited) can be revised. An answered question is
+    not revisable: ask a new one."""
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            "SELECT status, from_agent FROM tickets WHERE id=?", (ticket_id,)
+        ).fetchone()
+        if row is None:
+            return {"status": "not_found"}
+        status, from_agent = row
+        if status not in ("queued", "pending"):
+            return {
+                "status": status,
+                "error": f"a {status} question cannot be revised -- ask a new one",
+            }
+
+        text = validate_message(from_agent, question, options)
+        if status == "pending":
+            # Raises rather than falling back to a second message: if the
+            # edit fails, what Zach can see is still the old question.
+            edit_delivered(conn, ticket_id, text)
+
+        conn.execute(
+            "UPDATE tickets SET question=?, options=? WHERE id=?",
+            (question, json.dumps(options) if options else None, ticket_id),
+        )
+        conn.commit()
+        return {"ticket_id": ticket_id, "status": status, "revised": True}
     finally:
         conn.close()
 

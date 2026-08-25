@@ -26,12 +26,26 @@ import json
 import os
 import subprocess
 import time
+import urllib.request
 from pathlib import Path
 
 MAX_QUESTION_CHARS = 140
 QUESTION_TTL_SECS = int(os.environ.get("ZAXON_QUESTION_TTL_SECS", "3600"))
 
 HERMES_BIN = str(Path.home() / ".hermes" / "hermes-agent" / ".venv" / "bin" / "hermes")
+
+# The Baileys bridge, which hermes-agent runs as a gateway child. The relay
+# container shares the gateway's network namespace (network_mode:
+# "service:gateway"), so this loopback address is the bridge's, not ours.
+# It is the ONLY way to edit a sent message: hermes-agent's WhatsApp adapter
+# never overrides edit_message, so BasePlatformAdapter.edit_message returns
+# "Not supported" and every caller falls back to sending a SECOND message --
+# the exact spam this relay exists to prevent.
+BRIDGE_URL = os.environ.get("ZAXON_BRIDGE_URL", "http://127.0.0.1:3000")
+
+# `hermes send --to whatsapp:Zach` resolves the name; the bridge's /edit
+# needs the JID itself, and the send payload may not carry it back.
+CHAT_ID = os.environ.get("ZAXON_CHAT_ID", "231099456315524@lid")
 
 
 def validate_repo(repo: str) -> None:
@@ -117,11 +131,40 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
         return "failed"
 
     conn.execute(
-        "UPDATE tickets SET status='pending', wa_message_id=? WHERE id=?",
-        (payload.get("message_id"), ticket_id),
+        "UPDATE tickets SET status='pending', wa_message_id=?, chat_id=? WHERE id=?",
+        (payload.get("message_id"), payload.get("chat_id") or CHAT_ID, ticket_id),
     )
     conn.commit()
     return "pending"
+
+
+def _default_editor(chat_id: str, message_id: str, text: str) -> dict:
+    body = json.dumps({"chatId": chat_id, "messageId": message_id, "message": text})
+    req = urllib.request.Request(
+        f"{BRIDGE_URL}/edit", data=body.encode(), method="POST"
+    )
+    req.add_header("Content-Type", "application/json")
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.loads(r.read().decode() or "{}")
+
+
+def edit_delivered(conn, ticket_id: str, text: str, editor=None) -> None:
+    """Replaces the text of the message already on Zach's phone. Raises on
+    any failure and leaves the row untouched -- the old message is still
+    what he can see, so the row must not start claiming otherwise, and
+    falling back to a second message is the one thing this must never do.
+    `editor` is injectable for tests."""
+    row = conn.execute(
+        "SELECT wa_message_id, chat_id FROM tickets WHERE id=?", (ticket_id,)
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"no such ticket {ticket_id}")
+    message_id, chat_id = row
+    if not message_id:
+        raise ValueError(f"ticket {ticket_id} has no delivered message to edit")
+    payload = (editor or _default_editor)(chat_id or CHAT_ID, message_id, text)
+    if not payload.get("success"):
+        raise RuntimeError(f"bridge refused the edit: {payload.get('error', 'unknown')}")
 
 
 def sweep_and_promote(conn, sender=None) -> None:

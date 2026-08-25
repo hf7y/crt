@@ -96,6 +96,57 @@ class TestFormatMessage(unittest.TestCase):
         self.assertIn("2. Tea", text)
 
 
+class TestEditDelivered(unittest.TestCase):
+    """Editing the message already on his phone is the whole point: hermes's
+    WhatsApp adapter has no edit_message, so every other path in the stack
+    answers a change of mind with a SECOND notification."""
+
+    def _delivered(self, conn):
+        _insert(conn, "t1", "Q1", "queued")
+        q.sweep_and_promote(
+            conn, sender=lambda text: {"success": True, "message_id": "wa1"}
+        )
+        return conn
+
+    def test_deliver_records_the_chat_id_the_edit_will_need(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = self._delivered(_fresh_conn(tmp))
+            chat_id = conn.execute(
+                "SELECT chat_id FROM tickets WHERE id='t1'"
+            ).fetchone()[0]
+            self.assertTrue(chat_id)
+
+    def test_edits_the_delivered_message(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = self._delivered(_fresh_conn(tmp))
+            calls = []
+
+            def editor(chat_id, message_id, text):
+                calls.append((chat_id, message_id, text))
+                return {"success": True}
+
+            q.edit_delivered(conn, "t1", "*musc* new question", editor=editor)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0][1], "wa1")
+            self.assertEqual(calls[0][2], "*musc* new question")
+
+    def test_a_refused_edit_raises_and_never_sends_a_second_message(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = self._delivered(_fresh_conn(tmp))
+            with self.assertRaises(RuntimeError):
+                q.edit_delivered(
+                    conn, "t1", "new",
+                    editor=lambda *_: {"success": False, "error": "not connected"},
+                )
+
+    def test_queued_ticket_has_nothing_to_edit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            _insert(conn, "t1", "Q1", "queued")
+            with self.assertRaises(ValueError):
+                q.edit_delivered(conn, "t1", "new", editor=lambda *_: {"success": True})
+
+
 class TestSweepAndPromote(unittest.TestCase):
     def test_promotes_lone_queued_ticket_when_slot_is_free(self):
         with tempfile.TemporaryDirectory() as tmp:
