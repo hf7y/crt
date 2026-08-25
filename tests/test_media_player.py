@@ -7,10 +7,8 @@ import os
 import tempfile
 import unittest
 
-# Pinned BEFORE import, same reason tests/test_secretary.py pins its own
-# live-state paths (2026-07-25): handle_media_command() now persists to
-# MEDIA_STATE_FILE (crt#34), and its module-scope default is the real
-# ~/.crt/media-state a live console reads.
+# Pinned BEFORE import (crt#34): default MEDIA_STATE_FILE is a live console's
+# real ~/.crt/media-state.
 _state = tempfile.mkdtemp(prefix="crt-test-media-state-")
 os.environ.setdefault("CRT_MEDIA_STATE_FILE", os.path.join(_state, "media-state"))
 
@@ -43,13 +41,7 @@ class TestParseMediaCommand(unittest.TestCase):
         self.assertEqual(mp.parse_media_command("stop"), {"action": "stop", "query": None})
 
     def test_bare_next_is_a_trigger(self):
-        # crt#34, decided 2026-08-23 ("the persona owns the vocabulary"):
-        # bare "next" was dropped 2026-07-21 because crt-stt-solo.py's own
-        # CONTROL dict also claims it (-> Down arrow) for single-word
-        # utterances. That collision is now resolved upstream, by checking
-        # is_media_active() before ever treating "next" as a keystroke --
-        # see PERSONA_CONTROL_OVERRIDES in crt-stt-solo.py -- so it's safe
-        # to give the word back to the persona that asked for it.
+        # crt#34: reinstated now that crt-stt-solo.py resolves the CONTROL collision by persona.
         self.assertEqual(mp.parse_media_command("next"), {"action": "next", "query": None})
 
     def test_next_phrasing_does_not_get_captured_as_a_play_query(self):

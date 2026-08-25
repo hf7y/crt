@@ -24,10 +24,6 @@ _wg_spec = importlib.util.spec_from_file_location(
 wake_gate = importlib.util.module_from_spec(_wg_spec)
 _wg_spec.loader.exec_module(wake_gate)
 
-# Media persona's is_media_active(), shared with crt-secretary.py's own copy
-# of this same import (crt#34: "the persona owns the vocabulary") -- lets
-# is_control below check whether a CONTROL word has been reclaimed by an
-# active persona before treating it as a keystroke.
 _mp_spec = importlib.util.spec_from_file_location(
     "crt_media_player_for_stt_solo",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt-media-player.py"))
@@ -57,13 +53,7 @@ CONTROL = {
     "clear": "C-u", "scratch": "C-u", "backspace": "C-u",
 }
 
-# crt#34: the persona owns the vocabulary, not the first claimant. A CONTROL
-# word listed here is only a keystroke while its check is False -- while
-# it's True, is_control below lets it fall through to whatever playbook
-# wants it instead (here: bin/crt-media-player.py's "next" == skip). Each
-# check is a lambda, not a bound function, so tests can monkeypatch
-# media_player.is_media_active and have it take effect -- a direct
-# reference would capture the pre-patch function at import time.
+# crt#34: True releases a CONTROL word to whatever playbook wants it instead.
 PERSONA_CONTROL_OVERRIDES = {"next": lambda: media_player.is_media_active()}
 
 

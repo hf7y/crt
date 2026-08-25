@@ -10,23 +10,14 @@ import subprocess
 
 MEDIA_LIBRARY_DIR = os.path.expanduser(os.environ.get("CRT_MEDIA_LIBRARY_DIR", "~/Music"))
 
-# Whether the media persona currently owns ambiguous single-word vocabulary
-# (crt#34, decided 2026-08-23: "the persona owns the vocabulary"). Read by
-# crt-stt-solo.py's is_control gate to decide whether bare "next" is a
-# Down-arrow keystroke or a skip -- and written here rather than kept in
-# memory because crt-secretary.py (and this module) run as a fresh process
-# per utterance, so nothing in-process survives to the next one.
+# crt#34: read by crt-stt-solo.py to decide if bare "next" is a keystroke or
+# a skip; a file because both processes are fresh-per-utterance.
 MEDIA_STATE_FILE = os.path.expanduser(os.environ.get("CRT_MEDIA_STATE_FILE", "~/.crt/media-state"))
 
 # Ordered so longer/more specific phrasings match before a generic
 # "play" fragment could steal them -- e.g. "play the next one" should
-# resolve as "next", not "play" with query "the next one".
-#
-# Bare "next" reinstated here 2026-08-25 (crt#34): it was dropped 2026-07-21
-# because crt-stt-solo.py's CONTROL dict claims it for single-word
-# utterances too (-> Down arrow). Safe now because that collision is
-# resolved upstream, by persona, not by dropping the trigger -- see
-# is_media_active() below.
+# resolve as "next", not "play" with query "the next one". Bare "next" is
+# back (crt#34) now that is_media_active() resolves its CONTROL collision.
 _NEXT_TRIGGERS = ("next", "skip", "play the next one", "next track", "next song")
 _PAUSE_TRIGGERS = ("pause", "hold on", "wait a second")
 _RESUME_TRIGGERS = ("resume", "unpause", "keep going", "continue playing")

@@ -20,9 +20,7 @@ os.environ.setdefault("CRT_CLAUDE_ACTIVE_STATE",
                       os.path.join(_state, "claude-window-active.state"))
 os.environ.setdefault("CRT_THOUGHT_LOG", os.path.join(_state, "thoughts.log"))
 os.environ.setdefault("CRT_STT_GATE_LOG", os.path.join(_state, "thoughts.log"))
-# A sixth live file (crt#34): crt-media-player.py now persists playback
-# state across the fresh-process-per-utterance boundary, and its default is
-# also a real ~/.crt path.
+# A sixth live file (crt#34): crt-media-player.py's persisted playback state.
 os.environ.setdefault("CRT_MEDIA_STATE_FILE", os.path.join(_state, "media-state"))
 
 BIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin")

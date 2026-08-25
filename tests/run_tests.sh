@@ -36,10 +36,7 @@ export CRT_STT_GATE_LOG="$CRT_TEST_STATE_DIR/thoughts.log"
 # touched at source time by every case in that file.
 export CRT_ANNOUNCE_LOCK="$CRT_TEST_STATE_DIR/announce.lastrun"
 export CRT_IDLE_SEEN="$CRT_TEST_STATE_DIR/idle-bait.seen"
-# A seventh (crt#34): crt-media-player.py persists playback state across
-# its fresh-process-per-utterance boundary so the media persona can be
-# checked from crt-stt-solo.py too, and its default is also a real
-# ~/.crt path.
+# A seventh (crt#34): crt-media-player.py's persisted playback state.
 export CRT_MEDIA_STATE_FILE="$CRT_TEST_STATE_DIR/media-state"
 trap 'rm -rf "$CRT_TEST_STATE_DIR"' EXIT
 
