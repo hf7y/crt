@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Zaxon relay MCP server -- Phase 1 landing.
+"""Zaxon relay MCP server -- Phase 1 landing, plus a question queue (crt#67).
 
 Exposes the hook-agnostic contract from the roadmap: any MCP-aware agent can
 call ask_zach() to relay a question to Zach over WhatsApp, then poll
@@ -8,18 +8,19 @@ own gateway process -- it shells out to `hermes send` (documented as
 LLM-free, agent-loop-free) for delivery, and relies on zaxon_relay_watcher.py
 tailing agent.log to capture the reply. Ticket state lives in a small sqlite
 file, not in hermes-agent's own storage.
+
+ask_zach never sends more than one question at a time -- see
+zaxon_relay_queue.py for the single-slot queue, staleness TTL, and the
+<140-char/multiple-choice style guard that lives there.
 """
 import json
-import subprocess
 import time
 import uuid
-from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
 
 from zaxon_relay_db import get_conn
-
-HERMES_BIN = str(Path.home() / ".hermes" / "hermes-agent" / ".venv" / "bin" / "hermes")
+from zaxon_relay_queue import MAX_QUESTION_CHARS, sweep_and_promote, validate_question
 
 mcp = MCPServer(
     "zaxon",
@@ -27,63 +28,47 @@ mcp = MCPServer(
         "Hook-agnostic relay into Zach's WhatsApp. Use ask_zach to send him a "
         "question and get back a ticket_id; poll check_zach_reply with that "
         "ticket_id until status is 'answered'. Do not block waiting -- this "
-        "is a human reply, it can take minutes."
+        "is a human reply, it can take minutes. Only one question reaches "
+        "Zach's phone at a time -- extra ones queue and are sent in order "
+        "as earlier ones are answered or go stale. Keep the question under "
+        f"{MAX_QUESTION_CHARS} characters and prefer a multiple-choice poll "
+        "(pass options) over free text."
     ),
 )
 
 
 @mcp.tool()
-def ask_zach(question: str, from_agent: str = "agent") -> dict:
+def ask_zach(question: str, from_agent: str = "agent", options: list[str] | None = None) -> dict:
     """Relay a question to Zach over WhatsApp. Returns immediately with a
     ticket_id -- this does not wait for his reply. Call check_zach_reply
-    with the returned ticket_id to poll for the answer."""
+    with the returned ticket_id to poll for the answer. Only one question
+    is ever in flight to his phone; if another is already pending, this one
+    queues and is sent once the slot frees (answered or stale). Raises if
+    question is MAX_QUESTION_CHARS or longer -- shorten it, don't rely on
+    truncation. options, if given, renders as a numbered poll."""
+    validate_question(question)
     ticket_id = uuid.uuid4().hex[:8]
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
     conn = get_conn()
     try:
         conn.execute(
-            "INSERT INTO tickets (id, from_agent, question, status, created_at) "
-            "VALUES (?, ?, ?, 'pending', ?)",
-            (ticket_id, from_agent, question, now),
+            "INSERT INTO tickets (id, from_agent, question, status, created_at, options) "
+            "VALUES (?, ?, ?, 'queued', ?, ?)",
+            (ticket_id, from_agent, question, now, json.dumps(options) if options else None),
         )
         conn.commit()
 
-        text = (
-            f"\U0001F500 [{from_agent}] asks (reply to this message to answer, "
-            f"#{ticket_id}):\n\n{question}"
-        )
-        try:
-            proc = subprocess.run(
-                [HERMES_BIN, "send", "--to", "whatsapp:Zach", text, "--json"],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            payload = json.loads(proc.stdout or "{}")
-        except Exception as e:  # noqa: BLE001 -- surfaced to the caller, not swallowed
-            conn.execute(
-                "UPDATE tickets SET status='failed', answer=? WHERE id=?",
-                (str(e), ticket_id),
-            )
-            conn.commit()
-            return {"ticket_id": ticket_id, "status": "failed", "error": str(e)}
+        sweep_and_promote(conn)
 
-        if not payload.get("success"):
-            err = payload.get("error", "unknown send failure")
-            conn.execute(
-                "UPDATE tickets SET status='failed', answer=? WHERE id=?",
-                (err, ticket_id),
-            )
-            conn.commit()
-            return {"ticket_id": ticket_id, "status": "failed", "error": err}
-
-        conn.execute(
-            "UPDATE tickets SET wa_message_id=? WHERE id=?",
-            (payload.get("message_id"), ticket_id),
-        )
-        conn.commit()
-        return {"ticket_id": ticket_id, "status": "pending"}
+        status = conn.execute(
+            "SELECT status, answer FROM tickets WHERE id=?", (ticket_id,)
+        ).fetchone()
+        status, answer = status
+        result = {"ticket_id": ticket_id, "status": status}
+        if status == "failed":
+            result["error"] = answer
+        return result
     finally:
         conn.close()
 
@@ -91,9 +76,13 @@ def ask_zach(question: str, from_agent: str = "agent") -> dict:
 @mcp.tool()
 def check_zach_reply(ticket_id: str) -> dict:
     """Poll for Zach's WhatsApp reply to a question sent via ask_zach.
-    status is one of: pending, answered, failed, not_found."""
+    status is one of: queued, pending, answered, failed, stale, not_found.
+    'queued' means another question is still waiting on Zach's phone;
+    'stale' means this one expired unanswered and its slot was freed --
+    if you still need an answer, ask again."""
     conn = get_conn()
     try:
+        sweep_and_promote(conn)
         row = conn.execute(
             "SELECT status, answer FROM tickets WHERE id=?", (ticket_id,)
         ).fetchone()

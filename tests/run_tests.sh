@@ -488,6 +488,10 @@ echo "== ecosim cast sink: truncates loudly, counts what it drops =="
 python3 "$DIR/test_cast_sink.py" || fail=1
 echo
 
+echo "== zaxon relay question queue (crt#67) =="
+python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_queue.py" -v 2>&1 | tail -20 || fail=1
+echo
+
 # Manifest check (2026-07-25). Every test file in this directory must be named
 # above, and every name above must exist. Both directions had really drifted:
 #

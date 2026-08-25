@@ -19,7 +19,13 @@ CREATE TABLE IF NOT EXISTS tickets (
 
 
 def get_conn() -> sqlite3.Connection:
+    """Also migrates a pre-crt#67 db: CREATE TABLE IF NOT EXISTS won't add
+    'options' to a tickets table that predates it."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), timeout=10)
     conn.execute(SCHEMA)
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(tickets)")}
+    if "options" not in cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN options TEXT")
+    conn.commit()
     return conn
