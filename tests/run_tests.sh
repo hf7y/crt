@@ -488,6 +488,10 @@ echo "== ecosim cast sink: truncates loudly, counts what it drops =="
 python3 "$DIR/test_cast_sink.py" || fail=1
 echo
 
+echo "== zaxon status collector verdict ladder =="
+python3 -m unittest discover -s "$DIR" -p "test_zaxon_status_collect.py" -v 2>&1 | tail -5 || fail=1
+echo
+
 echo "== zaxon relay question queue (crt#67) =="
 python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_queue.py" -v 2>&1 | tail -20 || fail=1
 echo

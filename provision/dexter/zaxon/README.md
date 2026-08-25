@@ -26,6 +26,20 @@ It used to sit in `data/.env`, inside the bind mount `.deploykeep` shields from
 every deploy — so the repo's copy never ran. `.env` loads with `override=True` and
 **beats** compose, so the old line stays commented out there.
 
+## The status page
+
+`hf7y.com/zaxon` — `zaxon-watch.sh --apply` hourly, installed once with
+`sudo ./zaxon-watch.sh --install`. `--check` prints the document and publishes
+nothing. It never alerts through zaxon: a channel cannot page a human about
+being unable to page a human, so the page IS the alert.
+
+**A relay that merely answers is never `OK`.** On 2026-08-25 all four
+containers were up and the port answered in 3 ms while 18 of 18 questions in
+24 h expired unanswered — 16 of them `ausculte-cadence` repeating three DOWN
+sensors. With one slot (crt#67) an ignored question holds the channel for its
+full TTL, so that day spent 18 of 24 hours unable to deliver anything else.
+`stale_slot_hours` is that number.
+
 ## Open
 
 - `hermes` is still registered and Stopped. Before `wsl --unregister hermes`: its

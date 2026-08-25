@@ -1,0 +1,140 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>zaxon — the human channel</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+ :root{--bg:#fbfbfa;--fg:#1a1a19;--mut:#6b6b66;--line:#e3e3df;--card:#f4f4f1;
+       --ok:#1a7f37;--warn:#9a6700;--bad:#b3261e;--blind:#8250df}
+ @media(prefers-color-scheme:dark){:root{--bg:#16161a;--fg:#ececea;--mut:#9a9a94;
+       --line:#2c2c31;--card:#1e1e23;--ok:#3fb950;--warn:#d29922;--bad:#f85149;--blind:#a371f7}}
+ body{background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif;
+      margin:0;padding:2rem 1.25rem;display:flex;justify-content:center}
+ main{width:100%;max-width:56rem}
+ h1{font-size:1.05rem;font-weight:600;letter-spacing:.02em;text-transform:uppercase;
+    color:var(--mut);margin:0 0 1.25rem}
+ h2{font-size:.8rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--mut);margin:2rem 0 .6rem}
+ .verdict{font-size:2.3rem;font-weight:700;letter-spacing:-.02em;margin:0}
+ .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+ .blind{color:var(--blind)}.mut{color:var(--mut)}
+ .sub{color:var(--mut);margin:.35rem 0 1.5rem}
+ .strip{display:flex;flex-wrap:wrap;gap:.5rem;margin:0 0 .5rem}
+ .fact{background:var(--card);border:1px solid var(--line);border-radius:.4rem;
+       padding:.4rem .65rem;font-size:.82rem;line-height:1.3}
+ .fact b{display:block;color:var(--mut);font-weight:500;font-size:.72rem;
+         text-transform:uppercase;letter-spacing:.04em}
+ table{border-collapse:collapse;width:100%;font-size:.9rem}
+ th,td{text-align:left;padding:.45rem .6rem;border-bottom:1px solid var(--line);
+       vertical-align:top}
+ th{color:var(--mut);font-weight:500}
+ .wrap{overflow-x:auto}
+ code{font-family:ui-monospace,monospace;font-size:.88em}
+ .why{color:var(--mut);font-size:.85rem}
+ .q{font-size:.85rem;color:var(--mut);max-width:30rem}
+ ul.find{margin:.2rem 0 0;padding-left:1.1rem}
+ ul.find li{font-size:.87rem;margin:.15rem 0}
+ footer{color:var(--mut);font-size:.85rem;margin-top:2.5rem;border-top:1px solid var(--line);
+        padding-top:1rem}
+ a{color:inherit}
+</style>
+<main>
+<h1>zaxon — the human channel</h1>
+<div id="app">loading&hellip;</div>
+<footer id="foot">
+  Machine-readable: <a href="status.json">status.json</a>.
+  Published by <code>crt/provision/dexter/zaxon/zaxon-watch.sh</code>, which runs
+  <b>on dexter</b>, where the relay is.
+  <b>zaxon is the one sensor nothing else can report on</b>: every other alarm in
+  the estate is delivered through it, so when it goes quiet the tracker does not
+  fill with alarms — it goes silent, which reads from outside like a calm night.
+  The verdict is deliberately never <b>OK</b> for a relay that merely answers:
+  an open port is not a reachable human. The queue holds
+  <b>one question at a time</b> (crt#67, so three agents are not three pings),
+  which means an ignored question occupies the channel for its full TTL before
+  going stale — <code>stale_slot_hours</code> is how much of the day that cost
+  every other caller.
+</footer>
+</main>
+<script>
+const H=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ago=t=>{if(!t)return"never";const h=(Date.now()-new Date(t))/36e5;
+  return h<1?`${Math.round(h*60)} min ago`:h<48?`${Math.round(h)} h ago`:`${Math.round(h/24)} days ago`;};
+const past=t=>t&&Date.now()>new Date(t);
+const CLS={OK:"ok",QUIET:"mut",UNANSWERED:"warn",WEDGED:"bad",DOWN:"bad",BLIND:"blind"};
+
+fetch("status.json?t="+Date.now()).then(r=>r.json()).then(d=>{
+  const L=d.ledger||{}, R=d.relay||{}, C=d.containers||[];
+  const W=L.window||{}, T=L.totals||{};
+
+  // STALENESS FIRST, as on the monkey page and for the same reason: a stopped
+  // publisher leaves its last verdict rendering as current, so a dead watcher
+  // would show whatever the channel was doing when it died.
+  const stale = past(d.valid_until);
+  let head=d.verdict, cls=CLS[d.verdict]||"mut", note=H(d.why||"");
+  if (stale) { head="UNWATCHED"; cls="blind";
+    note=`The publisher last spoke ${ago(d.generated)}, past its own valid_until.
+          <b>This says nothing about zaxon</b> — the watcher on dexter is what
+          stopped. Everything below is frozen at that moment.`; }
+
+  const fact=(k,v,c="")=>`<div class="fact"><b>${k}</b><span class="${c}">${H(v)}</span></div>`;
+  const bad = C.filter(c=>c.state!=="running");
+  const strip = `<div class="strip">
+    ${fact("relay", R.answers?`answers in ${R.ms} ms`:"no answer", R.answers?"ok":"bad")}
+    ${fact("containers", C.length?`${C.length-bad.length}/${C.length} running`:"unknown",
+           C.length&&!bad.length?"ok":C.length?"bad":"mut")}
+    ${fact("open slot", L.slot?`${L.slot.from}, ${L.slot.age_hours} h`:"free",
+           L.slot?"warn":"ok")}
+    ${fact("queued behind it", L.queued??0, L.queued?"warn":"mut")}
+    ${fact("last answer", ago(L.last_answered_at), L.last_answered_at?"":"bad")}
+    ${fact("lifetime", `${T.answered||0} answered / ${T.stale||0} stale`,"mut")}
+  </div>`;
+
+  // FINDINGS: the things a green port hides.
+  const items=[];
+  if (!L.readable) items.push(`<span class="blind">ledger unreadable</span> —
+    <code>${H(L.path)}</code>: ${H(L.error)}. The relay answering says nothing about
+    whether its questions land.`);
+  bad.forEach(c=>items.push(`<span class="bad"><code>${H(c.name)}</code> is ${H(c.state)}</span>
+    — ${H(c.status)}`));
+  if (W.failed) items.push(`<span class="bad">${W.failed} send(s) failed</span> — the relay
+    took the question and WhatsApp did not. This is the failure that looks healthy from
+    every caller's side: <code>ask_zach</code> returns a ticket either way.`);
+  if (L.stale_slot_hours >= 6) items.push(`<span class="warn">${L.stale_slot_hours} h of the
+    last ${L.window_hours} h</span> were spent holding the single slot for questions that
+    expired unanswered. A blocking question from any other agent queues behind that.`);
+  if (L.slot && L.slot.age_hours > (L.ttl_hours||1)) items.push(`<span class="bad">the slot is
+    past its TTL</span> — <code>${H(L.slot.id)}</code> has held it ${L.slot.age_hours} h and the
+    sweep has not freed it.`);
+  const top=(L.senders||[]).filter(s=>s.sent>=3 && !s.answered);
+  top.forEach(s=>items.push(`<span class="warn"><code>${H(s.from)}</code> sent ${s.sent},
+    none answered</span> — a repeating automated sender is not just unheard, it is
+    <b>occupying the channel</b>.`));
+  const findings = items.length
+    ? `<h2>findings</h2><ul class="find">${items.map(i=>`<li>${i}</li>`).join("")}</ul>` : "";
+
+  const senders = (L.senders||[]).length ? `<h2>who is asking (last ${L.window_hours} h)</h2>
+    <div class="wrap"><table><tr><th>from_agent</th><th>sent</th><th>answered</th><th>expired</th></tr>
+    ${L.senders.map(s=>`<tr><td><code>${H(s.from)}</code></td><td>${s.sent}</td>
+      <td class="${s.answered?"ok":"mut"}">${s.answered||"—"}</td>
+      <td class="${s.stale?"warn":"mut"}">${s.stale||"—"}</td></tr>`).join("")}</table></div>` : "";
+
+  const SC={answered:"ok",stale:"warn",failed:"bad",pending:"",queued:"mut"};
+  const recent = (L.recent||[]).length ? `<h2>recent questions</h2><div class="wrap"><table>
+    <tr><th>when</th><th>from</th><th>status</th><th>question</th></tr>
+    ${L.recent.map(t=>`<tr><td>${H(ago(t.created_at))}</td><td><code>${H(t.from)}</code></td>
+      <td class="${SC[t.status]||""}">${H(t.status)}</td>
+      <td class="q">${H(t.question)}</td></tr>`).join("")}</table></div>` : "";
+
+  document.getElementById("app").innerHTML = `
+    <p class="verdict ${cls}">${H(head)}</p>
+    <p class="sub">${note}</p>
+    ${strip}
+    <p class="sub">Relay at <code>${H(R.url||"?")}</code> on <code>${H(d.host)}</code>;
+      looked at ${H(ago(d.generated))}, every ${H(d.cadence_minutes||60)} min.</p>
+    ${findings}${senders}${recent}`;
+}).catch(e=>{
+  document.getElementById("app").innerHTML =
+    `<p class="verdict bad">NO DOCUMENT</p><p class="sub">status.json did not load
+     (${H(e.message)}). That is itself the finding: the publisher has not run.</p>`;
+});
+</script>
