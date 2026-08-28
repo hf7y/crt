@@ -72,6 +72,17 @@ class TestBuildPrompt(unittest.TestCase):
         self.assertIn("wake-tuning-config.json", prompt)
         self.assertIn("WAKE-TUNING-STATE.md", prompt)
 
+    def test_per_event_log_is_off_repo_not_the_tracked_tuning_doc(self):
+        prompt = judge.build_prompt("timeout-empty", "text", "exact")
+        self.assertIn(judge.JUDGE_LOG, prompt)
+        self.assertNotIn(judge.PROJECT_DIR, judge.JUDGE_LOG)
+
+    def test_tracked_tuning_doc_is_written_only_when_a_knob_moved(self):
+        prompt = judge.build_prompt("timeout-empty", "text", "exact")
+        line = next(l for l in prompt.splitlines() if judge.TUNING_DOC in l
+                    and l.lstrip().startswith("-"))
+        self.assertIn("ONLY when", line)
+
     def test_warns_against_single_event_tuning(self):
         prompt = judge.build_prompt("timeout-empty", "text", "exact")
         self.assertIn("PATTERN", prompt)

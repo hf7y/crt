@@ -19,6 +19,8 @@ RATE_LIMIT_STATE = os.path.expanduser(
 TUNING_DOC = os.path.join(PROJECT_DIR, "WAKE-TUNING-STATE.md")
 TUNING_CONFIG = os.path.expanduser(
     os.environ.get("CRT_WAKE_TUNING_CONFIG", "~/.crt/wake-tuning-config.json"))
+JUDGE_LOG = os.path.expanduser(
+    os.environ.get("CRT_WAKE_JUDGE_LOG", "~/.crt/wake-judge-log.md"))
 DICT_PATH = os.path.expanduser(os.environ.get("CRT_WAKE_POOL_DICT", "~/.crt/wake-pool-dict.txt"))
 CLAUDE_BIN = os.environ.get("CRT_CLAUDE_BIN", "claude")
 JUDGE_TIMEOUT_SECS = float(os.environ.get("CRT_WAKE_JUDGE_TIMEOUT_SECS", "60"))
@@ -83,8 +85,8 @@ def build_prompt(outcome, trigger_text, match_kind, match_source=None,
         "  timeout-empty        -- a bare wake trigger with no leftover and no follow-up",
         "                         ever came. Evidence (not proof) this was a BAD wake.",
         "",
-        f"Read {TUNING_DOC} first for full context: current tuning values, the reasoning",
-        "behind them, and the judgment log of past decisions. IMPORTANT: do not tweak",
+        f"Read {TUNING_DOC} first for the current tuning values and the reasoning behind",
+        f"them, then {JUDGE_LOG} for past decisions. IMPORTANT: do not tweak",
         "anything based on this ONE event alone unless it's blatant (e.g. an obviously",
         "unrelated word armed the system). Zach's own instruction: tune on a PATTERN of",
         "failures, not a single data point -- check the judgment log for recent similar",
@@ -95,11 +97,16 @@ def build_prompt(outcome, trigger_text, match_kind, match_source=None,
         f"  - {TUNING_CONFIG} (JSON: close_ratio, cluster_min_by_source -- read it first,",
         "    it may not exist yet, in which case crt-wake-pool.py's own code defaults are",
         "    in effect and this file should be created with your adjusted values)",
-        f"  - {TUNING_DOC} (append a dated entry to the Judgment log describing this event,",
-        "    the verdict, and what you changed or why you left it alone)",
+        f"  - {TUNING_DOC} (ONLY when a knob above actually moved: record the new value",
+        "    and why. This file is tracked and its prose floor only falls, so an entry",
+        "    that says 'no tuning change' costs the repo and tells a future judge nothing",
+        "    the log below does not)",
         "",
-        "Always append a judgment log entry, even if you make no tuning change -- the log",
-        "existing at all is what lets a future judge call see the pattern.",
+        f"Always append a dated judgment entry to {JUDGE_LOG} -- this event, the verdict,",
+        "and what you changed or why you left it alone. That file is untracked per-event",
+        "context for the next judge call, not a document a person reads; it is what lets",
+        "you see the pattern, and it is also what you should read for recent similar",
+        "outcomes before changing anything.",
     ]
     return "\n".join(lines)
 
