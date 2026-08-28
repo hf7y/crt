@@ -492,6 +492,10 @@ echo "== zaxon-watch guards (the rules that used to be README prose) =="
 bash "$DIR/test_zaxon_watch_guards.sh" || fail=1
 echo
 
+echo "== zaxon-autoupdate rollback (crt#75) =="
+bash "$DIR/test_zaxon_autoupdate_rollback.sh" || fail=1
+echo
+
 echo "== zaxon status collector verdict ladder =="
 python3 -m unittest discover -s "$DIR" -p "test_zaxon_status_collect.py" -v 2>&1 | tail -5 || fail=1
 echo
