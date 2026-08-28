@@ -242,6 +242,113 @@ class TestSweepAndPromote(unittest.TestCase):
             self.assertEqual(status, "pending")
 
 
+class TestMessageReuse(unittest.TestCase):
+    """crt#100: a message per ticket is the spam Zach complained about.
+    deliver() must edit the previous message in place instead of sending a
+    new one, whenever there is one to edit."""
+
+    def test_first_ever_ticket_has_nothing_to_edit_so_it_sends_fresh(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            _insert(conn, "t1", "Q1", "queued")
+            sent, edited = [], []
+            q.sweep_and_promote(
+                conn,
+                sender=lambda text: sent.append(text) or {"success": True, "message_id": "wa1"},
+                editor=lambda *a: edited.append(a) or {"success": True},
+            )
+            self.assertEqual(len(sent), 1)
+            self.assertEqual(len(edited), 0)
+
+    def test_second_promoted_ticket_edits_the_first_message_instead_of_sending(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            old_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - q.QUESTION_TTL_SECS - 10))
+            _insert(conn, "t1", "Q1", "pending", created_at=old_ts)
+            conn.execute(
+                "UPDATE tickets SET wa_message_id='wa1', chat_id='chat1' WHERE id='t1'"
+            )
+            conn.commit()
+            _insert(conn, "t2", "Q2", "queued")
+
+            sent, edited = [], []
+            q.sweep_and_promote(
+                conn,
+                sender=lambda text: sent.append(text) or {"success": True, "message_id": "wa2"},
+                editor=lambda chat_id, message_id, text: edited.append((chat_id, message_id, text)) or {"success": True},
+            )
+
+            self.assertEqual(len(sent), 0, "reused the prior message instead of sending a new one")
+            self.assertEqual(len(edited), 1)
+            self.assertEqual(edited[0][:2], ("chat1", "wa1"))
+            row = conn.execute("SELECT status, wa_message_id, chat_id FROM tickets WHERE id='t2'").fetchone()
+            self.assertEqual(row, ("pending", "wa1", "chat1"))
+
+    def test_a_closed_edit_window_falls_back_to_a_fresh_send(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            old_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - q.QUESTION_TTL_SECS - 10))
+            _insert(conn, "t1", "Q1", "pending", created_at=old_ts)
+            conn.execute(
+                "UPDATE tickets SET wa_message_id='wa1', chat_id='chat1' WHERE id='t1'"
+            )
+            conn.commit()
+            _insert(conn, "t2", "Q2", "queued")
+
+            sent = []
+            q.sweep_and_promote(
+                conn,
+                sender=lambda text: sent.append(text) or {"success": True, "message_id": "wa2"},
+                editor=lambda *a: {"success": False, "error": "edit window closed"},
+            )
+
+            self.assertEqual(len(sent), 1)
+            row = conn.execute("SELECT status, wa_message_id FROM tickets WHERE id='t2'").fetchone()
+            self.assertEqual(row, ("pending", "wa2"))
+
+    def test_an_editor_exception_falls_back_to_a_fresh_send(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            old_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - q.QUESTION_TTL_SECS - 10))
+            _insert(conn, "t1", "Q1", "pending", created_at=old_ts)
+            conn.execute(
+                "UPDATE tickets SET wa_message_id='wa1', chat_id='chat1' WHERE id='t1'"
+            )
+            conn.commit()
+            _insert(conn, "t2", "Q2", "queued")
+
+            def _raise(*a):
+                raise RuntimeError("bridge unreachable")
+
+            sent = []
+            q.sweep_and_promote(
+                conn,
+                sender=lambda text: sent.append(text) or {"success": True, "message_id": "wa2"},
+                editor=_raise,
+            )
+            self.assertEqual(len(sent), 1)
+
+    def test_three_tickets_in_a_row_only_ever_send_once(self):
+        """The actual bar in crt#100: many tickets, at most one message."""
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            sent, edited = [], []
+            sender = lambda text: sent.append(text) or {"success": True, "message_id": "wa1"}
+            editor = lambda *a: edited.append(a) or {"success": True}
+
+            for i in range(3):
+                _insert(conn, f"t{i}", f"Q{i}", "queued")
+                q.sweep_and_promote(conn, sender=sender, editor=editor)
+                old_ts = time.strftime(
+                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - q.QUESTION_TTL_SECS - 10)
+                )
+                conn.execute("UPDATE tickets SET created_at=? WHERE id=?", (old_ts, f"t{i}"))
+                conn.commit()
+
+            self.assertEqual(len(sent), 1)
+            self.assertEqual(len(edited), 2)
+
+
 class TestOptionsColumnMigration(unittest.TestCase):
     def test_get_conn_adds_options_column_to_pre_existing_db(self):
         import sqlite3
