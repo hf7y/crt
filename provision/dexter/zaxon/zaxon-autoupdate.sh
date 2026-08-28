@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# zaxon-autoupdate.sh -- pull what crt published, and prove it is running.
-# Merging is not shipping: #70's queue sat unrun on dexter for an hour while
-# junk it would have held reached Zach's phone. Watches the image: lines in
-# compose.yaml, so a new service needs no edit here. crt vendors, a human
-# installs once with --install. See hf7y/crt#71.
+# zaxon-autoupdate.sh -- pull what crt published, prove it is running, roll back
+# if it is not. Merging is not shipping: #70's queue sat unrun on dexter for an
+# hour while junk it would have held reached Zach's phone. Watches every image:
+# line in compose.yaml; crt vendors, a human installs once. See hf7y/crt#71.
 set -uo pipefail
 
 CLI_NAME='zaxon-autoupdate.sh'
@@ -32,7 +31,6 @@ done
 COMPOSE="$COMPOSE_DIR/compose.yaml"
 [ -r "$COMPOSE" ] || { echo "$CLI_NAME: cannot read $COMPOSE" >&2; exit 4; }
 
-# ONE SOURCE: every image: line in the compose file.
 mapfile -t IMAGES < <(grep -oE '^[[:space:]]*image:[[:space:]]*\S+' "$COMPOSE" \
   | awk '{print $2}' | sort -u)
 [ "${#IMAGES[@]}" -gt 0 ] || { echo "$CLI_NAME: no image: lines in $COMPOSE" >&2; exit 4; }
@@ -68,9 +66,9 @@ UNIT
   exit 0
 fi
 
-# A failed registry read must never look like "nothing to do".
 moved=0; blind=0
-# HASH ONLY AFTER PROVING THERE IS OUTPUT. A failed `docker manifest inspect`
+# A failed registry read must never look like "nothing to do", so HASH ONLY
+# AFTER PROVING THERE IS OUTPUT. A failed `docker manifest inspect`
 # piped to sha256sum hashes the EMPTY STRING into a valid-looking digest, so
 # BLIND could never fire and two unreadable images would compare EQUAL and
 # report "up to date". Caught by pointing --check at a nonexistent repo.
@@ -106,16 +104,14 @@ if [ "$MODE" = --check ]; then echo "$CLI_NAME: $moved image(s) would be pulled"
 cd "$COMPOSE_DIR" || exit 4
 
 # The known-good digest is what is running now, read before the pull: `docker
-# compose pull` only re-points the tag, so the old image is still on disk and
-# `docker tag` puts it back. A digest recorded under /srv could rot; this cannot.
+# compose pull` only re-points the tag, so `docker tag` puts the old image back.
 declare -A KNOWN_GOOD=()
 for img in "${IMAGES[@]}"; do
   id="$(docker image inspect "$img" --format '{{.Id}}' 2>/dev/null || true)"
   [ -n "$id" ] && KNOWN_GOOD["$img"]="$id"
 done
 
-# VERIFY BY ASKING THE RELAY: a container that starts and crashes still
-# reports Started. The tool surface is what callers depend on.
+# A container that starts and crashes still reports Started; ask the tool surface.
 relay_answers() {
   local sid
   for _ in $(seq 1 "${ZAXON_VERIFY_TRIES:-20}"); do
@@ -129,8 +125,7 @@ relay_answers() {
   return 1
 }
 
-# Rollback is not optional here: a bad image takes down the channel that would
-# report it, and the hourly timer then re-pulls the same bad image forever.
+# A bad image takes down the channel that would report it, and the timer re-pulls it.
 rollback() {
   [ "${#KNOWN_GOOD[@]}" -gt 0 ] || { echo "$CLI_NAME: nothing known-good to roll back to" >&2; return 1; }
   for img in "${!KNOWN_GOOD[@]}"; do
