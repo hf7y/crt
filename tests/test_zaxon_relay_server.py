@@ -110,10 +110,6 @@ if __name__ == "__main__":
 
 
 class TestSlotVisibility(unittest.TestCase):
-    """crt#89/#96: ask_zach returned 'pending' whether the question was next
-    up or 18 hours deep behind expiring tickets, so a caller could not learn
-    its odds and could not choose a different channel."""
-
     def setUp(self):
         self._tmpdir = tempfile.TemporaryDirectory()
         db.DB_PATH = Path(self._tmpdir.name) / "tickets.db"

@@ -267,9 +267,6 @@ if __name__ == "__main__":
 
 
 class TestAdmissionControl(unittest.TestCase):
-    """crt#96: the slot is a human, and it was allocated first-come with no
-    reference to whether a caller had ever been worth answering."""
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.conn = _fresh_conn(self._tmp.name)
@@ -315,9 +312,6 @@ class TestAdmissionControl(unittest.TestCase):
 
 
 class TestSlotReport(unittest.TestCase):
-    """crt#89/#96: 'pending' read the same next-up and 18 hours deep, so a
-    caller could not tell whether waiting was worth it."""
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.conn = _fresh_conn(self._tmp.name)
