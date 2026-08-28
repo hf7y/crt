@@ -23,7 +23,9 @@ from mcp.server.mcpserver import MCPServer
 from zaxon_relay_db import get_conn
 from zaxon_relay_queue import (
     MAX_QUESTION_CHARS,
+    admission_error,
     edit_delivered,
+    slot_report,
     sweep_and_promote,
     validate_message,
 )
@@ -36,7 +38,11 @@ mcp = MCPServer(
         "ticket_id until status is 'answered'. Do not block waiting -- this "
         "is a human reply, it can take minutes. Only one question reaches "
         "Zach's phone at a time -- extra ones queue and are sent in order "
-        "as earlier ones are answered or go stale. from_agent is your REPO "
+        "as earlier ones are answered or go stale -- every reply carries "
+        "queued_ahead and est_wait_hours so you can see whether it is worth "
+        "waiting. A caller whose questions are never answered is refused "
+        "rather than queued: the slot is a human, not a buffer. "
+        "from_agent is your REPO "
         "name -- it renders bold as the first thing Zach reads. The whole "
         f"rendered message must be at most {MAX_QUESTION_CHARS} characters, "
         "repo tag and option lines included; prefer a multiple-choice poll "
@@ -52,10 +58,19 @@ def ask_zach(question: str, from_agent: str = "agent", options: list[str] | None
     ticket_id -- this does not wait for his reply. Call check_zach_reply
     with the returned ticket_id to poll for the answer. Only one question
     is ever in flight to his phone; if another is already pending, this one
-    queues and is sent once the slot frees (answered or stale). Refuses
-    (status 'refused') rather than truncating if the rendered message
+    queues and is sent once the slot frees (answered or stale). The reply
+    carries queued_ahead and est_wait_hours -- how many questions must clear
+    first, and the worst case if each expires instead of being answered -- so
+    a caller can decide whether to wait or use another channel.
+
+    Refuses (status 'refused') rather than truncating if the rendered message
     exceeds MAX_QUESTION_CHARS -- the limit counts the bold repo tag and
-    every option line, not the question alone. from_agent is your REPO name. options, if given, renders as a numbered poll."""
+    every option line, not the question alone. Also refuses a caller that has
+    asked repeatedly in the last 24h and had nothing answered: the single slot
+    is a human's attention, and a caller nobody answers is spending it on
+    everyone else's behalf. That refusal is not retryable.
+
+    from_agent is your REPO name. options, if given, renders as a numbered poll."""
     try:
         validate_message(from_agent, question, options)
     except ValueError as e:
@@ -65,6 +80,10 @@ def ask_zach(question: str, from_agent: str = "agent", options: list[str] | None
 
     conn = get_conn()
     try:
+        denied = admission_error(conn, from_agent)
+        if denied:
+            return {"status": "refused", "error": denied}
+
         conn.execute(
             "INSERT INTO tickets (id, from_agent, question, status, created_at, options) "
             "VALUES (?, ?, ?, 'queued', ?, ?)",
@@ -78,7 +97,7 @@ def ask_zach(question: str, from_agent: str = "agent", options: list[str] | None
             "SELECT status, answer FROM tickets WHERE id=?", (ticket_id,)
         ).fetchone()
         status, answer = status
-        result = {"ticket_id": ticket_id, "status": status}
+        result = {"ticket_id": ticket_id, "status": status, **slot_report(conn, ticket_id)}
         if status == "failed":
             result["error"] = answer
         return result
@@ -136,22 +155,24 @@ def revise_zach_question(
 def check_zach_reply(ticket_id: str) -> dict:
     """Poll for Zach's WhatsApp reply to a question sent via ask_zach.
     status is one of: queued, pending, answered, failed, stale, not_found.
-    'queued' means another question is still waiting on Zach's phone;
-    'stale' means this one expired unanswered and its slot was freed --
-    if you still need an answer, ask again."""
+    'queued' means another question is still waiting on Zach's phone, and
+    queued_ahead / est_wait_hours say how far back; 'stale' means this one
+    expired unanswered and its slot was freed -- if you still need an answer,
+    ask again."""
     conn = get_conn()
     try:
         sweep_and_promote(conn)
         row = conn.execute(
             "SELECT status, answer FROM tickets WHERE id=?", (ticket_id,)
         ).fetchone()
+        report = slot_report(conn, ticket_id)
     finally:
         conn.close()
 
     if row is None:
         return {"status": "not_found"}
     status, answer = row
-    result = {"status": status}
+    result = {"status": status, **report}
     if status == "answered":
         result["answer"] = answer
     elif status == "failed":

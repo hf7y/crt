@@ -32,6 +32,9 @@ from pathlib import Path
 MAX_QUESTION_CHARS = 140
 QUESTION_TTL_SECS = int(os.environ.get("ZAXON_QUESTION_TTL_SECS", "3600"))
 
+ADMIT_WINDOW_SECS = 24 * 3600
+ADMIT_MAX_UNANSWERED = int(os.environ.get("ZAXON_ADMIT_MAX_UNANSWERED", "10"))
+
 HERMES_BIN = str(Path.home() / ".hermes" / "hermes-agent" / ".venv" / "bin" / "hermes")
 
 # The Baileys bridge, which hermes-agent runs as a gateway child. The relay
@@ -190,3 +193,63 @@ def sweep_and_promote(conn, sender=None) -> None:
     ticket_id, from_agent, question, options_json = nxt
     options = json.loads(options_json) if options_json else None
     deliver(conn, ticket_id, from_agent, question, options, sender=sender)
+
+
+def _window_start(now=None) -> str:
+    return time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ",
+        time.gmtime((now if now is not None else time.time()) - ADMIT_WINDOW_SECS),
+    )
+
+
+def admission_error(conn, from_agent: str, now=None):
+    """Why this caller may not take the slot, or None (crt#96).
+
+    The slot is the one resource here that cannot be scaled -- it is a human --
+    and it was allocated first-come with no reference to whether a caller had
+    ever been worth answering: 90 of 138 tickets came from two callers with
+    zero replies between them, ever.
+
+    Keyed on the caller's own answer rate over a rolling window, so a caller
+    nobody answers backs off by itself and is readmitted once its unanswered
+    questions age out. No permanent lockout, and nothing for a human to reset.
+    """
+    asked, answered = conn.execute(
+        "SELECT COUNT(*), COUNT(answered_at) FROM tickets "
+        "WHERE from_agent=? AND created_at>=?",
+        (from_agent, _window_start(now)),
+    ).fetchone()
+    if answered or asked < ADMIT_MAX_UNANSWERED:
+        return None
+    return (
+        f"{from_agent} has asked {asked} question(s) in the last 24h and had none "
+        "answered, so it is holding the only slot there is away from callers who "
+        "do get answers. Refused until one is answered or those age out. Not a "
+        "relay fault and not retryable -- a question nobody answers needs a "
+        "different channel, not another attempt."
+    )
+
+
+def slot_report(conn, ticket_id: str) -> dict:
+    """What a caller needs to decide whether to bother waiting: how many
+    questions must clear before this one is on the phone, and the worst-case
+    wait if every one of them expires instead of being answered. `pending`
+    alone said nothing -- next-up and 18 hours deep looked identical."""
+    row = conn.execute(
+        "SELECT status, created_at FROM tickets WHERE id=?", (ticket_id,)
+    ).fetchone()
+    if row is None:
+        return {}
+    status, created_at = row
+    if status != "queued":
+        ahead = 0
+    else:
+        ahead = conn.execute(
+            "SELECT COUNT(*) FROM tickets WHERE status='pending' "
+            "OR (status='queued' AND created_at<?)",
+            (created_at,),
+        ).fetchone()[0]
+    return {
+        "queued_ahead": ahead,
+        "est_wait_hours": round(ahead * QUESTION_TTL_SECS / 3600, 1),
+    }
