@@ -23,12 +23,6 @@ DICT_PATH = os.path.expanduser(os.environ.get("CRT_WAKE_POOL_DICT", "~/.crt/wake
 CLAUDE_BIN = os.environ.get("CRT_CLAUDE_BIN", "claude")
 JUDGE_TIMEOUT_SECS = float(os.environ.get("CRT_WAKE_JUDGE_TIMEOUT_SECS", "60"))
 
-# Full per-event history, OUTSIDE the repo -- unlike TUNING_DOC's Judgment
-# log (crt#79), which now only gains an entry when a call actually moves a
-# knob. Pattern detection ("a lot of attempts... failing") needs every
-# event regardless of whether that particular call was rate-limited or
-# judged tuning-worthy, so this is written deterministically by this
-# script rather than left to whether the LLM call decides to write.
 EVENTS_LOG = os.path.expanduser(
     os.environ.get("CRT_WAKE_JUDGE_EVENTS_LOG", "~/.crt/wake-judge-events.log"))
 EVENTS_LOG_MAX_LINES = int(os.environ.get("CRT_WAKE_JUDGE_EVENTS_LOG_MAX_LINES", "500"))
@@ -62,10 +56,6 @@ def touch_rate_limit(now=None, state_path=None):
 
 def log_event(outcome, trigger_text, match_kind, match_source=None,
               matched_word=None, followup_text=None, now=None, log_path=None):
-    """Appends one JSON-line record of this wake event to EVENTS_LOG,
-    capped at EVENTS_LOG_MAX_LINES. Pure given an injected now/log_path;
-    reads/writes the real file by default. Best-effort: a logging failure
-    must never block the actual judge call."""
     now = now if now is not None else time.time()
     log_path = log_path or EVENTS_LOG
     record = {
@@ -96,12 +86,8 @@ def build_prompt(outcome, trigger_text, match_kind, match_source=None,
     enough concrete detail (exact trigger text, which mechanism fired,
     the ground-truth outcome) that Claude can judge without needing to
     go re-derive context, plus explicit pointers to the three files it's
-    allowed to edit, the events log to check for a pattern, and the
-    "don't act on a single event" guardrail from WAKE-TUNING-STATE.md.
-    Tells the judge to write to WAKE-TUNING-STATE.md's Judgment log only
-    when a tuning change actually happens (crt#79) -- the per-event
-    stream that used to grow there unconditionally now lives in
-    EVENTS_LOG instead, written deterministically by log_event()."""
+    allowed to edit, the events log for pattern history, and the "don't
+    act on a single event" guardrail from WAKE-TUNING-STATE.md."""
     lines = [
         "You are the autonomous wake-word tuning judge for this CRT voice console project.",
         "A wake event just occurred and its outcome is now known. Judge whether it was a",
@@ -188,9 +174,6 @@ def main():
     matched_word = get("--matched-word")
     followup_text = get("--followup-text")
 
-    # Recorded for every event, rate-limited or not -- pattern detection
-    # needs the full history, not just the events that got as far as a
-    # judge call (crt#79).
     log_event(outcome, trigger_text, match_kind, match_source, matched_word, followup_text)
 
     if rate_limited():
