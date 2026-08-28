@@ -11,7 +11,9 @@ question visible at a time:
   'stale' so an ignored question can't wedge the queue forever; the next
   'queued' ticket is then promoted.
 - **Style, enforced by refusing rather than truncating.** See
-  validate_question(). A poll (options=[...]) is preferred over free text.
+  validate_message(), which measures the RENDERED message -- bold repo tag
+  and option lines included -- not the question alone. A poll
+  (options=[...]) is preferred over free text.
 
 sweep_and_promote() is the only place a ticket moves 'queued' -> 'pending',
 and it is safe to call from anywhere that holds a connection (ask_zach,
@@ -32,24 +34,49 @@ QUESTION_TTL_SECS = int(os.environ.get("ZAXON_QUESTION_TTL_SECS", "3600"))
 HERMES_BIN = str(Path.home() / ".hermes" / "hermes-agent" / ".venv" / "bin" / "hermes")
 
 
-def validate_question(question: str) -> None:
-    """Refuses (raises) rather than truncating -- a caller that can't fit
-    the question in MAX_QUESTION_CHARS hasn't decided what it's asking."""
-    if len(question) >= MAX_QUESTION_CHARS:
+def validate_repo(repo: str) -> None:
+    """The tag is a repo name, not a free-form agent nickname (Zach
+    2026-08-25). A space is the cheap tell that someone typed a sentence;
+    enumerating the real repos here would only rot."""
+    if not repo or not repo.strip():
+        raise ValueError("repo is required -- it is the bold tag Zach reads first")
+    if " " in repo:
+        raise ValueError(f"repo {repo!r} contains a space; a repo name does not")
+    if repo == "agent":
         raise ValueError(
-            f"question is {len(question)} chars; must be under {MAX_QUESTION_CHARS} "
-            "(refused, not truncated)"
+            "'agent' is the old default, not a repo -- name the repo you are "
+            "working in, it is the bold tag Zach reads first"
         )
 
 
-def format_message(from_agent: str, ticket_id: str, question: str, options) -> str:
-    """No boilerplate headers -- screen real estate on a phone is the
-    scarce resource here, not clarity for a machine reader."""
-    lines = [f"\U0001F500 [{from_agent}] {question}"]
+def format_message(repo: str, question: str, options) -> str:
+    """The bold repo name leads and nothing else is added. The ticket id
+    used to trail every message, but the watcher matches replies on the
+    WhatsApp quote (reply_to_id), never on that text -- so it was eleven
+    characters of a 140-character screen spent on nobody."""
+    lines = [f"*{repo}* {question}"]
     if options:
         lines += [f"{i}. {opt}" for i, opt in enumerate(options, start=1)]
-    lines.append(f"(#{ticket_id})")
     return "\n".join(lines)
+
+
+def validate_message(repo: str, question: str, options=None) -> str:
+    """Measures what actually lands on the phone -- repo tag and option
+    lines included -- because 140 is inclusive (Zach 2026-08-25). Measuring
+    the question alone let the rendered message run ~19 chars over.
+
+    Refuses rather than truncating: a caller who can't fit it hasn't
+    decided what it's asking. Returns the rendered text so callers don't
+    render twice."""
+    validate_repo(repo)
+    text = format_message(repo, question, options)
+    if len(text) > MAX_QUESTION_CHARS:
+        raise ValueError(
+            f"rendered message is {len(text)} chars; must be at most "
+            f"{MAX_QUESTION_CHARS} including the repo tag and any options "
+            "(refused, not truncated)"
+        )
+    return text
 
 
 def _iso_now() -> str:
@@ -75,7 +102,7 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
     the resulting status ('pending' or 'failed'). `sender` is injectable
     for tests; production callers omit it and get the real hermes send."""
     send = sender or _default_sender
-    text = format_message(from_agent, ticket_id, question, options)
+    text = format_message(from_agent, question, options)
     try:
         payload = send(text)
     except Exception as e:  # noqa: BLE001 -- surfaced on the ticket, not swallowed
