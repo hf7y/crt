@@ -20,6 +20,19 @@ CREATE TABLE IF NOT EXISTS tickets (
 )
 """
 
+# An inbound WhatsApp message that matched no pending ticket (crt#87) --
+# unsolicited, or a reply that arrived after its ticket went stale. Kept
+# separate from tickets: nothing here ever expects a reply of its own.
+INBOX_SCHEMA = """
+CREATE TABLE IF NOT EXISTS inbox (
+    id TEXT PRIMARY KEY,
+    message TEXT NOT NULL,
+    reply_to_id TEXT,
+    received_at TEXT NOT NULL,
+    via TEXT
+)
+"""
+
 
 def get_conn() -> sqlite3.Connection:
     """Also migrates an older db in place: CREATE TABLE IF NOT EXISTS won't
@@ -28,6 +41,7 @@ def get_conn() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), timeout=10)
     conn.execute(SCHEMA)
+    conn.execute(INBOX_SCHEMA)
     cols = {row[1] for row in conn.execute("PRAGMA table_info(tickets)")}
     for col in ("options", "chat_id", "via", "audio_path"):
         if col not in cols:

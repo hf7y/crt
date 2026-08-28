@@ -19,6 +19,12 @@ audio is retained instead and the ticket stays pending (retain_audio).
 Also the only long-running loop the relay has, so it carries crt#67's
 staleness sweep too (STALE_SWEEP_EVERY_TICKS): otherwise a queued question
 only gets promoted next time some agent happens to poll, which may be never.
+
+An inbound message that matches no pending ticket -- an unsolicited note,
+or a reply that lands after its ticket went stale -- used to vanish here
+silently (crt#87). resolve_reply() and retain_audio() now report whether
+they found a ticket to act on; anything they didn't is handed to
+zaxon_relay_inbox.record_unclassified() instead of being dropped.
 """
 import os
 import re
@@ -27,6 +33,7 @@ import time
 from pathlib import Path
 
 from zaxon_relay_db import get_conn
+from zaxon_relay_inbox import record_unclassified
 from zaxon_relay_queue import sweep_and_promote
 
 LOG_PATH = Path.home() / ".hermes" / "logs" / "agent.log"
@@ -58,7 +65,10 @@ STT_FAILED_RE = re.compile(
 TRANSCRIBED_RE = re.compile(r"transcription", re.IGNORECASE)
 
 
-def resolve_reply(reply_id: str, msg: str, via: str = "text") -> None:
+def resolve_reply(reply_id: str, msg: str, via: str = "text") -> bool:
+    """Returns True if `reply_id` owned a pending ticket and it was
+    resolved, False if there was nothing to resolve -- the caller's cue to
+    record the message as unclassified rather than let it vanish."""
     conn = get_conn()
     try:
         row = conn.execute(
@@ -66,7 +76,7 @@ def resolve_reply(reply_id: str, msg: str, via: str = "text") -> None:
             (reply_id,),
         ).fetchone()
         if row is None:
-            return
+            return False
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         conn.execute(
             "UPDATE tickets SET status='answered', answer=?, answered_at=?, via=? "
@@ -75,6 +85,7 @@ def resolve_reply(reply_id: str, msg: str, via: str = "text") -> None:
         )
         conn.commit()
         sweep_and_promote(conn)
+        return True
     finally:
         conn.close()
 
@@ -162,13 +173,22 @@ def main() -> None:
             m = LINE_RE.search(line)
             if m:
                 reply_id = m.group("reply_id")
+                msg = m.group("msg")
+                via = "voice" if voice_hint else "text"
+                handled = False
                 if reply_id != "None":
-                    msg = m.group("msg")
                     failed = STT_FAILED_RE.search(msg)
                     if failed:
-                        retain_audio(reply_id, failed.group("path").strip())
+                        handled = retain_audio(reply_id, failed.group("path").strip())
                     else:
-                        resolve_reply(reply_id, msg, "voice" if voice_hint else "text")
+                        handled = resolve_reply(reply_id, msg, via)
+                if not handled:
+                    # Either reply_id was 'None' (not a reply to anything of
+                    # ours -- an unsolicited message) or it named a ticket
+                    # that is no longer pending (already answered, stale, or
+                    # never ours). Both are drops if left here; recorded
+                    # instead of guessed at.
+                    record_unclassified(msg, None if reply_id == "None" else reply_id, via)
                 voice_hint = False
             elif TRANSCRIBED_RE.search(line):
                 voice_hint = True

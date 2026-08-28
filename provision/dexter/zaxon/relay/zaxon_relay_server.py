@@ -15,6 +15,7 @@ import uuid
 from mcp.server.mcpserver import MCPServer
 
 from zaxon_relay_db import get_conn
+from zaxon_relay_inbox import fetch_inbox as _fetch_inbox
 from zaxon_relay_queue import (
     MAX_QUESTION_CHARS,
     admission_error,
@@ -39,7 +40,10 @@ mcp = MCPServer(
         f"rendered message must be at most {MAX_QUESTION_CHARS} characters, "
         "repo tag and option lines included; prefer a multiple-choice poll "
         "(pass options) over free text. To change a question already sent, "
-        "call revise_zach_question -- never ask a second time."
+        "call revise_zach_question -- never ask a second time. fetch_inbox "
+        "reads messages that arrived matching no ticket of yours -- an "
+        "unsolicited note from Zach, or a late reply to something that "
+        "already went stale."
     ),
 )
 
@@ -168,6 +172,21 @@ def check_zach_reply(ticket_id: str) -> dict:
     elif status == "failed":
         result["error"] = answer
     return result
+
+
+@mcp.tool()
+def fetch_inbox(limit: int = 50) -> dict:
+    """Read inbound WhatsApp messages that matched no pending ticket --
+    an unsolicited note from Zach, or a reply that arrived after its
+    ticket had already gone stale. Previously these were dropped in
+    place (crt#87); now they land here instead.
+
+    Read-only and non-destructive: any number of callers can each poll
+    this and see the same entries, newest first, capped at `limit`. Every
+    entry is the message verbatim -- nothing here has guessed at what it
+    means, so a caller that wants to act on one still has to decide that
+    itself."""
+    return {"entries": _fetch_inbox(limit=limit)}
 
 
 if __name__ == "__main__":

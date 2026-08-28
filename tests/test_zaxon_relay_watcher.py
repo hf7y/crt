@@ -15,6 +15,7 @@ RELAY_DIR = os.path.join(
 sys.path.insert(0, RELAY_DIR)
 
 import zaxon_relay_db as db  # noqa: E402
+import zaxon_relay_inbox as inbox  # noqa: E402
 import zaxon_relay_watcher as w  # noqa: E402
 
 FAILED_MSG = (
@@ -106,6 +107,53 @@ class TestVia(unittest.TestCase):
     def test_voice_reply_records_voice(self):
         w.resolve_reply("wa2", "make it five pages", "voice")
         self.assertEqual(self._via("t2"), ("answered", "make it five pages", "voice"))
+
+    def test_resolving_a_real_ticket_reports_true(self):
+        self.assertTrue(w.resolve_reply("wa1", "1"))
+
+    def test_a_reply_to_nothing_reports_false(self):
+        self.assertFalse(w.resolve_reply("wa-unknown", "huh?"))
+
+
+class TestUnclassifiedInbound(unittest.TestCase):
+    """crt#87: a reply matching no pending ticket used to vanish here --
+    resolve_reply() and retain_audio() returned silently, and reply_id
+    'None' (no ticket at all) was never even looked up. Both must now be
+    recorded, not dropped."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmp.name) / "tickets.db"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_a_reply_to_a_stale_ticket_is_not_silently_dropped(self):
+        self.assertFalse(w.resolve_reply("wa-gone", "sure, five pages"))
+        entry_id = inbox.record_unclassified("sure, five pages", "wa-gone", "text")
+        entries = inbox.fetch_inbox()
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["id"], entry_id)
+        self.assertEqual(entries[0]["message"], "sure, five pages")
+        self.assertEqual(entries[0]["reply_to_id"], "wa-gone")
+
+    def test_an_unsolicited_message_records_no_reply_to_id(self):
+        inbox.record_unclassified("remember to water the plants", None, "text")
+        entries = inbox.fetch_inbox()
+        self.assertEqual(len(entries), 1)
+        self.assertIsNone(entries[0]["reply_to_id"])
+
+    def test_fetch_inbox_is_newest_first_and_non_destructive(self):
+        inbox.record_unclassified("first", None)
+        inbox.record_unclassified("second", None)
+        self.assertEqual([e["message"] for e in inbox.fetch_inbox()], ["second", "first"])
+        # a second read sees the same two entries -- nothing consumed the first
+        self.assertEqual(len(inbox.fetch_inbox()), 2)
+
+    def test_fetch_inbox_respects_limit(self):
+        for i in range(5):
+            inbox.record_unclassified(f"msg{i}", None)
+        self.assertEqual(len(inbox.fetch_inbox(limit=2)), 2)
 
 
 if __name__ == "__main__":
