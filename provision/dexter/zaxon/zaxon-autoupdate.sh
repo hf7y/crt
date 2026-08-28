@@ -9,6 +9,7 @@ set -uo pipefail
 CLI_NAME='zaxon-autoupdate.sh'
 COMPOSE_DIR="${ZAXON_COMPOSE_DIR:-/srv/zaxon}"
 PROBE_URL="${ZAXON_PROBE_URL:-http://127.0.0.1:8643/mcp}"
+VERIFY_SLEEP="${ZAXON_VERIFY_SLEEP:-3}"
 MODE=--check
 for a in "$@"; do
   case "$a" in
@@ -17,9 +18,11 @@ for a in "$@"; do
       cat <<USAGE
 $CLI_NAME -- pull what crt published, and prove it is running
   --check     has any watched image moved? writes nothing
-  --apply     pull + up -d when it has, then verify the relay answers
+  --apply     pull + up -d when it has, verify the relay answers, roll back if not
   --install   write the systemd unit+timer running --apply hourly (root)
-exit: 0 ok  1 update failed/unverified  2 usage  4 no compose.yaml  6 BLIND
+exit: 0 ok (updated or rolled back to a relay that answers)
+      1 the relay did not answer and the rollback did not restore it
+      2 usage  4 no compose.yaml  6 BLIND
 USAGE
       exit 0 ;;
     *) echo "$CLI_NAME: unknown argument $a" >&2; exit 2 ;;
@@ -101,18 +104,52 @@ if [ "$moved" -eq 0 ]; then echo "$CLI_NAME: up to date (${#IMAGES[@]} image(s))
 if [ "$MODE" = --check ]; then echo "$CLI_NAME: $moved image(s) would be pulled"; exit 0; fi
 
 cd "$COMPOSE_DIR" || exit 4
-docker compose pull  || { echo "$CLI_NAME: pull failed" >&2; exit 1; }
-docker compose up -d || { echo "$CLI_NAME: up -d failed" >&2; exit 1; }
+
+# The known-good digest is what is running now, read before the pull: `docker
+# compose pull` only re-points the tag, so the old image is still on disk and
+# `docker tag` puts it back. A digest recorded under /srv could rot; this cannot.
+declare -A KNOWN_GOOD=()
+for img in "${IMAGES[@]}"; do
+  id="$(docker image inspect "$img" --format '{{.Id}}' 2>/dev/null || true)"
+  [ -n "$id" ] && KNOWN_GOOD["$img"]="$id"
+done
 
 # VERIFY BY ASKING THE RELAY: a container that starts and crashes still
 # reports Started. The tool surface is what callers depend on.
-for _ in $(seq 1 20); do
-  sid="$(curl -s -m 5 -D- -X POST "$PROBE_URL" \
-      -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
-      -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"autoupdate","version":"0"}}}' \
-      2>/dev/null | grep -i '^mcp-session-id:' | tr -d '\r' | awk '{print $2}')"
-  [ -n "$sid" ] && { echo "$CLI_NAME: updated $moved image(s); relay answers (session $sid)"; exit 0; }
-  sleep 3
-done
-echo "$CLI_NAME: pulled and restarted, but the relay did not answer within 60s" >&2
+relay_answers() {
+  local sid
+  for _ in $(seq 1 "${ZAXON_VERIFY_TRIES:-20}"); do
+    sid="$(curl -s -m 5 -D- -X POST "$PROBE_URL" \
+        -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+        -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"autoupdate","version":"0"}}}' \
+        2>/dev/null | grep -i '^mcp-session-id:' | tr -d '\r' | awk '{print $2}')"
+    [ -n "$sid" ] && { printf '%s' "$sid"; return 0; }
+    sleep "$VERIFY_SLEEP"
+  done
+  return 1
+}
+
+# Rollback is not optional here: a bad image takes down the channel that would
+# report it, and the hourly timer then re-pulls the same bad image forever.
+rollback() {
+  [ "${#KNOWN_GOOD[@]}" -gt 0 ] || { echo "$CLI_NAME: nothing known-good to roll back to" >&2; return 1; }
+  for img in "${!KNOWN_GOOD[@]}"; do
+    docker tag "${KNOWN_GOOD[$img]}" "$img" || return 1
+    echo "$CLI_NAME: rolled $img back to ${KNOWN_GOOD[$img]}" >&2
+  done
+  docker compose up -d || return 1
+}
+
+if docker compose pull && docker compose up -d && sid="$(relay_answers)"; then
+  echo "$CLI_NAME: updated $moved image(s); relay answers (session $sid)"
+  exit 0
+fi
+
+echo "$CLI_NAME: the update did not produce a relay that answers -- rolling back" >&2
+if rollback && sid="$(relay_answers)"; then
+  echo "$CLI_NAME: rolled back $moved image(s); relay answers (session $sid)"
+  exit 0
+fi
+echo "$CLI_NAME: rollback did not restore the relay -- zaxon is DOWN and cannot say so." >&2
+echo "$CLI_NAME: known-good was: $(for i in "${!KNOWN_GOOD[@]}"; do printf '%s=%s ' "$i" "${KNOWN_GOOD[$i]}"; done)" >&2
 exit 1
