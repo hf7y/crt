@@ -124,20 +124,19 @@ the next report/summary (what was pushed, why, and how to revert it —
 `git revert <sha>`). This does not license skipping review of what goes
 into a commit in the first place, only the push step itself.
 
-## Build discipline and ecosystem protocols
+## Ecosystem protocols
 
-Run **`discipline`** before marking anything done. It prints the
-build-discipline checklist and the ecosystem protocols — what to do when a
-change reaches outside this repo (senechal, check-project-busy,
-consulte). `discipline --checklist` and `discipline --protocols` print one
-half each.
+When a change reaches outside this repo, three verbs are the interface. Each
+prints its own contract; none of it is restated here, and none of it is a
+checklist to recite from memory.
 
-**If `discipline` is not on PATH, that is a finding — say so loudly. Do not
-recite the checklist from memory and do not do the steps by hand.** A missing
-guard is a finding, not an inconvenience.
+- `notify-senechal <door> <field>=<value>` — file a crontab, device or
+  footprint change on senechal's registry. Standing policy for any change to
+  crontabs, dotfiles, systemd units or WM config. `--doors` lists the doors.
+- `check-project-busy <project>` — before writing DIRECTLY into another
+  project's files. Front-door writes carry their own regulator.
+- `consulte` — read the estate's own prose.
 
-The text lives in one place, realisateur's `BUILD-DISCIPLINE.md`, and is read
-at the point of use. It is deliberately **not copied into this file**. Stamping
-it into 17 repos is what produced eleven byte-identical corrupted copies, a
-source 36 lines behind its own copies, and a drift detector reporting OK
-throughout.
+`discipline` and `BUILD-DISCIPLINE.md` were deleted by hf7y/realisateur#687:
+the rows a mechanism already enforced are enforced by that mechanism, and the
+rest were unenforced prose. Do not reinstate either here.
