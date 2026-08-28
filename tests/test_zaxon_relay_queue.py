@@ -147,6 +147,80 @@ class TestEditDelivered(unittest.TestCase):
                 q.edit_delivered(conn, "t1", "new", editor=lambda *_: {"success": True})
 
 
+class TestPersistentSlotReuse(unittest.TestCase):
+    def test_second_promotion_edits_the_first_tickets_message_not_a_new_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            old_ts = time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - q.QUESTION_TTL_SECS - 10)
+            )
+            _insert(conn, "t1", "Q1", "pending", created_at=old_ts)
+            conn.execute(
+                "UPDATE tickets SET wa_message_id=?, chat_id=? WHERE id='t1'",
+                ("wa1", "chat1"),
+            )
+            conn.commit()
+            _insert(conn, "t2", "Q2", "queued")
+
+            sent = []
+            edits = []
+            q.sweep_and_promote(
+                conn,
+                sender=lambda text: sent.append(text) or {"success": True, "message_id": "wa-new"},
+                editor=lambda chat_id, message_id, text: edits.append((chat_id, message_id, text))
+                or {"success": True},
+            )
+
+            self.assertEqual(len(sent), 0, "a fresh send happened when an edit should have")
+            self.assertEqual(len(edits), 1)
+            self.assertEqual(edits[0][:2], ("chat1", "wa1"))
+            self.assertIn("Q2", edits[0][2])
+
+            t2 = conn.execute(
+                "SELECT status, wa_message_id, chat_id FROM tickets WHERE id='t2'"
+            ).fetchone()
+            self.assertEqual(t2, ("pending", "wa1", "chat1"))
+
+    def test_falls_back_to_a_fresh_send_when_the_edit_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            old_ts = time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - q.QUESTION_TTL_SECS - 10)
+            )
+            _insert(conn, "t1", "Q1", "pending", created_at=old_ts)
+            conn.execute(
+                "UPDATE tickets SET wa_message_id=?, chat_id=? WHERE id='t1'",
+                ("wa1", "chat1"),
+            )
+            conn.commit()
+            _insert(conn, "t2", "Q2", "queued")
+
+            sent = []
+            q.sweep_and_promote(
+                conn,
+                sender=lambda text: sent.append(text) or {"success": True, "message_id": "wa-new"},
+                editor=lambda *_: {"success": False, "error": "message not found"},
+            )
+
+            self.assertEqual(len(sent), 1)
+            t2 = conn.execute(
+                "SELECT status, wa_message_id FROM tickets WHERE id='t2'"
+            ).fetchone()
+            self.assertEqual(t2, ("pending", "wa-new"))
+
+    def test_first_ticket_ever_has_nothing_to_edit_and_sends_fresh(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            _insert(conn, "t1", "Q1", "queued")
+            edits = []
+            q.sweep_and_promote(
+                conn,
+                sender=lambda text: {"success": True, "message_id": "wa1"},
+                editor=lambda *a: edits.append(a) or {"success": True},
+            )
+            self.assertEqual(len(edits), 0)
+
+
 class TestSweepAndPromote(unittest.TestCase):
     def test_promotes_lone_queued_ticket_when_slot_is_free(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -100,12 +100,36 @@ def _default_sender(text: str) -> dict:
     return json.loads(proc.stdout or "{}")
 
 
-def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sender=None) -> str:
-    """Sends one ticket over WhatsApp and updates its row in place. Returns
-    the resulting status ('pending' or 'failed'). `sender` is injectable
-    for tests; production callers omit it and get the real hermes send."""
-    send = sender or _default_sender
+def _last_delivered(conn):
+    return conn.execute(
+        "SELECT wa_message_id, chat_id FROM tickets "
+        "WHERE wa_message_id IS NOT NULL ORDER BY created_at DESC LIMIT 1"
+    ).fetchone()
+
+
+def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sender=None, editor=None) -> str:
+    """Edits the phone's existing message in place (crt#100) rather than
+    sending a new one, when a prior ticket already delivered one.
+    `sender`/`editor` are injectable for tests."""
     text = format_message(from_agent, question, options)
+
+    prior = _last_delivered(conn)
+    if prior is not None:
+        message_id, chat_id = prior
+        try:
+            payload = (editor or _default_editor)(chat_id or CHAT_ID, message_id, text)
+            edited = bool(payload.get("success"))
+        except Exception:  # noqa: BLE001
+            edited = False
+        if edited:
+            conn.execute(
+                "UPDATE tickets SET status='pending', wa_message_id=?, chat_id=? WHERE id=?",
+                (message_id, chat_id or CHAT_ID, ticket_id),
+            )
+            conn.commit()
+            return "pending"
+
+    send = sender or _default_sender
     try:
         payload = send(text)
     except Exception as e:  # noqa: BLE001 -- surfaced on the ticket, not swallowed
@@ -156,7 +180,7 @@ def edit_delivered(conn, ticket_id: str, text: str, editor=None) -> None:
         raise RuntimeError(f"bridge refused the edit: {payload.get('error', 'unknown')}")
 
 
-def sweep_and_promote(conn, sender=None) -> None:
+def sweep_and_promote(conn, sender=None, editor=None) -> None:
     """Expires an overdue 'pending' ticket, then promotes the oldest
     'queued' ticket into the freed slot. No-op if the slot is occupied by
     a still-fresh 'pending' ticket, or nothing is queued."""
@@ -178,7 +202,7 @@ def sweep_and_promote(conn, sender=None) -> None:
         return
     ticket_id, from_agent, question, options_json = nxt
     options = json.loads(options_json) if options_json else None
-    deliver(conn, ticket_id, from_agent, question, options, sender=sender)
+    deliver(conn, ticket_id, from_agent, question, options, sender=sender, editor=editor)
 
 
 def _window_start(now=None) -> str:
