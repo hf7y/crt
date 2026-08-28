@@ -5,15 +5,7 @@ One question is visible on Zach's phone at a time: three in flight looked like
 three separate pings, the spam this relay exists to avoid. sweep_and_promote()
 is the only place a ticket moves 'queued' -> 'pending'; it is a plain
 read-then-maybe-write against sqlite, safe from anywhere holding a connection,
-so calling it more often only promotes sooner.
-
-crt#100: the slot being singular didn't stop the spam, because each
-promotion used to send a brand-new WhatsApp message -- 138 tickets meant
-138 notifications, none of them ever removed. deliver() now edits the
-most recently delivered message in place across tickets, the same
-primitive revise_zach_question already uses, and only sends fresh when
-there is nothing to edit or the edit itself fails (e.g. WhatsApp's edit
-window on the old message has closed).
+so calling it more often only promotes sooner. deliver() edits in place (crt#100).
 """
 import calendar
 import json
@@ -109,20 +101,9 @@ def _default_sender(text: str) -> dict:
 
 
 def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sender=None, editor=None) -> str:
-    """Puts one ticket on Zach's phone and updates its row in place. Returns
-    the resulting status ('pending' or 'failed'). `sender`/`editor` are
-    injectable for tests; production callers omit them and get the real
-    hermes send / bridge edit.
-
-    crt#100: a message per ticket is the spam Zach complained about --
-    138 tickets meant 138 notifications. So this does not send fresh by
-    default. It reuses the most recently delivered message (any ticket,
-    any status) by editing it in place, the same primitive
-    revise_zach_question already uses to change a question before it's
-    answered. Only the very first-ever delivery, or an edit that fails
-    (no prior message, or WhatsApp's edit window on the old one has
-    closed), falls back to a fresh send -- which then becomes what the
-    next ticket reuses."""
+    """Edits the prior delivered message in place (crt#100), falling back
+    to sender() only when there's none to edit or the edit fails. Returns
+    'pending' or 'failed'. `sender`/`editor` are injectable for tests."""
     send = sender or _default_sender
     edit = editor or _default_editor
     text = format_message(from_agent, question, options)
@@ -137,7 +118,7 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
         prior_message_id, prior_chat_id = prior
         try:
             edit_payload = edit(prior_chat_id or CHAT_ID, prior_message_id, text)
-        except Exception:  # noqa: BLE001 -- falls back to a fresh send below
+        except Exception:
             edit_payload = {"success": False}
         if edit_payload.get("success"):
             conn.execute(

@@ -243,10 +243,6 @@ class TestSweepAndPromote(unittest.TestCase):
 
 
 class TestMessageReuse(unittest.TestCase):
-    """crt#100: a message per ticket is the spam Zach complained about.
-    deliver() must edit the previous message in place instead of sending a
-    new one, whenever there is one to edit."""
-
     def test_first_ever_ticket_has_nothing_to_edit_so_it_sends_fresh(self):
         with tempfile.TemporaryDirectory() as tmp:
             conn = _fresh_conn(tmp)
@@ -329,7 +325,6 @@ class TestMessageReuse(unittest.TestCase):
             self.assertEqual(len(sent), 1)
 
     def test_three_tickets_in_a_row_only_ever_send_once(self):
-        """The actual bar in crt#100: many tickets, at most one message."""
         with tempfile.TemporaryDirectory() as tmp:
             conn = _fresh_conn(tmp)
             sent, edited = [], []
