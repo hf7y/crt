@@ -52,11 +52,13 @@ def ask_zach(question: str, from_agent: str = "agent", options: list[str] | None
     ticket_id -- this does not wait for his reply. Call check_zach_reply
     with the returned ticket_id to poll for the answer. Only one question
     is ever in flight to his phone; if another is already pending, this one
-    queues and is sent once the slot frees (answered or stale). Raises if
-    the rendered message exceeds MAX_QUESTION_CHARS -- shorten it, don't
-    rely on truncation; the limit counts the bold repo tag and every option
-    line, not the question alone. from_agent is your REPO name. options, if given, renders as a numbered poll."""
-    validate_message(from_agent, question, options)
+    queues and is sent once the slot frees (answered or stale). Refuses
+    (as {"status": "refused", "error": ...}) past MAX_QUESTION_CHARS or a
+    bad repo tag rather than raising. from_agent is your REPO name. options, if given, renders as a numbered poll."""
+    try:
+        validate_message(from_agent, question, options)
+    except ValueError as e:
+        return {"status": "refused", "error": str(e)}
     ticket_id = uuid.uuid4().hex[:8]
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -95,7 +97,7 @@ def revise_zach_question(
 
     Only 'queued' (not yet sent, so the row is simply updated) and 'pending'
     (sent, so the message is edited) can be revised. An answered question is
-    not revisable: ask a new one."""
+    not revisable: ask a new one. Refuses (as {"status": "refused"}) rather than raising on a bad question, same as ask_zach."""
     conn = get_conn()
     try:
         row = conn.execute(
@@ -110,7 +112,10 @@ def revise_zach_question(
                 "error": f"a {status} question cannot be revised -- ask a new one",
             }
 
-        text = validate_message(from_agent, question, options)
+        try:
+            text = validate_message(from_agent, question, options)
+        except ValueError as e:
+            return {"ticket_id": ticket_id, "status": "refused", "error": str(e)}
         if status == "pending":
             # Raises rather than falling back to a second message: if the
             # edit fails, what Zach can see is still the old question.
