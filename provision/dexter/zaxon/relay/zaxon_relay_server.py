@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
 """Zaxon relay MCP server -- Phase 1 landing, plus a question queue (crt#67).
 
-Exposes the hook-agnostic contract from the roadmap: any MCP-aware agent can
-call ask_zach() to relay a question to Zach over WhatsApp, then poll
-check_zach_reply() for his answer. Deliberately does not touch hermes-agent's
-own gateway process -- it shells out to `hermes send` (documented as
-LLM-free, agent-loop-free) for delivery, and relies on zaxon_relay_watcher.py
-tailing agent.log to capture the reply. Ticket state lives in a small sqlite
-file, not in hermes-agent's own storage.
-
-ask_zach never sends more than one question at a time -- see
-zaxon_relay_queue.py for the single-slot queue, staleness TTL, and the
-<=140-char/multiple-choice style guard that lives there -- measured on
-the rendered message, repo tag and options included.
+Any MCP-aware agent calls ask_zach() to relay a question to Zach over WhatsApp
+and polls check_zach_reply() for the answer. Delivery shells out to `hermes
+send` (LLM-free, agent-loop-free) rather than touching hermes-agent's gateway
+process, and zaxon_relay_watcher.py tails agent.log for the reply; ticket state
+is our own sqlite file. The single slot, its TTL, the 140-char rendered-message
+guard and the admission check all live in zaxon_relay_queue.py.
 """
 import json
 import time
@@ -38,11 +32,9 @@ mcp = MCPServer(
         "ticket_id until status is 'answered'. Do not block waiting -- this "
         "is a human reply, it can take minutes. Only one question reaches "
         "Zach's phone at a time -- extra ones queue and are sent in order "
-        "as earlier ones are answered or go stale -- every reply carries "
-        "queued_ahead and est_wait_hours so you can see whether it is worth "
-        "waiting. A caller whose questions are never answered is refused "
-        "rather than queued: the slot is a human, not a buffer. "
-        "from_agent is your REPO "
+        "as earlier ones are answered or go stale; queued_ahead and "
+        "est_wait_hours come back with every reply. A caller whose questions "
+        "are never answered is refused, not queued. from_agent is your REPO "
         "name -- it renders bold as the first thing Zach reads. The whole "
         f"rendered message must be at most {MAX_QUESTION_CHARS} characters, "
         "repo tag and option lines included; prefer a multiple-choice poll "
@@ -58,17 +50,15 @@ def ask_zach(question: str, from_agent: str = "agent", options: list[str] | None
     ticket_id -- this does not wait for his reply. Call check_zach_reply
     with the returned ticket_id to poll for the answer. Only one question
     is ever in flight to his phone; if another is already pending, this one
-    queues and is sent once the slot frees (answered or stale). The reply
-    carries queued_ahead and est_wait_hours -- how many questions must clear
-    first, and the worst case if each expires instead of being answered -- so
-    a caller can decide whether to wait or use another channel.
+    queues and is sent once the slot frees (answered or stale). queued_ahead
+    and est_wait_hours come back with the ticket -- how many questions clear
+    first, worst case if each expires -- so you can decide whether to wait.
 
     Refuses (status 'refused') rather than truncating if the rendered message
-    exceeds MAX_QUESTION_CHARS -- the limit counts the bold repo tag and
-    every option line, not the question alone. Also refuses a caller that has
-    asked repeatedly in the last 24h and had nothing answered: the single slot
-    is a human's attention, and a caller nobody answers is spending it on
-    everyone else's behalf. That refusal is not retryable.
+    exceeds MAX_QUESTION_CHARS -- the limit counts the bold repo tag and every
+    option line, not the question alone. Also refuses, NOT retryably, a caller
+    that has asked repeatedly in the last 24h with nothing answered: the slot
+    is a human's attention and it is being spent on everyone else's behalf.
 
     from_agent is your REPO name. options, if given, renders as a numbered poll."""
     try:

@@ -1,25 +1,11 @@
-"""Single-slot question queue on top of the tickets table (crt#67).
+"""Single-slot question queue over the tickets table (crt#67), and admission
+control on that slot (crt#96).
 
-Zach's complaint: with `ask_zach` sending every question straight to
-WhatsApp, three questions in flight look like three separate pings on his
-phone -- the spam the relay exists to avoid. The fix is a queue with one
-question visible at a time:
-
-- **One open question.** A new question is inserted as 'queued'. It is
-  only sent (promoted to 'pending') once no other ticket is 'pending'.
-- **Staleness.** A 'pending' ticket older than QUESTION_TTL_SECS is marked
-  'stale' so an ignored question can't wedge the queue forever; the next
-  'queued' ticket is then promoted.
-- **Style, enforced by refusing rather than truncating.** See
-  validate_message(), which measures the RENDERED message -- bold repo tag
-  and option lines included -- not the question alone. A poll
-  (options=[...]) is preferred over free text.
-
-sweep_and_promote() is the only place a ticket moves 'queued' -> 'pending',
-and it is safe to call from anywhere that holds a connection (ask_zach,
-check_zach_reply, and the watcher's idle/reply-resolved loop) -- it is a
-plain read-then-maybe-write against sqlite, not a background thread, so
-calling it more often only makes promotion happen sooner.
+One question is visible on Zach's phone at a time: three in flight looked like
+three separate pings, the spam this relay exists to avoid. sweep_and_promote()
+is the only place a ticket moves 'queued' -> 'pending'; it is a plain
+read-then-maybe-write against sqlite, safe from anywhere holding a connection,
+so calling it more often only promotes sooner.
 """
 import calendar
 import json
@@ -203,17 +189,11 @@ def _window_start(now=None) -> str:
 
 
 def admission_error(conn, from_agent: str, now=None):
-    """Why this caller may not take the slot, or None (crt#96).
-
-    The slot is the one resource here that cannot be scaled -- it is a human --
-    and it was allocated first-come with no reference to whether a caller had
-    ever been worth answering: 90 of 138 tickets came from two callers with
-    zero replies between them, ever.
-
-    Keyed on the caller's own answer rate over a rolling window, so a caller
-    nobody answers backs off by itself and is readmitted once its unanswered
-    questions age out. No permanent lockout, and nothing for a human to reset.
-    """
+    """Why this caller may not take the slot, or None (crt#96). The slot is a
+    human and cannot be scaled, yet it was allocated first-come: 90 of 138
+    tickets came from two callers with zero replies between them, ever. Keyed
+    on the caller's own answer rate over a ROLLING window, so it readmits
+    itself and there is nothing for a human to reset."""
     asked, answered = conn.execute(
         "SELECT COUNT(*), COUNT(answered_at) FROM tickets "
         "WHERE from_agent=? AND created_at>=?",
@@ -231,10 +211,9 @@ def admission_error(conn, from_agent: str, now=None):
 
 
 def slot_report(conn, ticket_id: str) -> dict:
-    """What a caller needs to decide whether to bother waiting: how many
-    questions must clear before this one is on the phone, and the worst-case
-    wait if every one of them expires instead of being answered. `pending`
-    alone said nothing -- next-up and 18 hours deep looked identical."""
+    """How many questions clear before this one reaches the phone, and the
+    worst case if each expires rather than being answered. `pending` alone read
+    the same next-up and 18 hours deep (crt#89)."""
     row = conn.execute(
         "SELECT status, created_at FROM tickets WHERE id=?", (ticket_id,)
     ).fetchone()
