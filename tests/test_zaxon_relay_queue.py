@@ -264,3 +264,78 @@ class TestOptionsColumnMigration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAdmissionControl(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.conn = _fresh_conn(self._tmp.name)
+
+    def tearDown(self):
+        self.conn.close()
+        self._tmp.cleanup()
+
+    def _asked(self, n, from_agent="loud", answered=0, created_at=None):
+        for i in range(n):
+            self.conn.execute(
+                "INSERT INTO tickets (id, from_agent, question, status, created_at, answered_at) "
+                "VALUES (?, ?, 'q', ?, ?, ?)",
+                (f"{from_agent}{i}", from_agent,
+                 "answered" if i < answered else "stale",
+                 created_at or q._iso_now(),
+                 q._iso_now() if i < answered else None),
+            )
+        self.conn.commit()
+
+    def test_a_quiet_caller_is_admitted(self):
+        self._asked(3)
+        self.assertIsNone(q.admission_error(self.conn, "loud"))
+
+    def test_a_caller_nobody_answers_is_refused_at_the_threshold(self):
+        self._asked(q.ADMIT_MAX_UNANSWERED)
+        self.assertIn("none", q.admission_error(self.conn, "loud"))
+
+    def test_one_answer_readmits_a_loud_caller(self):
+        self._asked(q.ADMIT_MAX_UNANSWERED + 20, answered=1)
+        self.assertIsNone(q.admission_error(self.conn, "loud"))
+
+    def test_the_window_rolls_so_a_refusal_expires_by_itself(self):
+        old = time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                            time.gmtime(time.time() - q.ADMIT_WINDOW_SECS - 60))
+        self._asked(q.ADMIT_MAX_UNANSWERED + 5, created_at=old)
+        self.assertIsNone(q.admission_error(self.conn, "loud"))
+
+    def test_one_caller_starving_the_slot_does_not_refuse_another(self):
+        self._asked(q.ADMIT_MAX_UNANSWERED + 5)
+        self._asked(1, from_agent="quiet")
+        self.assertIsNone(q.admission_error(self.conn, "quiet"))
+
+
+class TestSlotReport(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.conn = _fresh_conn(self._tmp.name)
+
+    def tearDown(self):
+        self.conn.close()
+        self._tmp.cleanup()
+
+    def test_the_ticket_on_the_phone_has_nothing_ahead_of_it(self):
+        _insert(self.conn, "a", "q", "pending")
+        self.assertEqual(q.slot_report(self.conn, "a")["queued_ahead"], 0)
+
+    def test_a_queued_ticket_counts_the_slot_and_everything_older(self):
+        _insert(self.conn, "a", "q", "pending", created_at="2026-08-28T00:00:00Z")
+        _insert(self.conn, "b", "q", "queued", created_at="2026-08-28T00:01:00Z")
+        _insert(self.conn, "c", "q", "queued", created_at="2026-08-28T00:02:00Z")
+        self.assertEqual(q.slot_report(self.conn, "c")["queued_ahead"], 2)
+
+    def test_the_wait_is_the_worst_case_every_one_ahead_expiring(self):
+        _insert(self.conn, "a", "q", "pending", created_at="2026-08-28T00:00:00Z")
+        _insert(self.conn, "b", "q", "queued", created_at="2026-08-28T00:01:00Z")
+        r = q.slot_report(self.conn, "b")
+        self.assertEqual(r["est_wait_hours"],
+                         round(r["queued_ahead"] * q.QUESTION_TTL_SECS / 3600, 1))
+
+    def test_an_unknown_ticket_reports_nothing_rather_than_zero(self):
+        self.assertEqual(q.slot_report(self.conn, "nope"), {})

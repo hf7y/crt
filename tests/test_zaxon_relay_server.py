@@ -38,6 +38,7 @@ if "mcp" not in sys.modules:
     sys.modules["mcp.server.mcpserver"] = fake_mcpserver
 
 import zaxon_relay_db as db  # noqa: E402
+import zaxon_relay_queue as queue  # noqa: E402
 import zaxon_relay_server as server  # noqa: E402
 
 
@@ -106,3 +107,48 @@ class TestRefusals(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSlotVisibility(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmpdir.name) / "tickets.db"
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def test_ask_zach_reports_the_wait_alongside_the_ticket(self):
+        r = server.ask_zach("is this on?", from_agent="crt")
+        self.assertIn("queued_ahead", r)
+        self.assertIn("est_wait_hours", r)
+
+    def test_check_zach_reply_reports_the_wait_too(self):
+        r = server.check_zach_reply(server.ask_zach("q", from_agent="crt")["ticket_id"])
+        self.assertIn("est_wait_hours", r)
+
+    def test_a_caller_nobody_answers_is_refused_and_files_no_ticket(self):
+        conn = db.get_conn()
+        for i in range(queue.ADMIT_MAX_UNANSWERED):
+            conn.execute(
+                "INSERT INTO tickets (id, from_agent, question, status, created_at) "
+                "VALUES (?, 'noisy', 'q', 'stale', strftime('%Y-%m-%dT%H:%M:%SZ','now'))",
+                (f"t{i}",),
+            )
+        conn.commit()
+        before = conn.execute("SELECT COUNT(*) FROM tickets").fetchone()[0]
+        r = server.ask_zach("one more", from_agent="noisy")
+        self.assertEqual(r["status"], "refused")
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM tickets").fetchone()[0], before)
+        conn.close()
+
+    def test_the_refusal_says_what_would_readmit_the_caller(self):
+        conn = db.get_conn()
+        for i in range(40):
+            conn.execute(
+                "INSERT INTO tickets (id, from_agent, question, status, created_at) "
+                "VALUES (?, 'noisy', 'q', 'stale', strftime('%Y-%m-%dT%H:%M:%SZ','now'))",
+                (f"t{i}",),
+            )
+        conn.commit()
+        conn.close()
+        self.assertIn("answered", server.ask_zach("x", from_agent="noisy")["error"])
