@@ -23,6 +23,10 @@ DICT_PATH = os.path.expanduser(os.environ.get("CRT_WAKE_POOL_DICT", "~/.crt/wake
 CLAUDE_BIN = os.environ.get("CRT_CLAUDE_BIN", "claude")
 JUDGE_TIMEOUT_SECS = float(os.environ.get("CRT_WAKE_JUDGE_TIMEOUT_SECS", "60"))
 
+EVENTS_LOG = os.path.expanduser(
+    os.environ.get("CRT_WAKE_JUDGE_EVENTS_LOG", "~/.crt/wake-judge-events.log"))
+EVENTS_LOG_MAX_LINES = int(os.environ.get("CRT_WAKE_JUDGE_EVENTS_LOG_MAX_LINES", "500"))
+
 
 def rate_limited(now=None, state_path=None):
     """True if a judge call ran within RATE_LIMIT_SECS of now -- pure
@@ -50,14 +54,40 @@ def touch_rate_limit(now=None, state_path=None):
         pass
 
 
+def log_event(outcome, trigger_text, match_kind, match_source=None,
+              matched_word=None, followup_text=None, now=None, log_path=None):
+    now = now if now is not None else time.time()
+    log_path = log_path or EVENTS_LOG
+    record = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)),
+        "outcome": outcome,
+        "trigger_text": trigger_text,
+        "match_kind": match_kind,
+        "match_source": match_source,
+        "matched_word": matched_word,
+        "followup_text": followup_text,
+    }
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        lines = []
+        if os.path.exists(log_path):
+            with open(log_path) as f:
+                lines = f.readlines()
+        lines.append(json.dumps(record) + "\n")
+        with open(log_path, "w") as f:
+            f.writelines(lines[-EVENTS_LOG_MAX_LINES:])
+    except OSError:
+        pass
+
+
 def build_prompt(outcome, trigger_text, match_kind, match_source=None,
                   matched_word=None, followup_text=None):
     """Pure function: the actual prompt handed to `claude -p`. Includes
     enough concrete detail (exact trigger text, which mechanism fired,
     the ground-truth outcome) that Claude can judge without needing to
     go re-derive context, plus explicit pointers to the three files it's
-    allowed to edit and the "don't act on a single event" guardrail from
-    WAKE-TUNING-STATE.md."""
+    allowed to edit, the events log for pattern history, and the "don't
+    act on a single event" guardrail from WAKE-TUNING-STATE.md."""
     lines = [
         "You are the autonomous wake-word tuning judge for this CRT voice console project.",
         "A wake event just occurred and its outcome is now known. Judge whether it was a",
@@ -83,11 +113,12 @@ def build_prompt(outcome, trigger_text, match_kind, match_source=None,
         "  timeout-empty        -- a bare wake trigger with no leftover and no follow-up",
         "                         ever came. Evidence (not proof) this was a BAD wake.",
         "",
-        f"Read {TUNING_DOC} first for full context: current tuning values, the reasoning",
-        "behind them, and the judgment log of past decisions. IMPORTANT: do not tweak",
-        "anything based on this ONE event alone unless it's blatant (e.g. an obviously",
-        "unrelated word armed the system). Zach's own instruction: tune on a PATTERN of",
-        "failures, not a single data point -- check the judgment log for recent similar",
+        f"Read {TUNING_DOC} first for full context: current tuning values and the reasoning",
+        "behind them. IMPORTANT: do not tweak anything based on this ONE event alone unless",
+        "it's blatant (e.g. an obviously unrelated word armed the system). Zach's own",
+        "instruction: tune on a PATTERN of failures, not a single data point -- every wake",
+        f"event (this one included) is recorded in {EVENTS_LOG}, one JSON object per line,",
+        "regardless of whether it's judged tuning-worthy. Check it for recent similar",
         "outcomes on the same word/source before making a change.",
         "",
         "Files you may edit if a tuning change is warranted:",
@@ -95,11 +126,12 @@ def build_prompt(outcome, trigger_text, match_kind, match_source=None,
         f"  - {TUNING_CONFIG} (JSON: close_ratio, cluster_min_by_source -- read it first,",
         "    it may not exist yet, in which case crt-wake-pool.py's own code defaults are",
         "    in effect and this file should be created with your adjusted values)",
-        f"  - {TUNING_DOC} (append a dated entry to the Judgment log describing this event,",
-        "    the verdict, and what you changed or why you left it alone)",
+        f"  - {TUNING_DOC} (append a dated entry to the Judgment log ONLY when you actually",
+        "    make a tuning change, describing what changed and why)",
         "",
-        "Always append a judgment log entry, even if you make no tuning change -- the log",
-        "existing at all is what lets a future judge call see the pattern.",
+        "Do NOT append to the Judgment log when you leave the tuning alone -- that is the",
+        f"common case, it is already captured in {EVENTS_LOG}, and the log's whole point",
+        "is that an entry there means a knob moved.",
     ]
     return "\n".join(lines)
 
@@ -138,15 +170,21 @@ def main():
         sys.stderr.write("usage: crt-wake-judge.py --outcome <...> --trigger-text <...> --match-kind <...>\n")
         sys.exit(2)
 
+    match_source = get("--match-source")
+    matched_word = get("--matched-word")
+    followup_text = get("--followup-text")
+
+    log_event(outcome, trigger_text, match_kind, match_source, matched_word, followup_text)
+
     if rate_limited():
         sys.exit(0)
     touch_rate_limit()
 
     run_judge(
         outcome, trigger_text, match_kind,
-        match_source=get("--match-source"),
-        matched_word=get("--matched-word"),
-        followup_text=get("--followup-text"),
+        match_source=match_source,
+        matched_word=matched_word,
+        followup_text=followup_text,
     )
 
 

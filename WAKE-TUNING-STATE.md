@@ -12,9 +12,9 @@ whether the wake was good or bad, and may edit:
 - `~/.crt/wake-tuning-config.json` -- the live per-source fuzzy cluster
   minimums / close-ratio (overrides `crt-wake-pool.py`'s
   `DEFAULT_CLUSTER_MIN_BY_SOURCE`/`FUZZY_CLOSE_RATIO` code defaults)
-- this file -- to record WHY, so the next judge call (and any human
-  reading this) has continuity of reasoning rather than starting cold
-  each time
+- this file's Judgment log -- ONLY when a call moves one of the two knobs
+  above (crt#79); every event otherwise also lands in
+  `~/.crt/wake-judge-events.log`, capped, for pattern history
 
 **Ground truth signal for "was this wake genuinely wanted":** did a real
 follow-up utterance arrive and get dispatched within the arm window
@@ -39,6 +39,6 @@ framing ("a lot of attempts... failing").
 
 ## Judgment log
 
-Per-event entries are reaped to `vault:crt/wake-judge-log-20260825.md`, not kept
-here: `bin/crt-wake-judge.py` appends one per wake event and this file is inside
-a shrink-only prose ratchet.
+Entries land here only on an actual tuning change (crt#79); older
+per-event entries were reaped to `vault:crt/wake-judge-log-20260825.md` --
+this file is inside a shrink-only prose ratchet.
