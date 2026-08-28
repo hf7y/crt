@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""Turn a retained voice note into the answer it always was.
+
+The watcher keeps the audio of any voice reply whisper could not transcribe
+(zaxon_relay_watcher.retain_audio) and leaves the ticket pending. This runs
+the transcription again -- against a whisper that is now up -- and resolves
+the ticket with what it hears.
+
+  zaxon-retranscribe            every pending ticket with retained audio
+  zaxon-retranscribe <ticket>   just that one
+
+Exit 0 if every attempted ticket resolved, 1 if any transcription failed.
+"""
+import os
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from zaxon_relay_db import get_conn  # noqa: E402
+
+STT_COMMAND = os.environ.get(
+    "HERMES_LOCAL_STT_COMMAND",
+    "/opt/zaxon-relay/bin/whisper_stt.sh {input_path} {output_dir} {language}",
+)
+
+
+def transcribe(audio_path: str, language: str = "en") -> str:
+    """Runs the same command the gateway would have run, so a transcript
+    recovered here is the transcript that was missed -- not a second
+    opinion from a different model."""
+    with tempfile.TemporaryDirectory() as out:
+        cmd = STT_COMMAND.format(
+            input_path=audio_path, output_dir=out, language=language
+        )
+        subprocess.run(cmd, shell=True, check=True, capture_output=True)
+        return (Path(out) / "transcript.txt").read_text().strip()
+
+
+def main(argv) -> int:
+    conn = get_conn()
+    try:
+        sql = (
+            "SELECT id, audio_path FROM tickets "
+            "WHERE status='pending' AND audio_path IS NOT NULL"
+        )
+        rows = conn.execute(sql + (" AND id=?" if argv else ""), argv).fetchall()
+        if not rows:
+            print("nothing retained to retranscribe")
+            return 0
+
+        failures = 0
+        for ticket_id, audio_path in rows:
+            try:
+                text = transcribe(audio_path)
+            except (subprocess.CalledProcessError, OSError) as e:
+                print(f"{ticket_id}: still cannot transcribe ({e})", file=sys.stderr)
+                failures += 1
+                continue
+            now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            conn.execute(
+                "UPDATE tickets SET status='answered', answer=?, answered_at=?, "
+                "via='voice' WHERE id=?",
+                (text, now, ticket_id),
+            )
+            conn.commit()
+            print(f"{ticket_id}: {text}")
+        return 1 if failures else 0
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

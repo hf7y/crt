@@ -500,6 +500,12 @@ echo "== zaxon relay question queue (crt#67) =="
 python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_queue.py" -v 2>&1 | tail -20 || fail=1
 echo
 
+# Named, not globbed: the manifest check below matches basenames literally, so
+# a glob here would read as "test_zaxon_relay_watcher.py is never run".
+echo "== zaxon relay watcher: a voice note it could not hear is not an answer =="
+python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_watcher.py" -v 2>&1 | tail -15 || fail=1
+echo
+
 # Manifest check (2026-07-25). Every test file in this directory must be named
 # above, and every name above must exist. Both directions had really drifted:
 #
