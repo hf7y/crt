@@ -242,6 +242,94 @@ class TestSweepAndPromote(unittest.TestCase):
             self.assertEqual(status, "pending")
 
 
+class TestRecoverFromGatewayCache(unittest.TestCase):
+    def _overdue(self, conn, ticket_id="t1"):
+        old_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - q.QUESTION_TTL_SECS - 10))
+        _insert(conn, ticket_id, "Q1", "pending", created_at=old_ts)
+        return old_ts
+
+    def test_audio_cached_after_delivery_resolves_the_ticket_instead_of_expiring(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as cache:
+            conn = _fresh_conn(tmp)
+            self._overdue(conn)
+            (Path(cache) / "aud_123.ogg").write_bytes(b"audio")
+            q.sweep_and_promote(
+                conn, sender=lambda text: {"success": True},
+                cache_dir=Path(cache), transcribe=lambda path: "coffee please",
+            )
+            row = conn.execute(
+                "SELECT status, answer, via FROM tickets WHERE id='t1'"
+            ).fetchone()
+            self.assertEqual(row, ("answered", "coffee please", "voice"))
+
+    def test_recovered_answer_still_frees_the_slot_for_the_next_queued(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as cache:
+            conn = _fresh_conn(tmp)
+            self._overdue(conn)
+            _insert(conn, "t2", "Q2", "queued")
+            (Path(cache) / "aud_123.ogg").write_bytes(b"audio")
+            sent = []
+            q.sweep_and_promote(
+                conn, sender=lambda text: sent.append(text) or {"success": True, "message_id": "wa2"},
+                cache_dir=Path(cache), transcribe=lambda path: "coffee please",
+            )
+            self.assertEqual(len(sent), 1)
+            t2_status = conn.execute("SELECT status FROM tickets WHERE id='t2'").fetchone()[0]
+            self.assertEqual(t2_status, "pending")
+
+    def test_audio_older_than_the_ticket_is_not_mistaken_for_its_reply(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as cache:
+            conn = _fresh_conn(tmp)
+            self._overdue(conn)
+            stale_audio = Path(cache) / "aud_old.ogg"
+            stale_audio.write_bytes(b"audio")
+            old_mtime = time.time() - q.QUESTION_TTL_SECS - 3600
+            os.utime(stale_audio, (old_mtime, old_mtime))
+            q.sweep_and_promote(
+                conn, sender=lambda text: {"success": True},
+                cache_dir=Path(cache), transcribe=lambda path: self.fail("should not transcribe stale audio"),
+            )
+            status = conn.execute("SELECT status FROM tickets WHERE id='t1'").fetchone()[0]
+            self.assertEqual(status, "stale")
+
+    def test_no_cached_audio_falls_back_to_the_old_stale_behavior(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as cache:
+            conn = _fresh_conn(tmp)
+            self._overdue(conn)
+            q.sweep_and_promote(
+                conn, sender=lambda text: {"success": True}, cache_dir=Path(cache),
+            )
+            status = conn.execute("SELECT status FROM tickets WHERE id='t1'").fetchone()[0]
+            self.assertEqual(status, "stale")
+
+    def test_a_transcription_failure_still_falls_back_to_stale(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as cache:
+            conn = _fresh_conn(tmp)
+            self._overdue(conn)
+            (Path(cache) / "aud_123.ogg").write_bytes(b"audio")
+
+            def _raise(path):
+                raise OSError("whisper still down")
+
+            q.sweep_and_promote(
+                conn, sender=lambda text: {"success": True},
+                cache_dir=Path(cache), transcribe=_raise,
+            )
+            status = conn.execute("SELECT status FROM tickets WHERE id='t1'").fetchone()[0]
+            self.assertEqual(status, "stale")
+
+    def test_missing_cache_dir_falls_back_to_stale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            self._overdue(conn)
+            q.sweep_and_promote(
+                conn, sender=lambda text: {"success": True},
+                cache_dir=Path(tmp) / "no-such-dir",
+            )
+            status = conn.execute("SELECT status FROM tickets WHERE id='t1'").fetchone()[0]
+            self.assertEqual(status, "stale")
+
+
 class TestMessageReuse(unittest.TestCase):
     def test_first_ever_ticket_has_nothing_to_edit_so_it_sends_fresh(self):
         with tempfile.TemporaryDirectory() as tmp:
