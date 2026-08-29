@@ -31,7 +31,6 @@ def fetch_inbox(conn=None, limit: int = 50) -> list:
     owns_conn = conn is None
     conn = conn or get_conn()
     try:
-        # rowid DESC tiebreaks same-second entries by insertion order.
         rows = conn.execute(
             "SELECT id, message, reply_to_id, received_at, via FROM inbox "
             "ORDER BY received_at DESC, rowid DESC LIMIT ?",
