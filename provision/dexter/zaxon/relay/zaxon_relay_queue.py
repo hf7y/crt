@@ -5,7 +5,7 @@ One question is visible on Zach's phone at a time: three in flight looked like
 three separate pings, the spam this relay exists to avoid. sweep_and_promote()
 is the only place a ticket moves 'queued' -> 'pending'; it is a plain
 read-then-maybe-write against sqlite, safe from anywhere holding a connection,
-so calling it more often only promotes sooner.
+so calling it more often only promotes sooner. deliver() edits in place (crt#100).
 """
 import calendar
 import json
@@ -100,12 +100,34 @@ def _default_sender(text: str) -> dict:
     return json.loads(proc.stdout or "{}")
 
 
-def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sender=None) -> str:
-    """Sends one ticket over WhatsApp and updates its row in place. Returns
-    the resulting status ('pending' or 'failed'). `sender` is injectable
-    for tests; production callers omit it and get the real hermes send."""
+def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sender=None, editor=None) -> str:
+    """Edits the prior delivered message in place (crt#100), falling back
+    to sender() only when there's none to edit or the edit fails. Returns
+    'pending' or 'failed'. `sender`/`editor` are injectable for tests."""
     send = sender or _default_sender
+    edit = editor or _default_editor
     text = format_message(from_agent, question, options)
+
+    prior = conn.execute(
+        "SELECT wa_message_id, chat_id FROM tickets "
+        "WHERE wa_message_id IS NOT NULL AND id != ? "
+        "ORDER BY created_at DESC LIMIT 1",
+        (ticket_id,),
+    ).fetchone()
+    if prior and prior[0]:
+        prior_message_id, prior_chat_id = prior
+        try:
+            edit_payload = edit(prior_chat_id or CHAT_ID, prior_message_id, text)
+        except Exception:
+            edit_payload = {"success": False}
+        if edit_payload.get("success"):
+            conn.execute(
+                "UPDATE tickets SET status='pending', wa_message_id=?, chat_id=? WHERE id=?",
+                (prior_message_id, prior_chat_id or CHAT_ID, ticket_id),
+            )
+            conn.commit()
+            return "pending"
+
     try:
         payload = send(text)
     except Exception as e:  # noqa: BLE001 -- surfaced on the ticket, not swallowed
@@ -156,7 +178,7 @@ def edit_delivered(conn, ticket_id: str, text: str, editor=None) -> None:
         raise RuntimeError(f"bridge refused the edit: {payload.get('error', 'unknown')}")
 
 
-def sweep_and_promote(conn, sender=None) -> None:
+def sweep_and_promote(conn, sender=None, editor=None) -> None:
     """Expires an overdue 'pending' ticket, then promotes the oldest
     'queued' ticket into the freed slot. No-op if the slot is occupied by
     a still-fresh 'pending' ticket, or nothing is queued."""
@@ -178,7 +200,7 @@ def sweep_and_promote(conn, sender=None) -> None:
         return
     ticket_id, from_agent, question, options_json = nxt
     options = json.loads(options_json) if options_json else None
-    deliver(conn, ticket_id, from_agent, question, options, sender=sender)
+    deliver(conn, ticket_id, from_agent, question, options, sender=sender, editor=editor)
 
 
 def _window_start(now=None) -> str:
