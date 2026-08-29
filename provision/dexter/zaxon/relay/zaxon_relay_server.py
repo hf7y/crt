@@ -183,7 +183,7 @@ def fetch_inbox(limit: int = 50) -> dict:
 
 @mcp.tool()
 def send_zach(message: str, from_agent: str = "agent") -> dict:
-    """One-way note to Zach, no reply expected -- use ask_zach if you need one."""
+    """One-way note to Zach; see ask_zach for a reply."""
     try:
         payload = send_now(from_agent, message)
     except ValueError as e:
