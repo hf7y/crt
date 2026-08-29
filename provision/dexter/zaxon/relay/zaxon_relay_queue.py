@@ -132,7 +132,7 @@ def send_now(from_agent: str, message: str, sender=None) -> dict:
     send = sender or _default_sender
     try:
         return send(text)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return {"success": False, "error": str(e)}
 
 
