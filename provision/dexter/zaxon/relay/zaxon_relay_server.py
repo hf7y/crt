@@ -44,7 +44,7 @@ mcp = MCPServer(
         "call revise_zach_question -- never ask a second time. fetch_inbox "
         "reads messages that arrived matching no ticket of yours -- an "
         "unsolicited note from Zach, or a late reply to something that "
-        "already went stale."
+        "already went stale. send_zach sends one; no reply, no ticket, no slot."
     ),
 )
 
@@ -183,7 +183,6 @@ def fetch_inbox(limit: int = 50) -> dict:
 
 @mcp.tool()
 def send_zach(message: str, from_agent: str = "agent") -> dict:
-    """One-way note to Zach; see ask_zach for a reply."""
     try:
         payload = send_now(from_agent, message)
     except ValueError as e:
