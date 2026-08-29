@@ -116,11 +116,6 @@ class TestVia(unittest.TestCase):
 
 
 class TestUnclassifiedInbound(unittest.TestCase):
-    """crt#87: a reply matching no pending ticket used to vanish here --
-    resolve_reply() and retain_audio() returned silently, and reply_id
-    'None' (no ticket at all) was never even looked up. Both must now be
-    recorded, not dropped."""
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         db.DB_PATH = Path(self._tmp.name) / "tickets.db"
@@ -147,7 +142,6 @@ class TestUnclassifiedInbound(unittest.TestCase):
         inbox.record_unclassified("first", None)
         inbox.record_unclassified("second", None)
         self.assertEqual([e["message"] for e in inbox.fetch_inbox()], ["second", "first"])
-        # a second read sees the same two entries -- nothing consumed the first
         self.assertEqual(len(inbox.fetch_inbox()), 2)
 
     def test_fetch_inbox_respects_limit(self):

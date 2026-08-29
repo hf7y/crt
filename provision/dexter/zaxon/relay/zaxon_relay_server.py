@@ -176,16 +176,7 @@ def check_zach_reply(ticket_id: str) -> dict:
 
 @mcp.tool()
 def fetch_inbox(limit: int = 50) -> dict:
-    """Read inbound WhatsApp messages that matched no pending ticket --
-    an unsolicited note from Zach, or a reply that arrived after its
-    ticket had already gone stale. Previously these were dropped in
-    place (crt#87); now they land here instead.
-
-    Read-only and non-destructive: any number of callers can each poll
-    this and see the same entries, newest first, capped at `limit`. Every
-    entry is the message verbatim -- nothing here has guessed at what it
-    means, so a caller that wants to act on one still has to decide that
-    itself."""
+    """Read inbound messages matching no pending ticket, verbatim, newest first."""
     return {"entries": _fetch_inbox(limit=limit)}
 
 

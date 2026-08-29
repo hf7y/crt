@@ -20,9 +20,6 @@ CREATE TABLE IF NOT EXISTS tickets (
 )
 """
 
-# An inbound WhatsApp message that matched no pending ticket (crt#87) --
-# unsolicited, or a reply that arrived after its ticket went stale. Kept
-# separate from tickets: nothing here ever expects a reply of its own.
 INBOX_SCHEMA = """
 CREATE TABLE IF NOT EXISTS inbox (
     id TEXT PRIMARY KEY,

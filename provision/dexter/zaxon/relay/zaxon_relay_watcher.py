@@ -2,10 +2,8 @@
 """Tails hermes-agent's agent.log for inbound WhatsApp replies that quote a
 Zaxon relay message, and resolves the matching ticket.
 
-Deliberately does not touch hermes-agent's own process or source -- it only
-reads the log file hermes-agent already writes. Safe against `hermes
-update`; if the log line format ever changes, this just stops matching
-(fails closed, not loudly).
+Reads only hermes-agent's log file, never its process or source -- survives
+`hermes update`; a changed log format just stops matching (fails closed).
 
 Restart-safe: persists a byte-offset checkpoint after every line so a
 watcher restart (crash, redeploy, systemd bounce) can never silently skip a
@@ -20,11 +18,7 @@ Also the only long-running loop the relay has, so it carries crt#67's
 staleness sweep too (STALE_SWEEP_EVERY_TICKS): otherwise a queued question
 only gets promoted next time some agent happens to poll, which may be never.
 
-An inbound message that matches no pending ticket -- an unsolicited note,
-or a reply that lands after its ticket went stale -- used to vanish here
-silently (crt#87). resolve_reply() and retain_audio() now report whether
-they found a ticket to act on; anything they didn't is handed to
-zaxon_relay_inbox.record_unclassified() instead of being dropped.
+A message matching no pending ticket goes to record_unclassified() (crt#87).
 """
 import os
 import re
@@ -66,9 +60,7 @@ TRANSCRIBED_RE = re.compile(r"transcription", re.IGNORECASE)
 
 
 def resolve_reply(reply_id: str, msg: str, via: str = "text") -> bool:
-    """Returns True if `reply_id` owned a pending ticket and it was
-    resolved, False if there was nothing to resolve -- the caller's cue to
-    record the message as unclassified rather than let it vanish."""
+    """True if `reply_id` owned a pending ticket that got resolved."""
     conn = get_conn()
     try:
         row = conn.execute(
@@ -183,11 +175,6 @@ def main() -> None:
                     else:
                         handled = resolve_reply(reply_id, msg, via)
                 if not handled:
-                    # Either reply_id was 'None' (not a reply to anything of
-                    # ours -- an unsolicited message) or it named a ticket
-                    # that is no longer pending (already answered, stale, or
-                    # never ours). Both are drops if left here; recorded
-                    # instead of guessed at.
                     record_unclassified(msg, None if reply_id == "None" else reply_id, via)
                 voice_hint = False
             elif TRANSCRIBED_RE.search(line):
