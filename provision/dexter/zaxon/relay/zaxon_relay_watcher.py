@@ -2,10 +2,8 @@
 """Tails hermes-agent's agent.log for inbound WhatsApp replies that quote a
 Zaxon relay message, and resolves the matching ticket.
 
-Deliberately does not touch hermes-agent's own process or source -- it only
-reads the log file hermes-agent already writes. Safe against `hermes
-update`; if the log line format ever changes, this just stops matching
-(fails closed, not loudly).
+Reads only hermes-agent's log file, never its process or source -- survives
+`hermes update`; a changed log format just stops matching (fails closed).
 
 Restart-safe: persists a byte-offset checkpoint after every line so a
 watcher restart (crash, redeploy, systemd bounce) can never silently skip a
@@ -27,6 +25,7 @@ import time
 from pathlib import Path
 
 from zaxon_relay_db import get_conn
+from zaxon_relay_inbox import record_unclassified
 from zaxon_relay_queue import sweep_and_promote
 
 LOG_PATH = Path.home() / ".hermes" / "logs" / "agent.log"
@@ -58,7 +57,8 @@ STT_FAILED_RE = re.compile(
 TRANSCRIBED_RE = re.compile(r"transcription", re.IGNORECASE)
 
 
-def resolve_reply(reply_id: str, msg: str, via: str = "text") -> None:
+def resolve_reply(reply_id: str, msg: str, via: str = "text") -> bool:
+    """True if `reply_id` owned a pending ticket that got resolved."""
     conn = get_conn()
     try:
         row = conn.execute(
@@ -66,7 +66,7 @@ def resolve_reply(reply_id: str, msg: str, via: str = "text") -> None:
             (reply_id,),
         ).fetchone()
         if row is None:
-            return
+            return False
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         conn.execute(
             "UPDATE tickets SET status='answered', answer=?, answered_at=?, via=? "
@@ -75,6 +75,7 @@ def resolve_reply(reply_id: str, msg: str, via: str = "text") -> None:
         )
         conn.commit()
         sweep_and_promote(conn)
+        return True
     finally:
         conn.close()
 
@@ -162,13 +163,17 @@ def main() -> None:
             m = LINE_RE.search(line)
             if m:
                 reply_id = m.group("reply_id")
+                msg = m.group("msg")
+                via = "voice" if voice_hint else "text"
+                handled = False
                 if reply_id != "None":
-                    msg = m.group("msg")
                     failed = STT_FAILED_RE.search(msg)
                     if failed:
-                        retain_audio(reply_id, failed.group("path").strip())
+                        handled = retain_audio(reply_id, failed.group("path").strip())
                     else:
-                        resolve_reply(reply_id, msg, "voice" if voice_hint else "text")
+                        handled = resolve_reply(reply_id, msg, via)
+                if not handled:
+                    record_unclassified(msg, None if reply_id == "None" else reply_id, via)
                 voice_hint = False
             elif TRANSCRIBED_RE.search(line):
                 voice_hint = True

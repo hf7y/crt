@@ -38,6 +38,7 @@ if "mcp" not in sys.modules:
     sys.modules["mcp.server.mcpserver"] = fake_mcpserver
 
 import zaxon_relay_db as db  # noqa: E402
+import zaxon_relay_inbox as inbox  # noqa: E402
 import zaxon_relay_queue as queue  # noqa: E402
 import zaxon_relay_server as server  # noqa: E402
 
@@ -152,3 +153,26 @@ class TestSlotVisibility(unittest.TestCase):
         conn.commit()
         conn.close()
         self.assertIn("answered", server.ask_zach("x", from_agent="noisy")["error"])
+
+
+class TestFetchInbox(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmpdir.name) / "tickets.db"
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def test_empty_inbox_returns_no_entries(self):
+        self.assertEqual(server.fetch_inbox(), {"entries": []})
+
+    def test_reads_back_what_was_recorded(self):
+        inbox.record_unclassified("water the plants", None, "text")
+        entries = server.fetch_inbox()["entries"]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["message"], "water the plants")
+
+    def test_limit_is_passed_through(self):
+        for i in range(3):
+            inbox.record_unclassified(f"m{i}", None)
+        self.assertEqual(len(server.fetch_inbox(limit=1)["entries"]), 1)
