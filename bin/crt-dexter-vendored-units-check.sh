@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
-# crt-dexter-vendored-units-check.sh -- did a vendored --install unit ever
-# land on dexter? (hf7y/crt#105). Unit names come from grepping
-# provision/dexter/*/*.sh, not a hardcoded list. is-enabled, not
-# list-unit-files: only "not-found" means absent (crt#15).
 set -uo pipefail
 
 CLI_NAME='crt-dexter-vendored-units-check.sh'
-HOST="${1:-dexter}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SSH="${CRT_DEXTER_UNITS_CHECK_SSH:-ssh -o BatchMode=yes -o ConnectTimeout=8}"
 
 case "${1:-}" in
   -h|--help)
     cat <<USAGE
-$CLI_NAME [host] -- confirm every provision/dexter/*/*.sh --install unit
-                    actually exists on the host (default: dexter)
+$CLI_NAME [host] -- did a vendored --install unit ever land on the host?
+(hf7y/crt#105). Default host: dexter. Unit names are grepped from
+provision/dexter/*/*.sh, not hardcoded, so a new one needs no edit here.
+Probes \`systemctl is-enabled\`: only "not-found" means the unit file is
+truly absent -- enabled/disabled/static all mean it exists (hf7y/crt#15).
+A host that cannot be reached is BLIND, never a silent "present".
 exit: 0 every discovered unit exists  1 at least one is not-found
       2 usage  4 no vendored --install units found under provision/dexter
-      6 BLIND -- could not reach $HOST at all, so nothing was confirmed
+      6 BLIND -- could not reach the host at all, so nothing was confirmed
 USAGE
     exit 0 ;;
 esac
+HOST="${1:-dexter}"
 
 mapfile -t UNITS < <(grep -horE '/etc/systemd/system/[A-Za-z0-9_.-]+\.(service|timer)' \
   "$HERE"/provision/dexter/*/*.sh 2>/dev/null | xargs -n1 basename | sort -u)

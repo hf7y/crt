@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Offline tests for bin/crt-dexter-vendored-units-check.sh (hf7y/crt#105);
-# $CRT_DEXTER_UNITS_CHECK_SSH swaps in a fake ssh, no real network.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHK="$DIR/../bin/crt-dexter-vendored-units-check.sh"
