@@ -444,20 +444,75 @@ class TestSlotReport(unittest.TestCase):
 
 
 class TestSendNow(unittest.TestCase):
-    def test_sends_the_rendered_text(self):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.conn = _fresh_conn(self._tmp.name)
+
+    def tearDown(self):
+        self.conn.close()
+        self._tmp.cleanup()
+
+    def test_nothing_delivered_yet_sends_fresh(self):
         sent = []
-        result = q.send_now("crt", "order placed",
+        result = q.send_now(self.conn, "crt", "order placed",
                              sender=lambda text: sent.append(text) or {"success": True, "message_id": "wa1"})
         self.assertEqual(sent, ["*crt* order placed"])
         self.assertEqual(result, {"success": True, "message_id": "wa1"})
 
     def test_over_length_raises_and_never_calls_the_sender(self):
         with self.assertRaises(ValueError):
-            q.send_now("crt", "x" * 200, sender=lambda text: self.fail("sender should not run"))
+            q.send_now(self.conn, "crt", "x" * 200, sender=lambda text: self.fail("sender should not run"))
 
     def test_send_exception_is_reported_not_raised(self):
         def _raise(text):
             raise RuntimeError("no network")
 
-        result = q.send_now("crt", "order placed", sender=_raise)
+        result = q.send_now(self.conn, "crt", "order placed", sender=_raise)
         self.assertEqual(result, {"success": False, "error": "no network"})
+
+    def test_reuses_the_last_delivered_message_instead_of_sending_fresh(self):
+        _insert(self.conn, "t1", "Q1", "stale")
+        self.conn.execute(
+            "UPDATE tickets SET wa_message_id=?, chat_id=? WHERE id='t1'", ("wa1", "chat1")
+        )
+        self.conn.commit()
+
+        edits = []
+        result = q.send_now(
+            self.conn, "crt", "order placed",
+            sender=lambda text: self.fail("a fresh send happened when an edit should have"),
+            editor=lambda chat_id, message_id, text: edits.append((chat_id, message_id, text))
+            or {"success": True},
+        )
+        self.assertEqual(edits, [("chat1", "wa1", "*crt* order placed")])
+        self.assertEqual(result, {"success": True, "message_id": "wa1", "chat_id": "chat1"})
+
+    def test_a_currently_pending_ticket_is_never_overwritten(self):
+        _insert(self.conn, "t1", "Q1", "pending")
+        self.conn.execute(
+            "UPDATE tickets SET wa_message_id=?, chat_id=? WHERE id='t1'", ("wa1", "chat1")
+        )
+        self.conn.commit()
+
+        sent = []
+        result = q.send_now(
+            self.conn, "crt", "order placed",
+            sender=lambda text: sent.append(text) or {"success": True, "message_id": "wa2"},
+            editor=lambda *a: self.fail("editing a live pending question"),
+        )
+        self.assertEqual(sent, ["*crt* order placed"])
+        self.assertEqual(result, {"success": True, "message_id": "wa2"})
+
+    def test_falls_back_to_a_fresh_send_when_the_edit_is_refused(self):
+        _insert(self.conn, "t1", "Q1", "stale")
+        self.conn.execute(
+            "UPDATE tickets SET wa_message_id=?, chat_id=? WHERE id='t1'", ("wa1", "chat1")
+        )
+        self.conn.commit()
+
+        result = q.send_now(
+            self.conn, "crt", "order placed",
+            sender=lambda text: {"success": True, "message_id": "wa2"},
+            editor=lambda *a: {"success": False},
+        )
+        self.assertEqual(result, {"success": True, "message_id": "wa2"})

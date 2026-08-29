@@ -183,10 +183,13 @@ def fetch_inbox(limit: int = 50) -> dict:
 
 @mcp.tool()
 def send_zach(message: str, from_agent: str = "agent") -> dict:
+    conn = get_conn()
     try:
-        payload = send_now(from_agent, message)
+        payload = send_now(conn, from_agent, message)
     except ValueError as e:
         return {"status": "refused", "error": str(e)}
+    finally:
+        conn.close()
     if not payload.get("success"):
         return {"status": "failed", "error": payload.get("error", "unknown send failure")}
     return {"status": "sent", "message_id": payload.get("message_id")}
