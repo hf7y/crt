@@ -17,8 +17,6 @@ audio is retained instead and the ticket stays pending (retain_audio).
 Also the only long-running loop the relay has, so it carries crt#67's
 staleness sweep too (STALE_SWEEP_EVERY_TICKS): otherwise a queued question
 only gets promoted next time some agent happens to poll, which may be never.
-
-A message matching no pending ticket goes to record_unclassified() (crt#87).
 """
 import os
 import re
