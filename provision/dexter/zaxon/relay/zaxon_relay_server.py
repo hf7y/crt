@@ -153,12 +153,17 @@ def check_zach_reply(ticket_id: str) -> dict:
     'queued' means another question is still waiting on Zach's phone, and
     queued_ahead / est_wait_hours say how far back; 'stale' means this one
     expired unanswered and its slot was freed -- if you still need an answer,
-    ask again."""
+    ask again.
+
+    `question` always comes back too (apms-2173#66): a caller polling with
+    only a ticket_id in hand has no other way to confirm what this ticket
+    actually asked, and trusting its own memory of that is exactly the bug
+    a stale variable or a copy-pasted ticket_id would not surface."""
     conn = get_conn()
     try:
         sweep_and_promote(conn)
         row = conn.execute(
-            "SELECT status, answer FROM tickets WHERE id=?", (ticket_id,)
+            "SELECT status, answer, question FROM tickets WHERE id=?", (ticket_id,)
         ).fetchone()
         report = slot_report(conn, ticket_id)
     finally:
@@ -166,8 +171,8 @@ def check_zach_reply(ticket_id: str) -> dict:
 
     if row is None:
         return {"status": "not_found"}
-    status, answer = row
-    result = {"status": status, **report}
+    status, answer, question = row
+    result = {"status": status, "question": question, **report}
     if status == "answered":
         result["answer"] = answer
     elif status == "failed":
