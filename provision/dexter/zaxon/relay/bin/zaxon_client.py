@@ -1,8 +1,8 @@
-import asyncio, sys
+import asyncio, os, sys
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-URL = 'http://127.0.0.1:8643/mcp'
+URL = os.environ.get('ZAXON_URL', 'http://127.0.0.1:8643/mcp')
 
 async def ask(question, from_agent):
     async with streamable_http_client(URL) as (read, write):
