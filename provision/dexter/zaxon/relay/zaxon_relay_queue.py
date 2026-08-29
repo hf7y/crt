@@ -11,12 +11,28 @@ import calendar
 import json
 import os
 import subprocess
+import tempfile
 import time
 import urllib.request
 from pathlib import Path
 
 MAX_QUESTION_CHARS = 140
 QUESTION_TTL_SECS = int(os.environ.get("ZAXON_QUESTION_TTL_SECS", "3600"))
+
+# The gateway's own cache, not the watcher's retained-audio dir -- crt#95: a
+# reply that lands while hermes-agent is mid-turn never logs the inbound-
+# message line the watcher tails, so its audio is never copied out of here.
+# All three zaxon containers bind-mount the same host dir to this path
+# (compose.yaml), so it is visible here without touching the gateway.
+GATEWAY_CACHE_AUDIO_DIR = Path.home() / ".hermes" / "cache" / "audio"
+
+# Same command and env var zaxon-retranscribe uses for retained audio -- a
+# transcript recovered here should come from the one STT path, not a second
+# opinion from a different model.
+STT_COMMAND = os.environ.get(
+    "HERMES_LOCAL_STT_COMMAND",
+    "/opt/zaxon-relay/bin/whisper_stt.sh {input_path} {output_dir} {language}",
+)
 
 ADMIT_WINDOW_SECS = 24 * 3600
 ADMIT_MAX_UNANSWERED = int(os.environ.get("ZAXON_ADMIT_MAX_UNANSWERED", "10"))
@@ -210,10 +226,49 @@ def edit_delivered(conn, ticket_id: str, text: str, editor=None) -> None:
         raise RuntimeError(f"bridge refused the edit: {payload.get('error', 'unknown')}")
 
 
-def sweep_and_promote(conn, sender=None, editor=None) -> None:
+def _transcribe(audio_path: str, language: str = "en") -> str:
+    with tempfile.TemporaryDirectory() as out:
+        cmd = STT_COMMAND.format(input_path=audio_path, output_dir=out, language=language)
+        subprocess.run(cmd, shell=True, check=True, capture_output=True)
+        return (Path(out) / "transcript.txt").read_text().strip()
+
+
+def _recover_from_gateway_cache(conn, ticket_id: str, created_at: str, cache_dir=None, transcribe=None) -> bool:
+    """Last chance before an overdue ticket is marked 'stale': the reply may
+    already be sitting in the gateway's cache, cached and never transcribed
+    because the watcher never saw the inbound-message line that would have
+    triggered it (crt#95). True if audio newer than `created_at` resolved
+    the ticket."""
+    cache_dir = cache_dir or GATEWAY_CACHE_AUDIO_DIR
+    transcribe = transcribe or _transcribe
+    if not cache_dir.is_dir():
+        return False
+    threshold = _epoch(created_at)
+    candidates = sorted(
+        (p for p in cache_dir.iterdir() if p.is_file() and p.stat().st_mtime > threshold),
+        key=lambda p: p.stat().st_mtime,
+    )
+    if not candidates:
+        return False
+    try:
+        text = transcribe(str(candidates[0]))
+    except (subprocess.CalledProcessError, OSError):
+        return False
+    if not text:
+        return False
+    conn.execute(
+        "UPDATE tickets SET status='answered', answer=?, answered_at=?, via='voice' WHERE id=?",
+        (text, _iso_now(), ticket_id),
+    )
+    conn.commit()
+    return True
+
+
+def sweep_and_promote(conn, sender=None, editor=None, cache_dir=None, transcribe=None) -> None:
     """Expires an overdue 'pending' ticket, then promotes the oldest
     'queued' ticket into the freed slot. No-op if the slot is occupied by
-    a still-fresh 'pending' ticket, or nothing is queued."""
+    a still-fresh 'pending' ticket, or nothing is queued. `cache_dir`/
+    `transcribe` are injectable for tests, like `sender`/`editor` above."""
     pending = conn.execute(
         "SELECT id, created_at FROM tickets WHERE status='pending' LIMIT 1"
     ).fetchone()
@@ -221,8 +276,9 @@ def sweep_and_promote(conn, sender=None, editor=None) -> None:
         ticket_id, created_at = pending
         if time.time() - _epoch(created_at) <= QUESTION_TTL_SECS:
             return
-        conn.execute("UPDATE tickets SET status='stale' WHERE id=?", (ticket_id,))
-        conn.commit()
+        if not _recover_from_gateway_cache(conn, ticket_id, created_at, cache_dir, transcribe):
+            conn.execute("UPDATE tickets SET status='stale' WHERE id=?", (ticket_id,))
+            conn.commit()
 
     nxt = conn.execute(
         "SELECT id, from_agent, question, options FROM tickets "
