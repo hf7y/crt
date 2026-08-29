@@ -128,13 +128,11 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
 
 
 def send_now(from_agent: str, message: str, sender=None) -> dict:
-    """Sends Zach a one-way note; never touches the tickets table. A send
-    failure comes back as {"success": False, ...} rather than raising."""
     text = validate_message(from_agent, message)
     send = sender or _default_sender
     try:
         return send(text)
-    except Exception as e:  # noqa: BLE001 -- surfaced to the caller, not raised
+    except Exception as e:  # noqa: BLE001
         return {"success": False, "error": str(e)}
 
 
