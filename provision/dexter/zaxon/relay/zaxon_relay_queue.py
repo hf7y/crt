@@ -127,6 +127,20 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
     return "pending"
 
 
+def send_now(from_agent: str, message: str, sender=None) -> dict:
+    """Sends Zach a one-way note, no ticket and no reply expected -- the
+    counterpart to ask_zach's queued question. Never touches the tickets
+    table, so it does not spend the single question slot. Raises ValueError
+    (validate_message) on a bad repo or over-length message; a send failure
+    comes back as {"success": False, ...} rather than raising, like deliver()."""
+    text = validate_message(from_agent, message)
+    send = sender or _default_sender
+    try:
+        return send(text)
+    except Exception as e:  # noqa: BLE001 -- surfaced to the caller, not raised
+        return {"success": False, "error": str(e)}
+
+
 def _default_editor(chat_id: str, message_id: str, text: str) -> dict:
     body = json.dumps({"chatId": chat_id, "messageId": message_id, "message": text})
     req = urllib.request.Request(

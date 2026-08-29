@@ -20,6 +20,7 @@ from zaxon_relay_queue import (
     MAX_QUESTION_CHARS,
     admission_error,
     edit_delivered,
+    send_now,
     slot_report,
     sweep_and_promote,
     validate_message,
@@ -43,7 +44,8 @@ mcp = MCPServer(
         "call revise_zach_question -- never ask a second time. fetch_inbox "
         "reads messages that arrived matching no ticket of yours -- an "
         "unsolicited note from Zach, or a late reply to something that "
-        "already went stale."
+        "already went stale. send_zach is the one-way counterpart to "
+        "ask_zach -- a note with no reply expected, so it costs no slot."
     ),
 )
 
@@ -178,6 +180,20 @@ def check_zach_reply(ticket_id: str) -> dict:
 def fetch_inbox(limit: int = 50) -> dict:
     """Read inbound messages matching no pending ticket, verbatim, newest first."""
     return {"entries": _fetch_inbox(limit=limit)}
+
+
+@mcp.tool()
+def send_zach(message: str, from_agent: str = "agent") -> dict:
+    """Send Zach a one-way note -- no ticket, no reply expected, no slot
+    spent. Same 140-char/repo-tag rules as ask_zach; refuses rather than
+    truncating. Use ask_zach instead if you need an answer back."""
+    try:
+        payload = send_now(from_agent, message)
+    except ValueError as e:
+        return {"status": "refused", "error": str(e)}
+    if not payload.get("success"):
+        return {"status": "failed", "error": payload.get("error", "unknown send failure")}
+    return {"status": "sent", "message_id": payload.get("message_id")}
 
 
 if __name__ == "__main__":

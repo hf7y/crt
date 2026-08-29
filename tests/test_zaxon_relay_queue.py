@@ -339,3 +339,23 @@ class TestSlotReport(unittest.TestCase):
 
     def test_an_unknown_ticket_reports_nothing_rather_than_zero(self):
         self.assertEqual(q.slot_report(self.conn, "nope"), {})
+
+
+class TestSendNow(unittest.TestCase):
+    def test_sends_the_rendered_text(self):
+        sent = []
+        result = q.send_now("crt", "order placed",
+                             sender=lambda text: sent.append(text) or {"success": True, "message_id": "wa1"})
+        self.assertEqual(sent, ["*crt* order placed"])
+        self.assertEqual(result, {"success": True, "message_id": "wa1"})
+
+    def test_over_length_raises_and_never_calls_the_sender(self):
+        with self.assertRaises(ValueError):
+            q.send_now("crt", "x" * 200, sender=lambda text: self.fail("sender should not run"))
+
+    def test_send_exception_is_reported_not_raised(self):
+        def _raise(text):
+            raise RuntimeError("no network")
+
+        result = q.send_now("crt", "order placed", sender=_raise)
+        self.assertEqual(result, {"success": False, "error": "no network"})
