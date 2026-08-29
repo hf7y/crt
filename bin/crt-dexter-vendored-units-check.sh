@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
-# crt-dexter-vendored-units-check.sh -- catch a vendored --install unit that
-# was never installed on dexter (hf7y/crt#105: zaxon-watch.timer sat vendored
-# and never wired, and every check for it measured staleness -- comparing a
-# timestamp to now -- instead of asking dexter whether the unit exists at all).
-#
-# Unit names are discovered, not hardcoded: grep every provision/dexter/*/*.sh
-# for the /etc/systemd/system/<name> path it writes under --install, so the
-# next vendored script is covered without editing this file.
-#
-# `systemctl is-enabled <unit>` on purpose, not `list-unit-files | grep`: a
-# timer-activated unit reads "disabled" while it is running fine (hf7y/crt#15
-# already burned a pass on that misread), and "not-found" is the one answer
-# that means the unit file itself is absent. enabled/disabled/static/etc. all
-# mean it is there.
+# crt-dexter-vendored-units-check.sh -- did a vendored --install unit ever
+# land on dexter? (hf7y/crt#105). Unit names come from grepping
+# provision/dexter/*/*.sh, not a hardcoded list. is-enabled, not
+# list-unit-files: only "not-found" means absent (crt#15).
 set -uo pipefail
 
 CLI_NAME='crt-dexter-vendored-units-check.sh'
@@ -40,9 +30,6 @@ if [ "${#UNITS[@]}" -eq 0 ]; then
   exit 4
 fi
 
-# A failed probe (no route, no credential, refused) must not read as "present":
-# that is exactly how #105 stayed invisible -- a check that cannot reach the
-# host is BLIND, not a clean answer for every unit it never actually asked.
 missing=0
 blind=0
 for u in "${UNITS[@]}"; do
