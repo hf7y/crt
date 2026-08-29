@@ -1,8 +1,9 @@
 # zaxon — crt's WhatsApp channel
 
 **crt owns zaxon as of 2026-08-14 (Zach's call.)** An MCP server over
-streamable-http exposing `ask_zach` and `check_zach_reply`; loopback and tailnet
-only (#52). See `compose.yaml` for the rest.
+streamable-http exposing `ask_zach`, `revise_zach_question` and
+`check_zach_reply`; loopback and tailnet only (#52). See `compose.yaml` for the
+rest.
 
 Deploys are automatic — `zaxon-autoupdate.timer` pulls hourly and verifies the
 relay answers. By hand: `sudo docker compose pull && sudo docker compose up -d`

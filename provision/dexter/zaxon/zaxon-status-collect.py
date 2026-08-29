@@ -30,6 +30,11 @@ def collect():
     except sqlite3.Error as e:
         return {"readable": False, "path": DB, "error": str(e)}
 
+    try:  # crt#87's inbox table is new -- an unreadable inbox does not sink the ticket ledger
+        inbox_rows = conn.execute("SELECT id, received_at FROM inbox").fetchall()
+    except sqlite3.Error:
+        inbox_rows = None
+
     now = time.time()
     cut = now - WINDOW_H * 3600
     tickets = [
@@ -59,6 +64,16 @@ def collect():
     answered.sort(key=lambda t: t["answered_at"])
     recent = sorted(tickets, key=lambda t: t["_t"], reverse=True)[:12]
 
+    if inbox_rows is None:
+        inbox = None
+    else:
+        ages = [_epoch(r[1]) for r in inbox_rows]
+        inbox = {
+            "count": len(inbox_rows),
+            "window_count": sum(1 for a in ages if a >= cut),
+            "oldest_age_hours": round((now - min(ages)) / 3600, 1) if ages else None,
+        }
+
     return {
         "readable": True,
         "path": DB,
@@ -75,6 +90,7 @@ def collect():
             "question": pending["question"][:140],
         },
         "last_answered_at": answered[-1]["answered_at"] if answered else None,
+        "inbox": inbox,
         "senders": sorted(senders.values(), key=lambda s: -s["sent"]),
         "recent": [{k: t[k] for k in
                     ("id", "from", "status", "created_at", "answered_at")}

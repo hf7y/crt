@@ -116,28 +116,29 @@ mode, but don't panic about it either.
   `tests/test_book_game.py`'s `test_no_primary_rgb_codes_in_palette` for
   the mechanical enforcement (not just a comment).
 
-## Push permission (2026-07-22, human-directed)
+## Landing changes
 
-Claude may push committed changes directly to `origin/main` without
-asking each time, for ordinary work in this repo. Flag every such push in
-the next report/summary (what was pushed, why, and how to revert it —
-`git revert <sha>`). This does not license skipping review of what goes
-into a commit in the first place, only the push step itself.
+`main` is branch-protected (required status check `prose / prose`); every
+merged change since 2026-08-12 has gone branch → PR → merge, none by direct
+push. This supersedes the 2026-07-22 permission to push straight to
+`origin/main` — that push-and-flag mechanism is not what actually lands
+work here anymore. Flag every merge in your summary (what landed, why, and
+how to revert it — `git revert <sha>`). This does not license skipping
+review of what goes into a commit in the first place.
 
-## Build discipline and ecosystem protocols
+## Ecosystem protocols
 
-Run **`discipline`** before marking anything done. It prints the
-build-discipline checklist and the ecosystem protocols — what to do when a
-change reaches outside this repo (senechal, focus-commit, check-project-busy,
-consulte). `discipline --checklist` and `discipline --protocols` print one
-half each.
+When a change reaches outside this repo, three verbs are the interface. Each
+prints its own contract; none of it is restated here, and none of it is a
+checklist to recite from memory.
 
-**If `discipline` is not on PATH, that is a finding — say so loudly. Do not
-recite the checklist from memory and do not do the steps by hand.** A missing
-guard is a finding, not an inconvenience.
+- `notify-senechal <door> <field>=<value>` — file a crontab, device or
+  footprint change on senechal's registry. Standing policy for any change to
+  crontabs, dotfiles, systemd units or WM config. `--doors` lists the doors.
+- `check-project-busy <project>` — before writing DIRECTLY into another
+  project's files. Front-door writes carry their own regulator.
+- `consulte` — read the estate's own prose.
 
-The text lives in one place, realisateur's `BUILD-DISCIPLINE.md`, and is read
-at the point of use. It is deliberately **not copied into this file**. Stamping
-it into 17 repos is what produced eleven byte-identical corrupted copies, a
-source 36 lines behind its own copies, and a drift detector reporting OK
-throughout.
+`discipline` and `BUILD-DISCIPLINE.md` were deleted by hf7y/realisateur#687:
+the rows a mechanism already enforced are enforced by that mechanism, and the
+rest were unenforced prose. Do not reinstate either here.

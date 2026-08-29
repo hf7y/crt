@@ -10,41 +10,41 @@ description: Nightly thorough pass on the crt voice console -- code-shaped backl
 
 Read the open issues first: `gh issue list -R hf7y/crt --limit 100`.
 Everything below is scoped BY that backlog -- if something looks like an
-easy win but isn't in service of an open issue, write it up in the report
-as deferred; do not implement it just because it's sitting there.
+easy win but isn't in service of an open issue, note it as deferred on
+the relevant issue; do not implement it just because it's sitting there.
 
 This project is a physical voice console. As of 2026-07-23, `potato` (a
-Raspberry Pi, real hardware, `ssh potato` -- key auth, alias in this
-account's persistent `~/.ssh/config`, NOT the disposable clone, so it
-survives every cycle's `git reset --hard`) is the actual live console,
-same role `dexter`/`crt-vm` used to play (that combo is now legacy --
-see `.claude/SESSION-STATE.md`'s 2026-07-23 section for the full
-topology). **`ssh potato` access means real STT-pipeline/audio work on
+Raspberry Pi, real hardware) is the actual live console, same role
+`dexter`/`crt-vm` used to play (that combo is now legacy -- see
+`.claude/SESSION-STATE.md`'s 2026-07-23 section for the full topology).
+`ssh potato` needs a `Host potato` alias -- present on mandark's
+`~/.ssh/config`, confirmed ABSENT on monkey's 2026-08-29. Box-specific,
+not account-wide: check `ssh -o BatchMode=yes potato true` before
+relying on it. **When it resolves, real STT-pipeline/audio work on
 potato IS in scope for an unattended run** -- it is NOT "needs hands on
-hardware" just because it involves a remote physical box, the same way
-`ssh crt-vm` access made VM-side work in scope before it. Concretely in
-scope via SSH: running/reading `~/.crt/*.log` on potato, restarting a
-tmux window there with a fixed env var, deploying an updated script
-(`scp` + diff-verify, per `.claude/SESSION-STATE.md`'s "always diff
-after scp'ing" note), running `bin/crt-earcon-loopback-test.py` there
-and reading its output. Still genuinely out of scope / branch around:
-anything that needs a HUMAN physically present (confirming a sound was
-actually heard, plugging in a cable, a 3D print, wiring a hookswitch) --
-the loopback test's own measurement is evidence, not proof; note where
-its result still needs Zach's own ear to fully confirm, don't claim it
-as verified-done on the tool's numbers alone. If `ssh potato` itself
-fails (host key, auth, connection) treat it exactly like the existing
-crt-vm-access failure policy below: don't spend the whole cycle
-debugging it, note it in the report, continue with whatever else is in
-scope.
+hardware" just because it's a remote physical box, same as `ssh crt-vm`
+access made VM-side work in scope before it. Concretely in scope via
+SSH: running/reading `~/.crt/*.log` on potato, restarting a tmux window
+there with a fixed env var, deploying an updated script (`scp` +
+diff-verify, per `.claude/SESSION-STATE.md`'s "always diff after
+scp'ing" note), running `bin/crt-earcon-loopback-test.py` there and
+reading its output. Still out of scope: anything needing a HUMAN
+physically present (confirming a sound was heard, plugging in a cable,
+a 3D print, wiring a hookswitch) -- the loopback test's measurement is
+evidence, not proof; say where it still needs Zach's own ear, don't
+call it verified-done on the numbers alone. If `ssh potato` fails (host
+key, auth, connection, no alias here) treat it like the crt-vm-access
+failure policy below: don't spend the cycle debugging it, note it on
+the issue, move on.
 
 ## 1. Orient
 
 `git log --oneline -10`, current branch state, `README.md`, `HANDOFF.md`
 (persistent state/access notes -- trust it over assumptions), `AUDIO-DEBUG.md`,
-and the open issues. If the previous nightly run left work in progress
-(check `~/reports/crt/` for the last report), pick up from there rather
-than starting over.
+and the open issues. If the previous nightly run left work in progress,
+check open PRs/branches and the relevant issue's own comments for where it
+stopped, rather than starting over. (Not `~/reports/crt/` -- unused since
+2026-08-06, superseded by issue comments.)
 
 ## 2. Re-verify anything a previous run claimed was working
 
@@ -56,8 +56,8 @@ fully verified from here; don't upgrade that marker to "done" without
 either an actual live confirmation from the human, OR (2026-07-23) a
 concrete measurement from a tool built for exactly that (e.g.
 `bin/crt-earcon-loopback-test.py`'s acoustic detection) -- a strong
-measurement is real evidence and worth acting on, but still note in the
-report where it stops short of Zach's own ear as final confirmation.
+measurement is real evidence and worth acting on, but still note on the
+issue where it stops short of Zach's own ear as final confirmation.
 
 ## 3. Push forward on whatever IS in scope per the open issues
 
@@ -65,8 +65,8 @@ Real progress, not just re-reading the same status. Commit as you
 complete meaningful chunks -- don't save it all for one giant commit at
 the end. If a task needs the user's own hands (plugging something in, a
 live VM session, a physical test), do not attempt to route around it --
-write the specific blocker and exactly what's needed from them in the
-report, and say so on the issue.
+say so on the issue, with the specific blocker and exactly what's needed
+from them.
 
 ## 4. Stress-test what you touched
 
@@ -75,13 +75,11 @@ actually has (stale/flatlined audio capture, a second reader starving the
 first, a control-file race) rather than declaring victory on the code
 compiling/parsing.
 
-## 5. Write the report
+## 5. Report only through issues, never a file
 
-`~/reports/crt/$(date +%Y-%m-%d).md`, and update `~/reports/crt/LATEST.md`
-to match it. Cover exactly: what got built/fixed tonight (with commit
-references), what was deliberately deferred because it's physical/needs a
-live VM (and what exactly the human needs to do), any new issues
-discovered, and any open questions that need a human decision.
+No nightly report file: standing rules forbid writing new prose files, and
+in practice none has landed at `~/reports/crt/` since 2026-08-06 while the
+real record has kept being merged PRs and closed/commented issues.
 
 **File findings and questions as GitHub issues** -- `gh issue create -R
 hf7y/crt` -- not as a file in this repo. The `> ` inline-reply convention

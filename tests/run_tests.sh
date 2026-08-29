@@ -492,12 +492,22 @@ echo "== zaxon-watch guards (the rules that used to be README prose) =="
 bash "$DIR/test_zaxon_watch_guards.sh" || fail=1
 echo
 
+echo "== zaxon-autoupdate rollback (crt#75) =="
+bash "$DIR/test_zaxon_autoupdate_rollback.sh" || fail=1
+echo
+
 echo "== zaxon status collector verdict ladder =="
 python3 -m unittest discover -s "$DIR" -p "test_zaxon_status_collect.py" -v 2>&1 | tail -5 || fail=1
 echo
 
 echo "== zaxon relay question queue (crt#67) =="
 python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_queue.py" -v 2>&1 | tail -20 || fail=1
+echo
+
+# Named, not globbed: the manifest check below matches basenames literally, so
+# a glob here would read as "test_zaxon_relay_watcher.py is never run".
+echo "== zaxon relay watcher: a voice note it could not hear is not an answer =="
+python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_watcher.py" -v 2>&1 | tail -15 || fail=1
 echo
 
 # Manifest check (2026-07-25). Every test file in this directory must be named

@@ -120,5 +120,49 @@ class SlotCost(unittest.TestCase):
                          ("ausculte-cadence", 6, 0))
 
 
+class InboxLedger(unittest.TestCase):  # crt#87's inbox has no consumed_by yet: read-only count+age
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        zsc.DB = os.path.join(self.tmp.name, "tickets.db")
+        self.conn = sqlite3.connect(zsc.DB)
+        self.conn.execute("CREATE TABLE tickets (id TEXT PRIMARY KEY, from_agent TEXT, "
+                          "question TEXT, wa_message_id TEXT, status TEXT, answer TEXT, "
+                          "created_at TEXT, answered_at TEXT, options TEXT)")
+        self.conn.commit()
+
+    def add_inbox(self, entry_id, hours_ago):
+        self.conn.execute(
+            "INSERT INTO inbox (id, message, reply_to_id, received_at, via) "
+            "VALUES (?,?,?,?,?)",
+            (entry_id, "m", None, _ago(hours_ago), "text"))
+        self.conn.commit()
+
+    def test_no_inbox_table_is_None_not_a_failed_collect(self):
+        led = zsc.collect()
+        self.assertTrue(led["readable"])
+        self.assertIsNone(led["inbox"])
+
+    def test_empty_inbox_table_is_zero_not_None(self):
+        self.conn.execute("CREATE TABLE inbox (id TEXT PRIMARY KEY, message TEXT NOT NULL, "
+                          "reply_to_id TEXT, received_at TEXT NOT NULL, via TEXT)")
+        self.conn.commit()
+        inbox = zsc.collect()["inbox"]
+        self.assertEqual(inbox, {"count": 0, "window_count": 0, "oldest_age_hours": None})
+
+    def test_counts_and_windows_and_oldest_age(self):
+        self.conn.execute("CREATE TABLE inbox (id TEXT PRIMARY KEY, message TEXT NOT NULL, "
+                          "reply_to_id TEXT, received_at TEXT NOT NULL, via TEXT)")
+        self.conn.commit()
+        self.add_inbox("a", 1.0)
+        self.add_inbox("b", 5.0)
+        self.add_inbox("c", 48.0)   # outside the 24h window, still in count
+        inbox = zsc.collect()["inbox"]
+        self.assertEqual(inbox["count"], 3)
+        self.assertEqual(inbox["window_count"], 2)
+        self.assertEqual(inbox["oldest_age_hours"], 48.0)
+
+
 if __name__ == "__main__":
     unittest.main()
