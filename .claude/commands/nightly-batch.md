@@ -17,28 +17,25 @@ This project is a physical voice console. As of 2026-07-23, `potato` (a
 Raspberry Pi, real hardware) is the actual live console, same role
 `dexter`/`crt-vm` used to play (that combo is now legacy -- see
 `.claude/SESSION-STATE.md`'s 2026-07-23 section for the full topology).
-`ssh potato` needs key auth via a `Host potato` alias -- confirmed
-present on mandark's `~/.ssh/config` but absent on monkey's as of
-2026-08-29, so it is box-specific, not something every clone gets for
-free; check `ssh -o BatchMode=yes potato true` before relying on it.
-**When it resolves, real STT-pipeline/audio work on potato IS in scope
-for an unattended run** -- it is NOT "needs hands on hardware" just
-because it involves a remote physical box, the same way `ssh crt-vm`
+`ssh potato` needs a `Host potato` alias -- present on mandark's
+`~/.ssh/config`, confirmed ABSENT on monkey's 2026-08-29. Box-specific,
+not account-wide: check `ssh -o BatchMode=yes potato true` before
+relying on it. **When it resolves, real STT-pipeline/audio work on
+potato IS in scope for an unattended run** -- it is NOT "needs hands on
+hardware" just because it's a remote physical box, same as `ssh crt-vm`
 access made VM-side work in scope before it. Concretely in scope via
 SSH: running/reading `~/.crt/*.log` on potato, restarting a tmux window
 there with a fixed env var, deploying an updated script (`scp` +
 diff-verify, per `.claude/SESSION-STATE.md`'s "always diff after
 scp'ing" note), running `bin/crt-earcon-loopback-test.py` there and
-reading its output. Still genuinely out of scope / branch around:
-anything that needs a HUMAN physically present (confirming a sound was
-actually heard, plugging in a cable, a 3D print, wiring a hookswitch) --
-the loopback test's own measurement is evidence, not proof; note where
-its result still needs Zach's own ear to fully confirm, don't claim it
-as verified-done on the tool's numbers alone. If `ssh potato` itself
-fails (host key, auth, connection, no alias on this box) treat it
-exactly like the existing crt-vm-access failure policy below: don't
-spend the whole cycle debugging it, note it on the issue, continue with
-whatever else is in scope.
+reading its output. Still out of scope: anything needing a HUMAN
+physically present (confirming a sound was heard, plugging in a cable,
+a 3D print, wiring a hookswitch) -- the loopback test's measurement is
+evidence, not proof; say where it still needs Zach's own ear, don't
+call it verified-done on the numbers alone. If `ssh potato` fails (host
+key, auth, connection, no alias here) treat it like the crt-vm-access
+failure policy below: don't spend the cycle debugging it, note it on
+the issue, move on.
 
 ## 1. Orient
 
