@@ -116,13 +116,15 @@ mode, but don't panic about it either.
   `tests/test_book_game.py`'s `test_no_primary_rgb_codes_in_palette` for
   the mechanical enforcement (not just a comment).
 
-## Push permission (2026-07-22, human-directed)
+## Landing changes
 
-Claude may push committed changes directly to `origin/main` without
-asking each time, for ordinary work in this repo. Flag every such push in
-the next report/summary (what was pushed, why, and how to revert it —
-`git revert <sha>`). This does not license skipping review of what goes
-into a commit in the first place, only the push step itself.
+`main` is branch-protected (required status check `prose / prose`); every
+merged change since 2026-08-12 has gone branch → PR → merge, none by direct
+push. This supersedes the 2026-07-22 permission to push straight to
+`origin/main` — that push-and-flag mechanism is not what actually lands
+work here anymore. Flag every merge in your summary (what landed, why, and
+how to revert it — `git revert <sha>`). This does not license skipping
+review of what goes into a commit in the first place.
 
 ## Ecosystem protocols
 
