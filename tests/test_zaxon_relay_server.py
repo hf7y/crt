@@ -5,6 +5,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 RELAY_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -176,3 +177,42 @@ class TestFetchInbox(unittest.TestCase):
         for i in range(3):
             inbox.record_unclassified(f"m{i}", None)
         self.assertEqual(len(server.fetch_inbox(limit=1)["entries"]), 1)
+
+
+class TestSendZach(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmpdir.name) / "tickets.db"
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def test_refuses_too_long_without_raising(self):
+        result = server.send_zach("x" * 200, "crt")
+        self.assertEqual(result["status"], "refused")
+        self.assertIn("140", result["error"])
+
+    def test_refuses_bad_repo_without_raising(self):
+        result = server.send_zach("short", "apms postmortem")
+        self.assertEqual(result["status"], "refused")
+
+    def test_reports_success(self):
+        with patch.object(server, "send_now", return_value={"success": True, "message_id": "wa9"}):
+            result = server.send_zach("order placed", "groc-mangr")
+        self.assertEqual(result, {"status": "sent", "message_id": "wa9"})
+
+    def test_reports_failure(self):
+        with patch.object(server, "send_now", return_value={"success": False, "error": "boom"}):
+            result = server.send_zach("order placed", "groc-mangr")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("boom", result["error"])
+
+    def test_never_touches_the_tickets_table(self):
+        with patch.object(server, "send_now", return_value={"success": True, "message_id": "wa9"}):
+            server.send_zach("order placed", "groc-mangr")
+        conn = db.get_conn()
+        try:
+            count = conn.execute("SELECT COUNT(*) FROM tickets").fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual(count, 0)

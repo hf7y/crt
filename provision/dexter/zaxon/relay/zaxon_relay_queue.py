@@ -100,6 +100,21 @@ def _default_sender(text: str) -> dict:
     return json.loads(proc.stdout or "{}")
 
 
+def _last_delivered(conn, exclude_ticket_id=None):
+    if exclude_ticket_id is None:
+        return conn.execute(
+            "SELECT wa_message_id, chat_id FROM tickets "
+            "WHERE wa_message_id IS NOT NULL "
+            "ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+    return conn.execute(
+        "SELECT wa_message_id, chat_id FROM tickets "
+        "WHERE wa_message_id IS NOT NULL AND id != ? "
+        "ORDER BY created_at DESC LIMIT 1",
+        (exclude_ticket_id,),
+    ).fetchone()
+
+
 def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sender=None, editor=None) -> str:
     """Edits the prior delivered message in place (crt#100), falling back
     to sender() only when there's none to edit or the edit fails. Returns
@@ -108,12 +123,7 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
     edit = editor or _default_editor
     text = format_message(from_agent, question, options)
 
-    prior = conn.execute(
-        "SELECT wa_message_id, chat_id FROM tickets "
-        "WHERE wa_message_id IS NOT NULL AND id != ? "
-        "ORDER BY created_at DESC LIMIT 1",
-        (ticket_id,),
-    ).fetchone()
+    prior = _last_delivered(conn, exclude_ticket_id=ticket_id)
     if prior and prior[0]:
         prior_message_id, prior_chat_id = prior
         try:
@@ -147,6 +157,28 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
     )
     conn.commit()
     return "pending"
+
+
+def send_now(conn, from_agent: str, message: str, sender=None, editor=None) -> dict:
+    text = validate_message(from_agent, message)
+
+    pending = conn.execute("SELECT 1 FROM tickets WHERE status='pending' LIMIT 1").fetchone()
+    if pending is None:
+        prior = _last_delivered(conn)
+        if prior and prior[0]:
+            message_id, chat_id = prior
+            try:
+                edit_payload = (editor or _default_editor)(chat_id or CHAT_ID, message_id, text)
+            except Exception:
+                edit_payload = {"success": False}
+            if edit_payload.get("success"):
+                return {"success": True, "message_id": message_id, "chat_id": chat_id or CHAT_ID}
+
+    send = sender or _default_sender
+    try:
+        return send(text)
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 def _default_editor(chat_id: str, message_id: str, text: str) -> dict:
