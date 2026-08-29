@@ -101,7 +101,6 @@ def _default_sender(text: str) -> dict:
 
 
 def _last_delivered(conn, exclude_ticket_id=None):
-    """The message still on the phone, for deliver()/send_now() to edit."""
     if exclude_ticket_id is None:
         return conn.execute(
             "SELECT wa_message_id, chat_id FROM tickets "
@@ -161,9 +160,6 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
 
 
 def send_now(conn, from_agent: str, message: str, sender=None, editor=None) -> dict:
-    """A note with no ticket, still under the phone's budget (crt#100): edits
-    the last delivered message rather than posting a new one, except while a
-    ticket is pending -- editing that would erase Zach's live question."""
     text = validate_message(from_agent, message)
 
     pending = conn.execute("SELECT 1 FROM tickets WHERE status='pending' LIMIT 1").fetchone()
