@@ -496,6 +496,10 @@ echo "== zaxon-autoupdate rollback (crt#75) =="
 bash "$DIR/test_zaxon_autoupdate_rollback.sh" || fail=1
 echo
 
+echo "== dexter vendored-unit check: a vendored --install unit that was never installed (crt#105) =="
+bash "$DIR/test_dexter_vendored_units_check.sh" || fail=1
+echo
+
 echo "== zaxon status collector verdict ladder =="
 python3 -m unittest discover -s "$DIR" -p "test_zaxon_status_collect.py" -v 2>&1 | tail -5 || fail=1
 echo
@@ -508,6 +512,10 @@ echo
 # a glob here would read as "test_zaxon_relay_watcher.py is never run".
 echo "== zaxon relay watcher: a voice note it could not hear is not an answer =="
 python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_watcher.py" -v 2>&1 | tail -15 || fail=1
+echo
+
+echo "== zaxon relay server: fetch_inbox / ask_zach / send_zach =="
+python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_server.py" -v 2>&1 | tail -25 || fail=1
 echo
 
 # Manifest check (2026-07-25). Every test file in this directory must be named
