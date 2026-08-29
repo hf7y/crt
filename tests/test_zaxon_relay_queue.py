@@ -243,10 +243,6 @@ class TestSweepAndPromote(unittest.TestCase):
 
 
 class TestRecoverFromGatewayCache(unittest.TestCase):
-    """crt#95: a reply that lands mid-turn never logs the line the watcher
-    tails, so its audio sits unread in the gateway's cache until the ticket
-    would otherwise expire silently."""
-
     def _overdue(self, conn, ticket_id="t1"):
         old_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - q.QUESTION_TTL_SECS - 10))
         _insert(conn, ticket_id, "Q1", "pending", created_at=old_ts)

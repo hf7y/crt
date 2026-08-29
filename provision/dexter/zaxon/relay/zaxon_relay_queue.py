@@ -19,16 +19,8 @@ from pathlib import Path
 MAX_QUESTION_CHARS = 140
 QUESTION_TTL_SECS = int(os.environ.get("ZAXON_QUESTION_TTL_SECS", "3600"))
 
-# The gateway's own cache, not the watcher's retained-audio dir -- crt#95: a
-# reply that lands while hermes-agent is mid-turn never logs the inbound-
-# message line the watcher tails, so its audio is never copied out of here.
-# All three zaxon containers bind-mount the same host dir to this path
-# (compose.yaml), so it is visible here without touching the gateway.
 GATEWAY_CACHE_AUDIO_DIR = Path.home() / ".hermes" / "cache" / "audio"
 
-# Same command and env var zaxon-retranscribe uses for retained audio -- a
-# transcript recovered here should come from the one STT path, not a second
-# opinion from a different model.
 STT_COMMAND = os.environ.get(
     "HERMES_LOCAL_STT_COMMAND",
     "/opt/zaxon-relay/bin/whisper_stt.sh {input_path} {output_dir} {language}",
@@ -234,11 +226,6 @@ def _transcribe(audio_path: str, language: str = "en") -> str:
 
 
 def _recover_from_gateway_cache(conn, ticket_id: str, created_at: str, cache_dir=None, transcribe=None) -> bool:
-    """Last chance before an overdue ticket is marked 'stale': the reply may
-    already be sitting in the gateway's cache, cached and never transcribed
-    because the watcher never saw the inbound-message line that would have
-    triggered it (crt#95). True if audio newer than `created_at` resolved
-    the ticket."""
     cache_dir = cache_dir or GATEWAY_CACHE_AUDIO_DIR
     transcribe = transcribe or _transcribe
     if not cache_dir.is_dir():
@@ -267,8 +254,7 @@ def _recover_from_gateway_cache(conn, ticket_id: str, created_at: str, cache_dir
 def sweep_and_promote(conn, sender=None, editor=None, cache_dir=None, transcribe=None) -> None:
     """Expires an overdue 'pending' ticket, then promotes the oldest
     'queued' ticket into the freed slot. No-op if the slot is occupied by
-    a still-fresh 'pending' ticket, or nothing is queued. `cache_dir`/
-    `transcribe` are injectable for tests, like `sender`/`editor` above."""
+    a still-fresh 'pending' ticket, or nothing is queued."""
     pending = conn.execute(
         "SELECT id, created_at FROM tickets WHERE status='pending' LIMIT 1"
     ).fetchone()
