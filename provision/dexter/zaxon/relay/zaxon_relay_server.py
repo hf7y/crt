@@ -153,12 +153,12 @@ def check_zach_reply(ticket_id: str) -> dict:
     'queued' means another question is still waiting on Zach's phone, and
     queued_ahead / est_wait_hours say how far back; 'stale' means this one
     expired unanswered and its slot was freed -- if you still need an answer,
-    ask again."""
+    ask again. `question` always comes back too."""
     conn = get_conn()
     try:
         sweep_and_promote(conn)
         row = conn.execute(
-            "SELECT status, answer FROM tickets WHERE id=?", (ticket_id,)
+            "SELECT status, answer, question FROM tickets WHERE id=?", (ticket_id,)
         ).fetchone()
         report = slot_report(conn, ticket_id)
     finally:
@@ -166,8 +166,8 @@ def check_zach_reply(ticket_id: str) -> dict:
 
     if row is None:
         return {"status": "not_found"}
-    status, answer = row
-    result = {"status": status, **report}
+    status, answer, question = row
+    result = {"status": status, "question": question, **report}
     if status == "answered":
         result["answer"] = answer
     elif status == "failed":

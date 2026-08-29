@@ -128,6 +128,25 @@ class TestSlotVisibility(unittest.TestCase):
         r = server.check_zach_reply(server.ask_zach("q", from_agent="crt")["ticket_id"])
         self.assertIn("est_wait_hours", r)
 
+    def test_check_zach_reply_returns_the_question_it_was_asked(self):
+        r = server.check_zach_reply(
+            server.ask_zach("publish topic 999?", from_agent="crt")["ticket_id"]
+        )
+        self.assertEqual(r["question"], "publish topic 999?")
+
+    def test_check_zach_reply_returns_the_question_alongside_an_answer(self):
+        conn = db.get_conn()
+        conn.execute(
+            "INSERT INTO tickets (id, from_agent, question, status, created_at, answer) "
+            "VALUES ('t1', 'crt', 'publish topic 999?', 'answered', "
+            "strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'publish')"
+        )
+        conn.commit()
+        conn.close()
+        r = server.check_zach_reply("t1")
+        self.assertEqual(r["question"], "publish topic 999?")
+        self.assertEqual(r["answer"], "publish")
+
     def test_a_caller_nobody_answers_is_refused_and_files_no_ticket(self):
         conn = db.get_conn()
         for i in range(queue.ADMIT_MAX_UNANSWERED):
