@@ -11,3 +11,5 @@ on:
 jobs:
   prose:
     uses: hf7y/etalon/.github/workflows/guard.yml@main
+    with:
+      state_prose: true
