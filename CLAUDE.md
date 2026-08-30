@@ -118,13 +118,18 @@ mode, but don't panic about it either.
 
 ## Landing changes
 
-`main` is branch-protected (required status check `prose / prose`); every
-merged change since 2026-08-12 has gone branch → PR → merge, none by direct
-push. This supersedes the 2026-07-22 permission to push straight to
-`origin/main` — that push-and-flag mechanism is not what actually lands
-work here anymore. Flag every merge in your summary (what landed, why, and
-how to revert it — `git revert <sha>`). This does not license skipping
-review of what goes into a commit in the first place.
+Every merged change since 2026-08-12 has gone branch → PR → merge, none by
+direct push; keep it that way. This supersedes the 2026-07-22 permission to
+push straight to `origin/main` — that push-and-flag mechanism is not what
+lands work here. Note the required check does NOT bind an admin token, so the
+branch → PR route is convention backed by a check, not a wall. Flag every merge
+in your summary (what landed, why, and how to revert it — `git revert <sha>`).
+This does not license skipping review of what goes into a commit. Read it:
+
+```
+gh api repos/hf7y/crt/branches/main/protection \
+  --jq '{admins: .enforce_admins.enabled, checks: .required_status_checks.contexts}'
+```
 
 ## Ecosystem protocols
 
