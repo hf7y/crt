@@ -33,8 +33,8 @@ Scope, in order of priority:
    handled for you by the wrapper script that invoked you; your job is
    just to make real, justified changes, not to hedge.
 3. Do NOT touch anything requiring physical/live-VM verification you
-   cannot actually perform from here (see nightly-batch.md'"'"'s own
-   "branch around hardware" rule -- same logic applies).
+   cannot actually perform from here (see CLAUDE.md'"'"'s own
+   "what an unattended run may do on real hardware" rule -- same logic).
 4. Commit your own work in logical chunks as you go (do not rely solely
    on the wrapper'"'"'s pre/post commits -- those are a safety net, not a
    substitute for you describing WHY each change was made in its own
