@@ -147,3 +147,52 @@ checklist to recite from memory.
 `discipline` and `BUILD-DISCIPLINE.md` were deleted by hf7y/realisateur#687:
 the rows a mechanism already enforced are enforced by that mechanism, and the
 rest were unenforced prose. Do not reinstate either here.
+
+## The nightly run
+
+The step-by-step procedure is held once, as `schedule/_run-procedure.md` in
+`hf7y/scheduler`, and spliced into this project's prompt at dispatch by
+`schedule/crt.conf`'s `@@FRAGMENT:run-procedure@@`. What is specific to crt is
+here rather than in a per-repo copy of that procedure.
+
+**Orient on this repo's own files**, not on a report directory: `README.md`,
+`HANDOFF.md` (persistent state and access notes — trust it over assumptions)
+and `AUDIO-DEBUG.md`. `~/reports/crt/` has been unused since 2026-08-06,
+superseded by issue comments.
+
+### What an unattended run may do on real hardware
+
+This project is a physical voice console. `potato` (a Raspberry Pi) is the live
+console as of 2026-07-23; `dexter`/`crt-vm` are legacy — `.claude/SESSION-STATE.md`'s
+2026-07-23 section has the full topology. `ssh potato` needs a `Host potato`
+alias, present on mandark and confirmed ABSENT on monkey as of 2026-08-29, so it
+is box-specific: check `ssh -o BatchMode=yes potato true` before relying on it.
+
+**When it resolves, real STT-pipeline and audio work on potato IS in scope for
+an unattended run** — being a remote physical box does not by itself make it
+"needs hands on hardware". In scope over SSH: reading and running `~/.crt/*.log`
+on potato, restarting a tmux window there with a fixed env var, deploying an
+updated script (`scp` then diff-verify — always diff after scp'ing), and running
+`bin/crt-earcon-loopback-test.py` there and reading its output.
+
+Out of scope: anything needing a human physically present — confirming a sound
+was heard, plugging in a cable, a 3D print, wiring a hookswitch. The loopback
+test's measurement is evidence, not proof: say where it still needs Zach's own
+ear rather than calling it verified-done on the numbers. If `ssh potato` fails
+(host key, auth, connection, missing alias) do not spend the cycle debugging it
+— note it on the issue and move on.
+
+### The acceptance bar
+
+Items marked `[needs VM test]` or needing a live human ear cannot be fully
+verified from here. Do not upgrade that marker to "done" without either a live
+confirmation from Zach, or a concrete measurement from a tool built for exactly
+that (e.g. `bin/crt-earcon-loopback-test.py`'s acoustic detection). A strong
+measurement is real evidence worth acting on, but still note on the issue where
+it stops short of his own ear.
+
+### The failure modes this project actually has
+
+When stress-testing a change, read it against these rather than declaring
+victory on the code parsing: stale or flatlined audio capture, a second reader
+starving the first, and a control-file race.

@@ -20,7 +20,7 @@ class TestGateDefaultsOff(unittest.TestCase):
     def test_gate_is_off_unless_env_set(self):
         # Importing the module with no CRT_STT_GATE in the environment must
         # not enable the gate -- the always-escalate path stays the default
-        # until a human has watched this run live (nightly-batch.md's
+        # until a human has watched this run live (CLAUDE.md's
         # acceptance-bar note).
         self.assertFalse(stt_solo.GATE)
 

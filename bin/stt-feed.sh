@@ -17,7 +17,7 @@ USE_SECRETARY="${CRT_SECRETARY:-0}"
 # STT gate (opt-in, default OFF, 2026-07-20 FOCUS.md "STT gate" item):
 # without this, every utterance that clears VAD becomes a live Claude Code
 # turn, including room chatter never addressed to the console. Not
-# hardware-verified against real room noise yet -- see nightly-batch.md's
+# hardware-verified against real room noise yet -- see CLAUDE.md's
 # acceptance-bar note. Shells out to crt-stt-solo.py's addressed_to_console()
 # (below) rather than reimplementing the wake-word/stt-fixups.json lookup a
 # second time in bash -- one place for that logic, not two that can drift.

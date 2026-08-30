@@ -12,9 +12,9 @@ memory store). Not yet mirrored onto crt-vm/dexter.
   first. This is a real escalation from `--permission-mode acceptEdits`
   (the crt-vm default) to `bypassPermissions` (already set via
   `CRT_CLAUDE_ARGS` in potato's `~/.bash_profile`, 2026-07-22).
-- **Trigger: nightly**, scheduled — same shape as the existing
-  `/nightly-batch` skill (`.claude/commands/nightly-batch.md`), not
-  event-driven or continuously running.
+- **Trigger: nightly**, scheduled — same shape as the existing nightly
+  batch job (`schedule/crt.conf` in `hf7y/scheduler`, whose procedure is
+  `schedule/_run-procedure.md`), not event-driven or continuously running.
 - **Sensitivity target: STT/audio first** (`CRT_VAD_THRESHOLD`,
   `CRT_VAD_START_CHUNKS`, `CRT_VAD_TRAIL`, `CRT_VAD_MAX/MIN`,
   `CRT_VAD_PREROLL` — see `bin/crt-stt-solo.py`'s own env-var block — plus
