@@ -1,7 +1,7 @@
 # POTATO.md — potato, the repo↔mandark relationship, and wake routing
 
 Current-topology doc for the live console. Read this alongside
-`.claude/SESSION-STATE.md` (which has the day-to-day live state);
+`gh issue list -R hf7y/crt` (which has the day-to-day live state);
 this file is the stable "how the pieces relate" reference.
 
 ## What potato is

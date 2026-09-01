@@ -45,8 +45,8 @@ nothing could reach IN to the guest before this for a new port).
      structure like crt-vm does -- `dexter-audio-server.py` and
      `dexter-whisper-server.py` are deployed the same flat way) -- keep
      that copy in sync by hand when this script changes in the repo, `scp`
-     doesn't work against dexter's OpenSSH (see HANDOFF.md), redeploy via
-     base64-over-ssh instead.
+     doesn't work against dexter's OpenSSH (see `vault:crt/HANDOFF-20260829.md`),
+     redeploy via base64-over-ssh instead.
 2. **NAT port forward on dexter** (VirtualBox), `scanner,tcp,,8993,,8993`
    -- added live via `VBoxManage controlvm crt-vm natpf1
    "scanner,tcp,,8993,,8993"` 2026-07-21, confirmed present in
@@ -210,7 +210,7 @@ the actual `CrtScannerForward` Windows Scheduled Task on `dexter` itself
 -- it kept firing at every logon for 3+ days afterward, pointed at a
 script the project had already declared dead. It was also independently
 crashing on launch (same WindowsApps-execution-alias issue documented in
-`HANDOFF.md`'s `crt-whisper-server` fix entry), which is likely why no
+`vault:crt/HANDOFF-20260829.md`'s `crt-whisper-server` fix entry), which is likely why no
 one noticed it was still running: nothing visibly happened. Deleted via
 `schtasks /delete /tn CrtScannerForward /f`, confirmed gone. The deployed
 files themselves (`dexter-scanner-forward.ps1`,

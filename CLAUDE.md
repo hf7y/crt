@@ -163,8 +163,9 @@ superseded by issue comments.
 ### What an unattended run may do on real hardware
 
 This project is a physical voice console. `potato` (a Raspberry Pi) is the live
-console as of 2026-07-23; `dexter`/`crt-vm` are legacy — `.claude/SESSION-STATE.md`'s
-2026-07-23 section has the full topology. `ssh potato` needs a `Host potato`
+console as of 2026-07-23; `dexter`/`crt-vm` are legacy — `HANDOFF.md`'s "Current
+topology" section has the summary, `vault:crt/.claude/SESSION-STATE-20260829.md`
+the full history. `ssh potato` needs a `Host potato`
 alias, present on mandark and confirmed ABSENT on monkey as of 2026-08-29, so it
 is box-specific: check `ssh -o BatchMode=yes potato true` before relying on it.
 

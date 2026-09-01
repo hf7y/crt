@@ -43,8 +43,8 @@ replacement for the whole stt-feed + dsnoop-meter stack.
 
 **Verified live 2026-07-19/20** (real handset session on crt-vm) and, as of
 2026-07-20, promoted into `bin/crt-console.sh` itself as the actual boot
-default (see that file's own comments, and `HANDOFF.md`'s "what's running"
-section) — `bin/crt-console-solo.sh` is no longer the only way to get this,
+default (see that file's own comments, and `vault:crt/HANDOFF-20260829.md`'s
+"what's running" section) — `bin/crt-console-solo.sh` is no longer the only way to get this,
 it's just a thinner standalone variant of the same idea. `stt-feed.sh` +
 `crt-levels.sh` still exist (used by `CRT_SECRETARY`/stdout debug modes) but
 are no longer what boots by default.

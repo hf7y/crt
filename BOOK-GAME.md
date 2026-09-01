@@ -161,8 +161,9 @@ register), runnable directly on `crt-vm` against the real scanner/mic —
 **before** wiring it into the tmux console layout (`crt-console.sh`)
 or the secretary playbook dispatcher (`crt-secretary.py`). This matches
 how `crt-stt-speakback.sh` and `crt-secretary.py` were both built and
-proven standalone before `HANDOFF.md`'s "current running" layout absorbed
-them. Only after it works stand-alone does wiring it in as a tmux
+proven standalone before the tmux console layout of that era (see
+`vault:crt/HANDOFF-20260829.md`) absorbed them. Only after it works
+stand-alone does wiring it in as a tmux
 window/mode or a secretary playbook ("hey claude, book game") become the
 right next step — don't build the integration and the game logic at the
 same time.
@@ -317,7 +318,7 @@ then-print pattern `crt-print.sh` already uses for reports.
   class as the MIDI controller, just a quieter symptom.
   </details>
 - **USB passthrough risk (MIDI controller, unconfirmed for anything
-  else):** `HANDOFF.md`'s MIDI section documents `VBoxManage usbattach`
+  else):** `vault:crt/HANDOFF-20260829.md`'s MIDI section documents `VBoxManage usbattach`
   failing ("busy with a previous request") for the Arturia MiniLab,
   root-caused to a stuck VBoxSVC host-proxy state, not yet cleared. Fix
   is a VBoxSVC restart on dexter (needs a human's direct OK, live VM
