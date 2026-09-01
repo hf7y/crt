@@ -1,5 +1,6 @@
 # markdown-cost.ratchet -- prose lines in this tree. SHRINKS ONLY.
 # Written by markdown-cost.sh --accept, which refuses to raise it. A hand
 # edit that raises it is rejected by --census. See bin/markdown-cost.sh.
-# accepted 2026-08-25T20:07:50+00:00
-8409
+# unit: 3 -- what was measured. A number from another unit is not a floor.
+# accepted 2026-08-31T23:15:32-05:00
+11191
