@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""crt-book-blurb.py -- scan a book, get one line about it (crt#122)."""
 import hashlib
 import importlib.util
 import json
