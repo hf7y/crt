@@ -18,11 +18,7 @@ TTL_H = int(os.environ.get("ZAXON_QUESTION_TTL_SECS", "3600")) / 3600
 WINDOW_H = 24
 
 
-def _epoch(ts):
-    # timegm reads the struct as UTC directly -- mktime()-time.timezone was
-    # tried here before and is wrong half the year: time.timezone is the
-    # STANDARD-time offset only, so it under/over-corrects by an hour
-    # whenever the host's local zone is actually in DST (crt#126).
+def _epoch(ts):  # timegm, not mktime()-time.timezone: that pair is DST-wrong half the year (crt#126)
     return calendar.timegm(time.strptime(ts, "%Y-%m-%dT%H:%M:%SZ"))
 
 
