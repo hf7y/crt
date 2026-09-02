@@ -171,7 +171,7 @@ grant push while wiring the URL.
    fix; see how the current bogus one survived months).
 4. ~~Move `crt-whisper-server` to dexter~~ -- half done: whisper is a
    container on `127.0.0.1:8090`, potato was never repointed, and it has
-   transcribed nothing since 2026-08-01 (#132; the guard is #133).
+   transcribed nothing since (#132 dates the silence; the guard is #133).
 5. Settle §2's bridge decision; install, or delete, accordingly.
 6. Retire the mandark units that are now duplicated — **actually remove
    them**, don't leave them installed-but-inactive, which is exactly the
