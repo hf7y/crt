@@ -6,6 +6,7 @@ ladder is pinned by tests/test_zaxon_status_collect.py, and stale_slot_hours
 by its SlotCost cases -- a single slot (crt#67) means an ignored question
 holds the channel for its full TTL, so a miss is a cost to every other caller.
 """
+import calendar
 import json
 import os
 import sqlite3
@@ -17,8 +18,8 @@ TTL_H = int(os.environ.get("ZAXON_QUESTION_TTL_SECS", "3600")) / 3600
 WINDOW_H = 24
 
 
-def _epoch(ts):
-    return time.mktime(time.strptime(ts, "%Y-%m-%dT%H:%M:%SZ")) - time.timezone
+def _epoch(ts):  # timegm, not mktime()-time.timezone: that pair is DST-wrong half the year (crt#126)
+    return calendar.timegm(time.strptime(ts, "%Y-%m-%dT%H:%M:%SZ"))
 
 
 def collect():
