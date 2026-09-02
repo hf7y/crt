@@ -20,7 +20,7 @@ no longer holds.
 | What | State | Notes |
 |---|---|---|
 | `/home/zach/git-remotes/crt.git` (bare) | 16M | the `origin` every clone pushes to |
-| `crt-whisper-server.service` | **ACTIVE**, listening `0.0.0.0:8991` | LAN STT server; `ufw` port opened. The one genuinely always-on dependency living on a laptop. |
+| `crt-whisper-server.service` | **GONE** since 2026-08-02 | was the LAN STT server on `0.0.0.0:8991`. Unit, `ufw` hole and its 725M of build tree and venv are all removed; senechal grades both rows retired. |
 | `crt-remote-claude-bridge.service` | installed, inactive | port 8993 |
 | `crt-potato-tunnel.service` | installed, inactive | `ssh -N -R` out to potato |
 | crt crontab entries | none | `crontab -l` has no crt lines |
@@ -169,9 +169,9 @@ grant push while wiring the URL.
 3. Repoint potato's `origin` to the dexter URL; verify `git fetch` **from
    potato** (this is the whole point — a URL that is merely typed is not a
    fix; see how the current bogus one survived months).
-4. Move `crt-whisper-server` to dexter (unit + `ufw` port); repoint whatever
-   points at `mandark:8991`; confirm STT actually transcribes on potato,
-   not merely that the port answers.
+4. ~~Move `crt-whisper-server` to dexter~~ -- half done: whisper is a
+   container on `127.0.0.1:8090`, potato was never repointed, and it has
+   transcribed nothing since 2026-08-01 (#132; the guard is #133).
 5. Settle §2's bridge decision; install, or delete, accordingly.
 6. Retire the mandark units that are now duplicated — **actually remove
    them**, don't leave them installed-but-inactive, which is exactly the

@@ -26,11 +26,11 @@ export CRT_EARCON_DEVICE="${CRT_EARCON_DEVICE:-tv}"
 export CRT_AUDIO_DEV="${CRT_AUDIO_DEV:-plughw:1,0}"
 
 # Transcription. Host is deliberately spelled out here and nowhere else,
-# because "which machine holds the ears" is a thing that moves (mandark
-# 192.168.0.27 -> dexter 192.168.0.22, in progress as of 2026-07-29 --
-# see DEXTER-MOVE.md). Empty = transcribe on-device, which a Pi 3B+ can
-# do but slowly.
-export CRT_WHISPER_SERVER="${CRT_WHISPER_SERVER:-http://192.168.0.27:8991/transcribe}"
+# because "which machine holds the ears" is a thing that moves. It moved:
+# mandark's 192.168.0.27:8991 has answered nothing since 2026-08-02, and
+# dexter's replacement takes no audio from off the host (#133). So the
+# default is empty: transcribe on-device, which a Pi 3B+ can do but slowly.
+export CRT_WHISPER_SERVER="${CRT_WHISPER_SERVER:-}"
 
 # Wake-arm judging (see WAKE-TUNING-STATE.md). Opt-in; default off.
 export CRT_WAKE_ARM_ENABLED="${CRT_WAKE_ARM_ENABLED:-1}"
