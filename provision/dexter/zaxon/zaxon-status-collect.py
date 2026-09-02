@@ -6,6 +6,7 @@ ladder is pinned by tests/test_zaxon_status_collect.py, and stale_slot_hours
 by its SlotCost cases -- a single slot (crt#67) means an ignored question
 holds the channel for its full TTL, so a miss is a cost to every other caller.
 """
+import calendar
 import json
 import os
 import sqlite3
@@ -18,7 +19,11 @@ WINDOW_H = 24
 
 
 def _epoch(ts):
-    return time.mktime(time.strptime(ts, "%Y-%m-%dT%H:%M:%SZ")) - time.timezone
+    # timegm reads the struct as UTC directly -- mktime()-time.timezone was
+    # tried here before and is wrong half the year: time.timezone is the
+    # STANDARD-time offset only, so it under/over-corrects by an hour
+    # whenever the host's local zone is actually in DST (crt#126).
+    return calendar.timegm(time.strptime(ts, "%Y-%m-%dT%H:%M:%SZ"))
 
 
 def collect():
