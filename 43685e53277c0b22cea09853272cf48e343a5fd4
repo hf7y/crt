@@ -1,0 +1,18 @@
+CORRECTION (2026-09-03): this message describes work that is NOT in this tree.
+
+The commit rode into main via the fork reconciliation in hf7y/crt#139, whose
+CONTENT deliberately dropped the whisper-server consolidation while this
+MESSAGE survived intact. Verified absent from main:
+
+  bin/crt-whisper-server.py
+  bin/setup-dexter-whisper-persistence.sh
+  tests/test_whisper_server.py
+
+bin/mandark-whisper-server.py is NOT the compat shim described below; it is
+still the original server. And this message calls mandark's
+crt-whisper-server.service "the console's only working STT path today" --
+on mandark that unit reads not-found, and crt's own console.conf records it
+retired 2026-08-02.
+
+The tree is correct; this message is not. Read the tree.
+Guard for this failure class: hf7y/etalon#31
