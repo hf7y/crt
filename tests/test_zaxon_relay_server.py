@@ -197,6 +197,35 @@ class TestFetchInbox(unittest.TestCase):
             inbox.record_unclassified(f"m{i}", None)
         self.assertEqual(len(server.fetch_inbox(limit=1)["entries"]), 1)
 
+    def test_for_agent_hides_a_note_addressed_elsewhere(self):
+        inbox.record_unclassified("bring the charger", None, "text", for_agent="realisateur")
+        self.assertEqual(server.fetch_inbox(for_agent="crt")["entries"], [])
+
+    def test_for_agent_still_shows_untagged_notes(self):
+        inbox.record_unclassified("water the plants", None, "text")
+        entries = server.fetch_inbox(for_agent="crt")["entries"]
+        self.assertEqual(len(entries), 1)
+
+
+class TestClaimInboxEntry(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmpdir.name) / "tickets.db"
+        self.entry_id = inbox.record_unclassified("water the plants", None, "text")
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def test_the_first_claim_reports_true(self):
+        self.assertEqual(server.claim_inbox_entry(self.entry_id, "crt"), {"claimed": True})
+
+    def test_a_second_claim_reports_false_and_the_note_disappears(self):
+        server.claim_inbox_entry(self.entry_id, "crt")
+        self.assertEqual(
+            server.claim_inbox_entry(self.entry_id, "realisateur"), {"claimed": False}
+        )
+        self.assertEqual(server.fetch_inbox(for_agent="realisateur")["entries"], [])
+
 
 class TestSendZach(unittest.TestCase):
     def setUp(self):
