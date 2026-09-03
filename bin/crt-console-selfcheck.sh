@@ -99,9 +99,13 @@ mkdir -p "$(dirname "$STATE")" 2>/dev/null
 printf '%s\n' "$state" > "$STATE"
 [ "$state" = "$was" ] && exit 0
 
+# send_zach REFUSES over 140 chars, tag included (crt#83): an alarm the relay
+# drops is the silence this file exists to break. So the clamp is here.
+say() { printf '%s' "$1" | cut -c1-85; }
+
 if [ "$state" = RED ]; then
-  send_zach "The CRT console cannot transcribe: $why" \
+  send_zach "console cannot transcribe: $(say "$why")" \
     || printf 'crt-console-selfcheck: RED and could not say so\n' >&2
 else
-  send_zach "The CRT console is transcribing again: $why"
+  send_zach "console transcribing again: $(say "$why")"
 fi

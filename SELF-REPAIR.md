@@ -39,9 +39,8 @@ crt-vm guest as the console. Mirrored nowhere else.
   crash/timeout mid-run still leaves a clean revertible history. Logs to
   `~/reports/crt-self-repair/<date>.log` on potato itself (not yet synced
   anywhere off-box — see below).
-- `systemd/crt-self-repair.timer`/`.service` — nightly, potato-only unit.
-  Not installed by `install.sh` (that script is shared with crt-vm, which
-  does NOT get this treatment yet) — install by hand on potato:
+- `systemd/crt-self-repair.timer`/`.service` — nightly, potato-only unit,
+  deliberately not installed by the shared `install.sh`. By hand on potato:
   `sudo cp systemd/crt-self-repair.{service,timer} /etc/systemd/system/ &&
   sudo systemctl enable --now crt-self-repair.timer`.
 
