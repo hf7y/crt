@@ -9,8 +9,10 @@
 import importlib.util
 import json
 import os
+import stat
 import tempfile
 import unittest
+from unittest import mock
 
 BIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin")
 spec = importlib.util.spec_from_file_location("crt_stt_solo_helpers", os.path.join(BIN_DIR, "crt-stt-solo.py"))
@@ -377,6 +379,104 @@ class UttChunkTest(unittest.TestCase):
             kept += 1 if keep else 0
         self.assertEqual(kept, 10)
         self.assertFalse(ended)
+
+
+class LocalWhisperAvailableTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _make(self, executable):
+        bin_path = os.path.join(self._tmp.name, "whisper-cli")
+        with open(bin_path, "w") as f:
+            f.write("#!/bin/sh\n")
+        if executable:
+            os.chmod(bin_path, os.stat(bin_path).st_mode | stat.S_IEXEC)
+        model_path = os.path.join(self._tmp.name, "model.bin")
+        with open(model_path, "w") as f:
+            f.write("x")
+        return bin_path, model_path
+
+    def test_true_when_both_exist_and_binary_is_executable(self):
+        wbin, model = self._make(executable=True)
+        with mock.patch.object(stt_solo, "WBIN", wbin), \
+             mock.patch.object(stt_solo, "MODEL", model):
+            self.assertTrue(stt_solo.local_whisper_available())
+
+    def test_false_when_binary_is_not_executable(self):
+        wbin, model = self._make(executable=False)
+        with mock.patch.object(stt_solo, "WBIN", wbin), \
+             mock.patch.object(stt_solo, "MODEL", model):
+            self.assertFalse(stt_solo.local_whisper_available())
+
+    def test_false_when_model_is_missing(self):
+        wbin, model = self._make(executable=True)
+        os.unlink(model)
+        with mock.patch.object(stt_solo, "WBIN", wbin), \
+             mock.patch.object(stt_solo, "MODEL", model):
+            self.assertFalse(stt_solo.local_whisper_available())
+
+
+class TranscribeFallbackTest(unittest.TestCase):  # crt#132
+    def setUp(self):
+        self._patches = [
+            mock.patch.object(stt_solo, "NORM", False),
+            mock.patch.object(stt_solo, "NR_PROF", ""),
+            mock.patch.object(stt_solo, "HP", "0"),
+        ]
+        for p in self._patches:
+            p.start()
+        self.addCleanup(lambda: [p.stop() for p in self._patches])
+        self._frames = b"\x00\x00" * 1600
+
+    def test_remote_success_never_touches_local(self):
+        with mock.patch.object(stt_solo, "WHISPER_SERVER", "http://fake/transcribe"), \
+             mock.patch.object(stt_solo, "transcribe_remote", return_value="hello"), \
+             mock.patch.object(stt_solo, "transcribe_local") as local:
+            self.assertEqual(stt_solo.transcribe(self._frames), "hello")
+            local.assert_not_called()
+
+    def test_remote_failure_falls_back_to_local_when_available(self):
+        with mock.patch.object(stt_solo, "WHISPER_SERVER", "http://fake/transcribe"), \
+             mock.patch.object(stt_solo, "WHISPER_LOCAL_FALLBACK", True), \
+             mock.patch.object(stt_solo, "transcribe_remote", return_value=None), \
+             mock.patch.object(stt_solo, "local_whisper_available", return_value=True), \
+             mock.patch.object(stt_solo, "transcribe_local", return_value="fallback text"):
+            self.assertEqual(stt_solo.transcribe(self._frames), "fallback text")
+
+    def test_remote_failure_stays_none_when_no_local_build(self):
+        with mock.patch.object(stt_solo, "WHISPER_SERVER", "http://fake/transcribe"), \
+             mock.patch.object(stt_solo, "WHISPER_LOCAL_FALLBACK", True), \
+             mock.patch.object(stt_solo, "transcribe_remote", return_value=None), \
+             mock.patch.object(stt_solo, "local_whisper_available", return_value=False), \
+             mock.patch.object(stt_solo, "transcribe_local") as local:
+            self.assertIsNone(stt_solo.transcribe(self._frames))
+            local.assert_not_called()
+
+    def test_fallback_disabled_stays_none_even_with_a_local_build(self):
+        with mock.patch.object(stt_solo, "WHISPER_SERVER", "http://fake/transcribe"), \
+             mock.patch.object(stt_solo, "WHISPER_LOCAL_FALLBACK", False), \
+             mock.patch.object(stt_solo, "transcribe_remote", return_value=None), \
+             mock.patch.object(stt_solo, "local_whisper_available", return_value=True), \
+             mock.patch.object(stt_solo, "transcribe_local") as local:
+            self.assertIsNone(stt_solo.transcribe(self._frames))
+            local.assert_not_called()
+
+    def test_remote_heard_silence_is_not_treated_as_failure(self):
+        # "" means the recogniser ran and heard nothing -- not a server outage.
+        with mock.patch.object(stt_solo, "WHISPER_SERVER", "http://fake/transcribe"), \
+             mock.patch.object(stt_solo, "transcribe_remote", return_value=""), \
+             mock.patch.object(stt_solo, "transcribe_local") as local:
+            self.assertEqual(stt_solo.transcribe(self._frames), "")
+            local.assert_not_called()
+
+    def test_no_server_configured_goes_straight_to_local(self):
+        with mock.patch.object(stt_solo, "WHISPER_SERVER", ""), \
+             mock.patch.object(stt_solo, "transcribe_local", return_value="local text") as local:
+            self.assertEqual(stt_solo.transcribe(self._frames), "local text")
+            local.assert_called_once()
 
 
 if __name__ == "__main__":
