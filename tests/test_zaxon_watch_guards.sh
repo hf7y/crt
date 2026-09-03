@@ -80,7 +80,6 @@ grep -qE '^\s*-\s*"?0\.0\.0\.0:' "$CMP" \
   && bad "compose binds 0.0.0.0 -- the MCP port has no auth, only a bind" \
   || ok "compose binds named addresses, never 0.0.0.0"
 
-# #133: the estate's other hosts may post audio, the house LAN may not.
 grep -qE '^\s*-\s*"100\.107\.253\.56:8090:8090"' "$CMP" \
   && ok "whisper answers the tailnet" || bad "8090 has no tailnet twin (#133)"
 grep -qE '^\s*-\s*"127\.0\.0\.1:8090:8090"' "$CMP" \
