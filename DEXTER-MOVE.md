@@ -169,9 +169,8 @@ grant push while wiring the URL.
 3. Repoint potato's `origin` to the dexter URL; verify `git fetch` **from
    potato** (this is the whole point — a URL that is merely typed is not a
    fix; see how the current bogus one survived months).
-4. ~~Move `crt-whisper-server` to dexter~~ -- half done: whisper answers the
-   tailnet as of 2026-09-02 (#133), but potato is not on it (#8) and has
-   transcribed nothing since (#132 dates the silence).
+4. ~~Move `crt-whisper-server` to dexter~~ -- half done: the container answers
+   the tailnet now (#133), potato is not on it (#8) and stays mute (#132).
 5. Settle §2's bridge decision; install, or delete, accordingly.
 6. Retire the mandark units that are now duplicated — **actually remove
    them**, don't leave them installed-but-inactive, which is exactly the
