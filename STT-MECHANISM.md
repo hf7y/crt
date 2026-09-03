@@ -89,8 +89,8 @@ reason about *why* a given transcription got garbled the way it did.
    not just a quiet room. Now: `! stt lost it` flashes on the tube every time
    it happens, and the pane carries a `TRANSCRIPTION FAILED` line on the
    first failure of a run and every tenth after it, plus one when it
-   recovers. As of crt#132: a failed call falls back to the local `whisper.cpp`
-   build on this box, if one is present (`CRT_WHISPER_LOCAL_FALLBACK=0` disables it).
+   recovers. A failed call falls back to the local `whisper.cpp` build on this
+   box, if one is present (`CRT_WHISPER_LOCAL_FALLBACK=0` disables it; crt#132).
 5. **Filtering before it reaches you**: a hardcoded set of whisper's known
    noise-hallucination outputs get dropped entirely (`HALLU` in
    `crt-stt-solo.py` — things like "thank you", "music playing"), as does
