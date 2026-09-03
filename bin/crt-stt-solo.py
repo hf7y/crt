@@ -570,6 +570,11 @@ def ring_unplayable_report(detail):
 #   [rest: vault:crt/header-archaeology-20260817.md]
 WHISPER_SERVER = os.environ.get("CRT_WHISPER_SERVER", "")   # e.g. http://192.168.0.22:8991/transcribe
 WHISPER_SERVER_TIMEOUT = float(os.environ.get("CRT_WHISPER_SERVER_TIMEOUT", "8"))
+# crt#132: a dead WHISPER_SERVER used to mean every utterance died silently.
+# Default on -- fall back to the local whisper-cli build (same WBIN/MODEL used
+# when no server is configured at all) rather than reporting loss when a
+# local build is actually sitting right there.
+WHISPER_LOCAL_FALLBACK = os.environ.get("CRT_WHISPER_LOCAL_FALLBACK", "1") != "0"
 
 CHUNK_DUR = CHUNK / RATE
 THR_COL   = max(0, min(WIDTH - 1, int(THRESH / MFULL * WIDTH)))
@@ -1227,6 +1232,31 @@ def transcribe_remote(wav_path):
         return None
 
 
+def local_whisper_available():
+    """Whether WBIN/MODEL point at files that actually exist -- cheap enough
+    to call on every fallback rather than caching, and it must be live
+    (not decided once at import) since crt-nightly-batch tests both branches
+    against tempfile paths."""
+    return os.access(WBIN, os.X_OK) and os.path.isfile(MODEL)
+
+
+def transcribe_local(feed):
+    """Run the local whisper-cli build on `feed`. Same None/""/text contract
+    as transcribe_remote(): None only when the recognition step itself
+    failed, never for a merely-quiet clip."""
+    try:
+        run = subprocess.run([WBIN, "-m", MODEL, "-f", feed, "-nt", "-np"],
+                             capture_output=True, text=True)
+        # A whisper-cli that exits nonzero produced no transcription; its
+        # empty stdout is not a silent room either (missing model file, bad
+        # WAV, OOM on the Pi). Same reason the remote branch returns None.
+        if run.returncode != 0:
+            return None
+        return " ".join(run.stdout.split())
+    except Exception:
+        return None
+
+
 def transcribe(frames):
     """Return the transcription of these frames, "" if the recogniser ran and
     heard nothing, or None if the recognition step itself failed (see
@@ -1253,15 +1283,14 @@ def transcribe(frames):
                               stderr=subprocess.DEVNULL).returncode == 0:
                 feed = norm
         if WHISPER_SERVER:
-            return transcribe_remote(feed)
-        run = subprocess.run([WBIN, "-m", MODEL, "-f", feed, "-nt", "-np"],
-                             capture_output=True, text=True)
-        # A whisper-cli that exits nonzero produced no transcription; its
-        # empty stdout is not a silent room either (missing model file, bad
-        # WAV, OOM on the Pi). Same reason the remote branch returns None.
-        if run.returncode != 0:
-            return None
-        return " ".join(run.stdout.split())
+            text = transcribe_remote(feed)
+            # crt#132: the server going dark used to be indistinguishable
+            # from a month of silence. If a local build is actually sitting
+            # on this box, use it rather than losing the utterance.
+            if text is None and WHISPER_LOCAL_FALLBACK and local_whisper_available():
+                return transcribe_local(feed)
+            return text
+        return transcribe_local(feed)
     except Exception:
         return None
     finally:
