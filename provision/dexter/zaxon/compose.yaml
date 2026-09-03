@@ -16,8 +16,9 @@ services:
       - "127.0.0.1:8643:8643"
       - "100.107.253.56:8643:8643"
       # whisper's: a `network_mode: service:` container may not publish its own.
-      # Loopback only, no tailnet twin -- nothing off-host may post audio.
+      # Tailnet twin, Zach's call (#133) -- named addresses, as for 8643.
       - "127.0.0.1:8090:8090"
+      - "100.107.253.56:8090:8090"
     environment:
       # NOT in data/.env, which .deploykeep shields from every deploy -- which is
       # why the repo's whisper_stt.sh never ran. But .env is loaded with
