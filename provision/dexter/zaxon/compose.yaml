@@ -16,7 +16,7 @@ services:
       - "127.0.0.1:8643:8643"
       - "100.107.253.56:8643:8643"
       # whisper's: a `network_mode: service:` container may not publish its own.
-      # Tailnet twin, Zach 2026-09-02 (#133) -- named addresses, as for 8643.
+      # Tailnet twin, Zach's call (#133) -- named addresses, as for 8643.
       - "127.0.0.1:8090:8090"
       - "100.107.253.56:8090:8090"
     environment:
