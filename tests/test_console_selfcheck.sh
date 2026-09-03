@@ -27,7 +27,8 @@ class H(BaseHTTPRequestHandler):
             self.end_headers(); self.wfile.write(b'{"jsonrpc":"2.0","id":1,"result":{}}')
             return
         open(LOG, "a").write("posted\n")
-        payload = {"text": ""} if MODE == "good" else {"oops": "Invalid request"}
+        payload = ({"text": ""} if MODE == "good" else
+                   {"oops": "Invalid request " + "x" * 300})
         data = json.dumps(payload).encode()
         self.send_response(200)
         self.send_header("Content-Length", str(len(data)))
@@ -76,7 +77,24 @@ n="$(wc -l < "$D/door.log" 2>/dev/null || echo 0)"
   || bad "three RED ticks sent $n messages"
 grep -q "cannot transcribe" "$D/door.log" \
   && ok "the message says what happened" || bad "message does not name the fault"
+longest="$(python3 -c 'import json,sys
+print(max(len(json.loads(l)["message"]) for l in open(sys.argv[1])))' "$D/door.log")"
+[ "$longest" -le 130 ] \
+  && ok "the message fits what send_zach accepts ($longest chars)" \
+  || bad "message is $longest chars; send_zach refuses over 140 including its tag"
 
+rm -f "$D/state" "$D/door.log"
+WPID3="$(serve 8798 bad "$D/whisper4.log" | head -1)"
+"$SELF" --server "http://127.0.0.1:8798/inference" >/dev/null 2>&1
+kill "$WPID3" 2>/dev/null
+longest="$(python3 -c 'import json,sys
+print(max(len(json.loads(l)["message"]) for l in open(sys.argv[1])))' "$D/door.log")"
+[ "$longest" -le 130 ] \
+  && ok "a 300-char refusal still fits the relay ($longest chars)" \
+  || bad "a long reason produced $longest chars; the relay refuses over 140"
+
+rm -f "$D/state" "$D/door.log"
+"$SELF" --server "http://127.0.0.1:1/inference" >/dev/null 2>&1
 WPID2="$(serve 8797 good "$D/whisper3.log" | head -1)"
 "$SELF" --server "http://127.0.0.1:8797/inference" >/dev/null 2>&1
 kill "$WPID2" 2>/dev/null

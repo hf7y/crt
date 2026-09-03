@@ -48,8 +48,7 @@ this file is the stable "how the pieces relate" reference.
 | `~/crt` | potato | The live deploy target, on `main`, fetching from GitHub, pull-only and holding no credential (crt#16). |
 | `~/potato-crt` | mandark | An **sshfs mount of potato's `~/crt`** (`sshfs potato:/home/vkv/crt`). How Claude-on-mandark reads/writes potato's *real* files over SFTP. NOT this repo. |
 
-dexter's `~/crt-repo` used to be a fourth, holding the brain. It is gone, and
-so is the forced command that ran out of it -- crt#140.
+dexter's `~/crt-repo` held the brain and is gone, along with the forced command that ran out of it (crt#140).
 
 ## Where the brain runs (wake routing)
 
@@ -111,7 +110,7 @@ NONE = woken but no brain → short honest earcon/line, never silence.
 | `bin/crt-brain-session.sh ensure\|status\|restart` | run on dexter | Asserts the `potato-claude` tmux session is alive. `status` is the honest health check — it refuses to call a trust-prompt-parked Claude "UP". |
 | `bin/crt-wake-router.py [--json]` | potato | Prints the brain decision (`remote`/`local`/`none`). Pure + testable. `--json` now carries `brain_mode`/`brain_target`. |
 | `CRT_NO_IDLE_CLAUDE=1` | env for `crt-console.sh` | Window 0 becomes the screensaver instead of a resident Claude. Default off = historical always-resident layout (nothing regresses). |
-| `bin/crt-mandark.sh on\|off\|status` | potato | **RETIRED** along with the bridge — kept only until the section-2 deletion sweep runs. Do not wire anything new to it. |
+| `bin/crt-mandark.sh on\|off\|status` | potato | **RETIRED** with the bridge (crt#15). Wire nothing new to it. |
 
 ## Remaining live wiring (needs potato hardware, not yet built)
 
