@@ -419,10 +419,7 @@ class LocalWhisperAvailableTest(unittest.TestCase):
             self.assertFalse(stt_solo.local_whisper_available())
 
 
-class TranscribeFallbackTest(unittest.TestCase):
-    # crt#132: a dead WHISPER_SERVER used to lose every utterance silently.
-    # These exercise transcribe()'s branch logic directly -- NORM/NR_PROF
-    # forced off so no sox subprocess runs, only the fallback decision.
+class TranscribeFallbackTest(unittest.TestCase):  # crt#132
     def setUp(self):
         self._patches = [
             mock.patch.object(stt_solo, "NORM", False),
