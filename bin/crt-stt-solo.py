@@ -1314,9 +1314,21 @@ def transcribe_remote(wav_path):
     import json
     try:
         with open(wav_path, "rb") as f:
-            data = f.read()
-        req = urllib.request.Request(WHISPER_SERVER, data=data,
-                                      headers={"Content-Type": "audio/wav"})
+            wav = f.read()
+        # A FORM, not a raw body: whisper.cpp answers "Invalid request" to the
+        # shape mandark's dead service took. Measured against the container.
+        edge = "----crt-stt-%d" % os.getpid()
+        data = b""
+        for name, value in (("response_format", "json"), ("language", "en")):
+            data += ('--%s\r\nContent-Disposition: form-data; name="%s"\r\n\r\n%s\r\n'
+                     % (edge, name, value)).encode()
+        data += ('--%s\r\nContent-Disposition: form-data; name="file"; '
+                 'filename="utterance.wav"\r\nContent-Type: audio/wav\r\n\r\n'
+                 % edge).encode() + wav + b"\r\n"
+        data += ("--%s--\r\n" % edge).encode()
+        req = urllib.request.Request(
+            WHISPER_SERVER, data=data,
+            headers={"Content-Type": "multipart/form-data; boundary=%s" % edge})
         with urllib.request.urlopen(req, timeout=WHISPER_SERVER_TIMEOUT) as resp:
             result = json.loads(resp.read().decode("utf-8"))
         if not isinstance(result, dict) or "text" not in result:
