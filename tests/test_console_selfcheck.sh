@@ -67,6 +67,19 @@ case "$out" in RED*) ok "an answer carrying no transcription is RED" ;;
 printf '%s' "$out" | grep -q "Invalid request" \
   && ok "names what the server said instead" || bad "did not quote the refusal" "$out"
 
+rm -f "$D/state" "$D/door.log"
+WPID4="$(serve 8799 good "$D/whisper5.log" | head -1)"
+"$SELF" --server "http://127.0.0.1:8799/inference" >/dev/null 2>&1
+kill "$WPID4" 2>/dev/null
+[ ! -s "$D/door.log" ] && ok "a healthy first tick says nothing" \
+  || bad "the first tick announced itself: $(cat "$D/door.log")"
+[ "$(cat "$D/state")" = GREEN ] && ok "and still records the state" || bad "state not written"
+
+rm -f "$D/state" "$D/door.log"
+"$SELF" --server "http://127.0.0.1:1/inference" >/dev/null 2>&1
+[ -s "$D/door.log" ] && ok "a first tick that is already RED does speak" \
+  || bad "installed onto a broken console and said nothing"
+
 # --- the one that matters: it says it ONCE ---
 rm -f "$D/state" "$D/door.log"
 "$SELF" --server "http://127.0.0.1:1/inference" >/dev/null 2>&1
