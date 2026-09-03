@@ -68,9 +68,8 @@ captures silence, check these in order:
 
 ## Hookswitch (physical on/off)
 
-The mechanical hookswitch is **not wired to any analog phone line** — this
-is a VM console, not a real PBX — so it doesn't need a relay. It's a plain
-logic-level contact: wire the microswitch (mounted via
+The mechanical hookswitch is **not wired to any analog phone line** — no PBX,
+so no relay. It's a plain logic-level contact: wire the microswitch (via
 `cad/switch_mount.scad`) to a cheap USB arcade-button/keyboard-encoder
 board, configured to emit one key while the switch is closed (handset
 resting on the hook).

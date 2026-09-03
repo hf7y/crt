@@ -98,6 +98,8 @@ was="UNKNOWN"
 mkdir -p "$(dirname "$STATE")" 2>/dev/null
 printf '%s\n' "$state" > "$STATE"
 [ "$state" = "$was" ] && exit 0
+# A first tick has nothing to have changed FROM: being installed is not news.
+[ "$was" = UNKNOWN ] && [ "$state" = GREEN ] && exit 0
 
 # send_zach REFUSES over 140 chars, tag included (crt#83): an alarm the relay
 # drops is the silence this file exists to break. So the clamp is here.
