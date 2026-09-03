@@ -103,9 +103,8 @@ class TranscribeRemoteTest(unittest.TestCase):
                          "potato this is zach")
 
     def test_the_request_is_the_form_the_container_wants(self):
-        # A raw body was mandark's shape and whisper.cpp answers "Invalid
-        # request" to it -- a refusal this function cannot tell from any
-        # other HTTP error, so the shape is asserted here instead.
+        # whisper.cpp refuses the raw body mandark took, and that refusal
+        # is indistinguishable from any other HTTP error once it is None.
         server = FakeWhisperServer(("json", {"text": "ok"}))
         stt.WHISPER_SERVER = server.url
         try:

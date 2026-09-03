@@ -1197,12 +1197,8 @@ def transcribe_remote(wav_path):
     Until 2026-07-25 this returned "" for both, which made an unreachable
     server indistinguishable from a silent room -- the console just stopped
     responding, with no line anywhere saying why (FOCUS.md 2026-07-23 00:40).
-    Same sentinel convention as crt-secretary.py's capture_pane(): failure
-    gets its own value so no caller can reason confidently from it.
-
-    A FORM, NOT A RAW BODY. mandark's faster-whisper service took the WAV as
-    the request body and is gone; whisper.cpp's server answers "Invalid
-    request" to that and wants multipart. Measured against the container.
+    A FORM, not a raw body: whisper.cpp answers "Invalid request" to the
+    shape mandark's dead service took. Measured against the container.
 
     Still never blocks or raises: a flaky network call must not take the
     capture loop down with it, only stop lying about what happened."""

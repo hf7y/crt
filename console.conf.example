@@ -27,10 +27,9 @@ export CRT_AUDIO_DEV="${CRT_AUDIO_DEV:-plughw:1,0}"
 
 # Transcription. Host is deliberately spelled out here and nowhere else,
 # because "which machine holds the ears" is a thing that moves. It moved:
-# dexter's whisper container answers the tailnet now (#133), and that is the
-# fast path: 11s of audio in 0.87s, against 14.7s on a Pi 3B+'s own tiny.en.
-# Empty transcribes on-device instead -- slow, and what an unreachable
-# server falls back to anyway (#132).
+# dexter's whisper container answers the tailnet now (#133): 11s of audio in
+# 0.87s, against 14.7s on a Pi 3B+'s own tiny.en. Empty transcribes
+# on-device instead -- slow, and where an unreachable server lands anyway.
 export CRT_WHISPER_SERVER="${CRT_WHISPER_SERVER:-http://100.107.253.56:8090/inference}"
 
 # Wake-arm judging (see WAKE-TUNING-STATE.md). Opt-in; default off.
