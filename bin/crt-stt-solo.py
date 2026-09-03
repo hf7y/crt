@@ -568,7 +568,7 @@ def ring_unplayable_report(detail):
 # pipeline either way -- only the inference step moves. Live shape as of
 # 2026-07-25: potato POSTs to bin/mandark-whisper-server.py on mandark, wired
 #   [rest: vault:crt/header-archaeology-20260817.md]
-WHISPER_SERVER = os.environ.get("CRT_WHISPER_SERVER", "")   # e.g. http://192.168.0.22:8991/transcribe
+WHISPER_SERVER = os.environ.get("CRT_WHISPER_SERVER", "")   # e.g. http://100.107.253.56:8090/inference
 WHISPER_SERVER_TIMEOUT = float(os.environ.get("CRT_WHISPER_SERVER_TIMEOUT", "8"))
 WHISPER_LOCAL_FALLBACK = os.environ.get("CRT_WHISPER_LOCAL_FALLBACK", "1") != "0"  # crt#132
 
@@ -1189,25 +1189,34 @@ def apply_ctl_line(line, now=None):
 
 
 def transcribe_remote(wav_path):
-    """POST the WAV to mandark's faster-whisper service and return its text.
+    """POST the WAV to the whisper server and return its text.
 
     Returns None when we could not get an answer out of the server at all
     (unreachable, timeout, HTTP error, unparseable body, no "text" key) and
     "" only when the server genuinely transcribed the clip as nothing.
     Until 2026-07-25 this returned "" for both, which made an unreachable
-    mandark indistinguishable from a silent room -- the console just stopped
-    responding, with no line anywhere saying why (FOCUS.md 2026-07-23 00:40).
-    Same sentinel convention as crt-secretary.py's capture_pane(): failure
-    gets its own value so no caller can reason confidently from it.
+    server indistinguishable from a silent room, with nothing saying why.
+    A FORM, not a raw body: whisper.cpp answers "Invalid request" to the
+    shape mandark's dead service took. Measured against the container.
 
     Still never blocks or raises: a flaky network call must not take the
     capture loop down with it, only stop lying about what happened."""
     import json
     try:
         with open(wav_path, "rb") as f:
-            data = f.read()
-        req = urllib.request.Request(WHISPER_SERVER, data=data,
-                                      headers={"Content-Type": "audio/wav"})
+            wav = f.read()
+        edge = "----crt-stt-%d" % os.getpid()
+        data = b""
+        for name, value in (("response_format", "json"), ("language", "en")):
+            data += ('--%s\r\nContent-Disposition: form-data; name="%s"\r\n\r\n%s\r\n'
+                     % (edge, name, value)).encode()
+        data += ('--%s\r\nContent-Disposition: form-data; name="file"; '
+                 'filename="utterance.wav"\r\nContent-Type: audio/wav\r\n\r\n'
+                 % edge).encode() + wav + b"\r\n"
+        data += ("--%s--\r\n" % edge).encode()
+        req = urllib.request.Request(
+            WHISPER_SERVER, data=data,
+            headers={"Content-Type": "multipart/form-data; boundary=%s" % edge})
         with urllib.request.urlopen(req, timeout=WHISPER_SERVER_TIMEOUT) as resp:
             result = json.loads(resp.read().decode("utf-8"))
         if not isinstance(result, dict) or "text" not in result:

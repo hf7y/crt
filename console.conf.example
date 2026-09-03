@@ -27,10 +27,10 @@ export CRT_AUDIO_DEV="${CRT_AUDIO_DEV:-plughw:1,0}"
 
 # Transcription. Host is deliberately spelled out here and nowhere else,
 # because "which machine holds the ears" is a thing that moves. It moved:
-# mandark's 192.168.0.27:8991 has answered nothing since 2026-08-02, and
-# dexter's replacement takes no audio from off the host (#133). So the
-# default is empty: transcribe on-device, which a Pi 3B+ can do but slowly.
-export CRT_WHISPER_SERVER="${CRT_WHISPER_SERVER:-}"
+# dexter's whisper container answers the tailnet now (#133): 11s of audio in
+# 0.87s, against 14.7s on a Pi 3B+'s own tiny.en. Empty transcribes
+# on-device instead -- slow, and where an unreachable server lands anyway.
+export CRT_WHISPER_SERVER="${CRT_WHISPER_SERVER:-http://100.107.253.56:8090/inference}"
 
 # Wake-arm judging (see WAKE-TUNING-STATE.md). Opt-in; default off.
 export CRT_WAKE_ARM_ENABLED="${CRT_WAKE_ARM_ENABLED:-1}"

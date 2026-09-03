@@ -28,7 +28,7 @@ class FakeWhisperHandler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
-        self.rfile.read(length)
+        self.server.last = (self.headers.get("Content-Type", ""), self.rfile.read(length))
         behaviour = self.server.behaviour
         if behaviour == "hang":
             time.sleep(3.0)
@@ -101,6 +101,20 @@ class TranscribeRemoteTest(unittest.TestCase):
     def test_real_transcription_comes_back(self):
         self.assertEqual(self._against(("json", {"text": "potato this is zach"})),
                          "potato this is zach")
+
+    def test_the_request_is_the_form_the_container_wants(self):
+        # whisper.cpp refuses the raw body mandark took, and that refusal
+        # is indistinguishable from any other HTTP error once it is None.
+        server = FakeWhisperServer(("json", {"text": "ok"}))
+        stt.WHISPER_SERVER = server.url
+        try:
+            stt.transcribe_remote(self.wav)
+        finally:
+            server.stop()
+        ctype, body = server.httpd.last
+        self.assertIn("multipart/form-data; boundary=", ctype)
+        self.assertIn(b'name="file"; filename=', body)
+        self.assertIn(b"RIFF", body)
 
     def test_genuinely_empty_transcription_is_empty_string(self):
         # The server ran and heard nothing. This is a silent room, and it
