@@ -30,10 +30,14 @@ class ViewportBase(unittest.TestCase):
                 self.addCleanup(os.environ.pop, k, None)
         self.tmpdir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmpdir, True)
-        # No calibration profile unless a test writes one, so these assert
+        # A ZERO profile unless a test writes its own, so these assert
         # against a known margin rather than the host's own display.conf.
+        # An absent conf means DEFAULT_MARGINS: "write no file" stopped
+        # meaning "no margin".
         self.conf = os.path.join(self.tmpdir, "display.conf")
         os.environ["CRT_DISPLAY_CONF"] = self.conf
+        with open(self.conf, "w") as f:
+            f.write("top=0\nbottom=0\nleft=0\nright=0\n")
         spec = importlib.util.spec_from_file_location(
             "crt_monologue_viewport", os.path.join(BIN_DIR, "crt-monologue.py"))
         self.mod = importlib.util.module_from_spec(spec)
@@ -120,9 +124,13 @@ class TestOverscanMargin(ViewportBase):
         self.write_conf("top=1\nbottom=1\nleft=3\nright=3\n")
         self.assertEqual(self.mod.viewport(), (34, 13))
 
-    def test_no_conf_file_means_no_margin(self):
+    def test_no_conf_file_falls_back_to_the_safe_default(self):
+        # Inverted deliberately: text off the edge of an uncalibrated tube
+        # is the failure mode, so an absent conf gets DEFAULT_MARGINS.
         self.set_terminal(40, 15)
-        self.assertEqual(self.mod.viewport(), (40, 15))
+        os.remove(self.conf)
+        self.mod._pager = None
+        self.assertEqual(self.mod.viewport(), (36, 13))
 
     def test_the_margin_applies_to_a_pinned_size_too(self):
         # The margin is a physical crop of the picture tube -- true no matter
@@ -140,6 +148,51 @@ class TestOverscanMargin(ViewportBase):
         self.frame([(time.time(), "still renders", "")])   # must not raise
 
 
+class TestTheMarginIsActuallyOnTheScreen(ViewportBase):
+    """Shrinking the box is only half the job.
+
+    display.conf said left=2 and the first characters of a line were still
+    unreadable on the tube: render() homes to `\\x1b[H` and prints at physical
+    column 1, so a smaller width pulled the RIGHT edge in and left the left
+    edge where overscan was eating it. Every assertion above passed the whole
+    time -- they test viewport() arithmetic, not where a character lands."""
+
+    def test_the_left_margin_indents_the_text(self):
+        self.set_terminal(40, 15)
+        self.write_conf("top=0\nbottom=0\nleft=3\nright=3\n")
+        lines = self.frame([(time.time(), "x" * 60, "")])
+        body = [l for l in lines if l.strip()]
+        self.assertTrue(body, "expected rendered text")
+        for line in body:
+            self.assertTrue(self.plain(line).startswith("   "),
+                            "line is not indented: %r" % line)
+            self.assertEqual(self.plain(line)[3], "x")
+
+    def test_the_top_margin_leaves_blank_rows_above_the_text(self):
+        self.set_terminal(40, 15)
+        self.write_conf("top=2\nbottom=1\nleft=0\nright=0\n")
+        lines = self.frame([(time.time(), "hello", "")])
+        self.assertEqual(lines[0].strip(), "")
+        self.assertEqual(lines[1].strip(), "")
+
+    def test_the_padded_frame_still_exactly_fills_the_pane(self):
+        # The margin comes out of the content, never on top of a full-height
+        # frame: an extra row scrolls the top one away.
+        self.set_terminal(40, 15)
+        self.write_conf("top=1\nbottom=1\nleft=2\nright=2\n")
+        buf = [(time.time(), "a thought long enough to wrap %d" % i, "")
+               for i in range(40)]
+        lines = self.frame(buf)
+        self.assertEqual(len(lines), 15)
+        for line in lines:
+            self.assertLessEqual(len(self.plain(line)), 40)
+
+    def test_no_margin_means_no_indent(self):
+        self.set_terminal(40, 15)
+        lines = self.frame([(time.time(), "hello", "")])
+        self.assertEqual(self.plain(lines[0]), "hello")
+
+
 class TestWindowOneNeverGoesDark(ViewportBase):
     def test_a_missing_crt_pager_degrades_to_no_margin(self):
         # A permanently dark window 1 is the worse failure mode (CLAUDE.md
@@ -154,6 +207,7 @@ class TestWindowOneNeverGoesDark(ViewportBase):
         self.assertEqual(len(self.frame([])), 15)
 
     def test_an_unreadable_conf_file_degrades_to_no_margin(self):
+        os.remove(self.conf)            # setUp's zero profile
         os.makedirs(self.conf)          # a directory where a file belongs
         self.mod._pager = None
         self.set_terminal(40, 15)

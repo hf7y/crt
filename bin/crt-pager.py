@@ -11,6 +11,12 @@ FALLBACK_HEIGHT = 15
 DISPLAY_CONF = os.path.expanduser(os.environ.get("CRT_DISPLAY_CONF", "~/.crt/display.conf"))
 MARGIN_EDGES = ("top", "bottom", "left", "right")
 
+# What an uncalibrated tube gets. Zero looks neutral and is not: every real
+# CRT here overscans, so zero runs text off the edge of any console that
+# never ran the calibration game. Not a guess -- the profile Zach confirmed
+# by eye on potato. An explicit display.conf still wins on any edge it names.
+DEFAULT_MARGINS = {"top": 1, "bottom": 1, "left": 2, "right": 2}
+
 
 def detect_size():
     """env override > real terminal size > CRT hardware fallback. Kept as a
@@ -30,9 +36,10 @@ def detect_size():
 def load_display_margins(path=DISPLAY_CONF):
     """Reads the overscan safe-margin profile bin/crt-calibrate-display.py
     writes (DISPLAY-CALIBRATION.md) -- same KEY=value shape as tts.conf.
-    Missing file/keys default to 0 (no margin), so this is a no-op until
-    someone's actually run the calibration game."""
-    margins = {e: 0 for e in MARGIN_EDGES}
+    A missing file, or a file that omits an edge, falls back to
+    DEFAULT_MARGINS for that edge rather than to zero: see the note there
+    for why zero is the dangerous default and not the conservative one."""
+    margins = dict(DEFAULT_MARGINS)
     if os.path.exists(path):
         with open(path) as f:
             for line in f:

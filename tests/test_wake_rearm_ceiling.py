@@ -8,6 +8,7 @@ import importlib.util
 import os
 import shutil
 import tempfile
+import time
 import unittest
 
 BIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin")
@@ -19,14 +20,21 @@ MAX_SECS = 30.0
 
 
 class FakeClock:
-    """Stands in for the `time` module inside crt-wake-arm.py only -- emit()'s
-    own time.time() (HUD flash timing) is left real and unaffected."""
+    """Stands in for the `time` module in crt-wake-arm.py AND crt-stt-solo.py.
+    emit()'s own clock stopped being only HUD timing when it began measuring
+    reader_lag, the audio-time-to-transcript-time translation the published
+    deadline carries -- with a real clock there, "said at 100.0" publishes a
+    deadline in 2026 rather than at 112.0. Everything but time() is the real
+    module, so sleep/strftime are untouched."""
 
     def __init__(self, now):
         self.now = now
 
     def time(self):
         return self.now
+
+    def __getattr__(self, name):
+        return getattr(time, name)
 
 
 def load_arm():
@@ -134,6 +142,7 @@ class TestRewakeThroughEmit(unittest.TestCase):
 
         self.clock = FakeClock(100.0)
         self.stt.wake_arm.time = self.clock
+        self.stt.time = self.clock
 
     def tearDown(self):
         for k, v in self.env_backup.items():
@@ -144,12 +153,12 @@ class TestRewakeThroughEmit(unittest.TestCase):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def say(self, text, at):
-        # heard_at makes emit() measure the arm window from `at` directly,
-        # the same real-clock parameter the live capture loop now passes
-        # (VAD-end, before transcribe()) -- see crt-stt-solo.py's own note.
+        # An instantaneous utterance: onset and end are the same instant,
+        # which is what these cases mean by "said at `at`". The live loop
+        # passes the two apart -- see crt-stt-solo.py's own note.
         # self.clock still backs check_arm_timeout()'s direct calls below.
         self.clock.now = at
-        self.stt.emit(text, heard_at=at)
+        self.stt.emit(text, utt_start=at, utt_end=at)
 
     def test_a_rewake_buys_a_fresh_ceiling_for_what_follows_it(self):
         self.say("potato what is the weather", 100.0)        # ceiling 130
@@ -199,16 +208,21 @@ class TestRewakeThroughEmit(unittest.TestCase):
         self.say("potato are you still there", 120.0)    # re-wake -> fresh
         self.assertEqual(read(), 132.0)
 
-    def test_heard_at_drives_the_deadline_not_the_wall_clock_when_emit_runs(self):
+    def test_the_utterance_clock_drives_the_deadline_not_the_wall_clock(self):
         # FOCUS.md's open question (2026-07-28 milestone entry): is the
         # arm window's clock starting from the wrong reference point given
         # transcription/network lag? Answer, pinned here: emit() is called
-        # AFTER transcribe() returns, but heard_at is captured by the
+        # AFTER transcribe() returns, but the utterance clock is taken by the
         #   [rest: vault:crt/header-archaeology-20260817.md]
+        # TWO CLOCKS, and the answer differs per reader. In memory the
+        # window is AUDIO time, anchored to when the person stopped talking.
+        # On disk it is translated by the lag, for a reader that only ever
+        # sees transcripts and is only now being handed the words.
         self.clock.now = 999.0
-        self.stt.emit("potato what is the weather", heard_at=100.0)
+        self.stt.emit("potato what is the weather", utt_start=100.0, utt_end=100.0)
+        self.assertEqual(self.stt.ARM_STATE.deadline, 112.0)   # 100 + ARM_SECS
         read = lambda: self.stt.wake_arm.read_arm_deadline(self.arm_state)
-        self.assertEqual(read(), 112.0)   # 100 + ARM_SECS, not 999 + ARM_SECS
+        self.assertEqual(read(), 1011.0)                       # 999 + ARM_SECS
 
     def test_a_window_that_times_out_is_published_shut(self):
         """A timeout happens in the capture loop, not in emit() -- and a

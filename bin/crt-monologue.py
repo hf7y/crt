@@ -85,9 +85,30 @@ def viewport(margins=None):
             max(1, h - m.get("top", 0) - m.get("bottom", 0)))
 
 
-def render(buf, width=None, height=None):
+def pad_for_margins(lines, margins):
+    """Physically pushes rendered `lines` away from the tube's edges.
+
+    viewport() only shrinks the content BOX, and render() still homes the
+    cursor at the true top-left, so shrinking without indenting buys nothing:
+    it pulls the right and bottom edges in twice as far as asked. What the
+    tube actually showed was left=2 in display.conf and the first characters
+    of every line still unreadable. Pure, so it is testable without a conf
+    on disk -- the same two-step crt-book-console.py already had."""
+    left = " " * max(0, margins.get("left", 0))
+    padded = [left + ln for ln in lines]
+    top = [""] * max(0, margins.get("top", 0))
+    bottom = [""] * max(0, margins.get("bottom", 0))
+    return top + padded + bottom
+
+
+def render(buf, width=None, height=None, margins=None):
+    # An explicit width/height is a caller (a test, mostly) stating the box
+    # it wants drawn, so it gets no margin of its own unless it asks.
+    if margins is None:
+        margins = (dict(NO_MARGIN) if width is not None and height is not None
+                   else _load_margins())
     if width is None or height is None:
-        width, height = viewport()
+        width, height = viewport(margins)
     now = time.time()
     out_lines = []
     for recv_t, text, htime in buf:
@@ -100,7 +121,7 @@ def render(buf, width=None, height=None):
     view = out_lines[-height:]
     view += [""] * (height - len(view))
     sys.stdout.write("\x1b[H\x1b[2J")
-    sys.stdout.write("\n".join(view))
+    sys.stdout.write("\n".join(pad_for_margins(view, margins)))
     sys.stdout.flush()
 
 

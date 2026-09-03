@@ -45,13 +45,19 @@ class TestSee(unittest.TestCase):
 
     def test_width_follows_calibrated_margins(self):
         """Not a hardcoded 40: the sink paints to the same width
-        crt-monologue.sh/crt-pager.py do, margins included."""
+        crt-monologue.sh/crt-pager.py do, margins included -- and on an
+        UNCALIBRATED console that is the safe default margin, not zero.
+        Zero is what puts a line past the edge of a tube nobody measured."""
         old = dict(os.environ)
         try:
             os.environ["CRT_PAGER_WIDTH"] = "40"
             os.environ["CRT_PAGER_HEIGHT"] = "15"
             os.environ["CRT_DISPLAY_CONF"] = "/nonexistent-display-conf"
-            self.assertEqual(cast.display_width(), 40)
+            pager = cast._load_pager()
+            margins = pager.DEFAULT_MARGINS
+            self.assertEqual(cast.display_width(),
+                             40 - margins["left"] - margins["right"])
+            self.assertLess(cast.display_width(), 40)
         finally:
             os.environ.clear()
             os.environ.update(old)

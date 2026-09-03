@@ -48,9 +48,9 @@ dexter move, and the count in this heading has been wrong before:
 
 | Path | Box | What it is |
 |---|---|---|
-| `~/Documents/Projects/crt` | mandark | This repo — the historical dev source of truth. Still where `origin` lives (`~/git-remotes/crt.git`) until DEXTER-MOVE.md section 3 lands. |
+| `~/Documents/Projects/crt` | mandark | This repo, on the same GitHub `origin` every other checkout uses. |
 | `~/crt-repo` | dexter | Working checkout on the **brain host**, added 2026-07-28. Where the SSH-brain work was done. Also the default cwd of the `potato-claude` session, so the console's brain can read its own project. |
-| `~/crt` | potato | The live deploy target. Real `git clone` since 2026-07-27, but its `origin` is a **mandark-only filesystem path**, so it still cannot `git pull` — see DEXTER-MOVE.md section 3. |
+| `~/crt` | potato | The live deploy target, fetching from GitHub, pull-only and holding no credential (crt#16). It runs branch `potato/voice` until that lands on `main`. |
 | `~/potato-crt` | mandark | An **sshfs mount of potato's `~/crt`** (`sshfs potato:/home/vkv/crt`). How Claude-on-mandark reads/writes potato's *real* files over SFTP. NOT this repo. |
 
 ## Where the brain runs (wake routing)
@@ -114,21 +114,6 @@ NONE = woken but no brain → short honest earcon/line, never silence.
 | `bin/crt-wake-router.py [--json]` | potato | Prints the brain decision (`remote`/`local`/`none`). Pure + testable. `--json` now carries `brain_mode`/`brain_target`. |
 | `CRT_NO_IDLE_CLAUDE=1` | env for `crt-console.sh` | Window 0 becomes the screensaver instead of a resident Claude. Default off = historical always-resident layout (nothing regresses). |
 | `bin/crt-mandark.sh on\|off\|status` | potato | **RETIRED** along with the bridge — kept only until the section-2 deletion sweep runs. Do not wire anything new to it. |
-
-<details><summary>Retired: the mandark reverse-tunnel topology (2026-07-23 → 2026-07-28)</summary>
-
-potato's `stt` window escalated via `crt-secretary.py` →
-`localhost:8993` → reverse tunnel → mandark's `crt-remote-claude-bridge.py`
-→ tmux session `potato-claude`. The tunnel was **mandark-initiated
-outbound** (`ssh -N -R 8993:localhost:8993 potato`), so potato had no path
-*into* mandark at all. That was not a preference — mandark is a personal
-dev laptop that has never run sshd, and giving potato a way in was flagged
-as a real vulnerability. The shape was correct for that host; it stopped
-being necessary when the brain moved to a box that is always on and
-already accepts SSH. Recorded here so nobody re-derives the tunnel from
-first principles and assumes it was arbitrary.
-
-</details>
 
 ## Remaining live wiring (needs potato hardware, not yet built)
 

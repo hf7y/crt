@@ -264,15 +264,21 @@ class TestTheEnginePublishes(unittest.TestCase):
         that from here without a mic; the alternative is finding out live."""
         with open(os.path.join(BIN_DIR, "crt-stt-solo.py")) as f:
             lines = f.readlines()
+        # Comments stripped first, as run_tests.sh's manifest check does:
+        # prose explaining a transition is not a transition, and matching it
+        # makes this guard fail on its own explanation.
         sites = [i for i, ln in enumerate(lines)
                  if ("ARM_STATE.arm(" in ln
                      or "consume_arm_with_followup(" in ln
                      or "check_arm_timeout(" in ln)
-                 and "def " not in ln]
+                 and "def " not in ln
+                 and not ln.lstrip().startswith("#")]
         self.assertTrue(sites, "no arm-state transition sites found at all")
         for i in sites:
             window = "".join(lines[i:i + 12])
-            self.assertIn("publish_arm_window()", window,
+            # Matched without its argument list: this guard is about a publish
+            # HAPPENING at every transition, not about what it is handed.
+            self.assertIn("publish_arm_window(", window,
                           "no publish within 12 lines of %s:%d -- %r"
                           % ("bin/crt-stt-solo.py", i + 1, lines[i].strip()))
 
