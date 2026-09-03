@@ -296,6 +296,10 @@ echo "== crt-wake-arm.py (arm-window state machine, 2026-07-23) =="
 python3 -m unittest discover -s "$DIR" -p "test_wake_arm.py" -v 2>&1 | tail -5 || fail=1
 echo
 
+echo "== the arm window measures silence, not whisper round-trips (2026-07-29) =="
+python3 -m unittest discover -s "$DIR" -p "test_wake_arm_clock_domain.py" -v 2>&1 | tail -5 || fail=1
+echo
+
 echo "== a re-wake starts a fresh session, through the live emit() path (2026-07-25) =="
 python3 -m unittest discover -s "$DIR" -p "test_wake_rearm_ceiling.py" -v 2>&1 | tail -5 || fail=1
 echo
@@ -382,6 +386,10 @@ echo
 
 echo "== window 1 fits the pane it is actually in =="
 python3 "$DIR/test_monologue_viewport.py" || fail=1
+echo
+
+echo "== an uncalibrated tube gets the safe margin, not zero =="
+python3 "$DIR/test_pager.py" || fail=1
 echo
 
 echo "== capture duck released when its producer is killed =="

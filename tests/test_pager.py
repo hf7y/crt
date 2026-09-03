@@ -35,30 +35,76 @@ def load_pager(env=None):
         os.environ.update(old_env)
 
 
+@contextlib.contextmanager
+def zero_margin_conf():
+    """A display.conf that explicitly turns the overscan margin OFF.
+
+    Needed since 2026-07-29: an ABSENT conf no longer means zero margin, it
+    means crt-pager.DEFAULT_MARGINS (every real tube here overscans, so zero
+    was the dangerous default rather than the neutral one). Tests whose
+    subject is size DETECTION have to say "no margin" out loud now, instead
+    of getting it for free by not writing a conf file."""
+    with tempfile.NamedTemporaryFile("w", suffix=".conf", delete=False) as f:
+        f.write("top=0\nbottom=0\nleft=0\nright=0\n")
+        path = f.name
+    try:
+        yield path
+    finally:
+        os.unlink(path)
+
+
 class TestDetectSize(unittest.TestCase):
     def test_env_override_wins(self):
-        m = load_pager({"CRT_PAGER_WIDTH": "40", "CRT_PAGER_HEIGHT": "14", "PATH": os.environ.get("PATH", "")})
+        with zero_margin_conf() as conf:
+            m = load_pager({"CRT_PAGER_WIDTH": "40", "CRT_PAGER_HEIGHT": "14",
+                            "CRT_DISPLAY_CONF": conf,
+                            "PATH": os.environ.get("PATH", "")})
         self.assertEqual((m.WIDTH, m.HEIGHT), (40, 14))
 
     def test_columns_lines_env_detected(self):
-        m = load_pager({"COLUMNS": "100", "LINES": "30", "PATH": os.environ.get("PATH", "")})
+        with zero_margin_conf() as conf:
+            m = load_pager({"COLUMNS": "100", "LINES": "30",
+                            "CRT_DISPLAY_CONF": conf,
+                            "PATH": os.environ.get("PATH", "")})
         self.assertEqual(m.WIDTH, 100)
         self.assertEqual(m.HEIGHT, 29)  # one line reserved for footer
 
     def test_falls_back_when_nothing_available(self):
-        env = {"PATH": os.environ.get("PATH", "")}
-        m = load_pager(env)
+        with zero_margin_conf() as conf:
+            m = load_pager({"CRT_DISPLAY_CONF": conf,
+                            "PATH": os.environ.get("PATH", "")})
         # No COLUMNS/LINES, no real tty in this sandbox -> hardware fallback.
         self.assertEqual(m.WIDTH, m.FALLBACK_WIDTH)
         self.assertGreaterEqual(m.HEIGHT, 2)
 
 
 class TestDisplayMargins(unittest.TestCase):
-    def test_no_conf_file_is_a_noop(self):
+    def test_no_conf_file_falls_back_to_the_safe_default(self):
+        # Used to assert (40, 14), "no conf is a no-op". Text off the edge of
+        # an uncalibrated tube is the failure mode, so it gets the profile.
         m = load_pager({"CRT_PAGER_WIDTH": "40", "CRT_PAGER_HEIGHT": "14",
                          "CRT_DISPLAY_CONF": "/nonexistent/display.conf",
                          "PATH": os.environ.get("PATH", "")})
-        self.assertEqual((m.WIDTH, m.HEIGHT), (40, 14))
+        self.assertEqual((m.WIDTH, m.HEIGHT), (36, 12))
+
+    def test_the_default_profile_is_the_one_confirmed_on_the_tube(self):
+        m = load_pager({"PATH": os.environ.get("PATH", "")})
+        self.assertEqual(m.DEFAULT_MARGINS,
+                         {"top": 1, "bottom": 1, "left": 2, "right": 2})
+
+    def test_a_conf_that_names_only_one_edge_keeps_the_default_elsewhere(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".conf", delete=False) as f:
+            f.write("left=5\n")
+            path = f.name
+        try:
+            m = load_pager({"CRT_DISPLAY_CONF": path,
+                            "PATH": os.environ.get("PATH", "")})
+            margins = m.load_display_margins(path)
+        finally:
+            os.unlink(path)
+        self.assertEqual(margins["left"], 5)
+        self.assertEqual(margins["right"], 2)
+        self.assertEqual(margins["top"], 1)
 
     def test_conf_margins_shrink_effective_size(self):
         with tempfile.NamedTemporaryFile("w", suffix=".conf", delete=False) as f:
@@ -122,8 +168,14 @@ class TestWrapLines(unittest.TestCase):
 
 class TestRender(unittest.TestCase):
     def setUp(self):
-        self.m = load_pager({"CRT_PAGER_WIDTH": "10", "CRT_PAGER_HEIGHT": "3",
-                              "PATH": os.environ.get("PATH", "")})
+        # Zero margin explicitly: this class is about the footer and the
+        # wrap, and a 3-row box silently becoming a 1-row box under the
+        # 2026-07-29 default margin would make these assertions test
+        # something other than what they name.
+        with zero_margin_conf() as conf:
+            self.m = load_pager({"CRT_PAGER_WIDTH": "10", "CRT_PAGER_HEIGHT": "3",
+                                 "CRT_DISPLAY_CONF": conf,
+                                 "PATH": os.environ.get("PATH", "")})
 
     def _capture(self, lines, top):
         buf = io.StringIO()

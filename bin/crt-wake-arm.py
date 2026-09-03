@@ -20,6 +20,10 @@ JUDGE_BIN = os.path.join(BIN_DIR, "crt-wake-judge.py")
 ARM_STATE_FILE = os.path.expanduser(
     os.environ.get("CRT_WAKE_ARM_STATE", "~/.crt/wake-arm.state"))
 
+# A budget for SILENCE, not for round-trips: measured from the end of the
+# wake utterance's audio to the start of the follow-up's, so neither
+# utterance's length nor whisper's latency spends any of it. Check what it
+# measures before re-tuning it by ear.
 ARM_SECS = float(os.environ.get("CRT_WAKE_ARM_SECS", "12"))
 # Hard ceiling on one sticky conversation (2026-07-25). A consumed follow-up
 # SLIDES the window forward -- the live bug this exists for was four
@@ -114,9 +118,15 @@ class ArmState:
         self.continuation = False
 
 
-def publish_arm_window(state, path=None):
+def publish_arm_window(state, path=None, reader_lag=0.0):
     """Mirror `state`'s deadline to ARM_STATE_FILE so another process can ask
     whether the console is mid-conversation. Writes 0 when disarmed.
+
+    `reader_lag` translates between the two clocks. `state.deadline` is in
+    audio time; the file's only reader (crt-book-answer-listen.py) asks the
+    moment a transcript APPEARS, one round-trip later, so publishing the raw
+    deadline hands it a shorter window than the engine enforces. 0.0 publishes
+    unmodified -- what a timeout or a test passes.
 
     Called by the SOLE MIC READER after every arm-state transition, so it is
     held to that loop's rules: never raises (an unwritable ~/.crt must not
@@ -137,7 +147,7 @@ def publish_arm_window(state, path=None):
     path = ARM_STATE_FILE if path is None else path
     if not path:
         return
-    deadline = state.deadline if state.armed else 0.0
+    deadline = (state.deadline + reader_lag) if state.armed else 0.0
     tmp = path + ".tmp"
     try:
         d = os.path.dirname(path)
@@ -207,7 +217,7 @@ def spawn_judge(outcome, trigger_text, match_kind, match_source=None,
 
 
 def consume_arm_with_followup(state, followup_text, now=None, wake_match=None,
-                              arm_secs=None, max_secs=None):
+                              arm_secs=None, max_secs=None, ended_at=None):
     """A real follow-up utterance arrived while armed -- strong evidence
     the wake was wanted (WAKE-TUNING-STATE.md's ground-truth rule).
     Disarms and spawns the judge with outcome=consumed. Returns True if
@@ -224,36 +234,51 @@ def consume_arm_with_followup(state, followup_text, now=None, wake_match=None,
     contract was only ever reachable from a disarmed state -- see the
     caller's own note). Zach confirmed that contract directly on
     2026-07-25 -- see arm()'s docstring for his words. The re-wake branch
-    below is load-bearing, not an optimisation."""
+    below is load-bearing, not an optimisation.
+
+    TWO TIMES, deliberately: `now` is when the follow-up STARTED being
+    spoken, the only fair thing to test the deadline against; `ended_at` is
+    when it finished, and anchors the slide or re-wake. `ended_at` defaults
+    to `now`, the pre-2026-07-29 behaviour exactly."""
     now = now if now is not None else time.time()
+    ended_at = ended_at if ended_at is not None else now
     if not state.armed or now >= state.deadline:
         return False
     spawn_judge("consumed", state.trigger_text, state.match_kind,
                 state.match_source, state.matched_word, followup_text)
     if wake_match and wake_match[0]:
         kind, source, word = wake_match
-        state.arm(followup_text, kind, source, word, now=now,
+        state.arm(followup_text, kind, source, word, now=ended_at,
                   arm_secs=arm_secs, max_secs=max_secs)
         return True
     # Slide, don't close: the live 2026-07-23 bug was FOUR follow-ups in one
     # breath, and a window that shuts after the first still drops three of
     # them -- the same complaint, one utterance later. Capped by
     # ARM_MAX_SECS so a sliding window can't become an always-on mic.
-    if not state.slide(followup_text, now, arm_secs=arm_secs):
+    if not state.slide(followup_text, ended_at, arm_secs=arm_secs):
         state.disarm()
     return True
 
 
-def check_arm_timeout(state, now=None):
+def check_arm_timeout(state, now=None, utt_start=None):
     """Call periodically (crt-stt-solo.py's own fast capture-loop tick is
     fine, cheap -- no VAD/whisper work happens here). If armed and the
     deadline has passed with no follow-up ever consumed, disarms and
     spawns the judge with timeout-with-leftover or timeout-empty per
     has_leftover_content() on the ORIGINAL trigger text. Returns True if
     a timeout was actually processed (state was armed and had expired) --
-    mainly for tests; callers don't need the return value in production."""
+    mainly for tests; callers don't need the return value in production.
+
+    `utt_start` is the onset of an utterance the mic is capturing RIGHT NOW,
+    or None when the room is quiet. One that BEGAN inside the window is still
+    a candidate follow-up, so the timeout is DEFERRED rather than cancelled --
+    firing underneath it would disarm the window and gate-drop the very
+    utterance it was opened to admit. Self-bounding: utt_chunk() hard-caps one
+    utterance at CRT_VAD_MAX, so the worst case is deadline + CRT_VAD_MAX."""
     now = now if now is not None else time.time()
     if not state.armed or now < state.deadline:
+        return False
+    if utt_start is not None and utt_start < state.deadline:
         return False
     if state.continuation:
         # A conversation that ran its course, not a wake nobody answered --
