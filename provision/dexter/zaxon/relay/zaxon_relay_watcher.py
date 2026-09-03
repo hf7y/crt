@@ -56,6 +56,15 @@ STT_FAILED_RE = re.compile(
 # note rather than trusting it: a wrong guess mislabels `via` and nothing more.
 TRANSCRIBED_RE = re.compile(r"transcription", re.IGNORECASE)
 
+FOR_AGENT_TAG_RE = re.compile(r"^(?P<repo>[A-Za-z][A-Za-z0-9_-]*):\s+(?P<body>.+)$", re.DOTALL)  # crt#130: "repo: message" addresses a note
+
+
+def _split_for_agent(msg: str):  # (for_agent, body); for_agent is None when untagged
+    m = FOR_AGENT_TAG_RE.match(msg)
+    if not m:
+        return None, msg
+    return m.group("repo"), m.group("body")
+
 
 def resolve_reply(reply_id: str, msg: str, via: str = "text") -> bool:
     """True if `reply_id` owned a pending ticket that got resolved."""
@@ -173,7 +182,10 @@ def main() -> None:
                     else:
                         handled = resolve_reply(reply_id, msg, via)
                 if not handled:
-                    record_unclassified(msg, None if reply_id == "None" else reply_id, via)
+                    for_agent, body = _split_for_agent(msg)
+                    record_unclassified(
+                        body, None if reply_id == "None" else reply_id, via, for_agent=for_agent
+                    )
                 voice_hint = False
             elif TRANSCRIBED_RE.search(line):
                 voice_hint = True

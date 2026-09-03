@@ -26,7 +26,10 @@ CREATE TABLE IF NOT EXISTS inbox (
     message TEXT NOT NULL,
     reply_to_id TEXT,
     received_at TEXT NOT NULL,
-    via TEXT
+    via TEXT,
+    for_agent TEXT,
+    claimed_by TEXT,
+    claimed_at TEXT
 )
 """
 
@@ -43,5 +46,9 @@ def get_conn() -> sqlite3.Connection:
     for col in ("options", "chat_id", "via", "audio_path"):
         if col not in cols:
             conn.execute(f"ALTER TABLE tickets ADD COLUMN {col} TEXT")
+    inbox_cols = {row[1] for row in conn.execute("PRAGMA table_info(inbox)")}
+    for col in ("for_agent", "claimed_by", "claimed_at"):
+        if col not in inbox_cols:
+            conn.execute(f"ALTER TABLE inbox ADD COLUMN {col} TEXT")
     conn.commit()
     return conn

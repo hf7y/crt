@@ -15,6 +15,7 @@ import uuid
 from mcp.server.mcpserver import MCPServer
 
 from zaxon_relay_db import get_conn
+from zaxon_relay_inbox import claim as _claim_inbox_entry
 from zaxon_relay_inbox import fetch_inbox as _fetch_inbox
 from zaxon_relay_queue import (
     MAX_QUESTION_CHARS,
@@ -44,7 +45,14 @@ mcp = MCPServer(
         "call revise_zach_question -- never ask a second time. fetch_inbox "
         "reads messages that arrived matching no ticket of yours -- an "
         "unsolicited note from Zach, or a late reply to something that "
-        "already went stale. send_zach sends one; no reply, no ticket, no slot."
+        "already went stale. Pass your repo as for_agent to see notes Zach "
+        "addressed to you by name (\"repo: ...\") plus every untagged one; "
+        "a note addressed to a different repo is not yours to read, and "
+        "neither is one another agent has already claimed. Before acting on "
+        "an untagged note, call claim_inbox_entry(entry_id, for_agent) -- it "
+        "is atomic, so if two agents read the same note only one wins, and "
+        "it hides the note from fetch_inbox for everyone else so you don't "
+        "act on it twice. send_zach sends one; no reply, no ticket, no slot."
     ),
 )
 
@@ -176,9 +184,14 @@ def check_zach_reply(ticket_id: str) -> dict:
 
 
 @mcp.tool()
-def fetch_inbox(limit: int = 50) -> dict:
-    """Read inbound messages matching no pending ticket, verbatim, newest first."""
-    return {"entries": _fetch_inbox(limit=limit)}
+def fetch_inbox(for_agent: str | None = None, limit: int = 50) -> dict:
+    """Newest first; for_agent hides notes addressed or claimed elsewhere."""
+    return {"entries": _fetch_inbox(limit=limit, for_agent=for_agent)}
+
+
+@mcp.tool()
+def claim_inbox_entry(entry_id: str, for_agent: str) -> dict:  # atomic; crt#129
+    return {"claimed": _claim_inbox_entry(entry_id, for_agent)}
 
 
 @mcp.tool()

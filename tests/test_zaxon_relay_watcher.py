@@ -150,5 +150,114 @@ class TestUnclassifiedInbound(unittest.TestCase):
         self.assertEqual(len(inbox.fetch_inbox(limit=2)), 2)
 
 
+class TestForAgentTag(unittest.TestCase):  # crt#130
+    def test_a_leading_repo_tag_is_split_out(self):
+        for_agent, body = w._split_for_agent("realisateur: the vault notation needs a second example")
+        self.assertEqual(for_agent, "realisateur")
+        self.assertEqual(body, "the vault notation needs a second example")
+
+    def test_an_untagged_message_splits_to_none(self):
+        for_agent, body = w._split_for_agent("remember to water the plants")
+        self.assertIsNone(for_agent)
+        self.assertEqual(body, "remember to water the plants")
+
+    def test_a_colon_mid_sentence_is_not_mistaken_for_a_tag(self):
+        for_agent, body = w._split_for_agent("one thing to note: bring the charger")
+        self.assertIsNone(for_agent)
+        self.assertEqual(body, "one thing to note: bring the charger")
+
+
+class TestUnclassifiedInboundAddressing(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmp.name) / "tickets.db"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_record_unclassified_stores_for_agent(self):
+        inbox.record_unclassified("bring the charger", None, "text", for_agent="crt")
+        entries = inbox.fetch_inbox()
+        self.assertEqual(entries[0]["for_agent"], "crt")
+
+    def test_fetch_inbox_hides_a_note_tagged_for_someone_else(self):
+        inbox.record_unclassified("bring the charger", None, "text", for_agent="crt")
+        self.assertEqual(inbox.fetch_inbox(for_agent="realisateur"), [])
+
+    def test_fetch_inbox_shows_a_note_tagged_for_this_repo(self):
+        inbox.record_unclassified("bring the charger", None, "text", for_agent="crt")
+        entries = inbox.fetch_inbox(for_agent="crt")
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["message"], "bring the charger")
+
+    def test_fetch_inbox_still_shows_untagged_notes_to_anyone(self):
+        inbox.record_unclassified("remember to water the plants", None, "text")
+        entries = inbox.fetch_inbox(for_agent="crt")
+        self.assertEqual(len(entries), 1)
+
+    def test_fetch_inbox_with_no_for_agent_returns_everything(self):
+        inbox.record_unclassified("bring the charger", None, "text", for_agent="crt")
+        inbox.record_unclassified("water the plants", None, "text")
+        self.assertEqual(len(inbox.fetch_inbox()), 2)
+
+
+class TestClaim(unittest.TestCase):  # crt#129
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmp.name) / "tickets.db"
+        self.entry_id = inbox.record_unclassified("water the plants", None, "text")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_the_first_claim_wins(self):
+        self.assertTrue(inbox.claim(self.entry_id, "crt"))
+
+    def test_a_second_agent_cannot_claim_what_is_already_held(self):
+        inbox.claim(self.entry_id, "crt")
+        self.assertFalse(inbox.claim(self.entry_id, "realisateur"))
+
+    def test_claiming_your_own_claim_again_succeeds(self):
+        inbox.claim(self.entry_id, "crt")
+        self.assertTrue(inbox.claim(self.entry_id, "crt"))
+
+    def test_claiming_an_unknown_entry_reports_false(self):
+        self.assertFalse(inbox.claim("no-such-id", "crt"))
+
+    def test_a_claimed_note_is_hidden_from_someone_else(self):
+        inbox.claim(self.entry_id, "crt")
+        self.assertEqual(inbox.fetch_inbox(for_agent="realisateur"), [])
+
+    def test_a_claimed_note_still_shows_to_the_agent_that_claimed_it(self):
+        inbox.claim(self.entry_id, "crt")
+        entries = inbox.fetch_inbox(for_agent="crt")
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["claimed_by"], "crt")
+
+    def test_include_claimed_shows_it_to_anyone_anyway(self):
+        inbox.claim(self.entry_id, "crt")
+        entries = inbox.fetch_inbox(for_agent="realisateur", include_claimed=True)
+        self.assertEqual(len(entries), 1)
+
+    def test_an_expired_claim_can_be_re_claimed_by_someone_else(self):
+        inbox.claim(self.entry_id, "crt")
+        old_saved_ttl = inbox.CLAIM_TTL_SECS
+        inbox.CLAIM_TTL_SECS = -3600  # a negative TTL puts the threshold in the future, so a claim made THIS second still reads as expired
+        try:
+            self.assertTrue(inbox.claim(self.entry_id, "realisateur"))
+        finally:
+            inbox.CLAIM_TTL_SECS = old_saved_ttl
+
+    def test_an_expired_claim_is_visible_to_someone_else_again(self):
+        inbox.claim(self.entry_id, "crt")
+        old_saved_ttl = inbox.CLAIM_TTL_SECS
+        inbox.CLAIM_TTL_SECS = -3600  # a negative TTL puts the threshold in the future, so a claim made THIS second still reads as expired
+        try:
+            entries = inbox.fetch_inbox(for_agent="realisateur")
+            self.assertEqual(len(entries), 1)
+        finally:
+            inbox.CLAIM_TTL_SECS = old_saved_ttl
+
+
 if __name__ == "__main__":
     unittest.main()
