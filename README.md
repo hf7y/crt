@@ -1,12 +1,12 @@
 # crt
 
 Landline handset + CRT monitor as a voice-driven front end for Claude Code,
-autobooting on a Linux VM (Debian/Ubuntu) hosted on the Windows mini-PC.
+autobooting on potato, a Raspberry Pi.
 
 ## Signal path
 
 ```
-handset mic (TRRS) --> Linux VM audio in --> whisper.cpp (local STT, VAD-segmented)
+handset mic (TRRS) --> potato audio in --> whisper (dexter's container, VAD-segmented)
                                                     |
                                                     v
                                         tmux send-keys into `claude` pane
@@ -19,7 +19,7 @@ hookswitch (mechanical, printed) --> USB keyboard-encoder --> evdev listener
                                               pause/resume the STT loop
 ```
 
-## One-time setup (on the VM)
+## One-time setup (on the console)
 
 ```
 ./install.sh
@@ -52,27 +52,13 @@ captures silence, check these in order:
    it. Symptom: `arecord -l` says "no soundcards found" though the kernel shows
    the card in `/proc/asound/cards`.
 
-2. **VirtualBox routes the host mic to the guest HDA codec's "Line" input, not
-   "Mic".** The guest's default capture source is "Mic" (silent). Fix in the
-   guest:
-   ```
-   amixer -c 0 sset 'Input Source',0 Line
-   amixer -c 0 sset 'Input Source',1 Line
-   amixer -c 0 sset Capture,0 100% cap
-   amixer -c 0 sset Capture,1 100% cap
-   sudo alsactl store          # persist; alsa-restore.service reapplies on boot
-   ```
-   Symptom: capture opens fine but every sample is exactly `0.000000`. Confirm
-   with the VM log (`VBox.log`): look for `[WasAPI] Line In:0` and repeated
-   `MUTING sink 'HDA Mixer/Line In'`.
-
-3. **Capture from the hardware device, not ALSA `default`.** `default` can be
+2. **Capture from the hardware device, not ALSA `default`.** `default` can be
    silently re-routed to a dead PulseAudio/PipeWire by leftover config
    drop-ins. `stt-feed.sh` uses `plughw:0,0` via `CRT_AUDIO_DEV` for this reason.
 
-4. **VAD threshold.** The VirtualBox Line-In signal is quiet (speech RMS ~1%),
-   so the default 3% silence gate never triggers. Lower it with
-   `CRT_VAD_THRESHOLD` (the VM's autoboot sets `1`). Symptom: `rec` runs forever
+3. **VAD threshold.** A quiet capture path (speech RMS ~1%) never trips the
+   default 3% silence gate; lower it with
+   `CRT_VAD_THRESHOLD`. Symptom: `rec` runs forever
    on `utt_1` and never emits a `[stt-feed] ->` line. Verify capture works at
    all by recording directly and transcribing:
    ```
@@ -125,11 +111,8 @@ plunger only when the handset is resting (not lifted).
 
 ## Bare-metal deployment (e.g. Intel Compute Stick)
 
-Everything in `bin/` and `install.sh` targets any Debian/Ubuntu machine —
-VM or bare metal, same scripts either way. A low-power stick (Celeron,
-2-4GB RAM) is actually a *better* fit than a VM under Windows for this
-specific console: no hypervisor overhead to spare on weak hardware, no
-audio-passthrough or graphics-controller quirks to fight.
+Everything in `bin/` and `install.sh` targets any Debian/Ubuntu machine, and
+the console settled on a Raspberry Pi (potato) rather than a hypervisor guest.
 
 **Confirmed target (2026-07-21): Debian 13.6, amd64.** `install.sh`'s
 package list (`build-essential cmake git tmux sox alsa-utils curl

@@ -1,9 +1,7 @@
 # Self-repair — potato's nightly autonomous pass
 
-Scoped 2026-07-22 with Zach. This is `potato`-specific (the Raspberry Pi at
-192.168.0.45, replacing dexter/crt-vm as the migration target — see
-`vault:crt/COMPUTE-STICK-MIGRATION.md` and the potato memory in the assistant's own
-memory store). Not yet mirrored onto crt-vm/dexter.
+Scoped with Zach, and `potato`-specific: the Raspberry Pi that replaced the
+crt-vm guest as the console. Mirrored nowhere else.
 
 ## What "self-repair" means here (Zach's answers, verbatim scope)
 
@@ -68,8 +66,7 @@ memory store). Not yet mirrored onto crt-vm/dexter.
   text handed to `claude -p` each night is what actually does the tuning
   work, and it hasn't run yet (potato was unreachable — mid-physical-move
   — for the rest of this session).
-- **Mirroring any of this onto crt-vm/dexter.** Explicitly potato-only for
-  now.
+- **Mirroring any of this anywhere else.** Explicitly potato-only.
 
 ## Directive text (what the nightly `claude -p` run is actually told)
 

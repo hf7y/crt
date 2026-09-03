@@ -392,6 +392,10 @@ echo "== an uncalibrated tube gets the safe margin, not zero =="
 python3 "$DIR/test_pager.py" || fail=1
 echo
 
+echo "== a console that cannot transcribe says so once (crt#132) =="
+bash "$DIR/test_console_selfcheck.sh" || fail=1
+echo
+
 echo "== capture duck released when its producer is killed =="
 bash "$DIR/test_capture_duck_signal_safety.sh" || fail=1
 echo
