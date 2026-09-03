@@ -1195,8 +1195,7 @@ def transcribe_remote(wav_path):
     (unreachable, timeout, HTTP error, unparseable body, no "text" key) and
     "" only when the server genuinely transcribed the clip as nothing.
     Until 2026-07-25 this returned "" for both, which made an unreachable
-    server indistinguishable from a silent room -- the console just stopped
-    responding, with no line anywhere saying why (FOCUS.md 2026-07-23 00:40).
+    server indistinguishable from a silent room, with nothing saying why.
     A FORM, not a raw body: whisper.cpp answers "Invalid request" to the
     shape mandark's dead service took. Measured against the container.
 
