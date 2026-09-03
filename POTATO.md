@@ -42,23 +42,21 @@ this file is the stable "how the pieces relate" reference.
 
 ## Three directories, don't confuse them
 
-The brain runs on **dexter** (since 2026-07-28); potato's files live on
-potato. These are **four different trees** — the fourth arrived with the
-dexter move, and the count in this heading has been wrong before:
-
 | Path | Box | What it is |
 |---|---|---|
 | `~/Documents/Projects/crt` | mandark | This repo, on the same GitHub `origin` every other checkout uses. |
-| `~/crt-repo` | dexter | Working checkout on the **brain host**, added 2026-07-28. Where the SSH-brain work was done. Also the default cwd of the `potato-claude` session, so the console's brain can read its own project. |
-| `~/crt` | potato | The live deploy target, fetching from GitHub, pull-only and holding no credential (crt#16). It runs branch `potato/voice` until that lands on `main`. |
+| `~/crt` | potato | The live deploy target, on `main`, fetching from GitHub, pull-only and holding no credential (crt#16). |
 | `~/potato-crt` | mandark | An **sshfs mount of potato's `~/crt`** (`sshfs potato:/home/vkv/crt`). How Claude-on-mandark reads/writes potato's *real* files over SFTP. NOT this repo. |
+
+dexter's `~/crt-repo` used to be a fourth, holding the brain. It is gone, and
+so is the forced command that ran out of it -- crt#140.
 
 ## Where the brain runs (wake routing)
 
-**Changed 2026-07-28: the brain host is now `dexter`, reached over plain
-SSH. The mandark reverse tunnel is retired.** What follows describes the
-live topology; the old one is kept at the bottom of this section because
-its threat model explains why the current shape looks the way it does.
+**The brain host is `dexter`, reached over plain SSH; the mandark reverse
+tunnel is retired. The path is currently BROKEN** -- dexter's forced command
+names a file that is not there (crt#140). What follows is the shape it takes
+when it works.
 
 The design is unchanged: **idle = screensaver, no brain resident (save
 RAM); on wake, reach for a brain in priority order.**
@@ -134,7 +132,6 @@ What's left is the part that can only be verified on the physical Pi:
 3. **Live verification** of the `CRT_NO_IDLE_CLAUDE` layout end-to-end on
    potato (wake → route → reply → back to screensaver), by ear.
 
-Until #1 lands, run with the default layout (resident Claude) OR
-`CRT_NO_IDLE_CLAUDE=1` + mandark ON — in that combination the console is
-fully functional (remote brain) and mandark-down degrades to a short
-honest reply, not a crash.
+Until #1 lands, run `CRT_NO_IDLE_CLAUDE=1` with the brain on dexter: the
+console is fully functional, and a dexter that is unreachable degrades to a
+short honest reply rather than a crash.

@@ -1,19 +1,15 @@
 # Audio capture debugging — the "stops detecting" bug
 
 The recurring failure: STT works, then mid-session the mic signal goes quiet
-with the ALSA mixer still correct — VirtualBox's emulated capture goes **stale**
-when the capture device is opened/closed repeatedly (per-utterance) or when a
-second reader (the dsnoop meter) starves the primary. Symptoms and the two
-already-shipped mitigations are documented in `README.md` and `HANDOFF.md`.
+with the ALSA mixer still correct — capture goes **stale** when the device is
+opened and closed per utterance, or when a second reader starves the primary.
 
-This file tracks **multiple independent angles of attack** so they can be built
-and tested in parallel (interactive sessions on the VM, plus overnight batches
-that advance the code). Each approach is opt-in and does not disturb the working
-pipeline. **None of these are hardware-verified yet** — they were written on the
-dev box (mandark), which has no handset/VM. Each needs a run on `crt-vm`.
+Written against the VirtualBox guest this project used to run on, and kept
+because the failure shape outlived the host: the console runs on potato now,
+and Approach B is what it runs.
 
 ## Status legend
-`[code]` implemented, needs VM test · `[partial]` scaffolded · `[idea]` sketch only
+`[code]` implemented, unverified on the console · `[partial]` scaffolded · `[idea]` sketch only
 
 ---
 
@@ -163,11 +159,3 @@ uncertainty that no longer has to be carried:
 
 `exit 3` means the measurement never happened and the finding is unsupported.
 `exit 1` with a ratio near 0.1 means the finding stands and the duck is right.
-
----
-
-## How the overnight batch should use this
-Advance approaches marked `[idea]`/`[partial]` toward `[code]`, or harden the
-`[code]` ones (edge cases, logging, a test harness). Do **not** claim any of them
-hardware-verified — that requires a human on the VM. Prefer breadth across
-approaches over depth on one.
