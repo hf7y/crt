@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # Offline, NON-DESTRUCTIVE test for bin/crt-mandark-serve.sh. Only exercises
 # `status` and arg handling -- never `on`/`off`, so it's safe to run on the
-# live mandark box without touching the bridge/tunnel processes. The
-# whisper component was retired crt#149 -- potato's STT now points at
-# dexter's containerized whisper.
+# live mandark box without touching the bridge/tunnel processes.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$DIR/../bin/crt-mandark-serve.sh"

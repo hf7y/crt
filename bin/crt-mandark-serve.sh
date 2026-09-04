@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # MANDARK-SIDE on/off/status for the remote-brain path that lets potato run
 # with no Claude of its own. Run this ON MANDARK (needs sudo only for the
-# systemd-managed pieces -- that's why it's a script for you, not something
-# the console runs itself). Two components (the third, mandark-hosted
-# whisper, was retired crt#149 -- potato's STT now points at dexter's
-# containerized whisper, see console.conf.example's CRT_WHISPER_SERVER):
+# systemd-managed pieces). Two components (the third, whisper, was retired
+# crt#149 -- see console.conf.example's CRT_WHISPER_SERVER):
 #   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 

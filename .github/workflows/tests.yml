@@ -1,9 +1,5 @@
-# tests.yml -- runs the offline suite tests/run_tests.sh describes as
-# needing "No VM/hardware/network ... these are exactly the checks that CAN
-# run before ever touching crt-vm." Nothing wired it to CI before this
-# (crt#144); do not add it to required_status_checks until it has reported
-# green on a real PR here -- a required check with zero history blocks
-# every PR, including this one.
+# tests.yml -- runs tests/run_tests.sh (crt#144). Not required yet: it has
+# no history, and a required check with zero history blocks every PR.
 name: tests
 
 on:

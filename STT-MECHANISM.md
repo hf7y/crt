@@ -72,13 +72,10 @@ reason about *why* a given transcription got garbled the way it did.
 4. **Transcription**: either local `whisper.cpp` (`base.en`) on the console
    itself, or (when `CRT_WHISPER_SERVER` is set — potato's boot default,
    `crt-console.sh`) a POST to `whisper.cpp`'s own `whisper-server`,
-   containerized on dexter (`provision/dexter/whisper/`, `POST /inference`
-   on `:8090`) — same model family either way. The mandark-hosted
-   `faster-whisper` predecessor this section used to describe was retired
-   (crt#149); `entrypoint.sh` execs `whisper-server "$@"`, so any of its CLI
-   flags (e.g. `-bs`/`--beam-size`) are a real lever, passed through the
-   service block in `provision/dexter/zaxon/compose.yaml` rather than
-   exposed to crt.
+   containerized on dexter (`provision/dexter/whisper/`) — same model
+   family either way. The mandark-hosted `faster-whisper` predecessor this
+   used to describe was retired (crt#149); CLI flags like `-bs`/`--beam-size`
+   are a real lever now, passed via `provision/dexter/zaxon/compose.yaml`.
 
    **A failure here is not a silence, and since 2026-07-25 it no longer
    pretends to be one.** `transcribe_remote()` returns `None` when it could

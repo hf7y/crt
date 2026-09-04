@@ -25,10 +25,8 @@ export CRT_THOUGHT_LOG="$CRT_TEST_STATE_DIR/thoughts.log"
 # both default to ~/.crt/thoughts.log under CRT_STT_GATE_LOG. Pinning
 # CRT_THOUGHT_LOG alone left the gate-drop path still writing to the live
 # one -- found by the guard below on its first run, which is the argument
-# for having it. (bin/crt-bell-test.sh now honors CRT_STT_LOG/CRT_THOUGHT_LOG
-# like the rest of bin/ -- crt#149 item 2 -- but it's a live-audio watch loop
-# that never exits on its own, not a unit test, so it still isn't invoked
-# here.)
+# for having it. (bin/crt-bell-test.sh now honors those vars too -- crt#149
+# -- but it's a live-audio watch loop with no exit, so it's still not run here.)
 export CRT_STT_GATE_LOG="$CRT_TEST_STATE_DIR/thoughts.log"
 # Found by the guard below on its SECOND run (2026-07-25): a sixth live
 # file. crt-idle-teaser.sh's chime() stamps the announce lock, which is the
