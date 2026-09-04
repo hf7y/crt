@@ -3,9 +3,10 @@
 # (dexter -> handset earpiece vs TV speaker) and logs findings.
 set -uo pipefail
 
-STT="$HOME/.crt/stt.log"
-THOUGHT="$HOME/.crt/thoughts.log"
-STATE="/home/zach/crt/.claude/SESSION-STATE.md"
+BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STT="${CRT_STT_LOG:-$HOME/.crt/stt.log}"
+THOUGHT="${CRT_THOUGHT_LOG:-$HOME/.crt/thoughts.log}"
+STATE="${CRT_BELL_TEST_STATE:-$BIN_DIR/../.claude/SESSION-STATE.md}"
 PROMPT_SECS=120
 
 echo "did you hear a bell? handset earpiece or TV speaker? just say which." >> "$THOUGHT"

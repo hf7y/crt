@@ -566,7 +566,8 @@ def ring_unplayable_report(detail):
 # Optional: send the WAV to a faster-whisper HTTP service on another machine
 # instead of invoking whisper.cpp on this one. Same VAD/capture/denoise
 # pipeline either way -- only the inference step moves. Live shape as of
-# 2026-07-25: potato POSTs to bin/mandark-whisper-server.py on mandark, wired
+# crt#133: potato POSTs to dexter's containerized whisper (see
+# console.conf.example's CRT_WHISPER_SERVER), wired
 #   [rest: vault:crt/header-archaeology-20260817.md]
 WHISPER_SERVER = os.environ.get("CRT_WHISPER_SERVER", "")   # e.g. http://100.107.253.56:8090/inference
 WHISPER_SERVER_TIMEOUT = float(os.environ.get("CRT_WHISPER_SERVER_TIMEOUT", "8"))
