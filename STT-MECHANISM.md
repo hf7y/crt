@@ -71,12 +71,11 @@ reason about *why* a given transcription got garbled the way it did.
    is a likely contributor, not just whisper itself.
 4. **Transcription**: either local `whisper.cpp` (`base.en`) on the console
    itself, or (when `CRT_WHISPER_SERVER` is set — potato's boot default,
-   `crt-console.sh`) a POST to `faster-whisper` running on mandark (see
-   `bin/mandark-whisper-server.py`) — same model family either way,
-   `beam_size=1` (greedy, fastest, but more prone to a
-   locally-plausible-but-wrong word than a wider beam search would be — if
-   inference is still poor, a larger beam size is a real lever available in
-   `mandark-whisper-server.py`, currently not exposed as a knob).
+   `crt-console.sh`) a POST to `whisper.cpp`'s own `whisper-server`,
+   containerized on dexter (`provision/dexter/whisper/`) — same model
+   family either way. The mandark-hosted `faster-whisper` predecessor this
+   used to describe was retired (crt#149); CLI flags like `-bs`/`--beam-size`
+   are a real lever now, passed via `provision/dexter/zaxon/compose.yaml`.
 
    **A failure here is not a silence, and since 2026-07-25 it no longer
    pretends to be one.** `transcribe_remote()` returns `None` when it could

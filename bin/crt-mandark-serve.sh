@@ -1,30 +1,26 @@
 #!/usr/bin/env bash
-# MANDARK-SIDE on/off/status for the whole remote-brain path that lets
-# potato run with no Claude of its own. Run this ON MANDARK (needs sudo
-# only for the systemd-managed pieces -- that's why it's a script for you,
-# not something the console runs itself). Three components:
+# MANDARK-SIDE on/off/status for the remote-brain path that lets potato run
+# with no Claude of its own. Run this ON MANDARK (needs sudo only for the
+# systemd-managed pieces). Two components (the third, whisper, was retired
+# crt#149 -- see console.conf.example's CRT_WHISPER_SERVER):
 #   [rest: vault:crt/header-archaeology-20260817.md]
 set -uo pipefail
 
 BRIDGE_PORT="${CRT_REMOTE_BRIDGE_PORT:-8993}"
-WHISPER_PORT="${CRT_WHISPER_PORT:-8991}"
 POTATO_HOST="${CRT_POTATO_HOST:-potato}"
 BRIDGE_SESSION="${CRT_REMOTE_BRIDGE_SESSION:-potato-claude}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WHISPER_PY="${CRT_WHISPER_PY:-$HOME/.venvs/crt-whisper-server/bin/python}"
 LOGDIR="$HOME/.crt/mandark-serve"
 mkdir -p "$LOGDIR"
 
 # component -> systemd unit name
 unit_of() { case "$1" in
-  whisper) echo "crt-whisper-server.service" ;;
   bridge)  echo "crt-remote-claude-bridge.service" ;;
   tunnel)  echo "crt-potato-tunnel.service" ;;
 esac; }
 
 # component -> pgrep pattern for the ad-hoc process
 pat_of() { case "$1" in
-  whisper) echo "mandark-whisper-server.py" ;;
   bridge)  echo "crt-remote-claude-bridge.py" ;;
   tunnel)  echo "ssh -N -R ${BRIDGE_PORT}:localhost:${BRIDGE_PORT}" ;;
 esac; }
@@ -35,7 +31,6 @@ adhoc_pid()      { pgrep -f "$(pat_of "$1")" | head -1; }
 
 # component -> the ad-hoc launch command (as a string eval'd under nohup)
 adhoc_cmd() { case "$1" in
-  whisper) echo "'$WHISPER_PY' '$REPO/bin/mandark-whisper-server.py'" ;;
   bridge)  echo "python3 '$REPO/bin/crt-remote-claude-bridge.py' --port $BRIDGE_PORT --session '$BRIDGE_SESSION'" ;;
   tunnel)  echo "ssh -N -R ${BRIDGE_PORT}:localhost:${BRIDGE_PORT} -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes '$POTATO_HOST'" ;;
 esac; }
@@ -91,23 +86,23 @@ case "${1:-status}" in
       echo "           forwards to it, so escalations will capture an empty pane."
       echo "           Start the brain there first (claude in the sshfs mount)."
     fi
-    start_one whisper; start_one bridge; sleep 1; start_one tunnel
+    start_one bridge; sleep 1; start_one tunnel
     echo "done. 'crt-mandark-serve.sh status' to verify."
     ;;
   off)
     echo "taking the mandark remote-brain path DOWN:"
-    stop_one tunnel; stop_one bridge; stop_one whisper
+    stop_one tunnel; stop_one bridge
     echo "done."
     ;;
   status|"")
-    for c in whisper bridge tunnel; do
+    for c in bridge tunnel; do
       u="$(unit_of "$c")"
       if unit_installed "$u"; then mech="systemd ($(systemctl is-active "$u" 2>/dev/null))"
       elif [ -n "$(adhoc_pid "$c")" ]; then mech="ad-hoc pid $(adhoc_pid "$c")"
       else mech="DOWN"; fi
       printf "  %-8s %s\n" "$c:" "$mech"
     done
-    echo "  ports:   $(ss -tlnp 2>/dev/null | grep -oE "(127.0.0.1|0.0.0.0):(${WHISPER_PORT}|${BRIDGE_PORT})" | tr '\n' ' ')"
+    echo "  ports:   $(ss -tlnp 2>/dev/null | grep -oE "(127.0.0.1|0.0.0.0):(${BRIDGE_PORT})" | tr '\n' ' ')"
     echo "  session: $(tmux has-session -t "$BRIDGE_SESSION" 2>/dev/null && echo "$BRIDGE_SESSION present" || echo "$BRIDGE_SESSION MISSING")"
     echo "  bridge:  $(probe_bridge)"
     ;;
