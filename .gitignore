@@ -17,6 +17,7 @@ __pycache__/
 *credentials*
 *secret*
 !SECRETARY.md
+!.selfdev-secrets
 *.pem
 *.key
 id_rsa*
