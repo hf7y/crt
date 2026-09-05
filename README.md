@@ -179,12 +179,6 @@ as-is (Windows build exists upstream).
 
 ## Why this repo is public
 
-Decided 2026-09-05 (hf7y/crt#148): staying public keeps Actions free and
-unmetered, which matters here because `.github/workflows/zaxon-image.yml`
-and `whisper-image.yml` build the images dexter actually runs — a
-build-and-ship pipeline, not a lint — and public `ghcr.io` packages let
-dexter pull them with no registry credential. What's exposed is estate
-topology (host names, the two-sshd trap, tailnet addresses in CGNAT space
-reachable only from inside the tailnet) — reconnaissance value, not access.
-No credential has ever been in the tree; the `secret-scan` check on every
-PR is what keeps that true by construction rather than by care.
+Decided 2026-09-05 (hf7y/crt#148): public keeps Actions free for the images
+dexter runs, and exposes topology only, never access. The `gitleaks` PR
+check is what keeps that true by construction, not by care.
