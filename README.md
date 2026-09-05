@@ -176,3 +176,9 @@ hookswitch encoder, and replace tmux + autologin with a Windows Task
 Scheduler entry running at logon that opens a terminal into the same
 `claude` + STT-feed pair. The whisper.cpp binary and model are portable
 as-is (Windows build exists upstream).
+
+## Why this repo is public
+
+Decided 2026-09-05 (hf7y/crt#148): public keeps Actions free for the images
+dexter runs, and exposes topology only, never access. The `gitleaks` PR
+check is what keeps that true by construction, not by care.

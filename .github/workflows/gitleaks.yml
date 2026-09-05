@@ -1,0 +1,17 @@
+# gitleaks.yml -- crt#148. Named for the tool, not "secret*": that glob is
+# in .gitignore (crt#128) and would swallow a file named for itself.
+name: secret-scan
+
+on:
+  pull_request:
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
