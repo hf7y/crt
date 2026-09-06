@@ -24,6 +24,16 @@ FAILED_MSG = (
 )
 
 
+def setUpModule():  # crt#154: a tag fires w.file_issue() -> real `gh`; keep every test but TestFilesOnTag inert
+    global _MODULE_FILE_ISSUE_GUARD
+    _MODULE_FILE_ISSUE_GUARD = w.file_issue
+    w.file_issue = lambda entry_id, **kwargs: None
+
+
+def tearDownModule():
+    w.file_issue = _MODULE_FILE_ISSUE_GUARD
+
+
 class TestRetainAudio(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -306,6 +316,48 @@ class TestRetag(unittest.TestCase):
     def test_a_claimed_note_is_not_readdressed_under_the_agent_working_it(self):
         self._note("being worked", claimed_by="musc")
         self.assertFalse(w._retag("tag realisateur"))
+
+
+class TestFilesOnTag(unittest.TestCase):  # crt#154: a tag, on arrival or by retag, must reach the filer
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmp.name) / "tickets.db"
+        self.filed = []
+        self._orig_file_issue = w.file_issue
+        w.file_issue = lambda entry_id, **kwargs: self.filed.append(entry_id)
+
+    def tearDown(self):
+        w.file_issue = self._orig_file_issue
+        self._tmp.cleanup()
+
+    def test_retag_files_the_entry_it_tagged(self):
+        eid = inbox.record_unclassified("fix the thing", None, "voice")
+        w._retag("tag realisateur")
+        self.assertEqual(self.filed, [eid])
+
+    def test_a_retag_that_finds_nothing_files_nothing(self):
+        w._retag("tag realisateur")
+        self.assertEqual(self.filed, [])
+
+    def test_an_on_arrival_tag_is_filed_via_handle_message(self):
+        w._handle_message("None", "realisateur: fix the thing", "voice")
+        entries = inbox.fetch_inbox()
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(self.filed, [entries[0]["id"]])
+
+    def test_an_untagged_arrival_is_never_filed(self):
+        w._handle_message("None", "remember to water the plants", "voice")
+        self.assertEqual(self.filed, [])
+
+    def test_a_filing_exception_does_not_propagate(self):
+        def boom(entry_id, **kwargs):
+            raise RuntimeError("defere: BLIND")
+
+        w.file_issue = boom
+        eid = inbox.record_unclassified("fix the thing", None, "voice")
+        w._retag("tag realisateur")  # must not raise
+        self.assertEqual(inbox.fetch_inbox()[0]["id"], eid)
+
 
 if __name__ == "__main__":
     unittest.main()
