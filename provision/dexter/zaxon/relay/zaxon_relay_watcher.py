@@ -18,6 +18,7 @@ Also the only long-running loop the relay has, so it carries crt#67's
 staleness sweep too (STALE_SWEEP_EVERY_TICKS): otherwise a queued question
 only gets promoted next time some agent happens to poll, which may be never.
 """
+import logging
 import os
 import re
 import shutil
@@ -25,7 +26,9 @@ import time
 from pathlib import Path
 
 from zaxon_relay_db import get_conn
-from zaxon_relay_inbox import record_unclassified
+from zaxon_relay_inbox import assign, record_unclassified
+
+logger = logging.getLogger("zaxon_relay_watcher")
 from zaxon_relay_queue import sweep_and_promote
 
 LOG_PATH = Path.home() / ".hermes" / "logs" / "agent.log"
@@ -57,6 +60,23 @@ STT_FAILED_RE = re.compile(
 TRANSCRIBED_RE = re.compile(r"transcription", re.IGNORECASE)
 
 FOR_AGENT_TAG_RE = re.compile(r"^(?P<repo>[A-Za-z][A-Za-z0-9_-]*):\s+(?P<body>.+)$", re.DOTALL)  # crt#130: "repo: message" addresses a note
+
+
+RETAG_RE = re.compile(   # crt#154: "tag realisateur" readdresses the last untagged note. Checked BEFORE FOR_AGENT_TAG_RE, which would otherwise read "tag: realisateur" as repo "tag"
+    r"^tag:?\s+(?:(?P<entry>[0-9a-f]{8})\s+)?(?P<repo>[A-Za-z][A-Za-z0-9_-]*)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _retag(msg: str) -> bool:   # True when msg WAS a retag and landed; a retag that finds nothing falls through and is recorded, so a mistyped one is never silently eaten
+    m = RETAG_RE.match(msg.strip())
+    if not m:
+        return False
+    tagged = assign(m.group("repo"), m.group("entry"))
+    if tagged is None:
+        return False
+    logger.warning("retagged inbox entry %s for %s", tagged, m.group("repo"))
+    return True
 
 
 def _split_for_agent(msg: str):  # (for_agent, body); for_agent is None when untagged
@@ -181,6 +201,8 @@ def main() -> None:
                         handled = retain_audio(reply_id, failed.group("path").strip())
                     else:
                         handled = resolve_reply(reply_id, msg, via)
+                if not handled:
+                    handled = _retag(msg)
                 if not handled:
                     for_agent, body = _split_for_agent(msg)
                     record_unclassified(

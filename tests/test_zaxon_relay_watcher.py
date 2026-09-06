@@ -259,5 +259,53 @@ class TestClaim(unittest.TestCase):  # crt#129
             inbox.CLAIM_TTL_SECS = old_saved_ttl
 
 
+
+class TestRetag(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmp.name) / "tickets.db"
+        self.conn = db.get_conn()
+
+    def tearDown(self):
+        self.conn.close()
+        self._tmp.cleanup()
+
+    def _note(self, msg, for_agent=None, claimed_by=None):
+        eid = inbox.record_unclassified(msg, None, "voice", for_agent=for_agent)
+        if claimed_by:
+            inbox.claim(eid, claimed_by)
+        return eid
+
+    def test_retag_addresses_the_newest_untagged_note(self):
+        old = self._note("first")
+        new = self._note("second")
+        self.assertTrue(w._retag("tag realisateur"))
+        rows = {r["id"]: r["for_agent"] for r in inbox.fetch_inbox()}
+        self.assertEqual(rows[new], "realisateur")
+        self.assertIsNone(rows[old])
+
+    def test_a_colon_form_is_a_retag_not_a_note_addressed_to_repo_tag(self):
+        eid = self._note("a voice note")
+        self.assertTrue(w._retag("tag: realisateur"))
+        self.assertEqual(inbox.fetch_inbox()[0]["for_agent"], "realisateur")
+        self.assertEqual(inbox.fetch_inbox()[0]["id"], eid)
+
+    def test_an_entry_id_addresses_that_one_and_not_the_newest(self):
+        first = self._note("first")
+        self._note("second")
+        self.assertTrue(w._retag("tag %s realisateur" % first))
+        rows = {r["id"]: r["for_agent"] for r in inbox.fetch_inbox()}
+        self.assertEqual(rows[first], "realisateur")
+
+    def test_an_ordinary_tagged_note_is_not_a_retag(self):
+        self.assertFalse(w._retag("realisateur: fix the sweep"))
+
+    def test_a_retag_with_nothing_to_tag_falls_through_and_is_recorded(self):
+        self.assertFalse(w._retag("tag realisateur"))
+
+    def test_a_claimed_note_is_not_readdressed_under_the_agent_working_it(self):
+        self._note("being worked", claimed_by="musc")
+        self.assertFalse(w._retag("tag realisateur"))
+
 if __name__ == "__main__":
     unittest.main()
