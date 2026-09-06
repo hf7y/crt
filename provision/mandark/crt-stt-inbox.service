@@ -1,0 +1,11 @@
+[Unit]
+Description=Transcribe audio that has landed in the inbox
+Documentation=https://github.com/hf7y/crt/blob/main/STT-MECHANISM.md
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 20
+ExecStart=%h/Documents/Projects/crt/bin/crt-stt-inbox.sh
+
+[Install]
+WantedBy=default.target
