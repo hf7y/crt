@@ -12,6 +12,11 @@ DEVICE="${CRT_HOOK_DEVICE:-}"   # e.g. /dev/input/by-id/usb-...-event-kbd
 DEBOUNCE_MS="${CRT_HOOK_DEBOUNCE_MS:-50}"
 DEBOUNCE_S=$(awk -v ms="$DEBOUNCE_MS" 'BEGIN{printf "%.3f", ms/1000}')
 
+TRANSPORT="${CRT_HOOK_TRANSPORT:-evtest}"   # HOOKSWITCH.md option 3 (Zach, 2026-08-23)
+GPIO_PIN="${CRT_HOOK_GPIO_PIN:-}"
+GPIO_ACTIVE_LOW="${CRT_HOOK_GPIO_ACTIVE_LOW:-1}"   # 1: pull-up, switch-to-GND on-hook (HOOKSWITCH.md's wiring)
+GPIO_KEY="GPIO_HOOK"
+
 # What this signals at. `stt-feed.sh` is the process this file was written
 # against in 2026-07-19 -- and crt-console.sh has not run it since
 # 2026-07-20, when the sole-mic-reader layout replaced the old
@@ -77,15 +82,70 @@ debounce_loop() {
   done
 }
 
-# Guarded so tests/test_hookswitch_debounce.sh can `source` this file (to
-# reuse apply_state/debounce_loop against synthetic input) without also
-# triggering the real device requirement/evtest launch below.
-if [ "${CRT_HOOK_TEST_MODE:-0}" = "0" ]; then
-  if [ -z "$DEVICE" ]; then
-    echo "[hookswitch] set CRT_HOOK_DEVICE to the encoder's /dev/input event node." >&2
-    echo "[hookswitch] find it with: evtest  (or ls /dev/input/by-id/)" >&2
-    exit 1
+# Polled sysfs GPIO read; emits debounce_loop's own "value 0/1" shape (already
+# active-low-inverted) so debounce_loop needs no GPIO-specific knowledge.
+gpio_loop() {
+  local pin="$1" active_low="$2" base gpio_dir poll_s last raw cur
+  base="${CRT_HOOK_GPIO_SYSFS_BASE:-/sys/class/gpio}"
+  gpio_dir="$base/gpio$pin"
+  poll_s=$(awk -v ms="${CRT_HOOK_GPIO_POLL_MS:-20}" 'BEGIN{printf "%.3f", ms/1000}')
+
+  if [ ! -e "$gpio_dir/value" ]; then
+    if [ -w "$base/export" ]; then
+      echo "$pin" > "$base/export" 2>/dev/null || true
+      sleep 0.1
+    fi
+    if [ ! -e "$gpio_dir/value" ]; then
+      echo "[hookswitch] $gpio_dir/value does not exist and export did not create it" >&2
+      return 1
+    fi
   fi
-  echo "[hookswitch] watching $DEVICE for $HOOK_KEY (debounce ${DEBOUNCE_MS}ms)"
-  evtest "$DEVICE" 2>/dev/null | debounce_loop
+  [ -w "$gpio_dir/direction" ] && { echo in > "$gpio_dir/direction" 2>/dev/null || true; }
+
+  last=""
+  while true; do
+    if ! raw="$(cat "$gpio_dir/value" 2>/dev/null)"; then
+      echo "[hookswitch] gpio read failed on $gpio_dir/value, exiting" >&2
+      return 1
+    fi
+    raw="${raw//[$'\t\r\n ']/}"
+    if [ "$active_low" = "1" ]; then
+      [ "$raw" = "0" ] && cur=1 || cur=0
+    else
+      cur="$raw"
+    fi
+    if [ "$cur" != "$last" ]; then
+      echo "$GPIO_KEY value $cur"
+      last="$cur"
+    fi
+    sleep "$poll_s"
+  done
+}
+
+# Guarded so tests/test_hookswitch_{debounce,gpio}.sh can `source` this file.
+if [ "${CRT_HOOK_TEST_MODE:-0}" = "0" ]; then
+  case "$TRANSPORT" in
+    gpio)
+      if [ -z "$GPIO_PIN" ]; then
+        echo "[hookswitch] set CRT_HOOK_GPIO_PIN to the BCM pin the switch is wired to." >&2
+        exit 1
+      fi
+      HOOK_KEY="$GPIO_KEY"
+      echo "[hookswitch] watching GPIO$GPIO_PIN for hookswitch (debounce ${DEBOUNCE_MS}ms, active_low=$GPIO_ACTIVE_LOW)"
+      gpio_loop "$GPIO_PIN" "$GPIO_ACTIVE_LOW" | debounce_loop
+      ;;
+    evtest)
+      if [ -z "$DEVICE" ]; then
+        echo "[hookswitch] set CRT_HOOK_DEVICE to the encoder's /dev/input event node." >&2
+        echo "[hookswitch] find it with: evtest  (or ls /dev/input/by-id/)" >&2
+        exit 1
+      fi
+      echo "[hookswitch] watching $DEVICE for $HOOK_KEY (debounce ${DEBOUNCE_MS}ms)"
+      evtest "$DEVICE" 2>/dev/null | debounce_loop
+      ;;
+    *)
+      echo "[hookswitch] unknown CRT_HOOK_TRANSPORT '$TRANSPORT' (expected evtest or gpio)" >&2
+      exit 1
+      ;;
+  esac
 fi
