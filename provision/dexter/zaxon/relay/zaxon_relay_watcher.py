@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 
 from zaxon_relay_db import get_conn
+from zaxon_relay_filer import file_issue, file_pending
 from zaxon_relay_inbox import assign, record_unclassified
 
 logger = logging.getLogger("zaxon_relay_watcher")
@@ -68,6 +69,15 @@ RETAG_RE = re.compile(   # crt#154: "tag realisateur" readdresses the last untag
 )
 
 
+def _file_safely(entry_id) -> None:   # crt#154: a filing failure (gh/defere down, no network) must never take down the only long-running loop this relay has
+    if entry_id is None:
+        return
+    try:
+        file_issue(entry_id)
+    except Exception:
+        logger.exception("failed to file pointer issue for inbox %s", entry_id)
+
+
 def _retag(msg: str) -> bool:   # True when msg WAS a retag and landed; a retag that finds nothing falls through and is recorded, so a mistyped one is never silently eaten
     m = RETAG_RE.match(msg.strip())
     if not m:
@@ -76,6 +86,7 @@ def _retag(msg: str) -> bool:   # True when msg WAS a retag and landed; a retag 
     if tagged is None:
         return False
     logger.warning("retagged inbox entry %s for %s", tagged, m.group("repo"))
+    _file_safely(tagged)   # a corrected tag gets its own pointer issue, and moves it off a stale one
     return True
 
 
@@ -162,6 +173,25 @@ def _save_checkpoint(offset: int) -> None:
     OFFSET_PATH.write_text(str(offset))
 
 
+def _handle_message(reply_id: str, msg: str, via: str) -> None:
+    handled = False
+    if reply_id != "None":
+        failed = STT_FAILED_RE.search(msg)
+        if failed:
+            handled = retain_audio(reply_id, failed.group("path").strip())
+        else:
+            handled = resolve_reply(reply_id, msg, via)
+    if not handled:
+        handled = _retag(msg)
+    if not handled:
+        for_agent, body = _split_for_agent(msg)
+        entry_id = record_unclassified(
+            body, None if reply_id == "None" else reply_id, via, for_agent=for_agent
+        )
+        if for_agent is not None:
+            _file_safely(entry_id)   # crt#154: tagged on arrival, e.g. "realisateur: ..."
+
+
 def main() -> None:
     while not LOG_PATH.exists():
         time.sleep(2)
@@ -183,6 +213,10 @@ def main() -> None:
                     conn = get_conn()
                     try:
                         sweep_and_promote(conn)
+                        try:
+                            file_pending(conn)   # crt#154: catches a filing that failed transiently (gh/defere down) rather than losing it
+                        except Exception:
+                            logger.exception("file_pending sweep failed")
                     finally:
                         conn.close()
                 time.sleep(0.5)
@@ -191,23 +225,8 @@ def main() -> None:
 
             m = LINE_RE.search(line)
             if m:
-                reply_id = m.group("reply_id")
-                msg = m.group("msg")
                 via = "voice" if voice_hint else "text"
-                handled = False
-                if reply_id != "None":
-                    failed = STT_FAILED_RE.search(msg)
-                    if failed:
-                        handled = retain_audio(reply_id, failed.group("path").strip())
-                    else:
-                        handled = resolve_reply(reply_id, msg, via)
-                if not handled:
-                    handled = _retag(msg)
-                if not handled:
-                    for_agent, body = _split_for_agent(msg)
-                    record_unclassified(
-                        body, None if reply_id == "None" else reply_id, via, for_agent=for_agent
-                    )
+                _handle_message(m.group("reply_id"), m.group("msg"), via)
                 voice_hint = False
             elif TRANSCRIBED_RE.search(line):
                 voice_hint = True
