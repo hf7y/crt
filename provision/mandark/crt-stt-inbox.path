@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch the inbox for audio to transcribe
+
+[Path]
+PathChanged=%h/Downloads
+Unit=crt-stt-inbox.service
+
+[Install]
+WantedBy=default.target
