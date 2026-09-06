@@ -1,31 +1,6 @@
-"""Files a pointer issue in the tagged repo for a tagged inbox entry (crt#154).
-
-Zach's ruling (crt#154, 2026-09-06): "file it, but don't reveal content in
-the issue, just point to the file". crt is public and a voice note is
-unreviewed speech -- it may name a person, a credential, or an address --
-so the transcript never leaves the inbox. The filed issue carries only the
-entry id, when it arrived, and how (via); the target repo's next agent
-reads the actual words with fetch_inbox(), same call it would have made
-under the queue-only design this supersedes.
-
-Filing goes through `defere`, not a hand-built `gh issue create`: this
-estate's `gh` is gh-sign (checked on the box this was built on, 2026-09-06 --
-`readlink -f /usr/local/bin/gh` resolves to realisateur's build, not a bare
-binary), which refuses any agent-written issue body that does not satisfy
-realisateur's lib/body-grammar.sh (a DECISION/NO-DECISION line, a DEFERRED
-ledger, a DELIVERS ledger). A hand-built `gh issue create --title --body`
-would be REFUSED at write time whenever gh-sign is in front of gh -- and
-degrades safely to a plain `gh issue create` when it is not, since `defere
---project` is just that call with a compliant body wrapped around it.
-`defere --project <repo>` already produces that body ("routed and owned
-there; nothing here needs a call") -- reimplementing the grammar here would
-only drift from it.
-
-Idempotent by the inbox row itself: a row already filed against the repo it
-is currently tagged for is left alone. A retag to a DIFFERENT repo closes
-the stale pointer (crt#154: "retag should move or close the filed issue,
-not just relabel the inbox row") and files a fresh one, so a mis-tagged
-note never leaves an issue open in the wrong repo.
+"""Files a pointer issue, never the transcript, for a tagged inbox entry
+(crt#154). Goes through `defere --project`, not `gh issue create` directly:
+this estate's `gh` is gh-sign and refuses a body that fails body-grammar.
 """
 import logging
 import re
@@ -42,10 +17,7 @@ _ISSUE_URL_RE = re.compile(r"https://github\.com/([^/\s]+/[^/\s]+)/issues/(\d+)"
 _FILING_ERRORS = (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError, OSError)
 
 
-def _title(repo: str, entry_id: str, received_at: str) -> str:
-    # Title from the tag and the timestamp, NOT the first line of speech --
-    # that would reintroduce the exact leak this design forbids, in the
-    # most visible field a tracker has.
+def _title(repo: str, entry_id: str, received_at: str) -> str:  # never the transcript's first line
     return f"Voice note for {repo}: inbox {entry_id} ({received_at})"
 
 
@@ -61,9 +33,7 @@ def _body(entry_id: str, received_at: str, via: str) -> str:
     )
 
 
-def _default_creator(repo: str, title: str, body: str) -> str:
-    """Returns 'owner/repo#N'. Raises on failure -- a caller must never
-    record a filed_issue that was not actually created."""
+def _default_creator(repo: str, title: str, body: str) -> str:  # -> 'owner/repo#N'; raises on failure
     proc = subprocess.run(
         [DEFERE_BIN, title, "--project", repo, "--body", body],
         capture_output=True,
@@ -77,8 +47,7 @@ def _default_creator(repo: str, title: str, body: str) -> str:
     return f"{m.group(1)}#{m.group(2)}"
 
 
-def _default_closer(issue_ref: str, comment: str) -> None:
-    """issue_ref is 'owner/repo#N'."""
+def _default_closer(issue_ref: str, comment: str) -> None:  # issue_ref is 'owner/repo#N'
     owner_repo, _, number = issue_ref.rpartition("#")
     subprocess.run(
         ["gh", "issue", "close", number, "--repo", owner_repo, "--comment", comment],
@@ -93,13 +62,7 @@ def _filed_for(filed_issue: str) -> str:  # 'hf7y/realisateur#9' -> 'realisateur
     return filed_issue.split("#", 1)[0].rsplit("/", 1)[-1]
 
 
-def file_issue(entry_id: str, conn=None, creator=None, closer=None) -> str:
-    """Files (or moves) the pointer issue for a tagged entry and records the
-    ref against the row. Returns the 'owner/repo#N' ref, or None if there is
-    nothing to do (unknown id, untagged, already filed against the current
-    tag, bad repo tag) or filing failed -- in every None case the row's
-    filed_issue is left as it was, so a later retry (the sweep in
-    file_pending, or another retag) can still succeed."""
+def file_issue(entry_id: str, conn=None, creator=None, closer=None) -> str:  # -> 'owner/repo#N' or None; a None leaves filed_issue as it was, so a later retry can still succeed
     owns_conn = conn is None
     conn = conn or get_conn()
     try:
@@ -135,9 +98,7 @@ def file_issue(entry_id: str, conn=None, creator=None, closer=None) -> str:
             close = closer or _default_closer
             try:
                 close(filed_issue, f"Retagged to {repo} -- inbox {entry_id} is now filed as {new_ref}.")
-            except _FILING_ERRORS as e:
-                # The new issue is already recorded; a stray old one stays
-                # open rather than the entry going unfiled over this.
+            except _FILING_ERRORS as e:  # new issue is already recorded; a stray old one stays open
                 logger.warning("could not close superseded issue %s for entry %s: %s", filed_issue, entry_id, e)
 
         return new_ref
@@ -146,11 +107,7 @@ def file_issue(entry_id: str, conn=None, creator=None, closer=None) -> str:
             conn.close()
 
 
-def file_pending(conn=None, creator=None, closer=None) -> list:
-    """Safety net for the tick loop: catches a tagged entry whose immediate
-    file_issue() call failed (gh/defere down, transient network) or was
-    never reached (retag landed just before a crash). Returns the ids
-    filed."""
+def file_pending(conn=None, creator=None, closer=None) -> list:  # retries anything file_issue() missed; returns the ids filed
     owns_conn = conn is None
     conn = conn or get_conn()
     try:

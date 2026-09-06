@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Tests for zaxon_relay_filer.py: a tagged inbox entry gets a pointer issue
-in its target repo, not the transcript (crt#154). `creator`/`closer` are
-injected so none of this ever shells out to a real `defere` or `gh`."""
+"""Tests for zaxon_relay_filer.py (crt#154): a tag files a pointer, never the
+transcript. `creator`/`closer` are injected so nothing shells out for real."""
 import os
 import sys
 import tempfile

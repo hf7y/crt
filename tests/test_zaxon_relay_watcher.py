@@ -24,13 +24,7 @@ FAILED_MSG = (
 )
 
 
-def setUpModule():
-    # crt#154: a tag (on arrival, or via _retag) now fires w.file_issue(),
-    # which by default shells out to `defere` -> real `gh` -> a real GitHub
-    # issue on hf7y/<repo>. None of the tests below should ever do that --
-    # only TestFilesOnTag cares about filing at all, and it installs its own
-    # tracking fake. Every other TestCase in this file predates crt#154 and
-    # tags notes incidentally; this is the default that keeps them inert.
+def setUpModule():  # crt#154: a tag fires w.file_issue() -> real `gh`; keep every test but TestFilesOnTag inert
     global _MODULE_FILE_ISSUE_GUARD
     _MODULE_FILE_ISSUE_GUARD = w.file_issue
     w.file_issue = lambda entry_id, **kwargs: None

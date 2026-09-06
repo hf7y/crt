@@ -5,11 +5,10 @@ Zaxon relay message, and resolves the matching ticket.
 Reads only hermes-agent's log file, never its process or source -- survives
 `hermes update`; a changed log format just stops matching (fails closed).
 
-Restart-safe: persists a byte-offset checkpoint after every line so a
-watcher restart (crash, redeploy, systemd bounce) can never silently skip a
-reply that landed in the gap. resolve_reply() only updates rows still
-'pending', so replaying already-seen lines on top of a stale/missing
-checkpoint is always safe -- prefer reprocessing over ever risking SEEK_END.
+Restart-safe: persists a byte-offset checkpoint after every line, so a
+crash/redeploy/systemd bounce never silently skips a reply -- replaying
+already-seen lines is always safe, since resolve_reply() only touches rows
+still 'pending'.
 
 A voice note that failed to transcribe is NOT resolved as a reply: its
 audio is retained instead and the ticket stays pending (retain_audio).
@@ -121,14 +120,10 @@ def resolve_reply(reply_id: str, msg: str, via: str = "text") -> bool:
 
 
 def retain_audio(reply_id: str, audio_path: str) -> bool:
-    """A voice note that would not transcribe is not an answer -- the ticket
-    stays pending. But the audio it names IS the answer, so copy it out of
-    the gateway's cache, which gets swept, into the relay's own directory,
-    which does not. zaxon-retranscribe turns it into an answer once whisper
-    is healthy again.
-
-    Returns True when this line was a failed transcription against an open
-    ticket, i.e. the caller must not treat it as a reply."""
+    """Not an answer -- the ticket stays pending -- but the audio is copied
+    out of the gateway's cache (which gets swept) so zaxon-retranscribe can
+    use it later. True when this line was a failed transcription against an
+    open ticket, i.e. the caller must not treat it as a reply."""
     conn = get_conn()
     try:
         row = conn.execute(
