@@ -52,6 +52,21 @@ check "a clean run exits 0" "$rc" "0"
 out="$("$SCRIPT" 2>&1)"
 check "a second run re-transcribes nothing" "$out" ""
 
+# A music-only result is whisper's non-speech annotation, not a transcript.
+cat > "$T/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+printf '{"text":" (upbeat music)\\n (jazz music) "}'
+STUB
+chmod +x "$T/bin/curl"
+: > "$T/inbox/a track.mp3"
+"$SCRIPT" >/dev/null 2>&1
+check "a music-only result is kept out of the transcript directory" \
+  "$([ -e "$T/out/a track.mp3.txt" ] && echo yes || echo no)" "no"
+check "...but is still recorded, so it is not transcribed again every run" \
+  "$([ -s "$T/out/.no-speech/a track.mp3.txt" ] && echo yes || echo no)" "yes"
+check "the transcript directory holds only real transcripts" \
+  "$(ls "$T/out" | wc -l)" "3"
+
 : > "$T/inbox/broken.mp3"
 "$SCRIPT" >/dev/null 2>&1
 check "a file that cannot be decoded exits 1, not 0" "$?" "1"

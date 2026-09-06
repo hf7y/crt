@@ -107,6 +107,10 @@ echo "== crt-lib-audio-device.sh by-name device resolution (bash tools) =="
 bash "$DIR/test_audio_device_lib.sh" || fail=1
 echo
 
+echo "== crt-stt-inbox.sh sweeps the inbox (ffmpeg/curl stubbed) =="
+bash "$DIR/test_stt_inbox.sh" || fail=1
+echo
+
 echo "== crt-pager.py =="
 python3 "$DIR/test_pager.py" || fail=1
 echo

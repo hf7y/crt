@@ -14,7 +14,8 @@ set -uo pipefail
 INBOX="${CRT_STT_INBOX:-$HOME/Downloads}"
 OUT="${CRT_STT_OUT:-$HOME/Transcripts}"
 SERVER="${CRT_WHISPER_SERVER:-http://100.107.253.56:8090/inference}"
-SETTLE="${CRT_STT_SETTLE:-15}"     # seconds a file must have been still
+SETTLE="${CRT_STT_SETTLE:-15}"
+NOSPEECH=.no-speech                # where a music-only "transcript" goes     # seconds a file must have been still
 EXTS='wav mp3 m4a ogg opus aac amr flac mp4 mov'
 
 mkdir -p "$OUT" || exit 1
@@ -22,7 +23,7 @@ mkdir -p "$OUT" || exit 1
 transcribe() {  # <audio> -- 0 transcribed, 1 failed, 2 already done
   local src="$1" name txt tmp
   name="$(basename -- "$src")"; txt="$OUT/$name.txt"
-  [ -s "$txt" ] && return 2
+  if [ -s "$txt" ] || [ -s "$OUT/$NOSPEECH/$name.txt" ]; then return 2; fi
   tmp="$(mktemp -d)" || return 1
   # RESAMPLED FIRST, ALWAYS: the server takes wav and mp3 as they are, but
   # rejects m4a outright -- and a phone voice memo is m4a or opus.
@@ -39,6 +40,18 @@ transcribe() {  # <audio> -- 0 transcribed, 1 failed, 2 already done
   fi
   # Written only once it is whole: a half-written transcript is indistinguishable
   # from a short one, and this file is also the "already done" marker.
+  # A track with no speech transcribes as "(upbeat music)" and nothing else.
+  # That is not a transcript, and 8 of the first 29 files here were exactly it --
+  # keeping them in $OUT rebuilds the pile the inbox already was. It still has
+  # to mark the file as done, so it moves aside instead of being discarded.
+  # Strip every (parenthesised) and [bracketed] annotation and all whitespace:
+  # what is left is speech, or there was none. A character class cannot express
+  # this without ']' closing it early, which is how the first version silently
+  # never matched.
+  if [ -z "$(sed -e 's/([^)]*)//g' -e 's/\[[^]]*\]//g' -e 's/[[:space:]]//g' "$tmp/t")" ]; then
+    mkdir -p "$OUT/$NOSPEECH"; mv "$tmp/t" "$OUT/$NOSPEECH/$name.txt"; rm -rf "$tmp"
+    return 3
+  fi
   mv "$tmp/t" "$txt"; rm -rf "$tmp"
   return 0
 }
@@ -62,6 +75,7 @@ run() {
     case $rc in
       0) done_n=$((done_n + 1)); last="$(basename -- "$f")" ;;
       1) fail_n=$((fail_n + 1)) ;;
+      3) ;;   # no speech in it: marked done, counted as nothing, notifies nobody
     esac
   done
 }
