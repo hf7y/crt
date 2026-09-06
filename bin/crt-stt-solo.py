@@ -563,12 +563,7 @@ def ring_unplayable_report(detail):
             "[ring] RANG NOTHING -- %s. The handset never made a sound, so "
             "nobody declined to answer it. This is a fault here, not a "
             "missed call." % detail)
-# Optional: send the WAV to a faster-whisper HTTP service on another machine
-# instead of invoking whisper.cpp on this one. Same VAD/capture/denoise
-# pipeline either way -- only the inference step moves. Live shape as of
-# crt#133: potato POSTs to dexter's containerized whisper, wired
-#   [rest: vault:crt/header-archaeology-20260817.md]
-WHISPER_SERVER = os.environ.get("CRT_WHISPER_SERVER", "")   # e.g. http://100.107.253.56:8090/inference
+WHISPER_SERVER = os.environ.get("CRT_WHISPER_SERVER", "")   # e.g. http://100.107.253.56:8090/inference -- optional: POST the WAV to a whisper server instead of running whisper.cpp here, same pipeline either way, only inference moves. crt#133: potato POSTs to dexter's container, NOT the retired mandark faster-whisper this used to name. [rest: vault:crt/header-archaeology-20260817.md]
 WHISPER_SERVER_TIMEOUT = float(os.environ.get("CRT_WHISPER_SERVER_TIMEOUT", "8"))
 WHISPER_LOCAL_FALLBACK = os.environ.get("CRT_WHISPER_LOCAL_FALLBACK", "1") != "0"  # crt#132
 

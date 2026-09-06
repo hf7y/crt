@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -uo pipefail   # crt-stt-inbox.sh [file...] -- transcribe new inbox audio, or exactly these
 
 INBOX="${CRT_STT_INBOX:-$HOME/Downloads}"
 OUT="${CRT_STT_OUT:-$HOME/Transcripts}"
@@ -15,7 +15,7 @@ transcribe() {  # <audio> -- 0 transcribed, 1 failed, 2 already done, 3 no speec
   name="$(basename -- "$src")"; txt="$OUT/$name.txt"
   if [ -s "$txt" ] || [ -s "$OUT/$NOSPEECH/$name.txt" ]; then return 2; fi
   tmp="$(mktemp -d)" || return 1
-  if ! ffmpeg -nostdin -y -loglevel error -i "$src" -ar 16000 -ac 1 -c:a pcm_s16le "$tmp/a.wav" 2>"$tmp/err"; then
+  if ! ffmpeg -nostdin -y -loglevel error -i "$src" -ar 16000 -ac 1 -c:a pcm_s16le "$tmp/a.wav" 2>"$tmp/err"; then   # -nostdin, else ffmpeg eats the file list off stdin and every file after the first is skipped; resampled always, because the server rejects the m4a a phone voice memo is
     printf 'crt-stt-inbox: ffmpeg could not read %s: %s\n' "$name" "$(tail -1 "$tmp/err")" >&2
     rm -rf "$tmp"; return 1
   fi
@@ -24,7 +24,7 @@ transcribe() {  # <audio> -- 0 transcribed, 1 failed, 2 already done, 3 no speec
     printf 'crt-stt-inbox: %s did not answer for %s\n' "$SERVER" "$name" >&2
     rm -rf "$tmp"; return 1
   fi
-  if [ -z "$(sed -e 's/([^)]*)//g' -e 's/\[[^]]*\]//g' -e 's/[[:space:]]//g' "$tmp/t")" ]; then
+  if [ -z "$(sed -e 's/([^)]*)//g' -e 's/\[[^]]*\]//g' -e 's/[[:space:]]//g' "$tmp/t")" ]; then   # a music-only "(upbeat music)" is not a transcript: moved aside, still marking the file done. A strip, not a regex -- ']' closes a character class early
     mkdir -p "$OUT/$NOSPEECH"; mv "$tmp/t" "$OUT/$NOSPEECH/$name.txt"; rm -rf "$tmp"
     return 3
   fi
@@ -53,7 +53,7 @@ run() {
   done
 }
 
-if [ $# -gt 0 ]; then run < <(printf '%s\0' "$@"); else run < <(collect); fi
+if [ $# -gt 0 ]; then run < <(printf '%s\0' "$@"); else run < <(collect); fi   # process substitution, not a pipe: a pipe makes run a subshell and drops every count
 
 [ "$done_n" = 0 ] && [ "$fail_n" = 0 ] && exit 0
 
