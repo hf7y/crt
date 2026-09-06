@@ -4,12 +4,8 @@ Documentation=https://github.com/hf7y/crt/blob/main/STT-MECHANISM.md
 
 [Service]
 Type=oneshot
-# The watcher fires on the first byte KDE Connect writes; the script's own
-# settle window is what actually decides a file has landed. This is slack.
 ExecStartPre=/bin/sleep 20
 ExecStart=%h/Documents/Projects/crt/bin/crt-stt-inbox.sh
 
 [Install]
-# Also at login: the path unit only sees changes while the session is up, so a
-# file that arrived with the machine off would otherwise wait for the next one.
 WantedBy=default.target

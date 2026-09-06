@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Offline test for bin/crt-stt-inbox.sh -- no whisper server, no real audio.
-# ffmpeg and curl are stubbed on PATH, and the ffmpeg stub DRAINS STDIN unless
-# it is passed -nostdin, because that is the bug this file exists to hold shut:
-# the real ffmpeg ate the NUL-separated file list off stdin and every file
-# after the first was silently skipped.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$DIR/../bin/crt-stt-inbox.sh"
@@ -20,7 +15,7 @@ mkdir -p "$T/bin" "$T/inbox" "$T/out"
 
 cat > "$T/bin/ffmpeg" <<'STUB'
 #!/usr/bin/env bash
-[ "${1:-}" = "-nostdin" ] || cat > /dev/null    # the bug, faithfully
+[ "${1:-}" = "-nostdin" ] || cat > /dev/null    # the real ffmpeg eats stdin
 for a in "$@"; do case "$a" in *broken*) exit 1 ;; esac; done
 printf 'wav' > "${@: -1}"
 STUB
@@ -52,7 +47,6 @@ check "a clean run exits 0" "$rc" "0"
 out="$("$SCRIPT" 2>&1)"
 check "a second run re-transcribes nothing" "$out" ""
 
-# A music-only result is whisper's non-speech annotation, not a transcript.
 cat > "$T/bin/curl" <<'STUB'
 #!/usr/bin/env bash
 printf '{"text":" (upbeat music)\\n (jazz music) "}'
