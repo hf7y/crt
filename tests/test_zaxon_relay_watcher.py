@@ -6,6 +6,7 @@ import os
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 RELAY_DIR = os.path.join(
@@ -265,8 +266,15 @@ class TestRetag(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         db.DB_PATH = Path(self._tmp.name) / "tickets.db"
         self.conn = db.get_conn()
+        # A retag files a real pointer issue (crt#154) unless stubbed --
+        # this suite must never shell out to `defere`/`gh` for real
+        # (2026-09-06: an earlier version of this file did exactly that and
+        # filed hf7y/realisateur#1052-1054 from a plain test run).
+        self._filer_patch = unittest.mock.patch.object(w.filer, "file_issue", return_value="hf7y/stub#0")
+        self._filer_patch.start()
 
     def tearDown(self):
+        self._filer_patch.stop()
         self.conn.close()
         self._tmp.cleanup()
 
@@ -306,6 +314,84 @@ class TestRetag(unittest.TestCase):
     def test_a_claimed_note_is_not_readdressed_under_the_agent_working_it(self):
         self._note("being worked", claimed_by="musc")
         self.assertFalse(w._retag("tag realisateur"))
+
+
+class TestFilePointer(unittest.TestCase):  # crt#154
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmp.name) / "tickets.db"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_a_new_tag_files_a_pointer_and_records_it(self):
+        eid = inbox.record_unclassified("water the plants", None, "voice", for_agent="crt")
+        with unittest.mock.patch.object(w.filer, "file_issue", return_value="hf7y/crt#7") as m:
+            w._file_pointer(eid, "crt")
+        m.assert_called_once()
+        self.assertEqual(inbox.get_entry(eid)["filed_issue"], "hf7y/crt#7")
+
+    def test_a_failed_filing_leaves_filed_issue_unset_and_does_not_raise(self):
+        eid = inbox.record_unclassified("water the plants", None, "voice", for_agent="crt")
+        with unittest.mock.patch.object(w.filer, "file_issue", side_effect=RuntimeError("gh down")):
+            w._file_pointer(eid, "crt")  # must not raise
+        self.assertIsNone(inbox.get_entry(eid)["filed_issue"])
+
+    def test_retag_to_a_different_repo_closes_the_old_issue_then_files_a_new_one(self):
+        eid = self._note = inbox.record_unclassified("water the plants", None, "voice", for_agent="crt")
+        inbox.set_filed_issue(eid, "hf7y/crt#7")
+        with unittest.mock.patch.object(w.filer, "close_for_retag") as close, \
+             unittest.mock.patch.object(w.filer, "file_issue", return_value="hf7y/realisateur#3") as create:
+            self.assertTrue(w._retag(f"tag {eid} realisateur"))
+        close.assert_called_once_with("hf7y/crt#7", "hf7y/realisateur#3")
+        create.assert_called_once()
+        self.assertEqual(inbox.get_entry(eid)["filed_issue"], "hf7y/realisateur#3")
+
+    def test_retag_to_the_same_repo_does_not_close_anything(self):
+        eid = inbox.record_unclassified("water the plants", None, "voice", for_agent="crt")
+        inbox.set_filed_issue(eid, "hf7y/crt#7")
+        with unittest.mock.patch.object(w.filer, "close_for_retag") as close, \
+             unittest.mock.patch.object(w.filer, "file_issue", return_value="hf7y/crt#7"):
+            self.assertTrue(w._retag(f"tag {eid} crt"))
+        close.assert_not_called()
+
+    def test_a_failed_refiling_leaves_the_old_pointer_open(self):
+        """The old, stale pointer is still a working pointer -- closing it
+        with nothing to replace it would leave the note with no pointer at
+        all, which is worse."""
+        eid = inbox.record_unclassified("water the plants", None, "voice", for_agent="crt")
+        inbox.set_filed_issue(eid, "hf7y/crt#7")
+        with unittest.mock.patch.object(w.filer, "close_for_retag") as close, \
+             unittest.mock.patch.object(w.filer, "file_issue", side_effect=RuntimeError("gh down")):
+            self.assertTrue(w._retag(f"tag {eid} realisateur"))
+        close.assert_not_called()
+        self.assertEqual(inbox.get_entry(eid)["filed_issue"], "hf7y/crt#7")
+
+    def test_a_first_time_tag_via_retag_has_nothing_to_close(self):
+        eid = inbox.record_unclassified("water the plants", None, "voice")
+        with unittest.mock.patch.object(w.filer, "close_for_retag") as close, \
+             unittest.mock.patch.object(w.filer, "file_issue", return_value="hf7y/crt#9"):
+            self.assertTrue(w._retag(f"tag {eid} crt"))
+        close.assert_not_called()
+
+    def test_unfiled_finds_a_tagged_note_a_prior_run_never_got_to_file(self):
+        eid = inbox.record_unclassified("water the plants", None, "voice", for_agent="crt")
+        rows = inbox.unfiled()
+        self.assertEqual([r["id"] for r in rows], [eid])
+
+    def test_unfiled_skips_untagged_and_already_filed_notes(self):
+        inbox.record_unclassified("untagged", None, "voice")
+        filed = inbox.record_unclassified("filed already", None, "voice", for_agent="crt")
+        inbox.set_filed_issue(filed, "hf7y/crt#1")
+        self.assertEqual(inbox.unfiled(), [])
+
+    def test_file_missing_pointers_catches_up_a_stranded_tag(self):
+        eid = inbox.record_unclassified("water the plants", None, "voice", for_agent="crt")
+        with unittest.mock.patch.object(w.filer, "file_issue", return_value="hf7y/crt#11") as m:
+            w._file_missing_pointers()
+        m.assert_called_once()
+        self.assertEqual(inbox.get_entry(eid)["filed_issue"], "hf7y/crt#11")
+
 
 if __name__ == "__main__":
     unittest.main()

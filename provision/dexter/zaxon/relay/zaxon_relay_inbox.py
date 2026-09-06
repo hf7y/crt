@@ -84,7 +84,7 @@ def fetch_inbox(conn=None, limit: int = 50, for_agent=None, include_claimed: boo
         if for_agent is None:
             rows = conn.execute(
                 "SELECT id, message, reply_to_id, received_at, via, for_agent, "
-                "claimed_by, claimed_at FROM inbox "
+                "claimed_by, claimed_at, filed_issue FROM inbox "
                 "ORDER BY received_at DESC, rowid DESC LIMIT ?",
                 (limit,),
             ).fetchall()
@@ -96,7 +96,7 @@ def fetch_inbox(conn=None, limit: int = 50, for_agent=None, include_claimed: boo
                 params += [for_agent, _claim_expiry_threshold()]
             rows = conn.execute(
                 "SELECT id, message, reply_to_id, received_at, via, for_agent, "
-                f"claimed_by, claimed_at FROM inbox WHERE {where} "
+                f"claimed_by, claimed_at, filed_issue FROM inbox WHERE {where} "
                 "ORDER BY received_at DESC, rowid DESC LIMIT ?",
                 (*params, limit),
             ).fetchall()
@@ -113,6 +113,58 @@ def fetch_inbox(conn=None, limit: int = 50, for_agent=None, include_claimed: boo
             "for_agent": r[5],
             "claimed_by": r[6],
             "claimed_at": r[7],
+            "filed_issue": r[8],
         }
         for r in rows
     ]
+
+
+def get_entry(entry_id: str, conn=None) -> dict:  # None if no such row -- callers check before reading a field
+    owns_conn = conn is None
+    conn = conn or get_conn()
+    try:
+        row = conn.execute(
+            "SELECT id, message, reply_to_id, received_at, via, for_agent, "
+            "claimed_by, claimed_at, filed_issue FROM inbox WHERE id=?",
+            (entry_id,),
+        ).fetchone()
+    finally:
+        if owns_conn:
+            conn.close()
+    if row is None:
+        return None
+    return {
+        "id": row[0],
+        "message": row[1],
+        "reply_to_id": row[2],
+        "received_at": row[3],
+        "via": row[4],
+        "for_agent": row[5],
+        "claimed_by": row[6],
+        "claimed_at": row[7],
+        "filed_issue": row[8],
+    }
+
+
+def set_filed_issue(entry_id: str, issue_ref: str, conn=None) -> None:
+    owns_conn = conn is None
+    conn = conn or get_conn()
+    try:
+        conn.execute("UPDATE inbox SET filed_issue=? WHERE id=?", (issue_ref, entry_id))
+        conn.commit()
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def unfiled(conn=None) -> list:  # crt#154: tagged notes a crashed/restarted watcher never got to file
+    owns_conn = conn is None
+    conn = conn or get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT id, for_agent FROM inbox WHERE for_agent IS NOT NULL AND filed_issue IS NULL"
+        ).fetchall()
+    finally:
+        if owns_conn:
+            conn.close()
+    return [{"id": r[0], "for_agent": r[1]} for r in rows]

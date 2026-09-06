@@ -47,7 +47,7 @@ def get_conn() -> sqlite3.Connection:
         if col not in cols:
             conn.execute(f"ALTER TABLE tickets ADD COLUMN {col} TEXT")
     inbox_cols = {row[1] for row in conn.execute("PRAGMA table_info(inbox)")}
-    for col in ("for_agent", "claimed_by", "claimed_at"):
+    for col in ("for_agent", "claimed_by", "claimed_at", "filed_issue"):
         if col not in inbox_cols:
             conn.execute(f"ALTER TABLE inbox ADD COLUMN {col} TEXT")
     conn.commit()

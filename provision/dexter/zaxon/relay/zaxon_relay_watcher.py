@@ -26,10 +26,11 @@ import time
 from pathlib import Path
 
 from zaxon_relay_db import get_conn
-from zaxon_relay_inbox import assign, record_unclassified
+from zaxon_relay_inbox import assign, get_entry, record_unclassified, set_filed_issue, unfiled
 
 logger = logging.getLogger("zaxon_relay_watcher")
 from zaxon_relay_queue import sweep_and_promote
+import zaxon_relay_filer as filer
 
 LOG_PATH = Path.home() / ".hermes" / "logs" / "agent.log"
 OFFSET_PATH = Path.home() / ".hermes" / "zaxon_relay" / "watcher.offset"
@@ -68,14 +69,57 @@ RETAG_RE = re.compile(   # crt#154: "tag realisateur" readdresses the last untag
 )
 
 
+def _iso_now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _file_pointer(entry_id: str, repo: str, old_filed_issue=None, old_repo=None) -> None:
+    """Files (or refiles) the pointer issue for a newly-tagged note --
+    crt#154. Never raises: a GH API hiccup must not take down the only
+    long-running loop this relay has, and a note left unfiled here is
+    caught by the next _file_missing_pointers() sweep instead.
+
+    Files the new pointer BEFORE closing any stale one: the close comment
+    has to name the new issue (gh-sign's close_check refuses a close that
+    names nothing a check could go and look at), and if filing the new one
+    fails, the old pointer staying open beats leaving neither."""
+    try:
+        issue_ref = filer.file_issue(entry_id, repo, _iso_now())
+    except Exception:
+        logger.exception("failed to file pointer issue for inbox entry %s (%s)", entry_id, repo)
+        return
+    set_filed_issue(entry_id, issue_ref)
+    logger.warning("filed pointer issue %s for inbox entry %s (%s)", issue_ref, entry_id, repo)
+    if old_filed_issue and old_repo != repo:
+        try:
+            filer.close_for_retag(old_filed_issue, issue_ref)
+        except Exception:
+            logger.exception(
+                "failed to close stale filed issue %s for entry %s (retagged to %s)",
+                old_filed_issue, entry_id, issue_ref,
+            )
+
+
+def _file_missing_pointers() -> None:  # crt#154: catches a tag that landed but never got filed (crash/restart between the two)
+    for row in unfiled():
+        _file_pointer(row["id"], row["for_agent"])
+
+
 def _retag(msg: str) -> bool:   # True when msg WAS a retag and landed; a retag that finds nothing falls through and is recorded, so a mistyped one is never silently eaten
     m = RETAG_RE.match(msg.strip())
     if not m:
         return False
-    tagged = assign(m.group("repo"), m.group("entry"))
+    repo = m.group("repo")
+    old = get_entry(m.group("entry")) if m.group("entry") else None
+    tagged = assign(repo, m.group("entry"))
     if tagged is None:
         return False
-    logger.warning("retagged inbox entry %s for %s", tagged, m.group("repo"))
+    logger.warning("retagged inbox entry %s for %s", tagged, repo)
+    _file_pointer(
+        tagged, repo,
+        old_filed_issue=old.get("filed_issue") if old else None,
+        old_repo=old.get("for_agent") if old else None,
+    )
     return True
 
 
@@ -166,6 +210,8 @@ def main() -> None:
     while not LOG_PATH.exists():
         time.sleep(2)
 
+    _file_missing_pointers()  # crt#154: catch up on any tag that landed but never got filed before a prior restart
+
     with open(LOG_PATH, "r", encoding="utf-8", errors="replace") as f:
         f.seek(0, os.SEEK_END)
         size = f.tell()
@@ -185,6 +231,7 @@ def main() -> None:
                         sweep_and_promote(conn)
                     finally:
                         conn.close()
+                    _file_missing_pointers()
                 time.sleep(0.5)
                 continue
             idle_ticks = 0
@@ -205,9 +252,11 @@ def main() -> None:
                     handled = _retag(msg)
                 if not handled:
                     for_agent, body = _split_for_agent(msg)
-                    record_unclassified(
+                    entry_id = record_unclassified(
                         body, None if reply_id == "None" else reply_id, via, for_agent=for_agent
                     )
+                    if for_agent:
+                        _file_pointer(entry_id, for_agent)
                 voice_hint = False
             elif TRANSCRIBED_RE.search(line):
                 voice_hint = True
