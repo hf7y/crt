@@ -38,6 +38,29 @@ def record_unclassified(message: str, reply_to_id, via: str = "text", for_agent=
     return entry_id
 
 
+def assign(for_agent: str, entry_id=None, conn=None):   # -> the id tagged, or None. entry_id omitted means the newest note nobody has tagged or claimed: a voice note that arrived untagged is what this exists for
+    owns_conn = conn is None
+    conn = conn or get_conn()
+    try:
+        if entry_id is None:
+            row = conn.execute(
+                "SELECT id FROM inbox WHERE for_agent IS NULL AND claimed_by IS NULL "
+                "ORDER BY received_at DESC, rowid DESC LIMIT 1"
+            ).fetchone()
+            if row is None:
+                return None
+            entry_id = row[0]
+        cur = conn.execute(
+            "UPDATE inbox SET for_agent=? WHERE id=? AND claimed_by IS NULL",   # a claimed note is being worked; readdressing it under the agent is not a correction
+            (for_agent, entry_id),
+        )
+        conn.commit()
+        return entry_id if cur.rowcount else None
+    finally:
+        if owns_conn:
+            conn.close()
+
+
 def claim(entry_id: str, agent: str, conn=None) -> bool:  # True if `agent` won, atomically
     owns_conn = conn is None
     conn = conn or get_conn()
