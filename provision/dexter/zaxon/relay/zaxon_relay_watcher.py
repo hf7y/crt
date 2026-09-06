@@ -68,15 +68,26 @@ RETAG_RE = re.compile(   # crt#154: "tag realisateur" readdresses the last untag
 )
 
 
-def _retag(msg: str) -> bool:   # True when msg WAS a retag and landed; a retag that finds nothing falls through and is recorded, so a mistyped one is never silently eaten
+def _retag(msg: str):   # entry id when msg WAS a retag and landed, else None; a retag that finds nothing falls through and is recorded, so a mistyped one is never silently eaten
     m = RETAG_RE.match(msg.strip())
     if not m:
-        return False
+        return None
     tagged = assign(m.group("repo"), m.group("entry"))
     if tagged is None:
-        return False
+        return None
     logger.warning("retagged inbox entry %s for %s", tagged, m.group("repo"))
-    return True
+    return tagged
+
+
+def _maybe_file(entry_id):   # crt#154: a tagged note becomes a pointer issue in its target repo. Never lets a filing failure (gh down, no network) take down the only long-running loop this relay has
+    if entry_id is None or os.environ.get("ZAXON_FILER_DISABLE") == "1":
+        return
+    try:
+        import zaxon_relay_filer as filer
+
+        filer.file_if_tagged(entry_id)
+    except Exception:
+        logger.exception("failed to file pointer issue for inbox %s", entry_id)
 
 
 def _split_for_agent(msg: str):  # (for_agent, body); for_agent is None when untagged
@@ -202,12 +213,16 @@ def main() -> None:
                     else:
                         handled = resolve_reply(reply_id, msg, via)
                 if not handled:
-                    handled = _retag(msg)
+                    retagged_id = _retag(msg)
+                    handled = retagged_id is not None
+                    _maybe_file(retagged_id)
                 if not handled:
                     for_agent, body = _split_for_agent(msg)
-                    record_unclassified(
+                    entry_id = record_unclassified(
                         body, None if reply_id == "None" else reply_id, via, for_agent=for_agent
                     )
+                    if for_agent:
+                        _maybe_file(entry_id)
                 voice_hint = False
             elif TRANSCRIBED_RE.search(line):
                 voice_hint = True

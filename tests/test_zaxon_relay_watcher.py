@@ -6,6 +6,7 @@ import os
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 RELAY_DIR = os.path.join(
@@ -258,6 +259,38 @@ class TestClaim(unittest.TestCase):  # crt#129
         finally:
             inbox.CLAIM_TTL_SECS = old_saved_ttl
 
+
+
+class TestMaybeFile(unittest.TestCase):  # crt#154: the watcher's hook into the filer, never allowed to crash the loop
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmp.name) / "tickets.db"
+        os.environ.pop("ZAXON_FILER_DISABLE", None)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+        os.environ.pop("ZAXON_FILER_DISABLE", None)
+
+    def test_none_entry_id_is_a_noop(self):
+        w._maybe_file(None)  # must not raise, must not import/call the filer
+
+    def test_calls_the_filer_for_a_real_entry(self):
+        import zaxon_relay_filer as filer
+        eid = inbox.record_unclassified("bring the charger", None, "voice", for_agent="realisateur")
+        with unittest.mock.patch.object(filer, "file_if_tagged") as mocked:
+            w._maybe_file(eid)
+            mocked.assert_called_once_with(eid)
+
+    def test_the_disable_flag_short_circuits_before_importing_the_filer(self):
+        os.environ["ZAXON_FILER_DISABLE"] = "1"
+        eid = inbox.record_unclassified("bring the charger", None, "voice", for_agent="realisateur")
+        w._maybe_file(eid)  # would raise if it tried to shell out to a real gh
+
+    def test_a_filer_exception_does_not_propagate(self):
+        import zaxon_relay_filer as filer
+        eid = inbox.record_unclassified("bring the charger", None, "voice", for_agent="realisateur")
+        with unittest.mock.patch.object(filer, "file_if_tagged", side_effect=RuntimeError("gh down")):
+            w._maybe_file(eid)  # must not raise
 
 
 class TestRetag(unittest.TestCase):
