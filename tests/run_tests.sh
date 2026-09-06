@@ -67,6 +67,10 @@ echo "== hookswitch debounce =="
 bash "$DIR/test_hookswitch_debounce.sh" || fail=1
 echo
 
+echo "== hookswitch gpio transport =="
+bash "$DIR/test_hookswitch_gpio.sh" || fail=1
+echo
+
 echo "== sideband ambient tone =="
 bash "$DIR/test_sideband.sh" || fail=1
 echo

@@ -69,20 +69,26 @@ captures silence, check these in order:
 ## Hookswitch (physical on/off)
 
 The mechanical hookswitch is **not wired to any analog phone line** — no PBX,
-so no relay. It's a plain logic-level contact: wire the microswitch (via
-`cad/switch_mount.scad`) to a cheap USB arcade-button/keyboard-encoder
-board, configured to emit one key while the switch is closed (handset
-resting on the hook).
+so no relay. It's a plain logic-level contact, read via `CRT_HOOK_TRANSPORT`
+(`evtest`, default, or `gpio`):
 
-Setup:
+**`evtest`.** Wire the microswitch (via `cad/switch_mount.scad`) to a cheap
+USB arcade-button/keyboard-encoder board, one key while closed.
 ```
 evtest                       # find the encoder's device path and confirm the key it sends
 export CRT_HOOK_DEVICE=/dev/input/by-id/usb-...-event-kbd
 export CRT_HOOK_KEY=KEY_F13  # match whatever the encoder actually sends
 ```
-Add both exports to `.bash_profile` above the `crt autoboot` block (installer
-leaves a marker) so they're set before `crt-console.sh` runs. With
-`CRT_HOOK_DEVICE` set, autostart opens a third pane running
+
+**`gpio`.** Wire the switch straight to a Pi GPIO pin instead (HOOKSWITCH.md option 3):
+```
+export CRT_HOOK_TRANSPORT=gpio
+export CRT_HOOK_GPIO_PIN=17          # BCM pin the switch is wired to
+export CRT_HOOK_GPIO_ACTIVE_LOW=1    # 1: pull-up, switch-to-GND on-hook (default)
+```
+
+Add the exports to `.bash_profile` above the `crt autoboot` block (installer
+leaves a marker). Autostart then opens a third pane running
 `hookswitch-listen.sh`, which SIGSTOPs/SIGCONTs `stt-feed.sh` as the handset
 is placed down / picked up.
 

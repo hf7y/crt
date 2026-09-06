@@ -59,6 +59,9 @@ covered by a synthetic bounce-sequence test in `tests/`. Everything else
 above is unbuilt/unverified — no physical switch to test bounce timing
 against in reality, 50ms is a reasoned guess, not a measurement.
 
+**2026-09-06:** option 3's software half (`CRT_HOOK_TRANSPORT=gpio`) is built and
+tested against a fake sysfs tree; real wiring and option 1's hard-kill remain hardware-only.
+
 ## Wiring/kill options for the physical switch (design writeup, 2026-07-24)
 
 Filed originally in scheduler's `BLOCKERS.md` as "the handset's 3-pin
