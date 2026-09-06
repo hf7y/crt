@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 
 from zaxon_relay_db import get_conn
+from zaxon_relay_filer import file_issue, file_pending
 from zaxon_relay_inbox import assign, record_unclassified
 
 logger = logging.getLogger("zaxon_relay_watcher")
@@ -76,6 +77,7 @@ def _retag(msg: str) -> bool:   # True when msg WAS a retag and landed; a retag 
     if tagged is None:
         return False
     logger.warning("retagged inbox entry %s for %s", tagged, m.group("repo"))
+    file_issue(tagged)   # crt#154: a corrected tag gets its own pointer issue same as an on-arrival one
     return True
 
 
@@ -162,6 +164,25 @@ def _save_checkpoint(offset: int) -> None:
     OFFSET_PATH.write_text(str(offset))
 
 
+def _handle_message(reply_id: str, msg: str, via: str) -> None:
+    handled = False
+    if reply_id != "None":
+        failed = STT_FAILED_RE.search(msg)
+        if failed:
+            handled = retain_audio(reply_id, failed.group("path").strip())
+        else:
+            handled = resolve_reply(reply_id, msg, via)
+    if not handled:
+        handled = _retag(msg)
+    if not handled:
+        for_agent, body = _split_for_agent(msg)
+        entry_id = record_unclassified(
+            body, None if reply_id == "None" else reply_id, via, for_agent=for_agent
+        )
+        if for_agent is not None:
+            file_issue(entry_id)   # crt#154: tagged on arrival, e.g. "realisateur: ..."
+
+
 def main() -> None:
     while not LOG_PATH.exists():
         time.sleep(2)
@@ -183,6 +204,7 @@ def main() -> None:
                     conn = get_conn()
                     try:
                         sweep_and_promote(conn)
+                        file_pending(conn)   # crt#154: catches a filing that failed transiently (gh down) rather than losing it
                     finally:
                         conn.close()
                 time.sleep(0.5)
@@ -191,23 +213,8 @@ def main() -> None:
 
             m = LINE_RE.search(line)
             if m:
-                reply_id = m.group("reply_id")
-                msg = m.group("msg")
                 via = "voice" if voice_hint else "text"
-                handled = False
-                if reply_id != "None":
-                    failed = STT_FAILED_RE.search(msg)
-                    if failed:
-                        handled = retain_audio(reply_id, failed.group("path").strip())
-                    else:
-                        handled = resolve_reply(reply_id, msg, via)
-                if not handled:
-                    handled = _retag(msg)
-                if not handled:
-                    for_agent, body = _split_for_agent(msg)
-                    record_unclassified(
-                        body, None if reply_id == "None" else reply_id, via, for_agent=for_agent
-                    )
+                _handle_message(m.group("reply_id"), m.group("msg"), via)
                 voice_hint = False
             elif TRANSCRIBED_RE.search(line):
                 voice_hint = True
