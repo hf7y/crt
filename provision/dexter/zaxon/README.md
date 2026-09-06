@@ -20,6 +20,17 @@ by the page itself: the one-holder rule for `data/whatsapp/session`, the
 never-bind-`0.0.0.0` rule, where the STT command lives, and why a relay that
 merely answers is never `OK`.
 
+## Filing a tagged inbox note (crt#154)
+
+The `watcher` service opens a pointer issue (never the transcript) in a
+note's target repo once it's tagged — `zaxon_relay_filer.py`. It runs `gh`,
+which reads `GH_TOKEN` from `./.env` next to this `compose.yaml` (docker
+compose's own env file, not the hermes-owned `data/.env`). Without
+`ZAXON_GH_TOKEN` set there, `docker compose up` refuses the `watcher`
+service outright rather than starting a watcher that can retag but never
+file. Use a fine-grained PAT, `issues:write` only, scoped to the repos this
+relay is ever tagged for — not an org-wide token.
+
 ## Open
 
 - `hermes` is still registered, so it can still seize the session; the page

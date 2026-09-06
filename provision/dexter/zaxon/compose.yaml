@@ -47,7 +47,9 @@ services:
       retries: 3
       start_period: 30s
 
-  # Tails agent.log for Zach's replies, matching them to tickets. Reads only.
+  # Tails agent.log for Zach's replies, matching them to tickets. Reads only,
+  # except for the one write crt#154 added: filing a pointer issue (never
+  # the transcript) when a note gets tagged for a repo.
   watcher:
     image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-watcher
@@ -58,6 +60,12 @@ services:
     working_dir: /opt/zaxon-relay
     network_mode: "service:gateway"
     command: ["/usr/local/bin/python", "/opt/zaxon-relay/zaxon_relay_watcher.py"]
+    environment:
+      # `gh` reads this directly. From ./.env (docker compose's own, next to
+      # this file -- NOT data/.env, which is hermes's and .deploykeep-shielded).
+      # A fine-grained PAT, issues:write only, scoped to the repos this
+      # relay is ever tagged for -- not a full-org token.
+      GH_TOKEN: ${ZAXON_GH_TOKEN:?set ZAXON_GH_TOKEN in ./.env -- crt#154's filer cannot open issues without it}
     depends_on:
       - relay
 

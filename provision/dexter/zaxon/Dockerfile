@@ -13,7 +13,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates gnupg ffmpeg procps \
  && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
+ && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+ && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+ && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
+ && apt-get update && apt-get install -y --no-install-recommends gh \
  && rm -rf /var/lib/apt/lists/*
+# gh, for the watcher's zaxon_relay_filer.py (crt#154) to file a pointer
+# issue when an inbox note gets tagged. Reads auth from GH_TOKEN, set on the
+# watcher service in compose.yaml.
 
 # The relay's venv is python 3.14 and unusable here, so its one dependency (mcp)
 # is installed into the image; the rest is stdlib, delivery uses hermes's venv.

@@ -26,10 +26,11 @@ import time
 from pathlib import Path
 
 from zaxon_relay_db import get_conn
-from zaxon_relay_inbox import assign, record_unclassified
+from zaxon_relay_inbox import assign, get_entry, record_unclassified, set_filed_issue
 
 logger = logging.getLogger("zaxon_relay_watcher")
 from zaxon_relay_queue import sweep_and_promote
+from zaxon_relay_filer import file_entry, refile_entry, repo_from_issue_url
 
 LOG_PATH = Path.home() / ".hermes" / "logs" / "agent.log"
 OFFSET_PATH = Path.home() / ".hermes" / "zaxon_relay" / "watcher.offset"
@@ -68,6 +69,26 @@ RETAG_RE = re.compile(   # crt#154: "tag realisateur" readdresses the last untag
 )
 
 
+def _file_for_tag(entry_id: str) -> None:  # crt#154: files the pointer issue a freshly-tagged (or re-tagged) row now owes its target repo
+    row = get_entry(entry_id)
+    if row is None or row["for_agent"] is None:
+        return
+    repo = row["for_agent"]
+    old = row["filed_issue"]
+    if old and repo_from_issue_url(old) == repo:
+        return  # already filed under this repo -- a retag that didn't actually change anything
+    try:
+        if old:
+            url = refile_entry(entry_id, old, repo, row["via"], row["received_at"])
+        else:
+            url = file_entry(entry_id, repo, row["via"], row["received_at"])
+    except Exception:  # noqa: BLE001 -- a filing failure must not take down the only watcher this relay has
+        logger.exception("could not file pointer issue for inbox entry %s (repo=%s)", entry_id, repo)
+        return
+    set_filed_issue(entry_id, url)
+    logger.warning("filed pointer issue %s for inbox entry %s (repo=%s)", url, entry_id, repo)
+
+
 def _retag(msg: str) -> bool:   # True when msg WAS a retag and landed; a retag that finds nothing falls through and is recorded, so a mistyped one is never silently eaten
     m = RETAG_RE.match(msg.strip())
     if not m:
@@ -76,6 +97,7 @@ def _retag(msg: str) -> bool:   # True when msg WAS a retag and landed; a retag 
     if tagged is None:
         return False
     logger.warning("retagged inbox entry %s for %s", tagged, m.group("repo"))
+    _file_for_tag(tagged)
     return True
 
 
@@ -205,9 +227,11 @@ def main() -> None:
                     handled = _retag(msg)
                 if not handled:
                     for_agent, body = _split_for_agent(msg)
-                    record_unclassified(
+                    entry_id = record_unclassified(
                         body, None if reply_id == "None" else reply_id, via, for_agent=for_agent
                     )
+                    if for_agent:
+                        _file_for_tag(entry_id)
                 voice_hint = False
             elif TRANSCRIBED_RE.search(line):
                 voice_hint = True

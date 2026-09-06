@@ -538,6 +538,10 @@ echo "== zaxon relay watcher: a voice note it could not hear is not an answer ==
 python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_watcher.py" -v 2>&1 | tail -15 || fail=1
 echo
 
+echo "== zaxon relay filer: a tagged note gets a pointer issue, never the transcript (crt#154) =="
+python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_filer.py" -v 2>&1 | tail -15 || fail=1
+echo
+
 echo "== zaxon relay server: fetch_inbox / ask_zach / send_zach =="
 python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_server.py" -v 2>&1 | tail -25 || fail=1
 echo

@@ -18,6 +18,33 @@ import zaxon_relay_db as db  # noqa: E402
 import zaxon_relay_inbox as inbox  # noqa: E402
 import zaxon_relay_watcher as w  # noqa: E402
 
+# crt#154 wired _file_for_tag() behind every retag and every initial tag, and
+# its default file_entry/refile_entry shell out to the real `gh` binary --
+# which, on a box where `gh` is already logged in (this one), would file a
+# REAL issue against a REAL repo every time an unrelated test tags a note.
+# Every test in this module gets a network-free stub by default; only
+# TestFileForTag below swaps in its own per-test doubles to examine the call.
+_REAL_FILE_ENTRY = w.file_entry
+_REAL_REFILE_ENTRY = w.refile_entry
+
+
+def _stub_file_entry(entry_id, repo, via, received_at, creator=None):
+    return f"https://github.com/hf7y/{repo}/issues/0"
+
+
+def _stub_refile_entry(entry_id, old_issue_url, new_repo, via, received_at, creator=None, closer=None):
+    return f"https://github.com/hf7y/{new_repo}/issues/0"
+
+
+def setUpModule():
+    w.file_entry = _stub_file_entry
+    w.refile_entry = _stub_refile_entry
+
+
+def tearDownModule():
+    w.file_entry = _REAL_FILE_ENTRY
+    w.refile_entry = _REAL_REFILE_ENTRY
+
 FAILED_MSG = (
     "[voice message could not be transcribed automatically; "
     "the audio is available at: {path}]"
@@ -306,6 +333,70 @@ class TestRetag(unittest.TestCase):
     def test_a_claimed_note_is_not_readdressed_under_the_agent_working_it(self):
         self._note("being worked", claimed_by="musc")
         self.assertFalse(w._retag("tag realisateur"))
+
+
+class TestFileForTag(unittest.TestCase):  # crt#154: a tagged note owes its target repo a pointer issue
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmp.name) / "tickets.db"
+        self._orig_file_entry = w.file_entry
+        self._orig_refile_entry = w.refile_entry
+
+    def tearDown(self):
+        w.file_entry = self._orig_file_entry
+        w.refile_entry = self._orig_refile_entry
+        self._tmp.cleanup()
+
+    def test_a_freshly_tagged_note_gets_filed(self):
+        calls = []
+        w.file_entry = lambda *a, **k: calls.append(a) or "https://github.com/hf7y/crt/issues/1"
+        eid = inbox.record_unclassified("bring the charger", None, "voice", for_agent="crt")
+        w._file_for_tag(eid)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(inbox.get_entry(eid)["filed_issue"], "https://github.com/hf7y/crt/issues/1")
+
+    def test_an_untagged_note_is_not_filed(self):
+        w.file_entry = lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not file an untagged note"))
+        eid = inbox.record_unclassified("water the plants", None, "voice")
+        w._file_for_tag(eid)  # must not raise
+        self.assertIsNone(inbox.get_entry(eid)["filed_issue"])
+
+    def test_retagging_to_a_different_repo_refiles(self):
+        refile_calls = []
+        w.refile_entry = lambda *a, **k: refile_calls.append(a) or "https://github.com/hf7y/realisateur/issues/9"
+        eid = inbox.record_unclassified("bring the charger", None, "voice", for_agent="crt")
+        inbox.set_filed_issue(eid, "https://github.com/hf7y/crt/issues/1")
+        inbox.assign("realisateur", eid)
+        w._file_for_tag(eid)
+        self.assertEqual(len(refile_calls), 1)
+        self.assertEqual(refile_calls[0][1], "https://github.com/hf7y/crt/issues/1")
+        self.assertEqual(inbox.get_entry(eid)["filed_issue"], "https://github.com/hf7y/realisateur/issues/9")
+
+    def test_retagging_to_the_same_repo_is_a_noop(self):
+        w.file_entry = lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not re-file"))
+        w.refile_entry = lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not re-file"))
+        eid = inbox.record_unclassified("bring the charger", None, "voice", for_agent="crt")
+        inbox.set_filed_issue(eid, "https://github.com/hf7y/crt/issues/1")
+        w._file_for_tag(eid)  # must not raise -- already filed under this same repo
+
+    def test_a_filing_failure_does_not_crash_and_leaves_it_unfiled(self):
+        def boom(*a, **k):
+            raise RuntimeError("gh: not authenticated")
+
+        w.file_entry = boom
+        eid = inbox.record_unclassified("bring the charger", None, "voice", for_agent="crt")
+        w._file_for_tag(eid)  # must not raise
+        self.assertIsNone(inbox.get_entry(eid)["filed_issue"])
+
+    def test_a_retag_command_files_the_newly_tagged_note(self):
+        calls = []
+        w.file_entry = lambda *a, **k: calls.append(a) or "https://github.com/hf7y/realisateur/issues/2"
+        self._note = lambda msg: inbox.record_unclassified(msg, None, "voice")
+        eid = self._note("second")
+        self.assertTrue(w._retag("tag realisateur"))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(inbox.get_entry(eid)["filed_issue"], "https://github.com/hf7y/realisateur/issues/2")
+
 
 if __name__ == "__main__":
     unittest.main()
