@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # Single-reader standalone STT engine -- no Claude Code, no dsnoop.
 #
-# WHY THIS EXISTS: on the VirtualBox guest the emulated capture does NOT fan out
-# through dsnoop -- a *second* reader gets a starved signal (measured: sole
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# WHY: exactly one process reads the capture device -- see AUDIO-DEBUG.md's
+# Approach B for the dsnoop-starved-second-reader history this design avoids.
 import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, urllib.error, json, re, signal, fcntl, termios
 import importlib.util
 from collections import deque
@@ -32,9 +31,9 @@ _mp_spec.loader.exec_module(media_player)
 
 # SINK: where recognized text goes.
 #   stdout (default) -- scroll transcriptions; standalone STT/debug view.
-#   claude           -- type into the tmux Claude Code pane + voice-control keys,
-#                       exactly like stt-feed.sh, but from this SINGLE-reader
-#   [rest: vault:crt/header-archaeology-20260817.md]
+#   claude    -- type into the tmux Claude Code pane + voice-control keys.
+#   secretary -- control keys same as claude; free text routes through
+#                send_to_secretary() instead. See test_stt_secretary_sink.py.
 SINK    = os.environ.get("CRT_STT_SINK", "stdout")
 SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
 PANE    = os.environ.get("CRT_TMUX_PANE", "0")
@@ -102,11 +101,8 @@ def send_to_claude(text, key):
     subprocess.run(["tmux", "send-keys", "-t", target, "Enter"])
 
 
-# Fire-and-forget must not mean nobody-ever-looks (2026-07-25). In the live
-# boot config this is THE destination for every utterance that gets past the
-# wake gate -- crt-console.sh runs this engine with CRT_STT_SINK=secretary --
-# and both of the child's streams went to /dev/null with its exit status read
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Fire-and-forget must not mean nobody-ever-looks (2026-07-25) -- see the
+# Dispatch class below and tests/test_dispatch_failure_visible.py.
 DISPATCH_MAX_TRACKED = int(os.environ.get("CRT_DISPATCH_MAX_TRACKED", "8"))
 DISPATCH_ERR_TAIL = 8192          # bytes of a chatty child's stderr worth keeping
 _dispatches = []
