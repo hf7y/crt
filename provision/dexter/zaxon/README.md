@@ -5,6 +5,18 @@ streamable-http exposing `ask_zach`, `revise_zach_question` and
 `check_zach_reply`; loopback and tailnet only (#52). See `compose.yaml` for the
 rest.
 
+**One question per ticket (Zach 2026-08-20, crt#190).** He reads tickets on a
+WhatsApp phone screen -- a bundle of several questions in one message runs
+past what he can see and he ends up re-answering the same batch repeatedly.
+Never bundle multiple decisions into one `ask_zach` call; open a separate
+ticket per question instead. Enforced at the send, not just documented here:
+`validate_message`/`validate_single_question` in `relay/zaxon_relay_queue.py`
+refuse a question carrying more than one `?`, more than one enumerated item
+("1. ... 2. ..."), or more than `MAX_QUESTION_LINES` lines -- refused, not
+truncated or silently split. Use `options=` for a multiple-choice poll on
+ONE question; that is not bundling. If a ticket goes stale unanswered, do
+NOT just re-send it -- reconsider whether it still needs asking.
+
 Deploys are automatic — `zaxon-autoupdate.timer` pulls hourly and verifies the
 relay answers. By hand: `sudo docker compose pull && sudo docker compose up -d`
 (`sudo` because `zach` is not in the `docker` group).

@@ -10,6 +10,7 @@ so calling it more often only promotes sooner. deliver() edits in place (crt#100
 import calendar
 import json
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -17,6 +18,13 @@ import urllib.request
 from pathlib import Path
 
 MAX_QUESTION_CHARS = 140
+
+# One question per ticket (Zach 2026-08-20, RELAY_FORMAT_RULES.md, crt#190):
+# a batch of 7-8 questions in one message ran past what fits on his WhatsApp
+# screen and he had to re-answer 3 times. MAX_QUESTION_CHARS alone does not
+# catch this -- a bundle of short questions fits easily under 140 chars.
+MAX_QUESTION_LINES = 3
+_ENUMERATED_ASK_RE = re.compile(r"(?:^|\n)\s*\d+[.)]\s")
 QUESTION_TTL_SECS = int(os.environ.get("ZAXON_QUESTION_TTL_SECS", "3600"))
 
 GATEWAY_CACHE_AUDIO_DIR = Path.home() / ".hermes" / "cache" / "audio"
@@ -71,6 +79,32 @@ def format_message(repo: str, question: str, options) -> str:
     return "\n".join(lines)
 
 
+def validate_single_question(question: str) -> None:
+    """One question per ticket (Zach 2026-08-20): a bundle of several short
+    questions can slip under MAX_QUESTION_CHARS and still be unanswerable on
+    a phone screen. Checks the QUESTION text alone -- the sanctioned
+    multiple-choice `options` poll is a different, already-numbered field
+    and is not what this guards against."""
+    if question.count("?") > 1:
+        raise ValueError(
+            "question contains more than one '?' -- one question per ticket "
+            "(Zach 2026-08-20); open a separate ticket per question instead "
+            "of bundling"
+        )
+    if len(_ENUMERATED_ASK_RE.findall(question)) > 1:
+        raise ValueError(
+            "question contains more than one enumerated item (e.g. '1. ... "
+            "2. ...') -- one question per ticket (Zach 2026-08-20); use the "
+            "options= poll for multiple choices on ONE question, or open a "
+            "separate ticket per question"
+        )
+    if question.count("\n") >= MAX_QUESTION_LINES:
+        raise ValueError(
+            f"question spans more than {MAX_QUESTION_LINES} lines -- keep it "
+            "short enough to fit a phone screen (Zach 2026-08-20)"
+        )
+
+
 def validate_message(repo: str, question: str, options=None) -> str:
     """Measures what actually lands on the phone -- repo tag and option
     lines included -- because 140 is inclusive (Zach 2026-08-25). Measuring
@@ -80,6 +114,7 @@ def validate_message(repo: str, question: str, options=None) -> str:
     decided what it's asking. Returns the rendered text so callers don't
     render twice."""
     validate_repo(repo)
+    validate_single_question(question)
     text = format_message(repo, question, options)
     if len(text) > MAX_QUESTION_CHARS:
         raise ValueError(
