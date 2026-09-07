@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-# Offline test: when the thing that handles an utterance dies, the console has
-# to say so (2026-07-25).
-#
-# bin/crt-console.sh boots the engine with CRT_STT_SINK=secretary, so
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Offline test: when the thing that handles an utterance dies, the console
+# has to say so (2026-07-25). Each class docstring below states the
+# specific failure it witnesses.
 import importlib.util
 import io
 import os
