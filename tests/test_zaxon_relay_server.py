@@ -227,6 +227,13 @@ class TestClaimInboxEntry(unittest.TestCase):
         self.assertEqual(server.fetch_inbox(for_agent="realisateur")["entries"], [])
 
 
+class TestBindsToAllInterfaces(unittest.TestCase):
+    def test_binds_all_interfaces_not_loopback(self):
+        # A tailnet peer other than dexter itself (e.g. mandark) has to
+        # reach this port; loopback-only would refuse that connection.
+        self.assertEqual(server.BIND_HOST, "0.0.0.0")
+
+
 class TestSendZach(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.TemporaryDirectory()

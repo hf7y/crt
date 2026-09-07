@@ -206,10 +206,18 @@ def send_zach(message: str, from_agent: str = "agent") -> dict:
     return {"status": "sent", "message_id": payload.get("message_id")}
 
 
+# All interfaces, not loopback: reachable over Tailscale from other machines
+# (e.g. mandark), not just from other WSL distros on dexter. No auth yet, so
+# this also means reachable from the LAN, not just the tailnet -- revisit
+# once per-consumer auth lands (see ZAXON_ROADMAP.md Phase 1).
+BIND_HOST = "0.0.0.0"
+BIND_PORT = 8643
+MCP_PATH = "/mcp"
+
 if __name__ == "__main__":
-    # Bound to all interfaces (not just loopback) so it's reachable over
-    # Tailscale from other machines (e.g. mandark), not just from other WSL
-    # distros on dexter. No auth on this server yet -- this also means it's
-    # reachable from the LAN, not just the tailnet. Revisit once per-consumer
-    # auth lands (see ZAXON_ROADMAP.md Phase 1).
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8643, streamable_http_path="/mcp")
+    mcp.run(
+        transport="streamable-http",
+        host=BIND_HOST,
+        port=BIND_PORT,
+        streamable_http_path=MCP_PATH,
+    )
