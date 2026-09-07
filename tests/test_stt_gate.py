@@ -7,6 +7,8 @@
 import importlib.util
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -23,6 +25,37 @@ class TestGateDefaultsOff(unittest.TestCase):
         # until a human has watched this run live (CLAUDE.md's
         # acceptance-bar note).
         self.assertFalse(stt_solo.GATE)
+
+
+def _gate_log_default():
+    # A subprocess, not module reload: GATE_LOG is read at import time, and
+    # every test file in this suite (including this one's own module-scope
+    # import above) sets CRT_STT_GATE_LOG for isolation before that happens.
+    env = dict(os.environ)
+    env.pop("CRT_STT_GATE_LOG", None)
+    env.pop("CRT_THOUGHT_LOG", None)
+    probe = (
+        "import importlib.util\n"
+        "spec = importlib.util.spec_from_file_location('m', %r)\n"
+        "m = importlib.util.module_from_spec(spec)\n"
+        "spec.loader.exec_module(m)\n"
+        "print(m.GATE_LOG)\n"
+    ) % os.path.join(BIN_DIR, "crt-stt-solo.py")
+    r = subprocess.run([sys.executable, "-c", probe], capture_output=True,
+                        text=True, env=env, timeout=30)
+    return r.stdout.strip()
+
+
+class TestGateLogDefaultIsSeparateFromThoughtsLog(unittest.TestCase):
+    def test_default_is_gate_log_not_thoughts_log(self):
+        # 2026-07-28 fix (Zach: "clean up claude output to mono ... junk on
+        # screen"): GATE_LOG used to default to the SAME file thoughts.log
+        # does, so a gated ("no wake word") utterance landed on window 1,
+        # indistinguishable from an actual reply. Must stay a genuinely
+        # separate file by default.
+        default = _gate_log_default()
+        self.assertEqual(default, os.path.expanduser("~/.crt/gate.log"))
+        self.assertNotEqual(default, os.path.expanduser("~/.crt/thoughts.log"))
 
 
 class TestAddressedToConsole(unittest.TestCase):
