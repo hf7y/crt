@@ -590,10 +590,8 @@ def predictive_flash():
         hud_msg, hud_until = ("~ " + out)[:WIDTH + 20], time.time() + 10.0
 
 # Sideband ambient-presence state (2026-07-20, opt-in, off by default --
-# SIDEBAND.md). While CRT_SIDEBAND=1, this is the sole writer of
-# "listening" (mic actively capturing, the default while running) and
-# "thinking" (a real transcribe() call is in flight -- the same latency
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# SIDEBAND.md): sole writer of "listening"/"thinking"; call sites witnessed
+# by tests/test_sideband_wiring.py's TestSidebandCallSites.
 SIDEBAND = os.environ.get("CRT_SIDEBAND", "0") != "0"
 SIDEBAND_SET_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt-sideband-set.sh")
 SIDEBAND_TIMEOUT = float(os.environ.get("CRT_SIDEBAND_SET_TIMEOUT", "0.5"))

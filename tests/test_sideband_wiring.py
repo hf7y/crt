@@ -71,6 +71,27 @@ class TestSttSoloSidebandGate(unittest.TestCase):
         self.stt.set_sideband_state("listening")
 
 
+class TestSidebandCallSites(unittest.TestCase):
+    """Witnesses the header comment above set_sideband_state() in
+    bin/crt-stt-solo.py: it is the sole writer of "listening"/"thinking",
+    called only around main()'s capture loop in that order."""
+
+    def test_call_sites_are_exactly_listening_thinking_listening(self):
+        import ast
+        path = os.path.join(BIN_DIR, "crt-stt-solo.py")
+        with open(path) as f:
+            tree = ast.parse(f.read(), path)
+        states = []
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name)
+                    and node.func.id == "set_sideband_state"):
+                arg = node.args[0]
+                self.assertIsInstance(arg, ast.Constant)
+                states.append(arg.value)
+        self.assertEqual(states, ["listening", "thinking", "listening"])
+
+
 class _FakeProc:
     returncode = 0
 
