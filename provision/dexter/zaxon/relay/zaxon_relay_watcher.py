@@ -42,10 +42,7 @@ LINE_RE = re.compile(
     r"reply_to_id=(?P<reply_id>\S+) reply_to_text='"
 )
 
-# What the gateway substitutes for a voice note it could not transcribe. The
-# audio it names is real, and on 2026-08-17 and 2026-08-19 it was swept out
-# of cache/audio before anyone read the message -- so the reply was lost
-# twice over, once by whisper being dead and once by nobody keeping the file.
+# What the gateway substitutes for a voice note it could not transcribe.
 STT_FAILED_RE = re.compile(
     r"\[voice message could not be transcribed automatically; "
     r"the audio is available at: (?P<path>[^\]]+)\]"
@@ -139,9 +136,6 @@ def retain_audio(reply_id: str, audio_path: str) -> bool:
             dest = AUDIO_DIR / f"{ticket_id}{src.suffix or '.ogg'}"
             shutil.copy2(src, dest)
         except OSError:
-            # Already swept, or unreadable. Still not an answer: leaving the
-            # ticket pending is the honest state, and inventing one out of a
-            # message that only says "could not hear you" would be worse.
             return True
         conn.execute(
             "UPDATE tickets SET audio_path=? WHERE id=?", (str(dest), ticket_id)
@@ -226,8 +220,6 @@ def main() -> None:
             elif TRANSCRIBED_RE.search(line):
                 voice_hint = True
 
-            # Checkpoint after every line -- cheap at this log volume, and
-            # the whole point is to never lose a gap between checkpoints.
             _save_checkpoint(f.tell())
 
 
