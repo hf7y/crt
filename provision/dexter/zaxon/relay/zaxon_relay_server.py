@@ -81,10 +81,6 @@ def ask_zach(question: str, from_agent: str = "agent", options: list[str] | None
     that has asked repeatedly in the last 24h with nothing answered: the slot
     is a human's attention and it is being spent on everyone else's behalf.
 
-    ONE QUESTION PER TICKET (Zach 2026-08-20): also refuses a question
-    carrying more than one '?' or more than one enumerated item -- bundle
-    several questions and open a separate ticket per question instead.
-
     from_agent is your REPO name. options, if given, renders as a numbered poll."""
     try:
         validate_message(from_agent, question, options)
@@ -170,11 +166,9 @@ def check_zach_reply(ticket_id: str) -> dict:
     status is one of: queued, pending, answered, failed, stale, not_found.
     'queued' means another question is still waiting on Zach's phone, and
     queued_ahead / est_wait_hours say how far back; 'stale' means this one
-    expired unanswered and its slot was freed. Do NOT just re-send it
-    (Zach 2026-08-20) -- a caller that keeps re-asking with nothing answered
-    gets refused outright (see admission control); reconsider whether it
-    still needs asking before opening a new ticket for it. `question`
-    always comes back too."""
+    expired unanswered and its slot was freed -- do NOT just re-send it
+    (crt#190); reconsider whether it still needs asking. `question` always
+    comes back too."""
     conn = get_conn()
     try:
         sweep_and_promote(conn)

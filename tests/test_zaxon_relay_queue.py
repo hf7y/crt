@@ -77,17 +77,11 @@ class TestValidateMessage(unittest.TestCase):
                 q.validate_message(bad, "Coffee or tea?")
 
     def test_bundled_question_is_refused_even_under_the_char_budget(self):
-        """The regression crt#190 fixes: several short questions fit easily
-        under MAX_QUESTION_CHARS and used to sail through unbundled."""
         with self.assertRaises(ValueError):
             q.validate_message("musc", "Coffee or tea? And also, pizza tonight?")
 
 
 class TestValidateSingleQuestion(unittest.TestCase):
-    """One question per ticket (Zach 2026-08-20, crt#190): a bundle of
-    several short questions can slip under MAX_QUESTION_CHARS and still be
-    unanswerable on a phone screen."""
-
     def test_a_single_question_is_accepted(self):
         q.validate_single_question("Coffee or tea?")
 
@@ -113,8 +107,6 @@ class TestValidateSingleQuestion(unittest.TestCase):
             q.validate_single_question("line one\nline two\nline three\nline four")
 
     def test_the_sanctioned_options_poll_is_not_bundling(self):
-        """options= is the numbered-poll feature for ONE question with
-        multiple choices -- validate_message must not flag it as bundling."""
         q.validate_message("musc", "Coffee or tea?", ["coffee", "tea"])
 
 

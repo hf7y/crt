@@ -18,12 +18,7 @@ import urllib.request
 from pathlib import Path
 
 MAX_QUESTION_CHARS = 140
-
-# One question per ticket (Zach 2026-08-20, RELAY_FORMAT_RULES.md, crt#190):
-# a batch of 7-8 questions in one message ran past what fits on his WhatsApp
-# screen and he had to re-answer 3 times. MAX_QUESTION_CHARS alone does not
-# catch this -- a bundle of short questions fits easily under 140 chars.
-MAX_QUESTION_LINES = 3
+MAX_QUESTION_LINES = 3  # one question per ticket, crt#190
 _ENUMERATED_ASK_RE = re.compile(r"(?:^|\n)\s*\d+[.)]\s")
 QUESTION_TTL_SECS = int(os.environ.get("ZAXON_QUESTION_TTL_SECS", "3600"))
 
@@ -79,12 +74,7 @@ def format_message(repo: str, question: str, options) -> str:
     return "\n".join(lines)
 
 
-def validate_single_question(question: str) -> None:
-    """One question per ticket (Zach 2026-08-20): a bundle of several short
-    questions can slip under MAX_QUESTION_CHARS and still be unanswerable on
-    a phone screen. Checks the QUESTION text alone -- the sanctioned
-    multiple-choice `options` poll is a different, already-numbered field
-    and is not what this guards against."""
+def validate_single_question(question: str) -> None:  # crt#190
     if question.count("?") > 1:
         raise ValueError(
             "question contains more than one '?' -- one question per ticket "
