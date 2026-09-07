@@ -41,6 +41,12 @@ class TestSecretarySinkRouting(unittest.TestCase):
         self.assertEqual(self.claude_calls, [("yes", "yes")])
         self.assertEqual(self.secretary_calls, [])
 
+    def test_control_keyword_bypasses_gate_even_when_gate_is_on(self):
+        self.stt.GATE = True
+        self.stt.emit("yes")
+        self.assertEqual(self.claude_calls, [("yes", "yes")])
+        self.assertEqual(self.secretary_calls, [])
+
     def test_gate_still_applies_in_secretary_mode(self):
         self.stt.GATE = True
         self.stt.emit("just some ambient room chatter")
