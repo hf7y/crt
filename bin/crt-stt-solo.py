@@ -921,17 +921,14 @@ def read_exact(f, n):
 
 
 # --- Capture backpressure (2026-07-25) --------------------------------------
-#
-# transcribe() runs INSIDE this capture loop: for however long whisper takes,
-# nobody is reading arecord's stdout. The only thing holding the audio that
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# transcribe() runs INSIDE this capture loop with nobody reading arecord's
+# stdout meanwhile; see tests/test_capture_backpressure.py's PipeCapacityTest
+# and PipeReportTest for what the pipe holds and reports.
 CAPTURE_PIPE_BYTES = int(os.environ.get("CRT_CAPTURE_PIPE_BYTES", str(256 * 1024)))
 
-# A bigger pipe trades dropped audio for STALE audio: whatever queued up gets
-# transcribed and answered later, at its own pace, while the room has moved
-# on. So after each transcription anything older than this is discarded --
-# and said out loud, because silently dropping audio is the failure mode this
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Anything older than this is discarded (and reported, never silently) after
+# each transcription; see BacklogPlanTest/DrainTest/DrainReportTest in the
+# same file for the drop arithmetic and the never-silent claim.
 BACKLOG_MAX_SECS = float(os.environ.get("CRT_CAPTURE_BACKLOG_MAX_SECS", "3.0"))
 
 PIPE_MAX_SIZE_PATH = "/proc/sys/fs/pipe-max-size"
