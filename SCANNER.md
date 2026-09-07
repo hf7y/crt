@@ -1,11 +1,13 @@
-# USB 1D barcode scanner: dexter -> crt-vm forwarding
+# USB 1D barcode scanner
 
-A USB 1D barcode scanner is plugged into `dexter` (not the VM -- dexter's
-USB passthrough to `crt-vm` was never set up for this device, and the
-scanner enumerates as a keyboard, which passthrough would make worse, not
-better). It forwards scans to `crt-vm` over the network instead, arriving
-in the tmux Claude Code pane the same way STT transcriptions do -- see
-`STT-MECHANISM.md` for that parallel pipeline.
+Retired 2026-07-21, the same day it was built: originally a USB 1D barcode
+scanner plugged into `dexter` forwarded scans to `crt-vm` over the network
+(Pieces #1-3 below), arriving in the tmux Claude Code pane the same way STT
+transcriptions do. Live path now: the scanner types like a real keyboard
+directly into whatever tmux window has focus on the single machine that
+hosts the console (`potato` today) -- `bin/crt-book-console.py` reads it
+off its own stdin (see "2026-07-21, later still" below). `crt-vm`, named
+throughout the history below, no longer exists (`hf7y/crt#162`).
 
 ## Why the crossing is this way round
 Every other host/guest bridge in this repo (`dexter-whisper-server.py`,
