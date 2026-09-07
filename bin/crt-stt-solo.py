@@ -1363,8 +1363,11 @@ def emit(text, peak=1.0, utt_start=None, utt_end=None):
         # Arm-window follow-up check (opt-in, WAKE_ARM_ENABLED, see
         # bin/crt-wake-arm.py) -- MUST run before the normal gate below,
         # since its entire point is letting a follow-up through WITHOUT
-        # repeating the wake word. When disarmed/expired/disabled this is
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # repeating the wake word. Witnessed end-to-end through this real
+        # emit() by tests/test_wake_arm_clock_domain.py's
+        # TestThroughTheLiveEmitPath (a follow-up with GATE on still gets
+        # through the open window; chatter after the window closes is
+        # still gated normally).
         arm_match = None
         if WAKE_ARM_ENABLED and not is_control and ARM_STATE.armed:
             arm_match = classify_wake_match(text)
