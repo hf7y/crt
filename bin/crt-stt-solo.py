@@ -32,9 +32,10 @@ _mp_spec.loader.exec_module(media_player)
 
 # SINK: where recognized text goes.
 #   stdout (default) -- scroll transcriptions; standalone STT/debug view.
-#   claude           -- type into the tmux Claude Code pane + voice-control keys,
-#                       exactly like stt-feed.sh, but from this SINGLE-reader
-#   [rest: vault:crt/header-archaeology-20260817.md]
+#   claude    -- type into the tmux Claude Code pane + voice-control keys.
+#   secretary -- control keys same as claude; free text routes through
+#                send_to_secretary() instead of Claude's pane. Witnessed by
+#                tests/test_stt_secretary_sink.py.
 SINK    = os.environ.get("CRT_STT_SINK", "stdout")
 SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
 PANE    = os.environ.get("CRT_TMUX_PANE", "0")
