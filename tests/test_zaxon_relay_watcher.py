@@ -318,6 +318,51 @@ class TestRetag(unittest.TestCase):
         self.assertFalse(w._retag("tag realisateur"))
 
 
+class TestProcessLine(unittest.TestCase):
+    """The gateway transcribes immediately before dispatching, so a
+    TRANSCRIBED_RE line always precedes the voice note's own inbound
+    line -- _process_line's voice_hint carries that fact to the next
+    LINE_RE match. _handle_message is stubbed so these only exercise the
+    state machine, not ticket resolution (already covered by TestVia)."""
+
+    def setUp(self):
+        self.calls = []
+        self._orig_handle_message = w._handle_message
+        w._handle_message = lambda reply_id, msg, via: self.calls.append(via)
+
+    def tearDown(self):
+        w._handle_message = self._orig_handle_message
+
+    def _inbound(self, reply_id, msg):
+        return (
+            f"inbound message: platform=whatsapp msg='{msg}' "
+            f"reply_to_id={reply_id} reply_to_text='x'\n"
+        )
+
+    def test_a_transcription_line_marks_the_next_message_as_voice(self):
+        hint = w._process_line("some transcription log noise\n", False)
+        self.assertTrue(hint)
+        hint = w._process_line(self._inbound("wa1", "five pages"), hint)
+        self.assertFalse(hint)
+        self.assertEqual(self.calls, ["voice"])
+
+    def test_without_a_transcription_line_a_message_is_text(self):
+        hint = w._process_line(self._inbound("wa1", "five pages"), False)
+        self.assertFalse(hint)
+        self.assertEqual(self.calls, ["text"])
+
+    def test_the_hint_is_consumed_by_only_the_next_message(self):
+        hint = w._process_line("some transcription log noise\n", False)
+        hint = w._process_line(self._inbound("wa1", "first"), hint)
+        hint = w._process_line(self._inbound("wa2", "second"), hint)
+        self.assertEqual(self.calls, ["voice", "text"])
+
+    def test_an_unrelated_line_leaves_a_pending_hint_untouched(self):
+        hint = w._process_line("some transcription log noise\n", False)
+        hint = w._process_line("unrelated log noise\n", hint)
+        self.assertTrue(hint)
+
+
 class TestFilesOnTag(unittest.TestCase):  # crt#154: a tag, on arrival or by retag, must reach the filer
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

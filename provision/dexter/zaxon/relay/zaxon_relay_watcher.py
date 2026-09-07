@@ -48,12 +48,8 @@ STT_FAILED_RE = re.compile(
     r"the audio is available at: (?P<path>[^\]]+)\]"
 )
 
-# The gateway transcribes immediately before dispatching the message, so a
-# transcription line means the NEXT inbound message is a voice note's text.
-# The failure line above is self-identifying; only the SUCCESS path needs
-# this, and the success path has never once run here -- whisper was dead
-# 2026-08-02 to 2026-08-25. Confirm the pattern against the first real voice
-# note rather than trusting it: a wrong guess mislabels `via` and nothing more.
+# The gateway transcribes immediately before dispatching, so this line always
+# precedes the voice note's own inbound line -- see _process_line.
 TRANSCRIBED_RE = re.compile(r"transcription", re.IGNORECASE)
 
 FOR_AGENT_TAG_RE = re.compile(r"^(?P<repo>[A-Za-z][A-Za-z0-9_-]*):\s+(?P<body>.+)$", re.DOTALL)  # crt#130: "repo: message" addresses a note
@@ -181,6 +177,22 @@ def _handle_message(reply_id: str, msg: str, via: str) -> None:
             _file_safely(entry_id)   # crt#154: tagged on arrival, e.g. "realisateur: ..."
 
 
+def _process_line(line: str, voice_hint: bool) -> bool:
+    """Advance the voice-hint state machine by one tailed line, dispatching
+    a matched inbound line to _handle_message. Returns the voice_hint to
+    carry into the next line: a TRANSCRIBED_RE line sets it, the next
+    LINE_RE match consumes it (as via="voice") and clears it, and any other
+    line leaves it unchanged."""
+    m = LINE_RE.search(line)
+    if m:
+        via = "voice" if voice_hint else "text"
+        _handle_message(m.group("reply_id"), m.group("msg"), via)
+        return False
+    if TRANSCRIBED_RE.search(line):
+        return True
+    return voice_hint
+
+
 def main() -> None:
     while not LOG_PATH.exists():
         time.sleep(2)
@@ -212,14 +224,7 @@ def main() -> None:
                 continue
             idle_ticks = 0
 
-            m = LINE_RE.search(line)
-            if m:
-                via = "voice" if voice_hint else "text"
-                _handle_message(m.group("reply_id"), m.group("msg"), via)
-                voice_hint = False
-            elif TRANSCRIBED_RE.search(line):
-                voice_hint = True
-
+            voice_hint = _process_line(line, voice_hint)
             _save_checkpoint(f.tell())
 
 
