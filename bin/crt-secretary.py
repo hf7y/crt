@@ -594,7 +594,7 @@ def capture_pane():
         # that is the danger. Its frames CHANGE on their own (the potato
         # breathes, and since 4f7c17e its caption moves every 8s), so
         # wait_for_claude_reply() would watch it "grow" and hand back the
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # caption text as a reply. See TestIdleFacePaneIsNotABrain.
         return None
     r = sh(["tmux", "capture-pane", "-t", "%s:%s" % (SESSION, PANE), "-p", "-S", "-200"])
     return r.stdout if r.returncode == 0 else None
@@ -644,7 +644,7 @@ def send_to_claude(text):
         # plain `crt-mandark.sh off` (its own help: "keep the brain
         # local/onsite (or none)"). tmux would ACCEPT these keys -- the pane
         # is real, it just holds the potato -- so the delivery check below
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # would report success typing into a face. See TestIdleFacePaneIsNotABrain.
         log_brain_unreachable(text, IDLE_FACE_PANE_REPORT)
         return False
     r = sh(["tmux", "send-keys", "-t", "%s:%s" % (SESSION, PANE), "-l", text])
@@ -807,7 +807,7 @@ def wait_for_claude_reply(before_snapshot, on_partial=None):
 #
 # With the brain LOCAL, yes: bin/crt-claude-bridge.py tails Claude Code's own
 # session transcript under ~/.claude/projects/ and forwards its marked lines
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# already -- only the remote `port` bridge below has no transcript to tail.
 MIRROR_REPLY_TO_TUBE = CLAUDE_REMOTE_PORT is not None
 
 

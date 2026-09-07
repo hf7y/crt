@@ -667,6 +667,59 @@ class TestUndeliveredUtterance(unittest.TestCase):
         self.assertEqual(recorded, [])
 
 
+class TestIdleFacePaneIsNotABrain(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.tmp = tempfile.mkdtemp()
+        self.sec.BRAIN_LOG = os.path.join(self.tmp, "brain-unreachable.log")
+        self.sec.CLAUDE_REMOTE_PORT = None
+        self.sec.CLAUDE_SSH_HOST = None
+        self.sec.LOCAL_PANE_IS_IDLE_FACE = True
+        self.sec.IDLE_FACE_PANE_REPORT = "no brain behind window 0 -- idle face"
+        self.tmux_calls = []
+        self.sec.sh = lambda cmd, **kw: self.tmux_calls.append(cmd) or _ok()
+
+    def test_capture_pane_returns_none_not_the_changing_face(self):
+        self.assertIsNone(self.sec.capture_pane())
+
+    def test_capture_pane_never_shells_out_to_tmux(self):
+        self.sec.capture_pane()
+        self.assertEqual(self.tmux_calls, [])
+
+    def test_send_to_claude_is_not_delivered(self):
+        self.assertFalse(self.sec.send_to_claude("hello"))
+
+    def test_send_to_claude_skips_the_tmux_delivery_check(self):
+        self.sec.send_to_claude("hello")
+        self.assertEqual(self.tmux_calls, [])
+
+    def test_send_to_claude_logs_the_idle_face_report(self):
+        self.sec.send_to_claude("what did I leave in the oven")
+        with open(self.sec.BRAIN_LOG) as f:
+            line = f.read()
+        self.assertIn("idle face", line)
+        self.assertIn("what did I leave in the oven", line)
+
+
+class TestMirrorReplyToTube(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.calls = []
+        self.sec.sh = lambda cmd, **kw: self.calls.append(cmd) or _ok()
+
+    def test_local_brain_does_not_double_mirror(self):
+        self.sec.MIRROR_REPLY_TO_TUBE = False
+        self.sec.show_reply_line("an answer")
+        self.assertEqual(self.calls, [])
+
+    def test_remote_port_brain_mirrors_to_the_tube(self):
+        self.sec.MIRROR_REPLY_TO_TUBE = True
+        self.sec.show_reply_line("an answer")
+        self.assertEqual(len(self.calls), 1)
+        self.assertTrue(self.calls[0][0].endswith("crt-think.sh"))
+        self.assertIn("an answer", self.calls[0])
+
+
 class TestUnobservedReply(unittest.TestCase):
     """A send that lands and an answer nobody could read (2026-07-25).
 
