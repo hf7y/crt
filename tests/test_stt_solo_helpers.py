@@ -479,5 +479,23 @@ class TranscribeFallbackTest(unittest.TestCase):  # crt#132
             local.assert_called_once()
 
 
+class PublishArmWindowDisabledTest(unittest.TestCase):
+    """CRT_WAKE_ARM_ENABLED default OFF (this file's module-scope stt_solo,
+    never given the env var): publish_arm_window() must be a true no-op.
+    tests/test_book_answer_arm_window.py's TestTheEnginePublishes docstring
+    says this file "imports the same file with the flag off, in its own
+    process, and must keep seeing today's behaviour" -- this is that test,
+    which did not exist until now (crt#48)."""
+
+    def test_wake_arm_module_never_imported(self):
+        # WAKE_ARM_ENABLED guards the import at module scope (crt-stt-solo.py);
+        # these attributes only exist if that branch ran.
+        self.assertFalse(hasattr(stt_solo, "wake_arm"))
+        self.assertFalse(hasattr(stt_solo, "ARM_STATE"))
+
+    def test_publish_is_a_no_op(self):
+        stt_solo.publish_arm_window()  # must not raise
+
+
 if __name__ == "__main__":
     unittest.main()

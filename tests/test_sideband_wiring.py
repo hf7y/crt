@@ -2,6 +2,7 @@
 # Offline tests for the sideband state-transition wiring (SIDEBAND.md):
 # crt-stt-solo.py's opt-in set_sideband_state(), and crt-tts.py's
 # always-on mute-duck around play_wav(). No real mic/TTS backend needed.
+import ast
 import atexit
 import importlib.util
 import os
@@ -69,6 +70,32 @@ class TestSttSoloSidebandGate(unittest.TestCase):
         # Must not raise -- a broken sideband setter can never crash real
         # transcription, same contract as predictive_flash().
         self.stt.set_sideband_state("listening")
+
+    def test_set_sideband_state_is_the_sole_caller_of_the_setter_script(self):
+        """SIDEBAND.md's claim, restated at crt-stt-solo.py's SIDEBAND
+        comment: set_sideband_state() is the SOLE writer of sideband state --
+        nothing else in the file shells out to SIDEBAND_SET_BIN (crt#48)."""
+        src_path = os.path.join(BIN_DIR, "crt-stt-solo.py")
+        with open(src_path) as f:
+            tree = ast.parse(f.read(), filename=src_path)
+
+        readers = set()
+
+        class _Visitor(ast.NodeVisitor):
+            def __init__(self):
+                self.stack = ["<module>"]
+
+            def visit_FunctionDef(self, node):
+                self.stack.append(node.name)
+                self.generic_visit(node)
+                self.stack.pop()
+
+            def visit_Name(self, node):
+                if node.id == "SIDEBAND_SET_BIN" and isinstance(node.ctx, ast.Load):
+                    readers.add(self.stack[-1])
+
+        _Visitor().visit(tree)
+        self.assertEqual(readers, {"set_sideband_state"})
 
 
 class _FakeProc:

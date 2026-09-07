@@ -592,8 +592,9 @@ def predictive_flash():
 # Sideband ambient-presence state (2026-07-20, opt-in, off by default --
 # SIDEBAND.md). While CRT_SIDEBAND=1, this is the sole writer of
 # "listening" (mic actively capturing, the default while running) and
-# "thinking" (a real transcribe() call is in flight -- the same latency
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# "thinking" (a real transcribe() call is in flight). Sole-writer claim
+# witnessed by tests/test_sideband_wiring.py's
+# test_set_sideband_state_is_the_sole_caller_of_the_setter_script.
 SIDEBAND = os.environ.get("CRT_SIDEBAND", "0") != "0"
 SIDEBAND_SET_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt-sideband-set.sh")
 SIDEBAND_TIMEOUT = float(os.environ.get("CRT_SIDEBAND_SET_TIMEOUT", "0.5"))
@@ -644,8 +645,10 @@ FIXUPS_PATH = crt_config.fixups_path()
 # Arm-window / wake-judge wiring (2026-07-23, see bin/crt-wake-arm.py's
 # own header for the full story -- this is the "sticky conversation
 # window" fix, wired to crt-wake-judge.py's dormant autonomous tuning
-# judge). Opt-in, default OFF: with CRT_WAKE_ARM_ENABLED unset, every
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# judge). Opt-in, default OFF: with CRT_WAKE_ARM_ENABLED unset, wake_arm is
+# never imported and publish_arm_window() below is a true no-op --
+# witnessed by tests/test_stt_solo_helpers.py's
+# PublishArmWindowDisabledTest.
 WAKE_ARM_ENABLED = os.environ.get("CRT_WAKE_ARM_ENABLED", "0") == "1"
 if WAKE_ARM_ENABLED:
     import importlib.util as _importlib_util
