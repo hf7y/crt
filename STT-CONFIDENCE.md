@@ -136,7 +136,7 @@ that needs nothing new from the user. `crt-secretary.py` now has:
 2. ~~Wire into `crt-secretary.py`~~ **DONE above.**
 3. Turn `CRT_SECRETARY_CONFIDENCE=1` on for a live session and let real
    traffic accumulate in `~/.crt/stt-confidence.json` — needs a human on
-   `crt-vm`, not buildable further from an unattended pass.
+   the console (`potato`), not buildable further from an unattended pass.
 4. Once there's a few days of real history, revisit `DECAY_RATE`/
    `FLOOR_P` against how this room's vocabulary actually repeats (or
    doesn't), and design the actual skip-Claude-below-floor step.

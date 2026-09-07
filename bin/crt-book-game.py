@@ -1314,7 +1314,7 @@ def main():
         tier = pick_response_tier(total_rounds, stt_accuracy)
         question = None
         if source == "claude":
-            # Live `claude -p` batch calls still need a real crt-vm session
+            # Live `claude -p` batch calls still need a real live-Claude session
             # (see BOOK-GAME.md) -- Gemini is the cheap-tier stand-in for
             # this slot instead (2026-07-21), reusing the same batch prompt/
             # parse contract. Falls back to template on any failure (no

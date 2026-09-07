@@ -73,7 +73,7 @@ IDLE_FACE_PANE_REPORT = crt_config.idle_face_pane_report(PANE)
 # cut -- see FOCUS.md's "move Claude off potato" note for the API-based
 # version planned for later, and bin/crt-remote-claude-bridge.py's own
 # header for the full design/threat-model reasoning). Empty by default:
-#   [rest: vault:crt/header-archaeology-20260817.md]
+#   falls back to local tmux -- see brain_mode(), tests/test_secretary.py.
 CLAUDE_REMOTE_PORT = int(os.environ.get("CRT_CLAUDE_REMOTE_PORT", "0")) or None
 SSH_CONNECT_TIMEOUT = os.environ.get("CRT_CLAUDE_REMOTE_SSH_TIMEOUT", "5")
 
@@ -81,7 +81,7 @@ SSH_CONNECT_TIMEOUT = os.environ.get("CRT_CLAUDE_REMOTE_SSH_TIMEOUT", "5")
 # Set CRT_CLAUDE_SSH_HOST to an ssh alias (dexter) whose authorized_keys
 # pins bin/crt-brain-shell.py as a forced command. Same two-verb protocol as
 # the bridge -- only the transport differs, so everything downstream of
-#   [rest: vault:crt/header-archaeology-20260817.md]
+#   ssh outranks port outranks local -- see brain_mode(), TestSshBrainMode.
 CLAUDE_SSH_HOST = os.environ.get("CRT_CLAUDE_SSH_HOST", "").strip() or None
 REPORTS_DIR = os.path.expanduser(os.environ.get("CRT_REPORTS_DIR", "~/reports/crt"))
 REPO_DIR = os.path.expanduser(os.environ.get("CRT_REPO_DIR", "~/crt"))
@@ -118,7 +118,7 @@ CAPTURE_MISS_TOLERANCE = int(os.environ.get("CRT_SECRETARY_CAPTURE_MISSES", "3")
 # send_to_claude()/capture_pane() above type into and read from window
 # 0's pane directly, regardless of which tmux window is actually
 # DISPLAYED -- so with `book` as the boot-default window (crt-console.sh),
-#   [rest: vault:crt/header-archaeology-20260817.md]
+#   the DISPLAYED window must switch too -- see TestClaudeWindowSwitch.
 BOOK_WINDOW = os.environ.get("CRT_BOOK_WINDOW_NAME", "book")
 CLAUDE_VIEW_WINDOW = os.environ.get("CRT_CLAUDE_VIEW_WINDOW_NAME", "mono")
 CLAUDE_ACTIVE_STATE = os.path.expanduser(

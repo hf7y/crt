@@ -215,7 +215,7 @@ echo "==> Gemini API key (bin/crt-book-game.py's cheap-tier question source)"
 if [ -z "${CRT_GEMINI_API_KEY:-}" ] && [ -t 0 ]; then
   # Interactive terminal, no env var pre-set -- prompt instead of requiring
   # the caller to know the CRT_GEMINI_API_KEY incantation. `read -s` hides
-  # the paste (no echo), matching how the crt-vm password prompt is
+  # the paste (no echo), matching how the old VM's password prompt was
   # handled elsewhere in this project. Skips cleanly (no prompt hang) when
   # install.sh is run non-interactively (piped, cron, another script),
   # since `-t 0` is false there.
