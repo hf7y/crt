@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # Offline tests for crt-stt-solo.py's capture backpressure (2026-07-25,
-# seventh cycle).
-#
-# The property under test: transcribe() runs inside the capture loop, so for
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# seventh cycle): transcribe() runs inside the capture loop, so nobody reads
+# arecord's stdout meanwhile. Each class docstring below states the specific
+# property it witnesses.
 import importlib.util
 import os
 import unittest
