@@ -27,6 +27,17 @@ class TestGateDefaultsOff(unittest.TestCase):
         self.assertFalse(stt_solo.GATE)
 
 
+class TestWakeArmDisabledByDefault(unittest.TestCase):
+    def test_wake_arm_module_not_imported_when_disabled(self):
+        # CRT_WAKE_ARM_ENABLED unset at this file's module-scope import
+        # above -- bin/crt-wake-arm.py must not even be imported, so code
+        # that reaches wake_arm/ARM_STATE outside an `if WAKE_ARM_ENABLED:`
+        # guard fails loudly (NameError) instead of silently no-op'ing.
+        self.assertFalse(stt_solo.WAKE_ARM_ENABLED)
+        self.assertFalse(hasattr(stt_solo, "wake_arm"))
+        self.assertFalse(hasattr(stt_solo, "ARM_STATE"))
+
+
 def _gate_log_default():
     # A subprocess, not module reload: GATE_LOG is read at import time, and
     # every test file in this suite (including this one's own module-scope
