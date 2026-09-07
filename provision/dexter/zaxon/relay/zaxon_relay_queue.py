@@ -10,6 +10,7 @@ so calling it more often only promotes sooner. deliver() edits in place (crt#100
 import calendar
 import json
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -17,6 +18,8 @@ import urllib.request
 from pathlib import Path
 
 MAX_QUESTION_CHARS = 140
+MAX_QUESTION_LINES = 3  # one question per ticket, crt#190
+_ENUMERATED_ASK_RE = re.compile(r"(?:^|\n)\s*\d+[.)]\s")
 QUESTION_TTL_SECS = int(os.environ.get("ZAXON_QUESTION_TTL_SECS", "3600"))
 
 GATEWAY_CACHE_AUDIO_DIR = Path.home() / ".hermes" / "cache" / "audio"
@@ -71,6 +74,27 @@ def format_message(repo: str, question: str, options) -> str:
     return "\n".join(lines)
 
 
+def validate_single_question(question: str) -> None:  # crt#190
+    if question.count("?") > 1:
+        raise ValueError(
+            "question contains more than one '?' -- one question per ticket "
+            "(Zach 2026-08-20); open a separate ticket per question instead "
+            "of bundling"
+        )
+    if len(_ENUMERATED_ASK_RE.findall(question)) > 1:
+        raise ValueError(
+            "question contains more than one enumerated item (e.g. '1. ... "
+            "2. ...') -- one question per ticket (Zach 2026-08-20); use the "
+            "options= poll for multiple choices on ONE question, or open a "
+            "separate ticket per question"
+        )
+    if question.count("\n") >= MAX_QUESTION_LINES:
+        raise ValueError(
+            f"question spans more than {MAX_QUESTION_LINES} lines -- keep it "
+            "short enough to fit a phone screen (Zach 2026-08-20)"
+        )
+
+
 def validate_message(repo: str, question: str, options=None) -> str:
     """Measures what actually lands on the phone -- repo tag and option
     lines included -- because 140 is inclusive (Zach 2026-08-25). Measuring
@@ -80,6 +104,7 @@ def validate_message(repo: str, question: str, options=None) -> str:
     decided what it's asking. Returns the rendered text so callers don't
     render twice."""
     validate_repo(repo)
+    validate_single_question(question)
     text = format_message(repo, question, options)
     if len(text) > MAX_QUESTION_CHARS:
         raise ValueError(

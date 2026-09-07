@@ -41,7 +41,15 @@ mcp = MCPServer(
         "name -- it renders bold as the first thing Zach reads. The whole "
         f"rendered message must be at most {MAX_QUESTION_CHARS} characters, "
         "repo tag and option lines included; prefer a multiple-choice poll "
-        "(pass options) over free text. To change a question already sent, "
+        "(pass options) over free text. ONE QUESTION PER TICKET (Zach "
+        "2026-08-20) -- he reads this on a phone screen and cannot see past "
+        "~7 bundled questions in one message; a question with more than one "
+        "'?' or more than one enumerated item ('1. ... 2. ...') is refused, "
+        "not truncated -- open a separate ticket per question instead, or "
+        "use options= for multiple choices on the ONE question. If a ticket "
+        "goes stale unanswered, do NOT just re-send the same question -- "
+        "that is what starved the slot before (crt#89); reconsider whether "
+        "it still needs asking. To change a question already sent, "
         "call revise_zach_question -- never ask a second time. fetch_inbox "
         "reads messages that arrived matching no ticket of yours -- an "
         "unsolicited note from Zach, or a late reply to something that "
@@ -158,8 +166,9 @@ def check_zach_reply(ticket_id: str) -> dict:
     status is one of: queued, pending, answered, failed, stale, not_found.
     'queued' means another question is still waiting on Zach's phone, and
     queued_ahead / est_wait_hours say how far back; 'stale' means this one
-    expired unanswered and its slot was freed -- if you still need an answer,
-    ask again. `question` always comes back too."""
+    expired unanswered and its slot was freed -- do NOT just re-send it
+    (crt#190); reconsider whether it still needs asking. `question` always
+    comes back too."""
     conn = get_conn()
     try:
         sweep_and_promote(conn)

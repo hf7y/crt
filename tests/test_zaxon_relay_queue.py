@@ -76,6 +76,39 @@ class TestValidateMessage(unittest.TestCase):
             with self.assertRaises(ValueError):
                 q.validate_message(bad, "Coffee or tea?")
 
+    def test_bundled_question_is_refused_even_under_the_char_budget(self):
+        with self.assertRaises(ValueError):
+            q.validate_message("musc", "Coffee or tea? And also, pizza tonight?")
+
+
+class TestValidateSingleQuestion(unittest.TestCase):
+    def test_a_single_question_is_accepted(self):
+        q.validate_single_question("Coffee or tea?")
+
+    def test_a_question_with_no_question_mark_is_accepted(self):
+        q.validate_single_question("Send the invoice by Friday")
+
+    def test_two_question_marks_are_refused(self):
+        with self.assertRaises(ValueError):
+            q.validate_single_question("Coffee or tea? Pizza tonight?")
+
+    def test_two_enumerated_items_are_refused(self):
+        with self.assertRaises(ValueError):
+            q.validate_single_question("Pick one:\n1. coffee\n2. tea")
+
+    def test_one_enumerated_item_alone_is_accepted(self):
+        q.validate_single_question("1. is this the only option that matters?")
+
+    def test_at_the_line_budget_is_accepted(self):
+        q.validate_single_question("line one\nline two\nline three")
+
+    def test_a_question_spanning_too_many_lines_is_refused(self):
+        with self.assertRaises(ValueError):
+            q.validate_single_question("line one\nline two\nline three\nline four")
+
+    def test_the_sanctioned_options_poll_is_not_bundling(self):
+        q.validate_message("musc", "Coffee or tea?", ["coffee", "tea"])
+
 
 class TestFormatMessage(unittest.TestCase):
     def test_bold_repo_leads_and_nothing_decorates_it(self):

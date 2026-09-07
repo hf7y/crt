@@ -3,7 +3,8 @@
 **crt owns zaxon as of 2026-08-14 (Zach's call.)** An MCP server over
 streamable-http exposing `ask_zach`, `revise_zach_question` and
 `check_zach_reply`; loopback and tailnet only (#52). See `compose.yaml` for the
-rest.
+rest. One question per ticket, enforced at the send (crt#190) -- see the
+`instructions=` string in `relay/zaxon_relay_server.py`.
 
 Deploys are automatic — `zaxon-autoupdate.timer` pulls hourly and verifies the
 relay answers. By hand: `sudo docker compose pull && sudo docker compose up -d`
