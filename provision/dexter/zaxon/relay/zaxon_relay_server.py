@@ -140,8 +140,6 @@ def revise_zach_question(
         except ValueError as e:
             return {"status": "refused", "error": str(e)}
         if status == "pending":
-            # Raises rather than falling back to a second message: if the
-            # edit fails, what Zach can see is still the old question.
             edit_delivered(conn, ticket_id, text)
 
         conn.execute(
