@@ -1,8 +1,8 @@
-# Book Game: a training-data game for crt-vm (2026-07-21, vision)
+# Book Game: a training-data game (2026-07-21, vision)
 
-See `BOOK-GAME-STYLE.md` for personality/animation/screen-layout/color
-style guide (built 2026-07-21) and `SCANNER.md` for how a scan physically
-reaches this game.
+The console this describes ran on `crt-vm`, retired (hf7y/crt#162); it runs on `potato`
+today. See `BOOK-GAME-STYLE.md` for personality/animation/screen-layout/color style guide
+(built 2026-07-21) and `SCANNER.md` for how a scan physically reaches this game.
 
 ## Why this exists
 
