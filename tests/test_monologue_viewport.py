@@ -113,6 +113,11 @@ class TestPinsAndOverrides(ViewportBase):
     def test_a_terminal_that_cannot_be_measured_falls_back_to_the_tube(self):
         def unmeasurable(*a, **k):
             raise OSError("not a tty")
+        # self.mod.shutil IS the real, shared shutil module -- restore it on
+        # teardown, or pytest's own terminal writer (which also calls
+        # get_terminal_size) crashes for the rest of the process (crt#170).
+        self.addCleanup(setattr, self.mod.shutil, "get_terminal_size",
+                         self.mod.shutil.get_terminal_size)
         self.mod.shutil.get_terminal_size = unmeasurable
         self.assertEqual(self.mod.viewport(),
                          (self.mod.FALLBACK_WIDTH, self.mod.FALLBACK_HEIGHT))

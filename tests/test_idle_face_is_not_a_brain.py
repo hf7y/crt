@@ -85,6 +85,10 @@ class TestSttSoloControlKeys(unittest.TestCase):
     def _loaded(self, env):
         mod = load("crt_stt_solo_idle_face", "crt-stt-solo.py", env)
         self.sent = []
+        # mod.subprocess IS the real, shared subprocess module -- restore it
+        # on teardown so this doesn't leak into other test files under bare
+        # `pytest tests/` (crt#170).
+        self.addCleanup(setattr, mod.subprocess, "run", mod.subprocess.run)
         mod.subprocess.run = lambda *a, **kw: self.sent.append(a[0])
         self.thoughts = []
         mod.log_console_thought = lambda text, *a, **kw: self.thoughts.append(text)
