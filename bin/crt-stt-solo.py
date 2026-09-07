@@ -642,8 +642,9 @@ FIXUPS_PATH = crt_config.fixups_path()
 # Arm-window / wake-judge wiring (2026-07-23, see bin/crt-wake-arm.py's
 # own header for the full story -- this is the "sticky conversation
 # window" fix, wired to crt-wake-judge.py's dormant autonomous tuning
-# judge). Opt-in, default OFF: with CRT_WAKE_ARM_ENABLED unset, every
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# judge). Opt-in, default OFF: crt-wake-arm.py is never imported and no
+# state exists at all with CRT_WAKE_ARM_ENABLED unset -- witnessed by
+# tests/test_stt_solo_helpers.py's WakeArmDisabledByDefaultTest.
 WAKE_ARM_ENABLED = os.environ.get("CRT_WAKE_ARM_ENABLED", "0") == "1"
 if WAKE_ARM_ENABLED:
     import importlib.util as _importlib_util

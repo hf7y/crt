@@ -479,5 +479,19 @@ class TranscribeFallbackTest(unittest.TestCase):  # crt#132
             local.assert_called_once()
 
 
+class WakeArmDisabledByDefaultTest(unittest.TestCase):
+    """Witnesses the claim above WAKE_ARM_ENABLED in crt-stt-solo.py: with
+    CRT_WAKE_ARM_ENABLED unset, crt-wake-arm.py is never imported and the
+    arm-window mechanism stays entirely absent from the module, not just
+    disarmed. This file's own module-scope import (top of file) is the
+    unset case; test_book_answer_arm_window.py's TestTheEnginePublishes
+    is the enabled counterpart, imported in its own process/module name."""
+
+    def test_arm_module_and_state_are_absent(self):
+        self.assertFalse(stt_solo.WAKE_ARM_ENABLED)
+        self.assertFalse(hasattr(stt_solo, "wake_arm"))
+        self.assertFalse(hasattr(stt_solo, "ARM_STATE"))
+
+
 if __name__ == "__main__":
     unittest.main()
