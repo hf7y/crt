@@ -272,22 +272,18 @@ CHUNK  = int(RATE * 0.1)                 # 100 ms analysis window
 NBYTES = CHUNK * 2                        # S16_LE mono
 FULL   = 32768.0
 
-# Capture device resolution (2026-07-23 07:10/07:20 notes): a hardcoded ALSA
-# card INDEX (plughw:0,0) silently breaks whenever a USB replug/reboot
-# renumbers cards -- hit live on potato when "KT USB Audio" moved from card 0
-# to card 1 mid-session. resolve_capture_device_by_name() parses `arecord -l`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Capture device resolution: resolve_capture_device_by_name() parses
+# `arecord -l` so a USB replug/reboot that renumbers cards doesn't require a
+# hardcoded plughw:N,0 to be updated -- see tests/test_capture_device.py's
+# TestResolveCaptureDeviceByName, esp. test_follows_renumbering.
 DEV_NAME_PATTERN = os.environ.get("CRT_AUDIO_DEV_NAME", "USB Audio")
 DEV_FALLBACK = "plughw:0,0"
 
 ARECORD_CARD_RE = re.compile(
     r"^card (\d+):.*\[(.*?)\],\s*device (\d+):", re.IGNORECASE)
 
-# HOW a device was arrived at. The resolver has always had three outcomes;
-# it used to return only the device, so the caller had to re-derive which one
-# had happened -- and did it by testing whether DEV_NAME_PATTERN appeared
-# anywhere in the raw `arecord -l` text. That is not the same question.
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# HOW a device was arrived at (matched by name / guessed first-listed / none
+# found) -- see tests/test_capture_device.py's test_reports_how_it_resolved.
 BY_NAME      = "name"           # a card's bracketed name actually matched
 FIRST_LISTED = "first-listed"   # no name matched; guessed a real capture card
 NO_CARDS     = "no-cards"       # the listing named no capture cards at all
