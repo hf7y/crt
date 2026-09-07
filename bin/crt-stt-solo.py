@@ -1360,14 +1360,10 @@ def emit(text, peak=1.0, utt_start=None, utt_end=None):
         reader_lag = (max(0.0, time.time() - utt_end)
                       if utt_end is not None else 0.0)
 
-        # Arm-window follow-up check (opt-in, WAKE_ARM_ENABLED, see
-        # bin/crt-wake-arm.py) -- MUST run before the normal gate below,
-        # since its entire point is letting a follow-up through WITHOUT
-        # repeating the wake word. Witnessed end-to-end through this real
-        # emit() by tests/test_wake_arm_clock_domain.py's
-        # TestThroughTheLiveEmitPath (a follow-up with GATE on still gets
-        # through the open window; chatter after the window closes is
-        # still gated normally).
+        # Arm-window follow-up check (opt-in, WAKE_ARM_ENABLED) -- MUST run
+        # before the normal gate below, so a follow-up gets through without
+        # repeating the wake word. Witnessed by test_wake_arm_clock_domain.py's
+        # TestThroughTheLiveEmitPath.
         arm_match = None
         if WAKE_ARM_ENABLED and not is_control and ARM_STATE.armed:
             arm_match = classify_wake_match(text)
