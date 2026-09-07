@@ -2,14 +2,17 @@
 # Tests for bin/crt-media-player.py -- PARKING-LOT.md's "play media" job.
 # No audio hardware, no real cvlc/mpv -- FakeBackend records calls,
 # VlcBackend is only exercised for its OSError-swallowing behavior.
+import atexit
 import importlib.util
 import os
+import shutil
 import tempfile
 import unittest
 
 # Pinned BEFORE import (crt#34): default MEDIA_STATE_FILE is a live console's
 # real ~/.crt/media-state.
 _state = tempfile.mkdtemp(prefix="crt-test-media-state-")
+atexit.register(shutil.rmtree, _state, ignore_errors=True)
 os.environ.setdefault("CRT_MEDIA_STATE_FILE", os.path.join(_state, "media-state"))
 
 BIN_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")

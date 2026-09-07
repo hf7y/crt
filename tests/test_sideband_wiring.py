@@ -2,8 +2,10 @@
 # Offline tests for the sideband state-transition wiring (SIDEBAND.md):
 # crt-stt-solo.py's opt-in set_sideband_state(), and crt-tts.py's
 # always-on mute-duck around play_wav(). No real mic/TTS backend needed.
+import atexit
 import importlib.util
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -14,6 +16,7 @@ import unittest
 # reads to decide whether a brain is behind the screen. tests/run_tests.sh
 # pins these for the whole suite; this covers running this file on its own.
 _state = tempfile.mkdtemp(prefix="crt-test-state-")
+atexit.register(shutil.rmtree, _state, ignore_errors=True)
 os.environ.setdefault("CRT_CTL_FILE", os.path.join(_state, "ctl"))
 os.environ.setdefault("CRT_CLAUDE_ACTIVE_STATE",
                       os.path.join(_state, "claude-window-active.state"))
