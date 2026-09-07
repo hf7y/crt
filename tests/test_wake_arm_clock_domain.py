@@ -277,11 +277,6 @@ class TestThroughTheLiveEmitPath(unittest.TestCase):
 
 
 class TestArmDisabledThroughTheLiveEmitPath(unittest.TestCase):
-    """Same real emit() as above, flag off: complements test_stt_gate.py's
-    import-time snapshot and test_wake_arm_guarded_refs.py's static AST
-    check with a live-call-path one -- driving an actual wake word through
-    emit() must not construct ARM_STATE or touch wake_arm either."""
-
     def setUp(self):
         self.old = os.environ.get("CRT_WAKE_ARM_ENABLED")
         os.environ.pop("CRT_WAKE_ARM_ENABLED", None)
