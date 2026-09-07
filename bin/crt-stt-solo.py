@@ -539,7 +539,7 @@ def ring_unplayable_report(detail):
             "[ring] RANG NOTHING -- %s. The handset never made a sound, so "
             "nobody declined to answer it. This is a fault here, not a "
             "missed call." % detail)
-WHISPER_SERVER = os.environ.get("CRT_WHISPER_SERVER", "")   # e.g. http://100.107.253.56:8090/inference -- optional: POST the WAV to a whisper server instead of running whisper.cpp here, same pipeline either way, only inference moves. crt#133: potato POSTs to dexter's container, NOT the retired mandark faster-whisper this used to name. [rest: vault:crt/header-archaeology-20260817.md]
+WHISPER_SERVER = os.environ.get("CRT_WHISPER_SERVER", "")   # e.g. http://100.107.253.56:8090/inference -- optional: POST the WAV to a whisper server instead of running whisper.cpp here; same pipeline either way, only inference moves (tests/test_transcribe_failure.py).
 WHISPER_SERVER_TIMEOUT = float(os.environ.get("CRT_WHISPER_SERVER_TIMEOUT", "8"))
 WHISPER_LOCAL_FALLBACK = os.environ.get("CRT_WHISPER_LOCAL_FALLBACK", "1") != "0"  # crt#132
 
@@ -636,10 +636,8 @@ GATE_LOG   = os.environ.get("CRT_STT_GATE_LOG", os.path.expanduser("~/.crt/gate.
 FIXUPS_PATH = crt_config.fixups_path()
 
 # Arm-window / wake-judge wiring (2026-07-23, see bin/crt-wake-arm.py's
-# own header for the full story -- this is the "sticky conversation
-# window" fix, wired to crt-wake-judge.py's dormant autonomous tuning
-# judge). Opt-in, default OFF: with CRT_WAKE_ARM_ENABLED unset, every
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# own header for the full story). Opt-in, default OFF -- see
+# tests/test_stt_gate.py's TestWakeArmDisabledByDefault.
 WAKE_ARM_ENABLED = os.environ.get("CRT_WAKE_ARM_ENABLED", "0") == "1"
 if WAKE_ARM_ENABLED:
     import importlib.util as _importlib_util
@@ -1733,11 +1731,8 @@ def main():
                 publish_arm_window()
 
             if not in_utt:
-                # Ducked audio does not go in the pre-roll either (2026-07-25).
-                # The deque's whole job is to prepend the moments before onset,
-                # since the attack of a first word sits under the threshold --
-                # so anything in it is handed to whisper as the opening of the
-                #   [rest: vault:crt/header-archaeology-20260817.md]
+                # Ducked audio doesn't enter the pre-roll deque either --
+                # see tests/test_duck_preroll_leak.sh.
                 if not MUTED:
                     pre.append(data)
                 if not MUTED and peak >= THRESH:
