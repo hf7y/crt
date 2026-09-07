@@ -623,18 +623,17 @@ HALLU = set("you thankyou thanks thankyouforwatching bye music musicplaying "
             "cricketschirping silence blankaudio sound soundeffects applause "
             "inaudible foreignspeech speaking".split())
 
-# STT gate (FOCUS.md "Now (core STT)" / STT gate, 2026-07-20, Zach): without
-# this, every utterance that clears VAD becomes a live Claude Code turn --
-# including room chatter never addressed to the console. Opt-in, default
-# off -- not hardware-verified against real room noise yet (see
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# STT gate (FOCUS.md "Now (core STT)" / STT gate, 2026-07-20, Zach): opt-in,
+# default off. GATE off routes every utterance onward regardless of
+# addressed_to_console(); GATE on drops an unaddressed one instead -- see
+# tests/test_stt_secretary_sink.py's TestSecretarySinkRouting.
 GATE       = os.environ.get("CRT_STT_GATE", "0") != "0"
 WAKE_WORD  = wake_gate.wake_word()   # one source: bin/crt_wake_gate.py
-# 2026-07-28, live, Zach-directed ("clean up claude output to mono ...
-# junk on screen"): this defaulted to the SAME file as THOUGHT_LOG below
-# -- window 1 (mono, crt-monologue.py) renders thoughts.log directly, so
-# every ambient utterance in the room that never reached Claude (gated,
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Must stay a file genuinely separate from THOUGHT_LOG's default (2026-07-28
+# fix, Zach: "clean up claude output to mono ... junk on screen" -- it used
+# to share thoughts.log, so a gated utterance landed on window 1
+# indistinguishable from an actual reply) -- see
+# tests/test_stt_gate.py's TestGateLogDefaultIsSeparateFromThoughtsLog.
 GATE_LOG   = os.environ.get("CRT_STT_GATE_LOG", os.path.expanduser("~/.crt/gate.log"))
 # Resolved through bin/crt_config.py rather than read here, so this gate
 # and the two scripts that WRITE stt-fixups.json can no longer be pointed
