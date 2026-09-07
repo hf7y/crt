@@ -276,5 +276,43 @@ class TestThroughTheLiveEmitPath(unittest.TestCase):
         self.assertNotIn("unrelated room chatter", self.heard)
 
 
+class TestArmDisabledThroughTheLiveEmitPath(unittest.TestCase):
+    """Same real emit() as above, flag off: complements test_stt_gate.py's
+    import-time snapshot and test_wake_arm_guarded_refs.py's static AST
+    check with a live-call-path one -- driving an actual wake word through
+    emit() must not construct ARM_STATE or touch wake_arm either."""
+
+    def setUp(self):
+        self.old = os.environ.get("CRT_WAKE_ARM_ENABLED")
+        os.environ.pop("CRT_WAKE_ARM_ENABLED", None)
+        spec = importlib.util.spec_from_file_location(
+            "crt_stt_solo_arm_disabled", SOLO_PATH)
+        self.stt = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.stt)
+        self.tmpdir = tempfile.mkdtemp()
+        self.stt.STT_LOG = os.path.join(self.tmpdir, "stt.log")
+        self.stt.GATE_LOG = os.path.join(self.tmpdir, "thoughts.log")
+
+    def tearDown(self):
+        if self.old is None:
+            os.environ.pop("CRT_WAKE_ARM_ENABLED", None)
+        else:
+            os.environ["CRT_WAKE_ARM_ENABLED"] = self.old
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_emit_never_touches_arm_state(self):
+        self.stt.log_user_thought = lambda text, **kw: None
+        self.stt.play_earcon = lambda *a, **kw: None
+        self.stt.GATE = False
+        self.stt.SINK = "claude"
+        heard = []
+        self.stt.send_to_claude = lambda text, key: heard.append(text)
+        self.stt.emit("potato this is zach", 1.0,
+                      utt_start=WAKE_ON, utt_end=WAKE_OFF)
+        self.assertEqual(heard, ["potato this is zach"])
+        self.assertFalse(hasattr(self.stt, "wake_arm"))
+        self.assertFalse(hasattr(self.stt, "ARM_STATE"))
+
+
 if __name__ == "__main__":
     unittest.main()
