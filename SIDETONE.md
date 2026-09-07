@@ -35,13 +35,10 @@ which needs near-zero latency (a few ms) to feel like your own voice
 rather than a laggy echo. A round-trip through dexter would be the worst
 possible way to implement this.
 
-**Open question logged to `.claude/QUESTIONS.md`**: is the handset
-earpiece physically wired to `crt-vm` (guest-local ALSA, sidetone-feasible
-purely in software) or only reachable via dexter's host-side bridge (in
-which case software sidetone as described here isn't viable at all,
-independent of round-trip cost)? This needs a real answer once the VM/
-hardware is reachable, not a guess — `aplay -L` on the guest and physically
-tracing the earpiece cable both settle it.
+**Resolved 2026-07-21** (see that date's entry under Status, below): the
+handset is only reachable via dexter's host-side bridge, not a guest-local
+device, so option 2 below (guest-local loopback) isn't viable. `crt-vm`,
+the guest named in that original question, no longer exists (`hf7y/crt#162`).
 
 ## Recommended approach, in priority order
 
@@ -57,10 +54,11 @@ right answer if the handset's electrical path is still being designed
 yet). Worth deciding the mic/earpiece wiring **with sidetone in mind from
 the start** rather than retrofitting later.
 
-### 2. Local-only software loopback (fallback, guest-side only)
-Only viable if the answer to the open question above is "guest-local
-device." A persistent low-level passthrough **inside `crt-vm`**, never
-touching the network:
+### 2. Local-only software loopback (superseded 2026-07-21 -- see Status)
+As originally written this assumed a guest-local device (`crt-vm`); the
+question above resolved the other way, so this exact form is dead. Carried
+forward host-side instead (Status, below) -- same idea, moved to dexter. A
+persistent low-level passthrough, never touching the network:
 - Cheapest form: a standing `sox -t alsa crtmic -t alsa <earpiece-dev>
   vol 0.15` pipe (or equivalent `arecord | sox ... | aplay` chain),
   started alongside `crt-stt-solo.py`.
