@@ -1809,11 +1809,8 @@ def main():
         if ring_proc is not None:
             reap_capture(ring_proc)
     if not capture_died:
-        # Say it on the way out: a console that stops hearing should never be
-        # ambiguous about whether it stopped on purpose. Cheap, and it is the
-        # human-readable half of "the device was actually released".
-        #
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # A stop should never be ambiguous with "went silently deaf" --
+        # see tests/test_capture_release_on_signal.sh.
         try:
             print("\n[crt-stt] stopped; released %s" % DEV)
         except OSError:
