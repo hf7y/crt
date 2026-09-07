@@ -1421,11 +1421,9 @@ def emit(text, peak=1.0, utt_start=None, utt_end=None):
         label = "(key %s)" % CONTROL[key] if is_control else "->"
         if STT_DEBUG_PERSIST:
             print("%s  %s %s" % (ts, label, text))
-        # Window 1 ("mono") previously only ever showed Claude's own
-        # replies (crt-claude-bridge.py tailing its transcript) -- flagged
-        # repeatedly in HANDOFF.md/crt-console.sh as the missing other half
-        # of the conversation. Free-text utterances that actually got past
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # Window 1 ("mono") shows both sides of the conversation, not just
+        # Claude's replies -- see tests/test_stt_secretary_sink.py's
+        # TestSecretarySinkRouting free-text/control-keyword pair.
         if not is_control:
             log_user_thought(text)
         # Control keystrokes are meta-interactions with whatever's already
