@@ -399,31 +399,11 @@ NR_AMT  = float(os.environ.get("CRT_NOISERED_AMT", "0.21"))  # noisered strength
 # engine applies the change and flashes an on-screen bar. Empty = disabled.
 CTL     = os.environ.get("CRT_CTL_FILE", "")
 MUTED   = False
-# Reference count behind MUTED, not a plain last-write-wins flag: if a TTS
-# reply and an earcon both duck capture around the same handset playback
-# (2026-07-24 fe46ac1's known limitation), one finishing and writing
-# "mute 0" must not unmute while the other duck is still active. Each
-#   [rest: vault:crt/header-archaeology-20260817.md]
-MUTE_COUNT = 0
-# Safety net on that reference count (2026-07-25). Ref-counting made
-# overlapping ducks compose, but it also removed the old flag's accidental
-# self-healing: with last-write-wins, ANY later "mute 0" restored capture,
-# so a duck whose producer died mid-playback (aplay SIGKILLed, crt-tts.py
-#   [rest: vault:crt/header-archaeology-20260817.md]
-MUTE_MAX_SECS = float(os.environ.get("CRT_CTL_MUTE_MAX_SECS", "45"))
+MUTE_COUNT = 0  # ref count behind MUTED; see ApplyCtlLineTest.test_mute_is_reference_counted_not_last_write_wins
+MUTE_MAX_SECS = float(os.environ.get("CRT_CTL_MUTE_MAX_SECS", "45"))  # watchdog on a leaked ref; see MuteWatchdogTest
 MUTE_SINCE = 0.0
-# How long an ALREADY-OPEN utterance may stay frozen by a duck that arrived
-# mid-utterance before we give up and close it out (2026-07-25). See
-# utt_chunk() for what "frozen" means and why the duck is not simply ignored
-# once speech has started. 0 = never close on a duck alone (freeze until it
-#   [rest: vault:crt/header-archaeology-20260817.md]
-MUTE_UTT_MAX_SECS = float(os.environ.get("CRT_MUTE_UTT_MAX_SECS", "2.0"))
-# Control lines that are MOMENTARY (an edge/command owned by a live
-# producer) rather than a LEVEL that should persist. The CTL file is an
-# append-only log and main() replays it from byte 0 on startup, which is
-# deliberate for levels -- a threshold tuned by knob survives a restart.
-#   [rest: vault:crt/header-archaeology-20260817.md]
-MOMENTARY_CTL = ("mute", "ring")
+MUTE_UTT_MAX_SECS = float(os.environ.get("CRT_MUTE_UTT_MAX_SECS", "2.0"))  # see utt_chunk()'s own docstring
+MOMENTARY_CTL = ("mute", "ring")  # see MomentaryCtlTest for why these can't survive a CTL-file replay
 # "Ring" the phone: play a bursty tone N times; if the handset is picked up
 # (voice detected) it stops immediately; if all rings finish unanswered, a
 # message is printed (shows up on whatever screen this pane is on -- the
