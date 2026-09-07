@@ -562,11 +562,11 @@ def set_hud(msg, secs=None):
     hud_msg = msg[:WIDTH + 20]
     hud_until = time.time() + (FLASH_SECS if secs is None else secs)
 
-# Predictive-text double layer (2026-07-19, opt-in, off by default): the
-# instant an utterance ends, flash a cheap local guess (bin/crt-predict.py,
-# trained on this room's own ~/.crt/stt.log history) BEFORE whisper -- which
-# genuinely takes real wall-clock time -- has run at all. emit() unconditionally
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Predictive-text double layer (opt-in, off by default): the instant an
+# utterance ends, flash a cheap local guess (bin/crt-predict.py, trained on
+# this room's own ~/.crt/stt.log history) BEFORE whisper -- which genuinely
+# takes real wall-clock time -- has run at all. Call-site ordering witnessed
+# by tests/test_predict.py's TestPredictiveFlashCallSite.
 PREDICT_FLASH = os.environ.get("CRT_PREDICT_FLASH", "0") != "0"
 PREDICT_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt-predict.py")
 PREDICT_TIMEOUT = float(os.environ.get("CRT_PREDICT_TIMEOUT", "0.3"))
