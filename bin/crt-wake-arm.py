@@ -12,11 +12,9 @@ import time
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 JUDGE_BIN = os.path.join(BIN_DIR, "crt-wake-judge.py")
 
-# Where the open window is published for OTHER processes (2026-07-25,
-# twentieth cycle). The state machine itself is in-process -- one ArmState
-# held by crt-stt-solo.py for the life of the engine -- and that was enough
-# while the engine was the only thing that cared. It is not: bin/crt-book-
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Mirrors the window to disk for the other reader, crt-book-answer-listen.py
+# -- full contract in publish_arm_window()'s own docstring, witnessed by
+# tests/test_book_answer_arm_window.py.
 ARM_STATE_FILE = os.path.expanduser(
     os.environ.get("CRT_WAKE_ARM_STATE", "~/.crt/wake-arm.state"))
 
@@ -25,11 +23,10 @@ ARM_STATE_FILE = os.path.expanduser(
 # utterance's length nor whisper's latency spends any of it. Check what it
 # measures before re-tuning it by ear.
 ARM_SECS = float(os.environ.get("CRT_WAKE_ARM_SECS", "12"))
-# Hard ceiling on one sticky conversation (2026-07-25). A consumed follow-up
-# SLIDES the window forward -- the live bug this exists for was four
-# follow-ups in one breath, of which a single-shot window would still have
-# dropped three -- but sliding with no ceiling is dangerous in this
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Hard ceiling on one sticky conversation (2026-07-25): caps
+# consume_arm_with_followup()'s slide so it can't become an always-on
+# mic -- see that function's own comment and
+# tests/test_wake_rearm_ceiling.py's test_chatter_alone_still_cannot_push_past_the_ceiling.
 ARM_MAX_SECS = float(os.environ.get("CRT_WAKE_ARM_MAX_SECS", "60"))
 JUDGE_ENABLED = os.environ.get("CRT_WAKE_JUDGE_ENABLED", "0") == "1"
 
