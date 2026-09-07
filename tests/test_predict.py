@@ -93,5 +93,33 @@ class TestBigramFallback(unittest.TestCase):
             os.unlink(path)
 
 
+class TestPredictiveFlashCallSite(unittest.TestCase):
+    """Witnesses the header comment above PREDICT_FLASH in
+    bin/crt-stt-solo.py: predictive_flash() is called BEFORE transcribe()
+    for the same utterance, not after -- the whole point of flashing a
+    cheap local guess while the real (slower) transcription is still
+    pending."""
+
+    def test_predictive_flash_call_precedes_transcribe_call(self):
+        import ast
+        path = os.path.join(BIN_DIR, "crt-stt-solo.py")
+        with open(path) as f:
+            tree = ast.parse(f.read(), path)
+        main_func = next(
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "main")
+        flash_lines = []
+        transcribe_lines = []
+        for node in ast.walk(main_func):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id == "predictive_flash":
+                    flash_lines.append(node.lineno)
+                elif node.func.id == "transcribe":
+                    transcribe_lines.append(node.lineno)
+        self.assertEqual(len(flash_lines), 1)
+        self.assertEqual(len(transcribe_lines), 1)
+        self.assertLess(flash_lines[0], transcribe_lines[0])
+
+
 if __name__ == "__main__":
     unittest.main()
