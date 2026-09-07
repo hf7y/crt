@@ -37,6 +37,12 @@ class TestSttSoloSidebandGate(unittest.TestCase):
     def setUp(self):
         self.stt = load("crt_stt_solo", "crt-stt-solo.py")
         self.calls = []
+        # self.stt.subprocess IS the real subprocess module (cached in
+        # sys.modules by name), so assigning .run here mutates it globally.
+        # Restore the original on every teardown -- even if a test
+        # reassigns .run again mid-test (see test_subprocess_failure_is_swallowed)
+        # -- so this doesn't leak into other test files under bare `pytest tests/` (crt#170).
+        self.addCleanup(setattr, self.stt.subprocess, "run", self.stt.subprocess.run)
         self.stt.subprocess.run = lambda *a, **kw: self.calls.append((a, kw)) or _FakeProc()
 
     def test_off_by_default_no_subprocess_call(self):
@@ -81,6 +87,9 @@ class TestTtsSidebandDuck(unittest.TestCase):
             self.observed_during_playback["mute_exists"] = os.path.exists(self.tts.SIDEBAND_MUTE_FILE)
             return _FakeProc()
 
+        # self.tts.subprocess is the real, shared subprocess module -- restore
+        # it on teardown so this doesn't leak into other test files (crt#170).
+        self.addCleanup(setattr, self.tts.subprocess, "run", self.tts.subprocess.run)
         self.tts.subprocess.run = fake_aplay_run
 
     def test_mute_file_present_during_playback_and_removed_after(self):

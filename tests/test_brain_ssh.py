@@ -22,6 +22,23 @@ def _load(name, filename):
     return mod
 
 
+def _pin_env(testcase, reset_keys, env):
+    """Set os.environ[reset_keys + env's keys] for one test, restoring the
+    real process environment (present or absent) on teardown -- os.environ
+    is shared across the whole pytest process, so an un-restored
+    CRT_CLAUDE_SSH_HOST here used to leak "dexter" into every later test
+    file's brain_mode() under bare `pytest tests/` (crt#170)."""
+    for k in set(reset_keys) | set(env):
+        old = os.environ.get(k)
+        if old is None:
+            testcase.addCleanup(os.environ.pop, k, None)
+        else:
+            testcase.addCleanup(os.environ.__setitem__, k, old)
+    for k in reset_keys:
+        os.environ.pop(k, None)
+    os.environ.update(env)
+
+
 def _run_brain_shell(stdin_text, env=None, args=()):
     """Drive crt-brain-shell.py the way sshd does: request on stdin."""
     e = dict(os.environ)
@@ -91,9 +108,8 @@ class SecretaryTransportSelection(unittest.TestCase):
     a console with both knobs set gets two brains answering one utterance."""
 
     def _secretary_with(self, **env):
-        for k in ("CRT_CLAUDE_SSH_HOST", "CRT_CLAUDE_REMOTE_PORT"):
-            os.environ.pop(k, None)
-        os.environ.update(env)
+        _pin_env(self, ("CRT_CLAUDE_SSH_HOST", "CRT_CLAUDE_REMOTE_PORT",
+                        "CRT_CLAUDE_REMOTE_SSH_TIMEOUT"), env)
         return _load("secretary_under_test", "crt-secretary.py")
 
     def test_ssh_host_wins_over_remote_port(self):
@@ -133,9 +149,7 @@ class WakeRouterFollowsTheSamePrecedence(unittest.TestCase):
     router: it would send a wake to a brain the secretary will not use."""
 
     def _router_with(self, **env):
-        for k in ("CRT_CLAUDE_SSH_HOST", "CRT_CLAUDE_REMOTE_PORT"):
-            os.environ.pop(k, None)
-        os.environ.update(env)
+        _pin_env(self, ("CRT_CLAUDE_SSH_HOST", "CRT_CLAUDE_REMOTE_PORT"), env)
         return _load("wake_router_under_test", "crt-wake-router.py")
 
     def test_ssh_mode_reported(self):
