@@ -4,12 +4,15 @@
 # (echoed prompt, status bar, spinner) into the reply that gets spoken/
 # printed. Fixture below is the exact pane-diff lines observed live on
 # potato the first time a real remote reply was captured end-to-end.
+import atexit
 import importlib.util
 import os
+import shutil
 import tempfile
 import unittest
 
 _state = tempfile.mkdtemp(prefix="crt-test-state-")
+atexit.register(shutil.rmtree, _state, ignore_errors=True)
 os.environ.setdefault("CRT_CTL_FILE", os.path.join(_state, "ctl"))
 os.environ.setdefault("CRT_CLAUDE_ACTIVE_STATE",
                       os.path.join(_state, "claude-window-active.state"))
