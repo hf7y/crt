@@ -102,11 +102,9 @@ def send_to_claude(text, key):
     subprocess.run(["tmux", "send-keys", "-t", target, "Enter"])
 
 
-# Fire-and-forget must not mean nobody-ever-looks (2026-07-25). In the live
-# boot config this is THE destination for every utterance that gets past the
-# wake gate -- crt-console.sh runs this engine with CRT_STT_SINK=secretary --
-# and both of the child's streams went to /dev/null with its exit status read
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Fire-and-forget must not mean nobody-ever-looks (2026-07-25): each
+# dispatch's exit status and stderr tail are tracked and reported rather than
+# discarded. Witnessed end-to-end by tests/test_dispatch_failure_visible.py.
 DISPATCH_MAX_TRACKED = int(os.environ.get("CRT_DISPATCH_MAX_TRACKED", "8"))
 DISPATCH_ERR_TAIL = 8192          # bytes of a chatty child's stderr worth keeping
 _dispatches = []
