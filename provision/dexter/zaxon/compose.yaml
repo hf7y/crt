@@ -30,7 +30,6 @@ services:
     image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-relay
     restart: always
-    # NOT `./data` whole: auth.json and whatsapp/session are single-holder (crt#195).
     volumes:
       - ./data/zaxon_relay:/home/zaxon/.hermes/zaxon_relay
       - ./data/cache:/home/zaxon/.hermes/cache
@@ -59,7 +58,6 @@ services:
     image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-watcher
     restart: always
-    # NOT `./data` whole: auth.json and whatsapp/session are single-holder (crt#195).
     volumes:
       - ./data/zaxon_relay:/home/zaxon/.hermes/zaxon_relay
       - ./data/cache:/home/zaxon/.hermes/cache
