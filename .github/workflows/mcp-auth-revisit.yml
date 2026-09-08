@@ -1,0 +1,23 @@
+# mcp-auth-revisit.yml -- crt#194: the old reminder lived inside a hermes cron
+# job and delivered into Zaxon, so it reported "ok" through an 8-day outage.
+# This one runs on GitHub's own schedule, not the thing it reminds about.
+name: mcp-auth-revisit
+
+on:
+  schedule:
+    - cron: '0 12 1 * *'
+  workflow_dispatch:
+
+jobs:
+  revisit:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state=$(gh issue view 194 --repo hf7y/crt --json state -q .state)
+          if [ "$state" = "OPEN" ]; then
+            gh issue comment 194 --repo hf7y/crt --body "Monthly MCP-auth revisit: the MCP door still has zero auth, reachable from the tailnet. Add a shared-secret header now, or keep deferring?"
+          fi
