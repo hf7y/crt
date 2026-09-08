@@ -2,8 +2,11 @@
 # Offline test: the console must not report an unanswered call when the phone
 # never rang (2026-07-25).
 #
-# bin/crt-stt-solo.py's ring path had the same shape as the TTS one fixed
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# bin/crt-stt-solo.py's ring_tone_path() and start_ring_tone() docstrings
+# cover the mechanism: a cached zero-byte wav from a failed sox run, and an
+# unread Popen exit status, together printed "ringing" then "no answer"
+# for a phone that never made a sound. Injected at PATH: `sox` and `aplay`
+# here are real executables that really exit with the status under test.
 import importlib.util
 import os
 import shutil
