@@ -3,7 +3,13 @@
 # LOCAL cache potato's idle-bait can read with zero network calls at
 # render time (2026-07-28, Zach-directed: "idlebait also show page92
 # excerpts via \\192.168.0.27\bibquotes").
-#   [rest: vault:crt/header-archaeology-20260817.md]
+#
+# NON-API-BY-DESIGN, preserved: bin/crt-book-idle-bait.py never hits the
+# network at idle-bait render time. This script is what keeps the local
+# copy fresh SEPARATELY -- run by hand, cron, or --daemon, never from
+# inside the idle-bait render path. quotes.txt is the one file needed
+# (share confirmed live 2026-07-28 via `smbclient -L //192.168.0.27 -N`);
+# the raw scan corpus bibliothecaire works from is deliberately not synced.
 set -uo pipefail
 
 SHARE="${CRT_BIBQUOTES_SHARE:-//192.168.0.27/bibquotes}"
