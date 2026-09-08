@@ -248,10 +248,9 @@ def consume_arm_with_followup(state, followup_text, now=None, wake_match=None,
         state.arm(followup_text, kind, source, word, now=ended_at,
                   arm_secs=arm_secs, max_secs=max_secs)
         return True
-    # Slide, don't close: the live 2026-07-23 bug was FOUR follow-ups in one
-    # breath, and a window that shuts after the first still drops three of
-    # them -- the same complaint, one utterance later. Capped by
-    # ARM_MAX_SECS so a sliding window can't become an always-on mic.
+    # Slide, don't close -- see
+    # test_window_slides_forward_instead_of_closing_after_one_followup.
+    # Capped by ARM_MAX_SECS so a sliding window can't become an always-on mic.
     if not state.slide(followup_text, ended_at, arm_secs=arm_secs):
         state.disarm()
     return True
@@ -278,9 +277,7 @@ def check_arm_timeout(state, now=None, utt_start=None):
     if utt_start is not None and utt_start < state.deadline:
         return False
     if state.continuation:
-        # A conversation that ran its course, not a wake nobody answered --
-        # the consumed follow-up already told the judge this wake was
-        # wanted. Filing a timeout here would argue the opposite.
+        # See test_continuation_timeout_is_not_reported_as_an_unanswered_wake.
         state.disarm()
         return True
     outcome = ("timeout-with-leftover"

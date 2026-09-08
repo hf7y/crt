@@ -443,8 +443,7 @@ def ring_tone_path():
     except OSError as e:
         failure = "could not run sox: %s" % e
     if failure is None and os.path.getsize(path) == 0:
-        # sox can exit 0 and still leave nothing usable. The size check is
-        # the witness that matters -- it is what aplay would choke on.
+        # See test_an_empty_wav_is_not_a_tone_even_when_sox_exits_zero.
         failure = "sox produced an empty wav"
     if failure is not None:
         try:
@@ -1196,10 +1195,7 @@ def transcribe_remote(wav_path):
         text = result["text"]
         return text if isinstance(text, str) else None
     except urllib.error.HTTPError as e:
-        # An HTTPError is an open file-like object holding a spooled temp
-        # file. A whisper server that 500s on every utterance would leak one
-        # per utterance until the GC happens to collect them -- on a Pi with
-        # 183MB free, that is not a hypothetical.
+        # See test_http_error_response_is_closed_not_leaked.
         try:
             e.close()
         except Exception:
@@ -1217,9 +1213,7 @@ def transcribe_local(feed):  # same None/""/text contract as transcribe_remote()
     try:
         run = subprocess.run([WBIN, "-m", MODEL, "-f", feed, "-nt", "-np"],
                              capture_output=True, text=True)
-        # A whisper-cli that exits nonzero produced no transcription; its
-        # empty stdout is not a silent room either (missing model file, bad
-        # WAV, OOM on the Pi). Same reason the remote branch returns None.
+        # See test_local_whisper_nonzero_exit_is_none.
         if run.returncode != 0:
             return None
         return " ".join(run.stdout.split())
