@@ -67,8 +67,7 @@ def update(path, mutate):
         result = mutate(read(path))
         if result is None:
             return None
-        # The pid is what makes concurrent writers safe: `<file>.tmp` was
-        # one name shared by every process that ever wrote this file.
+        # See test_the_temp_path_carries_the_pid.
         tmp_path = "%s.%d.tmp" % (path, os.getpid())
         try:
             with open(tmp_path, "w", encoding="utf-8") as f:
