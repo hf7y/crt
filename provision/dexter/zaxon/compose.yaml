@@ -30,13 +30,7 @@ services:
     image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-relay
     restart: always
-    # NARROWED (crt#195): NOT `./data` whole. `auth.json` and `whatsapp/session`
-    # are single-holder files -- a second process that refreshes the Nous token
-    # without persisting the rotation revokes the session (crt#193, 8-day
-    # outage), and a second holder of the linked-device session forces a QR
-    # rescan (README). Only the gateway holds those two now.
-    # This set is what `hermes send -l` was measured to need: it resolves
-    # `whatsapp:Zach` with no auth.json and no whatsapp/ present.
+    # NOT `./data` whole: auth.json and whatsapp/session are single-holder (crt#195).
     volumes:
       - ./data/zaxon_relay:/home/zaxon/.hermes/zaxon_relay
       - ./data/cache:/home/zaxon/.hermes/cache
@@ -65,13 +59,7 @@ services:
     image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-watcher
     restart: always
-    # NARROWED (crt#195): NOT `./data` whole. `auth.json` and `whatsapp/session`
-    # are single-holder files -- a second process that refreshes the Nous token
-    # without persisting the rotation revokes the session (crt#193, 8-day
-    # outage), and a second holder of the linked-device session forces a QR
-    # rescan (README). Only the gateway holds those two now.
-    # This set is what `hermes send -l` was measured to need: it resolves
-    # `whatsapp:Zach` with no auth.json and no whatsapp/ present.
+    # NOT `./data` whole: auth.json and whatsapp/session are single-holder (crt#195).
     volumes:
       - ./data/zaxon_relay:/home/zaxon/.hermes/zaxon_relay
       - ./data/cache:/home/zaxon/.hermes/cache
