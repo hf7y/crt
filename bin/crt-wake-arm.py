@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-# The arm-window state machine wiring crt-wake-judge.py's autonomous tuning
-# judge to a real trigger (2026-07-23): consume_arm_with_followup()/
-# check_arm_timeout() were referenced by crt-wake-judge.py and WAKE-TUNING-
-# STATE.md before any implementation existed. Also the real fix for the
-# "sticky conversation window" bug -- a wake word answered, but immediate
-# follow-ups in the same breath got silently gate-dropped; see
-# consume_arm_with_followup()'s own docstring for the slide-forward design.
-# Pure except spawn_judge()'s subprocess call (tests/test_wake_arm.py).
-# Opt-in (CRT_WAKE_ARM_ENABLED, default off); NOT hardware-verified.
+# The arm-window state machine wiring crt-wake-judge.py to a real trigger
+# (2026-07-23) -- also the real fix for "sticky conversation window": a
+# wake word answered but immediate follow-ups got silently gate-dropped.
+# See consume_arm_with_followup()'s docstring for the slide-forward design
+# and tests/test_wake_arm.py. Opt-in (CRT_WAKE_ARM_ENABLED, default off).
 import os
 import re
 import subprocess

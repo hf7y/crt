@@ -4,13 +4,10 @@
 # tunnel into potato survive reboots, instead of the ad-hoc `nohup`
 # processes this session started manually.
 #
-# FLAG FOR LATER CLEANUP (2026-07-23): the `kill` lines below are the
-# exact PIDs from THIS session's ad-hoc nohup -- harmless no-ops on a
-# later re-run (real PIDs won't match), but scaffolding, not a template
-# for future setup scripts. Port 8993 is hardcoded here, in both unit
-# files below, AND in crt-console.sh's stt launch line
-# (CRT_CLAUDE_REMOTE_PORT) -- not derived from one source of truth, so a
-# change means updating all three.
+# CLEANUP FLAG (2026-07-23): `kill` below is THIS session's exact ad-hoc
+# PIDs, scaffolding not a template. Port 8993 is hardcoded here, in both
+# unit files, AND in crt-console.sh's CRT_CLAUDE_REMOTE_PORT -- update
+# all three together.
 set -euo pipefail
 
 echo "Stopping ad-hoc nohup processes (harmless if already gone)..."

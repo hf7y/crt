@@ -4,13 +4,9 @@
 # combos and lets you pick + save a profile to ~/.crt/tts.conf, which
 # crt-tts.py (and everything downstream) reads by default.
 #
-# STATUS: NOT hardware-verified -- written with no TTS backend installed;
-# crt-vm (the original verification target) is retired (crt#162), so a
-# real run now means potato: `apt-get install espeak-ng` (baseline) or
-# Piper (better quality, see VOICES.md upstream) into ~/.crt/voices/.
-#
-# Usage: crt-tts-calibrate.py            # interactive menu
-#        crt-tts-calibrate.py --auto     # writes a default profile, no audition
+# NOT hardware-verified (no TTS backend installed when written); crt-vm,
+# the original verification target, is retired (crt#162) -- verify on
+# potato instead. `--auto` writes a default profile without audition.
 import os, sys, subprocess
 
 # crt-tts.py has a hyphen in its name, can't `import` it -- shell out instead.

@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 # Auto-returns tmux focus to `book` once a Claude exchange on `mono` goes
-# idle -- the idle half of "switch to book game on idle, or by command"
-# (2026-07-21, Zach's direct ask); crt-secretary.py's handle() does the
-# switch-TO-mono half, a separate process here since each utterance's
-# crt-secretary.py run is itself too short-lived to host an idle timeout.
-# Deliberately conservative about WHEN to switch back -- see
-# should_return_to_book_game()'s own docstring for the "already returned
-# from this exchange" guard (2026-07-25) that stops one ancient idle
-# exchange from bouncing focus back forever. NOT hardware-verified
-# (tests/test_window_switcher.py covers the pure decision).
+# idle (Zach, 2026-07-21) -- a separate process since crt-secretary.py's
+# own per-utterance run is too short-lived to host an idle timeout. See
+# should_return_to_book_game()'s docstring for the "already returned"
+# guard and tests/test_window_switcher.py.
 import os
 import subprocess
 import time

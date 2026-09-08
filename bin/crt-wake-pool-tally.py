@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-# Offline "which near-misses keep recurring" pass for the wake pool
-# (2026-07-21, Zach's direct ask). crt-stt-solo.py's gate logs every
-# ungated, wake-pool-missed utterance to CRT_WAKE_NEARMISS_LOG; this
-# tallies repeats and SURFACES them -- never auto-adds, same human-review
-# posture as stt-fixups.json's tiers (crt-stt-training-merge.py's
-# auto-merge is a narrower, already-load-bearing exception, not the
-# default for new mechanisms). See tally_nearmisses()'s own docstring and
-# tests/test_wake_pool_tally.py.
+# Offline "which near-misses keep recurring" pass (Zach, 2026-07-21):
+# tallies CRT_WAKE_NEARMISS_LOG repeats and SURFACES them -- never
+# auto-adds, same human-review posture as stt-fixups.json's tiers. See
+# tally_nearmisses()'s docstring and tests/test_wake_pool_tally.py.
 import os
 import sys
 from collections import Counter

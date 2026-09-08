@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 # The actual "STT training in the background" mechanism (2026-07-21,
-# Zach's direct ask): periodically recomputes candidates from the Book
-# Game training log and merges new ones into stt-fixups.json, unattended
-# (previously copy-paste by hand). See merge_candidates()/run_merge_pass()'s
-# own docstrings for the confidence-tier/locking details.
-#
-# SCOPE: stt-fixups.json has exactly ONE live consumer -- crt-stt-solo.py's
-# wake-word gate, and only entries whose "intent" is the wake word do
-# anything. A book-game mishear merges correctly but is inert until a
-# broader consumer exists.
+# Zach's ask): periodically merges fresh candidates from the Book Game
+# training log into stt-fixups.json, unattended -- see merge_candidates()/
+# run_merge_pass()'s docstrings. SCOPE: stt-fixups.json's only live
+# consumer is crt-stt-solo.py's wake-word gate, so a book-game mishear
+# merges but is inert until a broader consumer exists.
 import importlib.util
 import os
 import sys
@@ -97,15 +93,10 @@ def run_merge_pass(fixups_path=None, training_log_path=None, min_repeats=None):
 
 def main():
     loop = "--loop" in sys.argv
-    # The two modes want OPPOSITE failure behaviour (2026-07-25): a
-    # one-shot run must exit non-zero on a raise (swallowing it would be a
-    # silent exit-0 no-op). --loop (the `stttrain` window, running for as
-    # long as the console is up) must NOT let a raise end the loop --
-    # run_merge_pass() writes stt-fixups.json, and ENOSPC on a Pi's SD
-    # card used to kill unattended STT learning silently for the rest of
-    # the console's uptime. Since 0ccdf13 the wake gate re-reads that file
-    # live, so a loop that keeps running actually reaches the gate without
-    # a restart -- worth more now than before that fix.
+    # OPPOSITE failure behaviour (2026-07-25): one-shot must exit non-zero
+    # on a raise; --loop must NOT let a raise end the loop, or ENOSPC on a
+    # Pi's SD card silently kills unattended learning for the rest of
+    # uptime (0ccdf13's live re-read makes a surviving loop worth more).
     guard = loop_guard.LoopGuard("stttrain") if loop else None
     while True:
         if guard is None:

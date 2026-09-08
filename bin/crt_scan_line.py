@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 # What a scan looks like, in every direction -- one shared source
-# (2026-07-25) since the barcode scanner is a USB HID keyboard that types
-# into whichever tmux window has focus (SCANNER.md), making "a scan line"
-# a contract between processes, not one file's detail. See
-# is_isbn_like()/parse_scanner_log_line()/format_scan_log_line()'s own
-# docstrings for who reads/writes which shape (crt-book-console.py,
-# crt-book-game.py, crt-screensaver.py). Deliberately free of heavy
-# imports -- crt-screensaver.py is the idle face on a 1GB Pi (POTATO.md)
-# and pulling in crt-book-game.py for a regex would drag sqlite3/urllib
-# into the idle window.
+# (2026-07-25): the scanner is a USB HID keyboard typing into whichever
+# tmux window has focus (SCANNER.md), so "a scan line" is a contract
+# between processes -- see is_isbn_like()/parse_scanner_log_line()/
+# format_scan_log_line()'s docstrings. No heavy imports (POTATO.md).
 import datetime
 import re
 

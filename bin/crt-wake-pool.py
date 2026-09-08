@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-# The "growing string of wake words" (2026-07-21, Zach's direct ask):
-# ungated utterances are checked against a POOL of candidate wake words
-# that grows over time -- hand-seeded (CRT_WAKE_POOL_DICT) plus book
-# titles already scanned into books.db (zero extra cost). An exact pool
-# match is treated exactly like the real wake word; fuzzy/near matches are
-# surfaced for human review only, never auto-promoted -- see
-# crt-wake-pool-tally.py. Pure functions except load_pool()'s file/db
-# reads -- see check_pool_match()/fuzzy_cluster_match()'s own docstrings
-# and tests/test_wake_pool.py.
+# The "growing string of wake words" (Zach, 2026-07-21): ungated
+# utterances are checked against a POOL -- hand-seeded (CRT_WAKE_POOL_DICT)
+# plus scanned book titles. Exact match = real wake word; fuzzy/near
+# matches only surface for review (crt-wake-pool-tally.py), never
+# auto-promoted. See check_pool_match()/fuzzy_cluster_match()'s own
+# docstrings and tests/test_wake_pool.py.
 import difflib
 import importlib.util
 import os

@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
-# Decides, per recognized utterance, whether it still needs a Claude call --
-# or whether this room's history has seen its normalized shape often enough
-# that a local/cheap path can take it instead. THE IDEA (Zach, 2026-07-21,
-# live voice): probability of needing Claude for a given utterance SHAPE
-# decays exponentially per-key (never blanket session-wide) toward a floor,
-# so novelty never gets silently swallowed. See call_probability()'s own
-# docstring for the decay math.
-#
-# DECISION FUNCTION ONLY, not the router -- wiring this into an actual
-# skip-Claude path is crt-secretary.py's job (STT-CONFIDENCE.md). STATUS:
-# unit-tested (tests/test_stt_confidence.py) but NOT yet wired into the
-# live pipeline -- needs a real confirmation signal first, or this would
-# just teach the system to be confidently wrong faster.
+# Decides, per utterance, whether it still needs a Claude call or a local/
+# cheap path can take it (Zach, 2026-07-21): probability decays per-key
+# toward a floor, never blanket-session, so novelty is never swallowed --
+# see call_probability()'s docstring. DECISION FUNCTION ONLY, not the
+# router (crt-secretary.py's job, STT-CONFIDENCE.md); unit-tested
+# (tests/test_stt_confidence.py) but NOT yet wired into the live pipeline,
+# pending a real confirmation signal.
 import json
 import os
 import re

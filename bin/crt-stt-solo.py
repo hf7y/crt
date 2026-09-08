@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
 # Single-reader standalone STT engine -- no Claude Code, no dsnoop.
 #
-# WHY THIS EXISTS (historical, from the old VirtualBox-hosted dev setup --
-# crt-vm itself is retired, crt#162): emulated capture there did NOT fan
-# out through dsnoop, so a second reader got a starved signal (measured:
-# sole reader ~12% peak, second reader ~0.7%) -- the old stt-feed.sh +
-# crt-levels.sh pair was silently stealing each other's audio. This engine
-# is the ONE process that reads the mic: a single arecord stays open
-# continuously, and metering/VAD/whisper all run off that one stream.
-#
-# VAD is PEAK-based, not average/RMS -- sox's `silence` gates on average
-# level, which at low input gain never crossed a usable threshold; speech
-# peaks do. Output: transcriptions scroll; a live "MIC [####|....] 12.3%
-# TALK" meter redraws on the bottom line. Ctrl-C to quit.
+# WHY THIS EXISTS (historical -- crt-vm is retired, crt#162): on that old
+# VirtualBox dev setup, emulated capture starved a second reader (measured
+# sole ~12% peak vs. ~0.7%), so the old stt-feed.sh+crt-levels.sh pair was
+# stealing each other's audio. This is the ONE process that reads the mic
+# -- one arecord stays open, and metering/VAD/whisper share that stream.
+# VAD is PEAK- not average-based (sox's `silence` never crossed threshold
+# at low input gain; speech peaks do). Ctrl-C to quit.
 import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, urllib.error, json, re, signal, fcntl, termios
 import importlib.util
 from collections import deque

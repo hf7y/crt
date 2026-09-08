@@ -3,11 +3,9 @@
 # see SELF-REPAIR.md for the full scoping and what's deliberately NOT
 # built yet (off-box surfacing, push access, actual VAD tuning numbers).
 #
-# Load-bearing: the pre- and post-run `git commit` calls below are
-# unconditional, regardless of what the claude -p run itself does. Zach's
-# ask was "be able to revert any major change" -- that only holds if a
-# commit exists even when claude forgets, crashes, or times out mid-edit.
-# Never remove either commit call to "simplify."
+# Load-bearing: the pre/post-run `git commit` calls below are unconditional
+# regardless of what claude -p does -- "be able to revert any major change"
+# (Zach) only holds if a commit exists even when claude crashes mid-edit.
 set -uo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

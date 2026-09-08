@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-# The "speculative/optimistic response" idea from PARKING-LOT.md: a cheap,
-# instant, local filler line shown the moment a request is about to
-# escalate to Claude, so the console feels alive during the real wait
-# (wait_for_claude_reply()'s poll loop) -- see crt-secretary.py's
-# CRT_SECRETARY_SPECULATE wiring for where this fires. Distinct from
-# crt-predict.py (which guesses what was SAID); this guesses nothing about
-# the answer's content. NOT an AI call. NOT hardware-verified --
-# pick_filler_line() is pure and covered by tests/test_speculate.py.
+# PARKING-LOT.md's "speculative/optimistic response": an instant local
+# filler shown while a request escalates to Claude (see crt-secretary.py's
+# CRT_SECRETARY_SPECULATE wiring). Distinct from crt-predict.py (guesses
+# what was SAID, not the answer). NOT an AI call; tests/test_speculate.py.
 import random
 
 # A handful of warm/curious-register lines (EXPRESSIVE-TONE.md's table),
