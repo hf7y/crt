@@ -3,7 +3,11 @@
 # note, and say so loudly in-session.
 #
 # WHY A REMINDER AND NOT AN AUTO-FILE (decided 2026-07-28 with Zach). The
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# obvious version pipes the command straight into notify-senechal -- but
+# that files a note nobody wrote, marking the debt PAID while the actual
+# knowledge stays unrecorded. This hook makes forgetting loud instead; a
+# human/agent still writes the sentence. Prefer "reminded twice" over
+# "filed wrong once".
 set -uo pipefail
 
 payload="$(cat)"

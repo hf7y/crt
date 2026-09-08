@@ -3,7 +3,12 @@
 # scheduler's own ~/reports/<project>/LATEST.md convention (see
 # `Project Archive/scheduler/bin/morning-report.sh`) so idle-bait
 # (IDLE-BAIT.md) has real content even before crt's nightly Tier 2 batch
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# is unblocked (HANDOFF.md: registered, not yet actually producing
+# reports). Appends one dated entry per call; never overwrites history.
+#
+# --blocker/--question entries are tagged earcon-worthy per IDLE-BAIT.md
+# (only genuine judgment calls get audio) -- this script doesn't play the
+# earcon itself (call site's job, to respect the shared rate-limit lock).
 set -euo pipefail
 REPORTS_DIR="${CRT_REPORTS_DIR:-$HOME/reports/crt}"
 mkdir -p "$REPORTS_DIR"

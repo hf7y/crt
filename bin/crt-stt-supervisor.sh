@@ -2,8 +2,19 @@
 # Persistent-reattempt supervisor for crt-stt-solo.py (2026-07-28,
 # Zach-directed: "need that to be sticky", "wire up noisy fail of usb").
 #
-# The bug this answers: crt-stt-solo.py's own capture loop already
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# The bug this answers: crt-stt-solo.py handles a *transient* device
+# hiccup itself, but a USB replug that makes arecord exit nonzero can
+# take the whole python process down (ran 1353s before dying, live
+# 2026-07-28) with nothing restarting it until someone noticed by hand.
+# This is the thing that notices and restarts, out loud.
+#
+# Distinct from crt-capture-watchdog.sh (detects a STALE capture via its
+# own reader, VM-era) -- this detects the SOLE READER PROCESS exiting,
+# with no second reader of its own (avoids fighting crt-stt-solo.py's
+# "sole reader" design).
+#
+# Backoff: instant retry at first, then widening delay capped, so a dead
+# device doesn't spin a tight loop; time past MIN_HEALTHY_SECS resets it.
 set -uo pipefail
 
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
