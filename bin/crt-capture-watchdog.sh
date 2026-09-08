@@ -3,9 +3,8 @@
 #
 # The bug: on the VirtualBox guest the emulated capture intermittently goes
 # STALE -- the signal flatlines mid-session while the ALSA mixer still reads
-# correct, so stt-feed hears nothing and STT silently "stops detecting".
-# Full design, verification status, and tunables (CRT_WD_*, defaulted just
-# below) live in AUDIO-DEBUG.md's "Approach A" / "Approach C" sections.
+# correct. Design and tunables (CRT_WD_*) live in AUDIO-DEBUG.md's
+# "Approach A" / "Approach C" sections.
 set -uo pipefail
 
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

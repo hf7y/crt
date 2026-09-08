@@ -3,10 +3,7 @@
 # a fix: characterize the capture so we can tell whether the "stops detecting"
 # staleness correlates with idle time, utterance boundaries, or a fixed
 # interval -- which decides whether the watchdog (A) or single-reader (B) is the
-# real fix. See AUDIO-DEBUG.md's "Approach D" section for the other
-# approaches this measures between. NOT hardware-verified -- written on
-# the dev box (no VM/handset); read-only wrt the pipeline, safe to run
-# anytime. Usage: crt-audio-doctor.sh check|monitor.
+# real fix. See AUDIO-DEBUG.md's "Approach D" section. NOT hardware-verified.
 set -uo pipefail
 
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

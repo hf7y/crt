@@ -3,10 +3,8 @@
 # 2026-07-29). ecosim can't write into this repo -- categorically forbidden by
 # its own CLAUDE.md -- so the two projects meet at a named line protocol and
 # each builds its own side. This is our side, and the whole surface is:
-# stdin, line-buffered CHANNEL<TAB>TEXT lines (SEE/SAY/MARK). Full protocol,
-# the truncate-and-count / never-silently-eat-a-channel guarantees, and the
-# SAY rate limit (shared with crt-announce.sh, IDLE-BAIT.md's single-limit
-# rule) are witnessed by tests/test_cast_sink.py's own docstring and cases.
+# stdin, line-buffered CHANNEL<TAB>TEXT lines (SEE/SAY/MARK) -- full
+# protocol witnessed by tests/test_cast_sink.py's own docstring.
 import os
 import sys
 import subprocess
