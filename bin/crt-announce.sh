@@ -3,7 +3,10 @@
 # audio device (distinct from the phone earpiece device) so Chris can hear a
 # simple request without touching anything -- he can only respond by talking
 # into the phone. Hard rate limit: at most one announcement per 15 minutes,
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# enforced by a lockfile timestamp, so this can be called freely from job
+# completion hooks without risking a barrage. Routes through crt-tts.py's
+# local-ALSA tv path by default; set CRT_AUDIO_OUT_URL to restore the old
+# dexter-audio-server.py bridge.
 set -euo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -34,10 +37,13 @@ if [ "$elapsed" -lt "$MIN_GAP" ]; then
 fi
 
 # Stamp BEFORE speaking, then roll the stamp back if nothing was said
-# (2026-07-25). Both halves matter and they pull in opposite directions:
-#
-#   - Stamping first is what stops a barrage. Two hooks firing at once must
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# (2026-07-25). Stamping first is what stops two hooks firing at once from
+# overlapping on the TV. But a stamp that survives a FAILED attempt spends
+# fifteen minutes of silence nobody heard -- and the window is shared:
+# crt-idle-teaser.sh's chime() rate-limits against this same file, so a
+# broken TV device would also mute the earpiece chimes. Rolling back on
+# failure keeps the barrage protection for the duration of the attempt and
+# gives it up once the attempt is known to have produced no sound.
 echo "$now" > "$LOCK"
 # `status=0; cmd || status=$?` rather than `if cmd; then ... fi; status=$?`:
 # an `if` with no else branch that takes the false path leaves `$?` at 0,
