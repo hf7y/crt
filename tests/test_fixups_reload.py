@@ -2,8 +2,8 @@
 # The wake gate has to see stt-fixups.json as it is NOW, not as it was at
 # boot (2026-07-25, tenth nightly cycle).
 #
-# Three things write that file while the console is up: the `stttrain`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# window, a calibration confirm, or a hand edit -- but the gate read the file
+# once at import as a default arg, so none of the three changed live behavior.
 import atexit
 import importlib.util
 import json

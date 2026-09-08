@@ -3,7 +3,7 @@
 #
 # bin/crt-monologue.py is the live script on the "mono" window -- the console's
 # only text surface, and where every "the fault is here" line this project has
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# added lands -- but it sized itself via get_terminal_size() before crt-console.sh's final `tmux attach`, so tmux always reported 80x24 for a 15-row pane, homing the redraw to a top that scrolled away immediately.
 import importlib.util
 import io
 import os

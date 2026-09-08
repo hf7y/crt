@@ -2,8 +2,7 @@
 # Every long-lived window on this console reads a log another process is
 # appending to, and until 2026-07-25 every one of them decoded it strictly.
 #
-# A reader that catches up to a writer mid-character sees a partial UTF-8
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# A reader that catches up to a writer mid-character sees a partial UTF-8 sequence -- strict decoding raises UnicodeDecodeError, a ValueError NOT caught by the `except OSError` these tail loops wrap, so a reader could die mid-read with no trace, window 1 (the fault-report window) first.
 import importlib.util
 import json
 import os

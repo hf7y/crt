@@ -24,7 +24,7 @@ trap 'rm -rf "$TMPDIR" "$FAKE_BIN"' EXIT
 # 2026-07-25 by run_tests.sh's live-state guard and by reading what it
 # actually runs. Neither is about what is under test here.
 #
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# `chime` shares crt-announce.sh's 15-minute rate limit (IDLE-BAIT.md), and execs the real crt-earcon.sh, which beeps on a box with sox -- faked on PATH like test_earcon_capture_duck.sh does.
 export CRT_ANNOUNCE_LOCK="$TMPDIR/announce.lastrun"
 export CRT_IDLE_SEEN="$TMPDIR/seen.default"
 cat > "$FAKE_BIN/aplay" <<'EOF'

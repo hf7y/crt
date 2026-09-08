@@ -2,8 +2,8 @@
 # Offline test suite for bin/crt-monologue.py's pure render() logic --
 # the "mono" window's actually-live script (crt-monologue.sh is a dead
 # wrapper, see vault:crt/REFACTOR-ASSESSMENT.md), never had a direct test before
-# (coverage gap tracked in FOCUS.md's batch backlog item 5c).
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# (coverage gap tracked in FOCUS.md's batch backlog item 5c). main()'s tail
+# loop isn't unit-testable without a live terminal, so this exercises render() alone -- styling, wrapping, and padding/truncation.
 import contextlib
 import importlib.util
 import io

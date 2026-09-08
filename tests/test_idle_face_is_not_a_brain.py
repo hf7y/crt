@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # Offline tests for "the pane behind the idle face is not a brain"
 # (2026-07-25, nineteenth nightly cycle). See bin/crt_config.py's PANE_ENV
-# block for the finding; the short version:
-#
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# block for the finding; the short version: in the idle-lean layout window 0
+# is the screensaver, not Claude -- yet single-word CONTROL utterances and the secretary's escalation path both typed into it anyway, since tmux accepts keys into any real pane.
 import importlib.util
 import os
 import unittest

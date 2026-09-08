@@ -3,7 +3,7 @@
 # finding from a run in which nothing was played or nothing was recorded
 # (2026-07-25).
 #
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Until now DETECTED covered both played-and-heard and never-played-at-all, indistinguishable though they indict different hardware. Also fixed: a failed baseline returning rms 0.0 reported every device DETECTED.
 import importlib.util
 import os
 import unittest

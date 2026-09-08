@@ -2,8 +2,9 @@
 # A deliberate re-wake mid-conversation has to start a FRESH session
 # (2026-07-25, twelfth nightly cycle).
 #
-# bin/crt-wake-arm.py's ArmState.arm() documents itself as "Always starts a
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# bin/crt-wake-arm.py's arm() documents "Always starts a FRESH session" --
+# but live wiring never reached that call while armed, so re-saying the wake
+# word still hit the ceiling from the FIRST wake. CONFIRMED BY ZACH: reset it.
 import importlib.util
 import os
 import shutil
@@ -212,9 +213,8 @@ class TestRewakeThroughEmit(unittest.TestCase):
         # FOCUS.md's open question (2026-07-28 milestone entry): is the
         # arm window's clock starting from the wrong reference point given
         # transcription/network lag? Answer, pinned here: emit() is called
-        # AFTER transcribe() returns, but the utterance clock is taken by the
-        #   [rest: vault:crt/header-archaeology-20260817.md]
-        # TWO CLOCKS, and the answer differs per reader. In memory the
+        # capture loop before transcribe() runs (VAD-end), while on-disk uses
+        # wall-clock `now` at publish time -- TWO CLOCKS, and the answer differs per reader. In memory the
         # window is AUDIO time, anchored to when the person stopped talking.
         # On disk it is translated by the lag, for a reader that only ever
         # sees transcripts and is only now being handed the words.

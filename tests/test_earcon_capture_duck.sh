@@ -2,8 +2,7 @@
 # Offline test: crt-earcon.sh's handset path must write "mute 1" then
 # "mute 0" to the CTL file around playback -- the code-fix half of the
 # stability-bar handset play-while-capture item (crt-earcon-loopback-test.py
-# measured the handset output as the same USB adapter as the live capture
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# device -- can't fix the missing signal, but stops a played tone from being misread as speech by the VAD. tv/default playback must not touch the CTL file at all -- only the handset device shares hardware with capture.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

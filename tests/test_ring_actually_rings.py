@@ -3,7 +3,7 @@
 # never rang (2026-07-25).
 #
 # bin/crt-stt-solo.py's ring path had the same shape as the TTS one fixed
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# alongside it: ring_tone_path() cached a real, zero-byte wav on missing sox, and the ring's own Popen exit status was never read -- so a silent console still printed "ringing" then "no answer", blaming the person.
 import importlib.util
 import os
 import shutil

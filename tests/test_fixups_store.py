@@ -2,8 +2,7 @@
 # Two writers, one file, and no lock (2026-07-25, twelfth nightly cycle).
 #
 # stt-fixups.json has two writers -- crt-calibration-game.py (a human
-# confirming a mishear by ear) and crt-stt-training-merge.py's `stttrain`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# confirming a mishear by ear) and crt-stt-training-merge.py's `stttrain` window -- both read-modify-write the whole file through the same `<file>.tmp`, producing a TORN FILE or a LOST UPDATE. Real processes/threads.
 import importlib.util
 import json
 import os

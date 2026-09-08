@@ -2,8 +2,7 @@
 # Tests for bin/crt_loop_guard.py and for its four call sites.
 #
 # The defect these cover is not in any pure function: it is that four
-# `while True` / `for line in tail` loops in bin/ had no guard at all, so
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# `while True` / `for line in tail` loops in bin/ had no guard at all, so ONE raising iteration silently ended a background tmux window for the rest of the console's uptime. Each test poisons one inner function and confirms the loop survives, via a fake clock raising KeyboardInterrupt.
 import contextlib
 import importlib.util
 import io

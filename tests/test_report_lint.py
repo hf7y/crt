@@ -135,8 +135,8 @@ class TestCli(unittest.TestCase):
 # TestCommittedReports was here. It scanned .reports-fallback/ -- 24 committed
 # copies of nightly-batch reports, all dated 2026-07-23 or 2026-07-25 -- and
 # asserted the directory was non-empty. Those copies are deleted; the lint is
-# NOT. It still runs on live reports in ~/reports/crt/, and every unit test
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# NOT -- it still runs on live reports in ~/reports/crt/. What's gone is a
+# three-week-old fixture archive being re-linted as a proxy for it.
 
 
 if __name__ == "__main__":

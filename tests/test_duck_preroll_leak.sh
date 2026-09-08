@@ -3,7 +3,7 @@
 # whisper via the pre-roll deque either.
 #
 # f13c7a4 closed the mid-utterance half of this (a duck arriving while `in_utt`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# is true now freezes and excises) -- but pre.append(data) ran unconditionally regardless of duck state, so the pre-roll deque filled with our own handset playback and handed it to whisper as the next utterance's opening word.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

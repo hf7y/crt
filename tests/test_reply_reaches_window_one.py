@@ -2,8 +2,7 @@
 # Offline test: with the brain on mandark, Claude's answer has to reach the
 # tube as well as the earpiece (2026-07-25, nineteenth nightly cycle).
 #
-# handle() switches the tube to `mono` the moment a request escalates,
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# handle() switches the tube to `mono` the moment a request escalates -- but since the brain moved to mandark, potato's bridge tailed a transcript directory nothing writes to, so the reply was spoken and never written to the screen it just switched to.
 import importlib.util
 import os
 import unittest

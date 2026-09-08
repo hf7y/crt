@@ -3,7 +3,7 @@
 # will find it (2026-07-25).
 #
 # Two defects, one chain. bin/crt-tts.py's play_wav() discarded aplay's exit
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# status and returned True unconditionally, so a dead device reported success from a silent room -- speak() discarded crt-tts.py's status too, so the lie went uncaught (injected at PATH with real aplay/espeak-ng, not stubbed).
 import importlib.util
 import os
 import shutil

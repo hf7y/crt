@@ -2,8 +2,7 @@
 # Two writers, one file (2026-07-25, twelfth nightly cycle).
 #
 # bin/stt-fixups.json is what this console has learned about how this room
-# says its wake word, and it has two writers -- crt-calibration-game.py (a
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# says its wake word, and has two writers -- a human confirming a mishear by ear, and the unattended `stttrain` merge window -- both read-modify-write the whole file through the same `<file>.tmp`, risking a LOST UPDATE or a TORN FILE.
 import importlib.util
 import json
 import os

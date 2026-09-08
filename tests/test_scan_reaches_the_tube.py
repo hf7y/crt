@@ -2,8 +2,7 @@
 # A scan has to end up ON THE TUBE (2026-07-25, fifteenth nightly cycle).
 #
 # THE BUG. crt-console.sh made `book` the boot-default window for one
-# concrete reason, recorded in its own comment: the barcode scanner is a USB
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# concrete reason: the barcode scanner is a USB HID keyboard that types into whichever tmux window has focus -- the idle-lean layout selects the screensaver instead of `book`, so the question drew onto a window nobody was looking at.
 import importlib.util
 import os
 import subprocess
