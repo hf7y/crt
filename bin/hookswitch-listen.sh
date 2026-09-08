@@ -2,8 +2,8 @@
 # Listens for the hookswitch signal and pauses/resumes stt-feed.sh.
 # See HOOKSWITCH.md for the full behavior spec.
 #
-# Hardware: the printed hook (cad/hook_lever.scad) presses a mini
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Hardware wiring (microswitch, encoder, CRT_HOOK_KEY) is HOOKSWITCH.md's
+# job, linked above -- not restated here.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -17,19 +17,16 @@ GPIO_PIN="${CRT_HOOK_GPIO_PIN:-}"
 GPIO_ACTIVE_LOW="${CRT_HOOK_GPIO_ACTIVE_LOW:-1}"   # 1: pull-up, switch-to-GND on-hook (HOOKSWITCH.md's wiring)
 GPIO_KEY="GPIO_HOOK"
 
-# What this signals at. `stt-feed.sh` is the process this file was written
-# against in 2026-07-19 -- and crt-console.sh has not run it since
-# 2026-07-20, when the sole-mic-reader layout replaced the old
-# stt-feed.sh + crt-levels.sh dsnoop pair (see that file's own HISTORY
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Stale default, left as-is on purpose: crt-console.sh has run
+# crt-stt-solo.py, not stt-feed.sh, since 2026-07-20, so this pkill target
+# currently matches nothing. What on-hook SHOULD signal instead is Zach's
+# call (HOOKSWITCH.md), tracked by crt#37 -- this env var exists so that
+# call costs a line of config, not an edit.
 STT_PROCESS="${CRT_HOOK_STT_PROCESS:-stt-feed.sh}"
 
 apply_state() {
-  # 2026-07-25: this printed "pausing STT"/"resuming STT" BEFORE the pkill
-  # and swallowed its status with `2>/dev/null || true`, so the one thing
-  # it reported was the one thing it had not checked -- for five days it
-  # has been announcing a pause it did not perform, against a process name
-  #   [rest: vault:crt/header-archaeology-20260817.md]
+  # Reports what pkill actually did, not what it was asked to do --
+  # witnessed by tests/test_hookswitch_debounce.sh's no-such-process case.
   local sig verb
   case "$1" in
     on)  sig=STOP; verb=paused ;;
