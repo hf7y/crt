@@ -6,7 +6,7 @@
 #
 # NOT hardware-verified: render_pattern()/adjust_margins() are pure and
 # covered by tests/test_calibrate_display.py, but main()'s interactive
-# loop has never run against a real screen/STT -- see DISPLAY-CALIBRATION.md.
+# loop has never run against a real screen/STT.
 import json
 import os
 import sys

@@ -4,11 +4,9 @@
 # -> spoken answer -> STT training log is one funnel) -- how many books
 # have been scanned, how many trivia rounds actually got a spoken answer,
 # and the STT-training payoff itself: how often grading agreed with what
-# was actually said. That number is the point of this subsystem existing
-# at all (CLAUDE.md's "improve STT inference over time"), so it gets top
-# billing here, not buried under trivia scores. Zero Claude/API calls --
-# pure local reads, tested against synthetic fixtures in
-# tests/test_book_game_stats.py.
+# was actually said -- the point of this subsystem (CLAUDE.md's "improve
+# STT inference over time"), so it gets top billing, not buried under
+# trivia scores. Zero Claude/API calls; tested in tests/test_book_game_stats.py.
 import importlib.util
 import json
 import os

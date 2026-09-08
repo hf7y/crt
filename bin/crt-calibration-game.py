@@ -3,16 +3,10 @@
 # interactive calibration session, not a background service. Run it in a
 # tmux window, say the wake word (or whatever else it prompts for) into
 # the real mic, and watch the words STT actually heard splash around an
-# ASCII potato, sized/colored by similarity to the target word (reuses
-# crt-wake-pool.py's closest_pool_word()).
-#
-# Two rounds: wake (say the wake word repeatedly; STT-heard words are
-# scored by similarity and offered for saving into stt-fixups.json as
-# CONFIRMED aliases) and earcon (play each output device's tone, confirm
-# by typing -- not voice, to avoid a circular "did the mic hear the beep"
-# dependency -- which device it came from, logging each verdict to
-# CRT_EARCON_ROUTING_LOG). Reads ~/.crt/stt.log passively, same posture as
-# crt-monologue.py -- never touches the live capture process.
+# ASCII potato (reuses crt-wake-pool.py's closest_pool_word()). Two
+# rounds: wake (save confirmed mishears to stt-fixups.json) and earcon
+# (confirm each device's tone by TYPING, not voice -- avoids a circular
+# "did the mic hear the beep" dependency).
 import difflib
 import importlib.util
 import json

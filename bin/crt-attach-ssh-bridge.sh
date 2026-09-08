@@ -4,13 +4,8 @@
 # physical console's `mono` display, tagged distinctly from window 0's
 # own [claude] dialogue (2026-07-21, twelfth pass, Zach's direct ask:
 # "show both sessions' output on mono, distinguished somehow"). Not wired
-# into crt-console.sh's boot on purpose -- there's usually no second
-# session to show, and auto-starting with no fixed target would resurrect
-# crt-claude-bridge.py's old recency-guessing bug (whichever session was
-# merely most recently active wins). Must be run from WITHIN the session
-# to mirror -- $CLAUDE_CODE_SESSION_ID is set by Claude Code itself, not
-# a plain shell. Usage: crt-attach-ssh-bridge.sh (or CRT_THOUGHT_TAG=foo
-# for a custom tag/window color).
+# into crt-console.sh's boot -- no fixed second session to auto-start on
+# would resurrect crt-claude-bridge.py's old recency-guessing bug.
 set -euo pipefail
 
 if [ -z "${CLAUDE_CODE_SESSION_ID:-}" ]; then
@@ -33,10 +28,8 @@ fi
 # `pwd` -- the Bash tool's CURRENT cwd -- is wrong whenever the
 # conversation has `cd`'d around since Claude Code itself launched;
 # Claude Code's project-dir naming is fixed at session start. See
-# tests/test_attach_ssh_bridge.sh's header for the real bug this search
-# replaced: `dirname ""` on a no-match silently returns ".", the script's
-# own cwd, instead of erroring -- so the empty-match check below must run
-# on FOUND_TRANSCRIPT itself, before ever calling dirname on it.
+# tests/test_attach_ssh_bridge.sh's header for the `dirname ""` -> "."
+# bug the empty-match check below (on FOUND_TRANSCRIPT, not its dirname) fixes.
 FOUND_TRANSCRIPT="$(find "$HOME/.claude/projects" -maxdepth 2 -iname "${CLAUDE_CODE_SESSION_ID}.jsonl" 2>/dev/null | head -1)"
 if [ -z "$FOUND_TRANSCRIPT" ]; then
   echo "error: could not find a transcript file for session $CLAUDE_CODE_SESSION_ID under $HOME/.claude/projects" >&2
