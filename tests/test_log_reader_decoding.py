@@ -3,7 +3,13 @@
 # appending to, and until 2026-07-25 every one of them decoded it strictly.
 #
 # A reader that catches up to a writer mid-character sees a partial UTF-8
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# sequence -- book titles carry accents, idle-bait quotes carry em-dashes,
+# and a barcode scanner is a keyboard-emulating device that can put
+# arbitrary bytes into scanner.log. Strict decoding raises
+# UnicodeDecodeError, a ValueError NOT caught by the `except OSError` those
+# read loops wrap around, and raised inside a tail generator it is outside
+# main()'s LoopGuard too. The window that would die first is window 1 --
+# the one every honest-failure line this project has added reports to.
 import importlib.util
 import json
 import os

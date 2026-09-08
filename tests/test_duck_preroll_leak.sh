@@ -3,7 +3,17 @@
 # whisper via the pre-roll deque either.
 #
 # f13c7a4 closed the mid-utterance half of this (a duck arriving while `in_utt`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# is true now freezes and excises), and the VAD start gate has always refused
+# to begin an utterance while muted. The hole was between those two:
+# `pre.append(data)` ran unconditionally, so the pre-roll deque -- which
+# exists to prepend the moments just before onset -- filled with our own
+# handset playback and handed it to whisper as speech.
+#
+# Reachable live: `addressed` fires right after emit(), exactly when a
+# speaker carries on into a follow-up utterance. Measured by PEAK AMPLITUDE
+# of the first 100ms (playback 0.9 vs speech 0.3, a 3x separation) rather
+# than duration, and CRT_VAD_PREROLL is raised to 8 so the test pins the
+# mechanism rather than a one-chunk race against the default of 3.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

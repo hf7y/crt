@@ -3,7 +3,15 @@
 #
 # The defect these cover is not in any pure function: it is that four
 # `while True` / `for line in tail` loops in bin/ had no guard at all, so
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# ONE raising iteration ended a background tmux window for the rest of the
+# console's uptime -- silently, behind crt-console.sh's `; exec bash`. So
+# the call-site tests drive each script's real main() with one inner
+# function poisoned, and assert the loop kept iterating anyway.
+#
+# How each test stops: the fake clock/tail raises KeyboardInterrupt after N
+# iterations -- proof LoopGuard does NOT swallow BaseException, since if it
+# did these tests would hang instead of pass, exactly the property a
+# deliberate Ctrl-C on the console depends on.
 import contextlib
 import importlib.util
 import io

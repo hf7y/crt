@@ -136,7 +136,10 @@ class TestCli(unittest.TestCase):
 # copies of nightly-batch reports, all dated 2026-07-23 or 2026-07-25 -- and
 # asserted the directory was non-empty. Those copies are deleted; the lint is
 # NOT. It still runs on live reports in ~/reports/crt/, and every unit test
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# above still pins its behaviour on synthetic fixtures. The enforcement
+# that mattered is unchanged: a cycle that nests an earlier report inside
+# the current one still fails. What is gone is a three-week-old archive
+# being re-linted on every run as a proxy for it.
 
 
 if __name__ == "__main__":
