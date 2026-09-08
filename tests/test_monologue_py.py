@@ -3,7 +3,11 @@
 # the "mono" window's actually-live script (crt-monologue.sh is a dead
 # wrapper, see vault:crt/REFACTOR-ASSESSMENT.md), never had a direct test before
 # (coverage gap tracked in FOCUS.md's batch backlog item 5c).
-#   [rest: vault:crt/header-archaeology-20260817.md]
+#
+# main()'s tail-a-real-file loop isn't unit-testable without a live
+# terminal/log, so this only exercises render(): fresh-vs-stale styling,
+# width wrapping, and view height padding/truncation -- the parts that
+# would silently misrender on the real tube with no test to catch it.
 import contextlib
 import importlib.util
 import io

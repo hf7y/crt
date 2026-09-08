@@ -3,7 +3,17 @@
 # (2026-07-25, nineteenth nightly cycle). See bin/crt_config.py's PANE_ENV
 # block for the finding; the short version:
 #
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# crt-console.sh hands the stt window CRT_TMUX_PANE=0.0 for both layouts.
+# In the idle-lean layout (CRT_NO_IDLE_CLAUDE=1, what potato boots) window 0
+# is crt-screensaver.py, not Claude Code -- yet crt-stt-solo.py's single-word
+# CONTROL utterances (bypassing the wake gate by design) and crt-secretary.py's
+# whole escalation path when CRT_CLAUDE_REMOTE_PORT is 0 both typed into it
+# anyway. tmux accepts the keys since the pane is real, so every delivery
+# check passed while wait_for_claude_reply() diffed the console's own moving
+# caption looking for an answer that would never come.
+#
+# The tests that matter are the negative ones: nothing is sent, and the
+# historical layout is byte-for-byte unaffected.
 import importlib.util
 import os
 import unittest

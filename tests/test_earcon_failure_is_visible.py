@@ -3,7 +3,14 @@
 #
 # play_earcon() is fire-and-forget by design -- it runs inside the sole mic
 # reader's capture loop (crt-stt-solo.py) and in front of a wait the person is
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# already sitting through (crt-secretary.py), so nothing may wait on its exit
+# status. But both call sites sent its stderr to /dev/null too, and
+# crt-earcon.sh is silent on success -- so the combination discarded the
+# only evidence that existed, for free, for a chime that is the console's
+# only "I heard you" (EARCON_ON_ADDRESSED defaults on).
+#
+# Verified across a real process boundary -- the child's stderr has to reach
+# the PARENT's, which cannot be asserted from inside one process.
 import os
 import shutil
 import stat
