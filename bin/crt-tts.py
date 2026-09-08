@@ -3,7 +3,12 @@
 # better/faster neural voices, fully offline) or espeak-ng (fallback, always
 # available on Debian, no model download). Params come from ~/.crt/tts.conf
 # (written by crt-tts-calibrate.py) with env vars as override, so the runtime
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# and the calibration tool share one profile.
+#
+# NOT hardware-verified -- verify on potato, not the retired crt-vm
+# (crt#162). --device routes to local aplay by default (DEXTER_URL below
+# is the opt-in legacy path). PER-CALL PROSODY: backends can't do pitch/
+# rate/volume at synthesis time, so apply_prosody() post-processes with sox.
 import sys, os, signal, subprocess, shlex, tempfile, urllib.request
 
 DEXTER_URL = os.environ.get("CRT_AUDIO_OUT_URL")  # unset = no dexter, use local ALSA below

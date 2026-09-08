@@ -3,7 +3,8 @@
 # in this project will actually see -- and a checksum so drift (like the
 # CRT_AUDIO_DEV / stale-bash_profile bug found 2026-07-21) is DETECTABLE
 # instead of silently assumed. Appends one timestamped block to
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# .claude/AUDIT-LOG.md -- never overwrites. `verify` mode (see cmd handling
+# below) recomputes hashes and diffs against the last recorded block.
 set -euo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$BIN_DIR/.." && pwd)"

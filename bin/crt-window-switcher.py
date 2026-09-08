@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# Auto-returns tmux focus to the `book` window once a Claude exchange on
-# the `mono` window has gone idle -- the other half of "switch back to
-# book game on idle, or by command" (2026-07-21, Zach's direct ask).
-# crt-secretary.py's handle() switches TO `mono` (and touches
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Auto-returns tmux focus to `book` once a Claude exchange on `mono` goes
+# idle (Zach, 2026-07-21) -- a separate process since crt-secretary.py's
+# own per-utterance run is too short-lived to host an idle timeout. See
+# should_return_to_book_game()'s docstring for the "already returned"
+# guard and tests/test_window_switcher.py.
 import os
 import subprocess
 import time
@@ -12,10 +12,8 @@ SESSION = os.environ.get("CRT_TMUX_SESSION", "claude")
 BOOK_WINDOW = os.environ.get("CRT_BOOK_WINDOW_NAME", "book")
 CLAUDE_VIEW_WINDOW = os.environ.get("CRT_CLAUDE_VIEW_WINDOW_NAME", "mono")
 # Same var, same meaning as crt-book-console.py's CRT_IDLE_FACE_WINDOW
-# (2026-07-28): under the idle-lean layout (CRT_NO_IDLE_CLAUDE=1) the
-# real resting state is the screensaver, not `book`. Landing on `book`
-# instead left the console stuck there -- crt-book-console.py's own
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# (2026-07-28) -- see that file's should_release_tube() docstring for why
+# a handoff FROM this script needs its own release path back to idle.
 IDLE_FACE_WINDOW = os.environ.get("CRT_IDLE_FACE_WINDOW", "").strip()
 RETURN_WINDOW = IDLE_FACE_WINDOW or BOOK_WINDOW
 CLAUDE_ACTIVE_STATE = os.path.expanduser(

@@ -2,8 +2,11 @@
 # Interactive TTS calibration environment for the crt "secretary" voice.
 # Plays short secretary-style phrases at different rate/pitch/voice/backend
 # combos and lets you pick + save a profile to ~/.crt/tts.conf, which
-# crt-tts.py (and everything downstream: announcements, spoken confirmations)
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# crt-tts.py (and everything downstream) reads by default.
+#
+# NOT hardware-verified (no TTS backend installed when written); crt-vm,
+# the original verification target, is retired (crt#162) -- verify on
+# potato instead. `--auto` writes a default profile without audition.
 import os, sys, subprocess
 
 # crt-tts.py has a hyphen in its name, can't `import` it -- shell out instead.

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-# Cheap local "what did they probably just say" guesser, trained on this
-# room's own history (~/.crt/stt.log). Used to flash a guess on screen the
-# instant an utterance ends -- before whisper (which takes real wall-clock
-# time) has actually run -- then get overwritten by the real transcription.
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Cheap local "what did they probably just say" guesser, trained on
+# ~/.crt/stt.log. Flashes a guess the instant an utterance ends, before
+# whisper (real wall-clock time) has run, then gets overwritten by the
+# real transcription -- PARKING-LOT.md's predictive-typing-then-overwrite
+# aesthetic, PHILOSOPHY.md #1 (answer first) in its most literal form.
+# Deliberately NOT a real language model, just bigram frequency over this
+# room's own history (STT-MECHANISM.md). NOT hardware-verified against
+# real traffic -- tests/test_predict.py covers synthetic data.
 import collections
 import datetime
 import json

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# Decide WHERE the console's Claude brain should run, at the moment a wake
-# actually fires -- the small pure decision at the center of the
-# "screensaver at idle, no Claude resident to save RAM; on wake reach for
-# mandark, else fall back onsite, else nothing" design (see POTATO.md).
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Decide WHERE the Claude brain should run when a wake fires -- no brain
+# resident at idle (POTATO.md: ~37% of this 1GB Pi's RAM), mandark else
+# onsite else nothing. Pure decision only; see decide_brain()'s docstring
+# and tests/test_wake_router.py (probe_bridge()/probe_ssh() are the only
+# impure, live-socket parts).
 import argparse
 import json
 import os

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-# "Was this utterance addressed to the console?" -- one answer, for the two
-# processes that both read ~/.crt/stt.log (2026-07-25, fourteenth cycle).
-#
-# WHY THIS EXISTS. crt-stt-solo.py writes EVERY recognized utterance to
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# "Was this utterance addressed to the console?" -- one answer shared by
+# the two ~/.crt/stt.log readers with opposite rules (2026-07-25):
+# crt-stt-solo.py routes on a wake-word match, crt-book-answer-listen.py
+# grades anything in an open answer window as trivia. Scanning a book then
+# saying "claude, what's this about?" used to get graded as the answer.
+# See addressed_to_console()'s docstring for the match rules. Known gap
+# (BATCH-NOTES.md): an arm-window follow-up (crt-wake-arm.py) has no wake
+# word by design, so it still reads as an answer from here.
 import importlib.util
 import os
 import re

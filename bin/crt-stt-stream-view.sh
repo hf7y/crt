@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Standalone viewer for the streaming (LocalAgreement) STT prototype --
 # Approach F in AUDIO-DEBUG.md. Mirrors bin/crt-stt.sh's role for the batch
-# engine: a dedicated screen to watch/tune crt-stt-stream.py, decoupled from
-# the full console, so its live-partial-word behavior can be judged by ear/eye
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# engine: a dedicated screen to watch/tune crt-stt-stream.py without risking
+# the working Claude pipeline -- see that script's own header for the
+# design/cost tradeoffs. NOT hardware-verified.
 set -euo pipefail
 
 export PATH="$HOME/.local/bin:$PATH"

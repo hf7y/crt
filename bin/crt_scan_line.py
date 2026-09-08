@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# What a scan looks like, in every direction -- one source (2026-07-25,
-# fifteenth cycle).
-#
-# WHY THIS EXISTS. The barcode scanner is a USB HID keyboard: it types into
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# What a scan looks like, in every direction -- one shared source
+# (2026-07-25): the scanner is a USB HID keyboard typing into whichever
+# tmux window has focus (SCANNER.md), so "a scan line" is a contract
+# between processes -- see is_isbn_like()/parse_scanner_log_line()/
+# format_scan_log_line()'s docstrings. No heavy imports (POTATO.md).
 import datetime
 import re
 

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-# Decides, per recognized utterance, whether it still needs a Claude call to
-# be understood/handled -- or whether this room's history has seen it (or its
-# normalized shape) often enough that a local/cheap path can take it instead.
-#
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Decides, per utterance, whether it still needs a Claude call or a local/
+# cheap path can take it (Zach, 2026-07-21): probability decays per-key
+# toward a floor, never blanket-session, so novelty is never swallowed --
+# see call_probability()'s docstring. DECISION FUNCTION ONLY, not the
+# router (crt-secretary.py's job, STT-CONFIDENCE.md); unit-tested
+# (tests/test_stt_confidence.py) but NOT yet wired into the live pipeline,
+# pending a real confirmation signal.
 import json
 import os
 import re

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # The actual "STT training in the background" mechanism (2026-07-21,
-# Zach's direct ask) -- until this file, generate_candidate_fixups()
-# only ever printed candidates for a HUMAN to copy-paste into
-# bin/stt-fixups.json by hand (crt-book-game-stats.py's export-fixups
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Zach's ask): periodically merges fresh candidates from the Book Game
+# training log into stt-fixups.json, unattended -- see merge_candidates()/
+# run_merge_pass()'s docstrings. SCOPE: stt-fixups.json's only live
+# consumer is crt-stt-solo.py's wake-word gate, so a book-game mishear
+# merges but is inert until a broader consumer exists.
 import importlib.util
 import os
 import sys
@@ -92,11 +93,10 @@ def run_merge_pass(fixups_path=None, training_log_path=None, min_repeats=None):
 
 def main():
     loop = "--loop" in sys.argv
-    # The two modes want OPPOSITE failure behaviour, and before 2026-07-25
-    # both got the one-shot's:
-    #   - one-shot (a person or a script ran it): a raising pass must exit
-    #     non-zero. Swallowing it would be an exit-0 no-op, which this
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # OPPOSITE failure behaviour (2026-07-25): one-shot must exit non-zero
+    # on a raise; --loop must NOT let a raise end the loop, or ENOSPC on a
+    # Pi's SD card silently kills unattended learning for the rest of
+    # uptime (0ccdf13's live re-read makes a surviving loop worth more).
     guard = loop_guard.LoopGuard("stttrain") if loop else None
     while True:
         if guard is None:

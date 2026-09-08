@@ -3,7 +3,6 @@
 # watching/​tuning speech-to-text: a scrolling log of recognized phrases on top,
 # the live mic level meter on the bottom. Use this to confirm the STT pipeline
 # works and to calibrate, decoupled from the full console.
-#   [rest: vault:crt/header-archaeology-20260817.md]
 set -euo pipefail
 
 export PATH="$HOME/.local/bin:$PATH"
