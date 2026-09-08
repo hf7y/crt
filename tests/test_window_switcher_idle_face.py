@@ -2,8 +2,12 @@
 # Regression test (2026-07-28): crt-window-switcher.py always targeted
 # `book` on Claude-idle, even under the idle-lean layout where the real
 # resting state is the screensaver (CRT_IDLE_FACE_WINDOW, same var
-# crt-book-console.py already reads) -- landing on `book` left the
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# crt-book-console.py already reads) -- landing on `book` left the console
+# stuck there, since book's own return-to-idle-face logic only fires when
+# book itself grabbed focus for an active question, not when this script
+# hands it focus externally. See RETURN_WINDOW's own comment for the fix.
+# Module-level constants read env at import time, so this spawns a fresh
+# subprocess per case rather than reimporting in-process.
 import os
 import subprocess
 import sys

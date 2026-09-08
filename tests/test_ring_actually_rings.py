@@ -3,7 +3,10 @@
 # never rang (2026-07-25).
 #
 # bin/crt-stt-solo.py's ring path had the same shape as the TTS one fixed
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# alongside it, one layer worse -- see ring_tone_path()'s docstring for the
+# ignored-exit-status/cached-zero-byte-wav story. The ring itself also never
+# read its own subprocess's exit status. Injected at PATH: `sox` and `aplay`
+# here are real executables that really exit with the status under test.
 import importlib.util
 import os
 import shutil

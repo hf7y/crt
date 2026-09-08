@@ -3,7 +3,11 @@
 #
 # stt-fixups.json has two writers -- crt-calibration-game.py (a human
 # confirming a mishear by ear) and crt-stt-training-merge.py's `stttrain`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# window -- and both did read-modify-write-whole-file through the same
+# `<file>.tmp` path: a torn file under concurrent writes, and a lost update
+# even without tearing. See crt_fixups_store.py's own header and update()'s
+# docstring for the fix. Real processes/threads here, not a source-string
+# assertion, since the defect is in what two writers do to one file.
 import importlib.util
 import json
 import os

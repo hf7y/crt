@@ -3,7 +3,11 @@
 # tube as well as the earpiece (2026-07-25, nineteenth nightly cycle).
 #
 # handle() switches the tube to `mono` the moment a request escalates,
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# because that is the one window that shows a Claude exchange. See
+# crt-secretary.py's MIRROR_REPLY_TO_TUBE comment and show_reply_line() for
+# why: with a LOCAL brain crt-claude-bridge.py already mirrors it by tailing
+# Claude Code's own transcript, and mirroring here too would double every
+# line; only the remote (mandark) path has no transcript to tail.
 import importlib.util
 import os
 import unittest

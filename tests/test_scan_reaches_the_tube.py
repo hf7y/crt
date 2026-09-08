@@ -2,8 +2,14 @@
 # A scan has to end up ON THE TUBE (2026-07-25, fifteenth nightly cycle).
 #
 # THE BUG. crt-console.sh made `book` the boot-default window for one
-# concrete reason, recorded in its own comment: the barcode scanner is a USB
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# concrete reason, recorded in its own comment (SCANNER.md's "2026-07-21
+# late session" finding): the barcode scanner is a USB HID keyboard and
+# types into whichever tmux window has FOCUS. The idle-lean layout
+# (CRT_NO_IDLE_CLAUDE=1) selects the screensaver instead, so the fix has to
+# make THAT window forward scans -- see crt-console.sh's own comment there.
+# The integration test at the bottom is load-bearing: it runs the real
+# crt-book-console.py against a fake `tmux` on PATH and asserts the
+# select-window actually happens on a scan, not that a helper exists.
 import importlib.util
 import os
 import subprocess

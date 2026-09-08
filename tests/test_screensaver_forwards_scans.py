@@ -3,7 +3,13 @@
 #
 # The barcode scanner is a USB HID keyboard -- it types into whichever tmux
 # window has FOCUS (SCANNER.md, proven live), which is why crt-console.sh
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# selects the screensaver window in the idle-lean layout (see its own
+# comment, and test_scan_reaches_the_tube.py for that half). Before this,
+# crt-screensaver.py never read its own stdin, so every scan typed bare
+# digits into the animation loop -- no question, no answer window, no
+# training row. See scan_forwarder()'s and forward_scan()'s docstrings for
+# the fix: it forwards to scanner.log rather than handling the scan itself,
+# so the idle face stays a face with no book logic in it.
 import atexit
 import importlib.util
 import io

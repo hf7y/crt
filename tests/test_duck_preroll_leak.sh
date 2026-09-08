@@ -3,7 +3,15 @@
 # whisper via the pre-roll deque either.
 #
 # f13c7a4 closed the mid-utterance half of this (a duck arriving while `in_utt`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# is true now excises), but `pre.append(data)` ran unconditionally regardless
+# of duck state -- so the pre-roll deque (whose job is prepending the moments
+# just before onset, since a word's attack sits below the VAD threshold)
+# happily filled with our own handset playback and handed it to whisper as
+# the start of the next utterance. Measured by PEAK AMPLITUDE of the first
+# 100ms handed to whisper (playback emits at 0.9, speech at 0.3): a clean 3x
+# separation, not a chunk-counting race. See crt-stt-solo.py's pre.append() site.
+# CRT_VAD_PREROLL=8 below (default 3) widens the leak window past a one-chunk
+# race so the test pins the mechanism, not a lucky sample.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

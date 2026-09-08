@@ -3,7 +3,12 @@
 # (2026-07-25, seventh cycle). The bug these pin down: transcribe_remote()
 # returned "" for BOTH "the server transcribed this clip as nothing" and
 # "there is no server" -- so an unreachable mandark made potato go silent
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# with no line anywhere saying why. See transcribe_remote()'s own docstring
+# for the fix (None vs ""). These inject at the SOCKET -- a real http.server
+# on a real port, and for the unreachable case a port with nothing listening
+# -- rather than stubbing urllib, since the boundary this bug lives at is
+# the HTTP call. No mic, no whisper, no mandark, no potato: everything here
+# is localhost and pure string builders.
 import http.server
 import importlib.util
 import json

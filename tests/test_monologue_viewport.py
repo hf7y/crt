@@ -3,7 +3,12 @@
 #
 # bin/crt-monologue.py is the live script on the "mono" window -- the console's
 # only text surface, and where every "the fault is here" line this project has
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# added lands. It used to size itself once at import, inside the detached tmux
+# session crt-console.sh creates windows in -- tmux sizes that 80x24 no matter
+# what the tube is, so a 15-row pane got 24 rows of redraw scrolling away
+# immediately. See viewport()'s docstring for the fix (env size, then
+# crt-console.sh's CRT_COLS/CRT_ROWS pins, then the live terminal, then the
+# tube's stated geometry) and its own per-frame recompute.
 import importlib.util
 import io
 import os

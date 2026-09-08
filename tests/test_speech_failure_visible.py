@@ -3,7 +3,13 @@
 # will find it (2026-07-25).
 #
 # Two defects, one chain. bin/crt-tts.py's play_wav() discarded aplay's exit
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# status; see its own comment there and crt-secretary.py's speak() docstring
+# for the fix and why it mattered most here -- speech is the console's
+# primary output channel, so a dead device silenced the honest-failure
+# reports too. Injected at PATH, not above the function under test: `aplay`
+# and `espeak-ng` here are real executables that really exit with the status
+# under test. The secretary half injects one level out (a fake crt-tts.py at
+# BIN_DIR), that code's own real seam.
 import importlib.util
 import os
 import shutil

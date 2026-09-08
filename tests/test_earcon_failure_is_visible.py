@@ -3,7 +3,11 @@
 #
 # play_earcon() is fire-and-forget by design -- it runs inside the sole mic
 # reader's capture loop (crt-stt-solo.py) and in front of a wait the person is
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# already sitting through (crt-secretary.py) -- nothing may block on it. See
+# crt-stt-solo.py's play_earcon() for why stderr is inherited instead of
+# discarded: it's the only evidence a silent chime ever existed. Verified
+# across a real process boundary since that's where the evidence has to
+# survive.
 import os
 import shutil
 import stat

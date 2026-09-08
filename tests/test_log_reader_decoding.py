@@ -3,7 +3,11 @@
 # appending to, and until 2026-07-25 every one of them decoded it strictly.
 #
 # A reader that catches up to a writer mid-character sees a partial UTF-8
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# sequence -- strict decoding raises UnicodeDecodeError, a ValueError NOT
+# caught by the `except OSError` those loops wrap their reads in. Every call
+# site now opens with errors="replace"; see e.g. crt-book-console.py's and
+# crt-calibration-game.py's own comments on that line for the race each one
+# reads across.
 import importlib.util
 import json
 import os

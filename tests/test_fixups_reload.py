@@ -3,7 +3,11 @@
 # boot (2026-07-25, tenth nightly cycle).
 #
 # Three things write that file while the console is up: the `stttrain`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# window, crt-calibration-game.py's wake round, and a person with an editor.
+# See addressed_to_console()'s docstring (fixups=None -> live file, re-read
+# on change) for the fix; these tests drive the real module with
+# CRT_STT_FIXUPS pointed at a temp file to pin the module-level wiring, not
+# a function that could just be handed a dict.
 import atexit
 import importlib.util
 import json
