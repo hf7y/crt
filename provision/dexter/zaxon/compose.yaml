@@ -31,7 +31,13 @@ services:
     container_name: zaxon-relay
     restart: always
     volumes:
-      - ./data:/home/zaxon/.hermes
+      - ./data/zaxon_relay:/home/zaxon/.hermes/zaxon_relay
+      - ./data/cache:/home/zaxon/.hermes/cache
+      - ./data/logs:/home/zaxon/.hermes/logs
+      - ./data/hermes-agent:/home/zaxon/.hermes/hermes-agent:ro
+      - ./data/.env:/home/zaxon/.hermes/.env:ro
+      - ./data/config.yaml:/home/zaxon/.hermes/config.yaml:ro
+      - ./data/channel_directory.json:/home/zaxon/.hermes/channel_directory.json:ro
       - ./uv:/home/zaxon/.local/share/uv
     working_dir: /opt/zaxon-relay
     # `hermes send` reaches the Baileys bridge on localhost:3000, a gateway child.
@@ -53,7 +59,13 @@ services:
     container_name: zaxon-watcher
     restart: always
     volumes:
-      - ./data:/home/zaxon/.hermes
+      - ./data/zaxon_relay:/home/zaxon/.hermes/zaxon_relay
+      - ./data/cache:/home/zaxon/.hermes/cache
+      - ./data/logs:/home/zaxon/.hermes/logs
+      - ./data/hermes-agent:/home/zaxon/.hermes/hermes-agent:ro
+      - ./data/.env:/home/zaxon/.hermes/.env:ro
+      - ./data/config.yaml:/home/zaxon/.hermes/config.yaml:ro
+      - ./data/channel_directory.json:/home/zaxon/.hermes/channel_directory.json:ro
       - ./uv:/home/zaxon/.local/share/uv
     working_dir: /opt/zaxon-relay
     network_mode: "service:gateway"
