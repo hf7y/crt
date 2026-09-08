@@ -15,8 +15,9 @@ export CRT_TEST_SUITE_RUNNING=1
 # Nothing in this suite may touch the LIVE console's state (2026-07-25).
 # Measured, not assumed: five test files were appending to the real
 # ~/.crt/ctl -- the capture-duck control channel a RUNNING crt-stt-solo.py
-# reads live -- and stamping the real ~/.crt/claude-window-active.state,
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# reads live -- and stamping the real ~/.crt/claude-window-active.state and
+# ~/.crt/thoughts.log. Every var below redirects those writes into a tmp
+# dir; the "live console state untouched" check further down verifies it.
 CRT_TEST_STATE_DIR="$(mktemp -d)"
 export CRT_CTL_FILE="$CRT_TEST_STATE_DIR/ctl"
 export CRT_CLAUDE_ACTIVE_STATE="$CRT_TEST_STATE_DIR/claude-window-active.state"
@@ -551,10 +552,10 @@ python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_filer.py" -v 2>&1 | 
 echo
 
 # Manifest check (2026-07-25). Every test file in this directory must be named
-# above, and every name above must exist. Both directions had really drifted:
-#
-#   - test_audio_doctor.sh and test_mic_footer.sh were NAMED but absent, left
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# above, and every name above must exist -- both directions had drifted (a
+# file named but absent, a file present but never invoked). See the check
+# itself, below, for how it tells its own explanation apart from real
+# invocations.
 echo "== senechal guard hook (machine-config changes owe a note) =="
 bash "$DIR/test_senechal_guard.sh" || fail=1
 echo
