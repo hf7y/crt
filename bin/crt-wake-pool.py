@@ -74,11 +74,8 @@ def check_pool_match(text, pool):
     return any(w in pool for w in words)
 
 
-# Fuzzy cluster matching (2026-07-21, Zach's direct ask, calibration-game
-# pass): "a longer set of words requiring less precision on one word but
-# more reliable matching across words -- many close matches means it's
-# probably the same." Rather than requiring one word to match a pool
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Fuzzy cluster matching (2026-07-21, Zach's direct ask): rationale is
+# fuzzy_cluster_match()'s own docstring below, witnessed by tests/test_wake_pool.py.
 FUZZY_CLOSE_RATIO = float(os.environ.get("CRT_WAKE_FUZZY_CLOSE_RATIO", "0.72"))
 FUZZY_CLUSTER_MIN = int(os.environ.get("CRT_WAKE_FUZZY_CLUSTER_MIN", "2"))
 

@@ -19,11 +19,9 @@ if [ -z "$SESSION" ]; then
   exit 2
 fi
 
-# Where Claude starts. The crt checkout, so the console's brain can answer
-# questions about its own project without being told where it lives.
-#
-# But NOT the same working tree a human is editing in. The brain now runs
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Where Claude starts: the crt checkout, but NOT one a human is editing --
+# prefers ~/crt-brain if present. Witnessed by tests/test_brain_session_bypass.sh
+# case 6 ("prefers its own worktree").
 CRT_BRAIN_VOICE_TREE="${CRT_BRAIN_VOICE_TREE:-$HOME/crt-brain}"
 if [ -z "${CRT_BRAIN_CWD:-}" ] && [ -d "$CRT_BRAIN_VOICE_TREE" ]; then
   CRT_BRAIN_CWD="$CRT_BRAIN_VOICE_TREE"
@@ -31,11 +29,9 @@ fi
 CRT_BRAIN_CWD="${CRT_BRAIN_CWD:-$(cd "$HERE/.." && pwd)}"
 CLAUDE_BIN="${CRT_BRAIN_CLAUDE:-claude}"
 
-# Zero permission prompts. Not a convenience -- a correctness requirement
-# for THIS process, decided by Zach 2026-07-29 after watching it happen.
-#
-# The brain has no keyboard. Its only input is `tmux send-keys` from
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Zero permission prompts -- a correctness requirement, not a convenience,
+# for a process whose only input is tmux send-keys with no one watching
+# for a prompt. Witnessed by tests/test_brain_session_bypass.sh cases 1-2.
 CRT_BRAIN_CLAUDE_ARGS="${CRT_BRAIN_CLAUDE_ARGS:---permission-mode bypassPermissions}"
 
 have_session() { tmux has-session -t "$SESSION" 2>/dev/null; }
@@ -132,11 +128,9 @@ Clear it with: tmux attach -t $SESSION, or restart: $0 restart" >&2
       pane="$(tmux capture-pane -t "$SESSION" -p -S -50 2>/dev/null || true)"
       [ -n "${pane//[[:space:]]/}" ] || continue
 
-      # A painted pane is NOT a ready brain, learned the hard way on
-      # dexter 2026-07-28: the first start in an untrusted directory
-      # parks on "Do you trust the files in this folder?" and waits.
-      # That pane paints beautifully, so the old check called it UP --
-      #   [rest: vault:crt/header-archaeology-20260817.md]
+      # A painted pane is NOT a ready brain (dexter 2026-07-28: a trust
+      # prompt paints beautifully too). Witnessed by
+      # tests/test_brain_session_bypass.sh cases 3-4.
       if reason="$(parked_reason "$pane")"; then
         echo "crt-brain-session: $SESSION is $reason -- not a usable brain. \
 Clear it with: tmux attach -t $SESSION" >&2
