@@ -2,8 +2,8 @@
 # Two writers, one file (2026-07-25, twelfth nightly cycle).
 #
 # bin/stt-fixups.json is what this console has learned about how this room
-# says its wake word, and it has two writers -- crt-calibration-game.py (a
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# says its wake word -- two writers plus a live reader (the wake gate,
+# crt-stt-solo.py:736). See crt_fixups_store.py for the shared-file fix.
 import importlib.util
 import json
 import os

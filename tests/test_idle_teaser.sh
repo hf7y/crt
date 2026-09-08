@@ -22,9 +22,9 @@ trap 'rm -rf "$TMPDIR" "$FAKE_BIN"' EXIT
 
 # This file reaches the LIVE console through two doors, both found
 # 2026-07-25 by run_tests.sh's live-state guard and by reading what it
-# actually runs. Neither is about what is under test here.
-#
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# actually runs. Neither is about what is under test here: CRT_ANNOUNCE_LOCK
+# is IDLE-BAIT.md's shared rate limit, and `chime` execs the real
+# bin/crt-earcon.sh -- aplay is faked below so it doesn't beep for real.
 export CRT_ANNOUNCE_LOCK="$TMPDIR/announce.lastrun"
 export CRT_IDLE_SEEN="$TMPDIR/seen.default"
 cat > "$FAKE_BIN/aplay" <<'EOF'

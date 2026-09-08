@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # Two writers, one file, and no lock (2026-07-25, twelfth nightly cycle).
 #
-# stt-fixups.json has two writers -- crt-calibration-game.py (a human
-# confirming a mishear by ear) and crt-stt-training-merge.py's `stttrain`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# stt-fixups.json has two writers, both read-modify-write through the same
+# temp path -- see crt_fixups_store.py's header and update() for the fix.
 import importlib.util
 import json
 import os

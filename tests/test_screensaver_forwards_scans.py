@@ -2,8 +2,9 @@
 # The idle face must not eat scans (2026-07-25, fifteenth nightly cycle).
 #
 # The barcode scanner is a USB HID keyboard -- it types into whichever tmux
-# window has FOCUS (SCANNER.md, proven live), which is why crt-console.sh
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# window has FOCUS (SCANNER.md), which is why crt-console.sh selects the
+# screensaver in the idle-lean layout -- see scan_forwarder()/forward_scan()
+# for how it forwards to scanner.log instead of handling the scan itself.
 import atexit
 import importlib.util
 import io

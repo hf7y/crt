@@ -2,8 +2,8 @@
 # Offline test: window 1 has to fit the pane it is actually in (2026-07-25).
 #
 # bin/crt-monologue.py is the live script on the "mono" window -- the console's
-# only text surface, and where every "the fault is here" line this project has
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# only text surface. See viewport()'s docstring for why it recomputes size
+# every frame instead of once (env, then CRT_COLS/CRT_ROWS, then terminal).
 import importlib.util
 import io
 import os

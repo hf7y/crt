@@ -3,7 +3,9 @@
 # will find it (2026-07-25).
 #
 # Two defects, one chain. bin/crt-tts.py's play_wav() discarded aplay's exit
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# status; see crt-secretary.py's speak() docstring for the fix -- a dead
+# device silenced the honest-failure reports too, since speech is the
+# console's primary output channel.
 import importlib.util
 import os
 import shutil

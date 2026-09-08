@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # Offline test: bin/crt-earcon-loopback-test.py must not report a hardware
 # finding from a run in which nothing was played or nothing was recorded
-# (2026-07-25).
-#
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# (2026-07-25) -- this tool stands in for Zach's own ear (FOCUS.md), so
+# see play_tone()'s and baseline_noise_floor()'s docstrings: "played, not
+# heard" and "never played" must not collapse into the same NOT DETECTED.
 import importlib.util
 import os
 import unittest
