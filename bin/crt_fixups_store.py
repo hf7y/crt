@@ -2,8 +2,10 @@
 # One safe way to change stt-fixups.json (2026-07-25, twelfth cycle).
 #
 # That file is what this console has learned about how this room says its
-# wake word, and it has TWO writers and a live reader:
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# wake word, and it has TWO writers and a live reader. Both writers used to
+# read-modify-write the whole file through a shared temp path -- a torn
+# file under concurrent writes, and a lost update even without tearing.
+# update()'s own docstring below is the fix and the why.
 import fcntl
 import json
 import os

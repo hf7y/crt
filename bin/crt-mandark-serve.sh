@@ -2,8 +2,11 @@
 # MANDARK-SIDE on/off/status for the remote-brain path that lets potato run
 # with no Claude of its own. Run this ON MANDARK (needs sudo only for the
 # systemd-managed pieces). Two components (the third, whisper, was retired
-# crt#149 -- see console.conf.example's CRT_WHISPER_SERVER):
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# crt#149 -- see console.conf.example's CRT_WHISPER_SERVER): bridge and
+# tunnel, named below in unit_of()/pat_of()/adhoc_cmd(). Don't confuse this
+# with bin/crt-mandark.sh: that one flips POTATO's routing flag on/off;
+# this one is the day-to-day up/down for what it's routing TO, run on
+# mandark itself. Idempotent -- a component already up is left alone.
 set -uo pipefail
 
 BRIDGE_PORT="${CRT_REMOTE_BRIDGE_PORT:-8993}"

@@ -2,8 +2,9 @@
 # One place to resolve a config value that more than one script needs.
 #
 # WHY THIS FILE EXISTS: vault:crt/REFACTOR-ASSESSMENT.md / ranked-backlog item 1
-# ("introduce one config source ... for the port 8993, whisper URL, and
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# -- one config source for values retyped across many files (port 8993,
+# whisper URL, ALSA device, stt-fixups.json's path -- see fixups_path()'s
+# own docstring below for that founding instance).
 import os
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
