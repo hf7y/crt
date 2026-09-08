@@ -14,10 +14,9 @@ FIXUPS_ENV_LEGACY = "CRT_STT_FIXUPS_PATH"
 
 
 # THE THIRD INSTANCE (2026-07-25, twentieth cycle): "what number did the shell
-# put in this env var, and what if it isn't one?"
-#
-# Every tunable in bin/ is read as a bare int()/float() of an env var, and
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# put in this env var, and what if it isn't one?" -- junk-tolerance and why,
+# fully in env_number's own docstring below; witnessed by
+# tests/test_config_fixups_path.py::TestEnvNumber.
 def env_number(name, default, env=None, minimum=0.0):
     """A numeric env var, junk-tolerant. Returns `default` for unset, for
     anything float() refuses, and for anything below `minimum`.
@@ -63,10 +62,9 @@ def env_flag(name, default=False, env=None):
     return default
 
 # THE SECOND INSTANCE (2026-07-25, nineteenth cycle): "is the tmux pane this
-# console types into a Claude brain, or the idle face?"
-#
-# bin/crt-console.sh hands the stt window CRT_TMUX_PANE=0.0 on ONE line, for
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# console types into a Claude brain, or the idle face?" -- crt-secretary.py
+# and crt-stt-solo.py both point here for "the whole finding"; it now lives
+# in pane_is_idle_face()'s own docstring below, not in this header.
 PANE_ENV = "CRT_TMUX_PANE"
 PANE_DEFAULT = "0"
 IDLE_FACE_ENV = "CRT_IDLE_FACE_WINDOW"
