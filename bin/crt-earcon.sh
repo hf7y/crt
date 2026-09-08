@@ -3,7 +3,16 @@
 # before/instead of speaking words. Deliberately small, deliberately warm:
 # see IDLE-BAIT.md for why these must read as curious/playful, never as an
 # alarm (that's the thing that gets the TV turned off).
-#   [rest: vault:crt/header-archaeology-20260817.md]
+#
+# STATUS: device routing below was confirmed live 2026-07-23 (Zach, by
+# ear); the tone/duration choices per name are still first-draft, never
+# individually retuned by ear, except `alarm` (Zach-directed, 2026-07-28).
+#
+# CRT_EARCON_FADE_SCALE (default 1.0) scales every tone's fade-out only,
+# independent of which contour is picked -- small (~0.3) reads
+# clipped/urgent, large (~2.5+) wistful. All bait/curious/question calls
+# MUST share crt-announce.sh's 15-minute lockfile so a chime and a TV
+# announcement never stack -- enforced at the call site, not here.
 set -euo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -146,7 +155,11 @@ trap 'rm -rf "$TMP"; unduck' EXIT
 # used to POST to a dexter-hosted audio bridge -- a VirtualBox
 # one-sink-per-VM workaround from the old dexter+VM architecture (crt#162),
 # meaningless on bare-metal potato, and the actual reason earcons never
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# reached the TV/handset here at all. Confirmed live 2026-07-23 by ear
+# (Zach on the handset): plughw:2,0 (card 2, vc4-hdmi) is the TV/RF path;
+# plughw:1,0 (card 1, "KT USB Audio" -- the same device the mic uses) is
+# the handset earpiece. `plug`, not bare `hw`: tested, bare hw:2,0 fails
+# "Sample format non available", hw:1,0 fails "Channels count non available".
 TV_DEVICE="${CRT_EARCON_TV_DEVICE:-plughw:2,0}"
 HANDSET_DEVICE="${CRT_EARCON_HANDSET_DEVICE:-plughw:1,0}"
 
@@ -154,7 +167,9 @@ HANDSET_DEVICE="${CRT_EARCON_HANDSET_DEVICE:-plughw:1,0}"
 # rationale): the handset output is the same USB adapter as the live mic
 # capture, and playing on it while crt-stt-solo.py's arecord is running
 # leaves the recording near-dead (measured by crt-earcon-loopback-test.py).
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Suppresses VAD for the duration via the same CTL-file "mute" reference
+# count crt-tts.py's handset path uses -- ref-counted, not a last-write-
+# wins flag, so this can't unmute early out from under a concurrent TTS duck.
 CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
 CAPTURE_MUTED=0
 capture_mute() {
@@ -170,7 +185,10 @@ trap 'rm -rf "$TMP"; unduck; [ "$CAPTURE_MUTED" = 1 ] && capture_mute 0; true' E
 # actually comes out of -- not from the caller having used the word
 # "handset". See ducks_capture() in crt-tts.py for the full reasoning; the
 # short version is that crt-idle-teaser.sh's chime() and crt-secretary.py's
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# play_earcon() both call this script with no --device, landing in the `*)`
+# branch below, so they used to play into the console's own mic unducked.
+# An unknown device (`default`) now ducks: an unneeded duck just costs one
+# chime's worth of suppressed VAD; a missing one feeds our own tone to whisper.
 case "$DEVICE" in
   tv)      ALSA_DEVICE="$TV_DEVICE" ;;
   handset) ALSA_DEVICE="$HANDSET_DEVICE" ;;

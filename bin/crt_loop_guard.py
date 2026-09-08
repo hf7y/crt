@@ -3,7 +3,13 @@
 # raised once and the whole `while True` ended.
 #
 # crt-console.sh runs eight long-lived Python windows and wraps each in
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# `; exec bash` -- a dead loop doesn't close its window, it leaves a shell
+# prompt where the console's face was, and nothing says so. This handles
+# only the half that needs no supervisor: a transient per-iteration fault
+# (one sqlite hiccup, one malformed row) should skip that iteration, not
+# end the loop. It deliberately does NOT sleep (pacing stays with the
+# caller's own loop), does NOT catch BaseException (Ctrl-C/SystemExit
+# still stop it), and does NOT guard a `for` loop's iterator, only its body.
 import importlib.util
 import os
 import time
@@ -98,7 +104,10 @@ class LoopGuard:
         # so that pane's stdout/stderr IS the tube -- a traceback there is
         # painted over the console's face and stays until the next draw(),
         # which may be a long time if nothing is scanned. The one-line report
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # already carries the exception type and message; set
+        # CRT_LOOP_GUARD_TRACEBACK=1 when attached to a window and wanting
+        # frames. Junk-tolerant per crt_config.env_flag's own docstring --
+        # this flag is exactly the case that fix was written for.
         self.verbose = crt_config.env_flag("CRT_LOOP_GUARD_TRACEBACK") \
             if verbose is None else verbose
 

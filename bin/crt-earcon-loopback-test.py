@@ -3,7 +3,12 @@
 # night): does an earcon played on a given output device actually reach
 # the mic? Answers this by measurement, not by trusting a subprocess exit
 # code -- exactly the gap that let the dexter-bridge earcon bug (silent
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# no-op, exit 0, no sound) go unnoticed earlier the same night. Records a
+# baseline, plays a pure sine tone (sox synth, easier to detect reliably
+# than crt-earcon.sh's synthesized contours) partway through, and runs a
+# Goertzel energy check (stdlib math, no scipy) for that frequency against
+# the baseline. Also reports the room's noise-floor peak/RMS, useful for
+# retuning CRT_VAD_THRESHOLD without a live-by-ear session.
 import math
 import os
 import subprocess

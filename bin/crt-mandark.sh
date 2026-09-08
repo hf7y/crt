@@ -3,7 +3,11 @@
 # side, and check whether it's actually reachable right now.
 #
 # WHY THIS EXISTS: the console can run its Claude Code brain in one of a
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# few places (POTATO.md's "wake routing" section). Preferred: mandark,
+# so potato holds no Claude process at all (saves ~37% of its 1GB RAM,
+# vault:crt/ARCHITECTURE-REVIEW-2026-07-23.md). This is the one knob Zach flips;
+# everything downstream reads the flag file it writes -- see
+# bin/crt-mandark-serve.sh for the mandark-side up/down this routes to.
 set -euo pipefail
 
 CONF="${CRT_MANDARK_CONF:-$HOME/.crt/mandark.conf}"
@@ -26,7 +30,10 @@ EOF
 # (reverse-tunneled) socket, send CAPTURE, expect a non-empty pane back.
 # Returns 0 if the bridge answered, 1 otherwise. Never blocks longer than
 # the timeout. Uses python3 (always present here) so we match the real
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# client's behavior rather than guessing with nc. Takes the port as $1
+# (2026-07-25) -- it used to always read the DEFAULT while current_port()
+# read the CONFIGURED one, so a non-default port made status report on
+# the wrong socket with no error either way.
 probe_bridge() {
   python3 - "$1" <<'PY'
 import socket, sys
