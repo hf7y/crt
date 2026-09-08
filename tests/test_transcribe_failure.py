@@ -2,8 +2,11 @@
 # Offline tests for crt-stt-solo.py's transcription-failure signal
 # (2026-07-25, seventh cycle). The bug these pin down: transcribe_remote()
 # returned "" for BOTH "the server transcribed this clip as nothing" and
-# "there is no server" -- so an unreachable mandark made potato go silent
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# "there is no server" -- see transcribe_remote()'s own docstring. These
+# inject at the SOCKET, a real http.server and (for the unreachable case) a
+# port with nothing listening, rather than stubbing urllib -- cycle six
+# learned a stub above the function under test reproduces neither the bug
+# nor the fix.
 import http.server
 import importlib.util
 import json

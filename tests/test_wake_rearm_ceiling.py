@@ -2,8 +2,19 @@
 # A deliberate re-wake mid-conversation has to start a FRESH session
 # (2026-07-25, twelfth nightly cycle).
 #
-# bin/crt-wake-arm.py's ArmState.arm() documents itself as "Always starts a
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# bin/crt-wake-arm.py's ArmState.arm() docstring is the fix and Zach's own
+# confirmation of it. In the live wiring an utterance arriving while armed
+# never reached that call: crt-stt-solo.py's emit() runs the
+# consume-follow-up check first and returns as soon as it consumes, so
+# arm() was only reachable from a disarmed state. The two emit()-driven
+# tests below fail against the parent with the real symptom -- a dropped
+# utterance -- not an AttributeError about a missing kwarg.
+#
+# CONFIRMED BY ZACH 2026-07-25 (thirteenth cycle, replying inline on that
+# report): "saying the wake word again is deliberate, so it resets the
+# ARM_MAX_SECS ceiling rather than being swallowed by the conversation
+# already in progress." These tests are pinning a decision the human made,
+# not an inference from a docstring.
 import importlib.util
 import os
 import shutil
@@ -212,8 +223,8 @@ class TestRewakeThroughEmit(unittest.TestCase):
         # FOCUS.md's open question (2026-07-28 milestone entry): is the
         # arm window's clock starting from the wrong reference point given
         # transcription/network lag? Answer, pinned here: emit() is called
-        # AFTER transcribe() returns, but the utterance clock is taken by the
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # AFTER transcribe() returns, but heard_at is captured by the
+        # capture loop BEFORE transcribe() runs (VAD-end). What follows is
         # TWO CLOCKS, and the answer differs per reader. In memory the
         # window is AUDIO time, anchored to when the person stopped talking.
         # On disk it is translated by the lag, for a reader that only ever

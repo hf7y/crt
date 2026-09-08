@@ -2,8 +2,12 @@
 # Offline test: a console that cannot speak has to SAY SO somewhere a person
 # will find it (2026-07-25).
 #
-# Two defects, one chain. bin/crt-tts.py's play_wav() discarded aplay's exit
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Two defects, one chain: bin/crt-tts.py's play_wav() discarded aplay's
+# exit status, and crt-secretary.py's speak() docstring covers why
+# discarding crt-tts.py's own exit status on top of that mattered more
+# here than anywhere. Injected at PATH, not above the function under
+# test -- cycle six learned a stub placed above the tested code reproduces
+# neither the bug nor the fix.
 import importlib.util
 import os
 import shutil
