@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # Offline test: a chime that never sounded must leave a trace (2026-07-25).
 #
-# play_earcon() is fire-and-forget by design -- it runs inside the sole mic
-# reader's capture loop (crt-stt-solo.py) and in front of a wait the person is
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# play_earcon() is fire-and-forget inside the sole mic reader's capture loop
+# (crt-stt-solo.py), so a failure must reach stderr, not vanish silently.
 import os
 import shutil
 import stat

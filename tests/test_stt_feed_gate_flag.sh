@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Offline test for stt-feed.sh's CRT_STT_GATE opt-in gate (FOCUS.md "STT
-# gate", 2026-07-20). Can't source the real script (it does unconditional
-# mixer/tmux-wait side effects at the top, same reason
-# test_stt_feed_secretary_flag.sh doesn't either) -- exercises the real
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Offline test for stt-feed.sh's CRT_STT_GATE opt-in gate (2026-07-20).
+# Can't source the real script (it does unconditional mixer/tmux-wait side
+# effects at the top, same reason test_stt_feed_secretary_flag.sh doesn't
+# either) -- exercises the real addressed_to_console() extracted verbatim
+# via sed, then greps the source for the gate's default and its guard on
+# the escalation path.
 set -uo pipefail
 fail=0
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"

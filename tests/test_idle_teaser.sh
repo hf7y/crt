@@ -22,9 +22,9 @@ trap 'rm -rf "$TMPDIR" "$FAKE_BIN"' EXIT
 
 # This file reaches the LIVE console through two doors, both found
 # 2026-07-25 by run_tests.sh's live-state guard and by reading what it
-# actually runs. Neither is about what is under test here.
-#
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# actually runs. Neither is about what is under test here, so both are
+# redirected below rather than left to hit ~/.crt on whatever host runs
+# this suite: CRT_ANNOUNCE_LOCK and CRT_IDLE_SEEN.
 export CRT_ANNOUNCE_LOCK="$TMPDIR/announce.lastrun"
 export CRT_IDLE_SEEN="$TMPDIR/seen.default"
 cat > "$FAKE_BIN/aplay" <<'EOF'

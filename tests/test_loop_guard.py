@@ -3,7 +3,8 @@
 #
 # The defect these cover is not in any pure function: it is that four
 # `while True` / `for line in tail` loops in bin/ had no guard at all, so
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# one bad row (a locked database, a malformed scan) killed the whole window
+# instead of just that iteration. See the four CallSite tests below.
 import contextlib
 import importlib.util
 import io

@@ -3,7 +3,8 @@
 # boot (2026-07-25, tenth nightly cycle).
 #
 # Three things write that file while the console is up: the `stttrain`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# merge pass, crt-calibration-game.py, and a human editing it by hand. A
+# gate that only read it at import time would miss all three.
 import atexit
 import importlib.util
 import json

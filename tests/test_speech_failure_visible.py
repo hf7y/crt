@@ -3,7 +3,8 @@
 # will find it (2026-07-25).
 #
 # Two defects, one chain. bin/crt-tts.py's play_wav() discarded aplay's exit
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# code and always reported success, so crt-secretary.py's speak() never knew
+# a reply went unheard and never wrote it to the tube either.
 import importlib.util
 import os
 import shutil

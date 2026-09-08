@@ -3,7 +3,9 @@
 #
 # The barcode scanner is a USB HID keyboard -- it types into whichever tmux
 # window has FOCUS (SCANNER.md, proven live), which is why crt-console.sh
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# no longer defaults to `book`: on the idle-lean layout the screensaver has
+# focus, so it has to forward a scan on to scanner.log itself rather than
+# swallowing it or printing it over the drawn frame.
 import atexit
 import importlib.util
 import io

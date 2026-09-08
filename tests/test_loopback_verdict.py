@@ -3,7 +3,8 @@
 # finding from a run in which nothing was played or nothing was recorded
 # (2026-07-25).
 #
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# The old best/(base_rms+1e-6) ratio fired DETECTED on ordinary room noise
+# whenever the capture device itself had failed -- see INCONCLUSIVE below.
 import importlib.util
 import os
 import unittest

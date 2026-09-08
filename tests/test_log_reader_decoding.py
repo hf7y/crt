@@ -3,7 +3,8 @@
 # appending to, and until 2026-07-25 every one of them decoded it strictly.
 #
 # A reader that catches up to a writer mid-character sees a partial UTF-8
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# sequence and used to raise -- taking the whole window down on a torn byte
+# it will see again cleanly on the next poll. See GARBAGE below.
 import importlib.util
 import json
 import os

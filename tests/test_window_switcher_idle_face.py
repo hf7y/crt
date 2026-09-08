@@ -2,8 +2,8 @@
 # Regression test (2026-07-28): crt-window-switcher.py always targeted
 # `book` on Claude-idle, even under the idle-lean layout where the real
 # resting state is the screensaver (CRT_IDLE_FACE_WINDOW, same var
-# crt-book-console.py already reads) -- landing on `book` left the
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# crt-book-console.py already reads) -- landing on `book` left a stale
+# question on screen instead of returning to the idle face.
 import os
 import subprocess
 import sys

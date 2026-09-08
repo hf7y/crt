@@ -3,7 +3,8 @@
 # never rang (2026-07-25).
 #
 # bin/crt-stt-solo.py's ring path had the same shape as the TTS one fixed
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# earlier: a failed synth cached a zero-byte tone forever, and a failure to
+# play read as "no answer" instead of "the ring itself never sounded".
 import importlib.util
 import os
 import shutil

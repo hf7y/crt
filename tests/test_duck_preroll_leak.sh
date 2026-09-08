@@ -3,7 +3,9 @@
 # whisper via the pre-roll deque either.
 #
 # f13c7a4 closed the mid-utterance half of this (a duck arriving while `in_utt`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# is already true); this covers the other half -- a duck that starts and ends
+# BEFORE VAD ever opens, so the ducked audio sits in the pre-roll deque and
+# gets flushed into the next utterance the moment speech is detected.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

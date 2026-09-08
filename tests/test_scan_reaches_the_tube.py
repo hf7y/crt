@@ -3,7 +3,10 @@
 #
 # THE BUG. crt-console.sh made `book` the boot-default window for one
 # concrete reason, recorded in its own comment: the barcode scanner is a USB
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# HID keyboard that types into whichever window has FOCUS. The idle-lean
+# layout broke that assumption -- `book` is no longer the boot default, so
+# a scan landed on a window nobody was watching until handle_scan() took
+# the tube itself. See TestScanBringsTheBookWindowToTheTube below.
 import importlib.util
 import os
 import subprocess

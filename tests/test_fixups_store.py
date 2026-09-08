@@ -3,7 +3,9 @@
 #
 # stt-fixups.json has two writers -- crt-calibration-game.py (a human
 # confirming a mishear by ear) and crt-stt-training-merge.py's `stttrain`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# tick -- and each used to read-then-write the whole file with no lock.
+# crt_fixups_store.py is the fix; TestConcurrentWriters below is the case
+# that actually fails against the old unlocked shape.
 import importlib.util
 import json
 import os

@@ -2,8 +2,10 @@
 # Offline test: with the brain on mandark, Claude's answer has to reach the
 # tube as well as the earpiece (2026-07-25, nineteenth nightly cycle).
 #
-# handle() switches the tube to `mono` the moment a request escalates,
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# With a remote brain nothing else writes Claude's reply to window 1, so
+# route_claude_reply() has to mirror it there itself -- contrast
+# TestRemoteBrain below with TestLocalBrain, where crt-claude-bridge.py
+# already does that job.
 import importlib.util
 import os
 import unittest

@@ -3,7 +3,7 @@
 # (2026-07-25, seventh cycle). The bug these pin down: transcribe_remote()
 # returned "" for BOTH "the server transcribed this clip as nothing" and
 # "there is no server" -- so an unreachable mandark made potato go silent
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# with no sign anything was wrong, indistinguishable from an empty room.
 import http.server
 import importlib.util
 import json

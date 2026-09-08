@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-# Offline test suite for bin/crt-monologue.py's pure render() logic --
-# the "mono" window's actually-live script (crt-monologue.sh is a dead
-# wrapper, see vault:crt/REFACTOR-ASSESSMENT.md), never had a direct test before
-# (coverage gap tracked in FOCUS.md's batch backlog item 5c).
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Offline test suite for bin/crt-monologue.py's pure render() logic -- the
+# "mono" window's actually-live script (crt-monologue.sh is a dead wrapper).
+# Covers the stale-timestamp/dim-code and wrap-to-width behavior below.
 import contextlib
 import importlib.util
 import io

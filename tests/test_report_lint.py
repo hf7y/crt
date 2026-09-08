@@ -136,7 +136,7 @@ class TestCli(unittest.TestCase):
 # copies of nightly-batch reports, all dated 2026-07-23 or 2026-07-25 -- and
 # asserted the directory was non-empty. Those copies are deleted; the lint is
 # NOT. It still runs on live reports in ~/reports/crt/, and every unit test
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# above already covers its actual logic against synthetic files.
 
 
 if __name__ == "__main__":

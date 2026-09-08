@@ -3,7 +3,8 @@
 #
 # bin/crt-monologue.py is the live script on the "mono" window -- the console's
 # only text surface, and where every "the fault is here" line this project has
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# ever needed to land. A size frozen at import, or an overscan margin the
+# renderer forgets to apply, means that line runs off the edge of the tube.
 import importlib.util
 import io
 import os

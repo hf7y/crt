@@ -3,7 +3,9 @@
 # (2026-07-25, twelfth nightly cycle).
 #
 # bin/crt-wake-arm.py's ArmState.arm() documents itself as "Always starts a
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# fresh session" -- a wake word mid-conversation has to call it again and
+# reset the ceiling, not just slide the existing window. See
+# TestConsumeRearmsOnAWakeMatch below.
 import importlib.util
 import os
 import shutil
@@ -209,11 +211,11 @@ class TestRewakeThroughEmit(unittest.TestCase):
         self.assertEqual(read(), 132.0)
 
     def test_the_utterance_clock_drives_the_deadline_not_the_wall_clock(self):
-        # FOCUS.md's open question (2026-07-28 milestone entry): is the
-        # arm window's clock starting from the wrong reference point given
-        # transcription/network lag? Answer, pinned here: emit() is called
-        # AFTER transcribe() returns, but the utterance clock is taken by the
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # Is the arm window's clock starting from the wrong reference point
+        # given transcription/network lag? Answer, pinned here: emit() is
+        # called AFTER transcribe() returns, but the deadline is anchored to
+        # when the person stopped talking, not to wall-clock now.
+        #
         # TWO CLOCKS, and the answer differs per reader. In memory the
         # window is AUDIO time, anchored to when the person stopped talking.
         # On disk it is translated by the lag, for a reader that only ever

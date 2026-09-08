@@ -3,7 +3,8 @@
 #
 # bin/stt-fixups.json is what this console has learned about how this room
 # says its wake word, and it has two writers -- crt-calibration-game.py (a
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# human confirming a mishear) and crt-stt-training-merge.py's unattended
+# `stttrain` tick. See TestTheTwoRealWriters below for where they collide.
 import importlib.util
 import json
 import os
