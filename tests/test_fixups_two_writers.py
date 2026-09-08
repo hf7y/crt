@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # Two writers, one file (2026-07-25, twelfth nightly cycle).
 #
-# bin/stt-fixups.json is what this console has learned about how this room
-# says its wake word, and it has two writers -- crt-calibration-game.py (a
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# bin/crt_fixups_store.py's own header and update()'s docstring cover the
+# two writers and the torn-file/lost-update race; this file deliberately
+# does NOT import that module, so it also runs against the parent unfixed.
 import importlib.util
 import json
 import os

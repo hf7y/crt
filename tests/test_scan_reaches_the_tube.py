@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # A scan has to end up ON THE TUBE (2026-07-25, fifteenth nightly cycle).
 #
-# THE BUG. crt-console.sh made `book` the boot-default window for one
-# concrete reason, recorded in its own comment: the barcode scanner is a USB
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# THE BUG. crt-console.sh's own comment above its boot-default select-window
+# call spells out why: the barcode scanner types into whichever window has
+# FOCUS, and the idle-lean layout selects the screensaver instead.
 import importlib.util
 import os
 import subprocess

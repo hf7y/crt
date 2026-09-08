@@ -3,7 +3,7 @@
 #
 # bin/crt-monologue.py is the live script on the "mono" window -- the console's
 # only text surface, and where every "the fault is here" line this project has
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# added lands. Its own header + viewport()'s docstring cover why.
 import importlib.util
 import io
 import os

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # Offline test: bin/crt-earcon-loopback-test.py must not report a hardware
 # finding from a run in which nothing was played or nothing was recorded
-# (2026-07-25).
-#
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# (2026-07-25). loopback_verdict()'s own docstring covers why DETECTED/
+# NOT_DETECTED/INCONCLUSIVE has to be a three-way distinction, not two.
 import importlib.util
 import os
 import unittest
