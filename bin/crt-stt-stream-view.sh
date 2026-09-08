@@ -2,8 +2,11 @@
 # Standalone viewer for the streaming (LocalAgreement) STT prototype --
 # Approach F in AUDIO-DEBUG.md. Mirrors bin/crt-stt.sh's role for the batch
 # engine: a dedicated screen to watch/tune crt-stt-stream.py, decoupled from
-# the full console, so its live-partial-word behavior can be judged by ear/eye
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# the full console, so its live-partial-word behavior can be judged by
+# ear/eye without risking the working Claude pipeline. See that script's
+# own header for the design/cost tradeoffs. NOT hardware-verified --
+# written on the dev box; nobody has watched partial words scroll on a
+# real CRT yet.
 set -euo pipefail
 
 export PATH="$HOME/.local/bin:$PATH"

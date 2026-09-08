@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 # The autonomous wake-word self-tuning judge (2026-07-21, Zach's direct
-# ask): "call claude, if it got ignored, tweak. if it sees a lot of
-# attempts to wake it failing... tweak. but also be available to help
-# (i.e. factor in whether it was genuinely used on wake)."
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# ask): "call claude, if it got ignored, tweak ... but also be available
+# to help (i.e. factor in whether it was genuinely used on wake)."
+# Spawned by crt-stt-solo.py once a wake event's arm window RESOLVES
+# (consumed or timed out), rate-limited via a lockfile so a burst of wake
+# events can't pile up overlapping `claude -p` calls. Builds the prompt
+# and invokes `claude -p` with write access to the tuning files -- Claude's
+# own edits do the actual tuning, this script never parses its output.
+# NOT hardware-verified (tests/test_wake_judge.py covers the pure parts;
+# see main()'s usage error for the CLI flags).
 import json
 import os
 import subprocess

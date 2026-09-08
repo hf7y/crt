@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 # The actual "STT training in the background" mechanism (2026-07-21,
-# Zach's direct ask) -- until this file, generate_candidate_fixups()
-# only ever printed candidates for a HUMAN to copy-paste into
-# bin/stt-fixups.json by hand (crt-book-game-stats.py's export-fixups
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Zach's direct ask): periodically recomputes candidates from the Book
+# Game training log and merges new ones into stt-fixups.json, unattended
+# (previously copy-paste by hand). See merge_candidates()/run_merge_pass()'s
+# own docstrings for the confidence-tier/locking details.
+#
+# SCOPE: stt-fixups.json has exactly ONE live consumer -- crt-stt-solo.py's
+# wake-word gate, and only entries whose "intent" is the wake word do
+# anything. A book-game mishear merges correctly but is inert until a
+# broader consumer exists.
 import importlib.util
 import os
 import sys
@@ -92,11 +97,15 @@ def run_merge_pass(fixups_path=None, training_log_path=None, min_repeats=None):
 
 def main():
     loop = "--loop" in sys.argv
-    # The two modes want OPPOSITE failure behaviour, and before 2026-07-25
-    # both got the one-shot's:
-    #   - one-shot (a person or a script ran it): a raising pass must exit
-    #     non-zero. Swallowing it would be an exit-0 no-op, which this
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # The two modes want OPPOSITE failure behaviour (2026-07-25): a
+    # one-shot run must exit non-zero on a raise (swallowing it would be a
+    # silent exit-0 no-op). --loop (the `stttrain` window, running for as
+    # long as the console is up) must NOT let a raise end the loop --
+    # run_merge_pass() writes stt-fixups.json, and ENOSPC on a Pi's SD
+    # card used to kill unattended STT learning silently for the rest of
+    # the console's uptime. Since 0ccdf13 the wake gate re-reads that file
+    # live, so a loop that keeps running actually reaches the gate without
+    # a restart -- worth more now than before that fix.
     guard = loop_guard.LoopGuard("stttrain") if loop else None
     while True:
         if guard is None:

@@ -3,7 +3,14 @@
 # found live 2026-07-23 (bin/crt-earcon-loopback-test.py measured near-zero
 # signal on the handset earcon path while capture was active -- card 1,
 # "KT USB Audio", is used for both, and plain hw:/plughw: devices are
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# exclusive-access by default). dmix/dsnoop share one device across
+# simultaneous playback/capture -- same fix this project's old crt-vm
+# setup used for its own mic-sharing problem. User-level, no sudo needed.
+#
+# BLOCKED from unattended deploy (2026-07-23): writing a dotfile to potato
+# over SSH was denied by the auto-mode permission classifier. Run this
+# yourself: `ssh potato 'bash -s' < bin/setup-potato-audio-sharing.sh` or
+# directly on potato.
 set -euo pipefail
 
 cat > ~/.asoundrc <<'EOF'

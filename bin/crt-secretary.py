@@ -295,9 +295,10 @@ def handle_run_tests(text):
 
 # --- Playbook: calibrate --------------------------------------------------
 # The overscan calibration game's single-shot entry point (DISPLAY-
-# CALIBRATION.md) -- SUPERVISOR.md named this as the natural next
-# playbook. Deliberately only runs `show`, not the interactive `run` loop:
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# CALIBRATION.md). Runs only `show`, not the interactive `run` loop --
+# `run` blocks on its own input() loop, which doesn't fit handle()'s
+# one-shot request/response shape; `show` renders the current saved
+# margin's test pattern once for a human to act on.
 CALIBRATE_TRIGGERS = ("calibrate the display", "calibrate the screen", "run the calibration")
 
 
@@ -502,7 +503,9 @@ def find_playbook(text):
 # 2026-07-23 (first cut -- an API-based version, for delegating to any
 # VM rather than one specific tunnel, is the planned next step, see
 # FOCUS.md). Deliberately NOT ssh-from-potato-to-mandark: mandark has no
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# SSH server at all, and potato having a network path INTO mandark was
+# flagged as a real vulnerability -- see bin/crt-remote-claude-bridge.py's
+# own header for the full threat model this bridge implements.
 import socket as _socket
 
 

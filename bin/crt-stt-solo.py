@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 # Single-reader standalone STT engine -- no Claude Code, no dsnoop.
 #
-# WHY THIS EXISTS: on the VirtualBox guest the emulated capture does NOT fan out
-# through dsnoop -- a *second* reader gets a starved signal (measured: sole
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# WHY THIS EXISTS (historical, from the old VirtualBox-hosted dev setup --
+# crt-vm itself is retired, crt#162): emulated capture there did NOT fan
+# out through dsnoop, so a second reader got a starved signal (measured:
+# sole reader ~12% peak, second reader ~0.7%) -- the old stt-feed.sh +
+# crt-levels.sh pair was silently stealing each other's audio. This engine
+# is the ONE process that reads the mic: a single arecord stays open
+# continuously, and metering/VAD/whisper all run off that one stream.
+#
+# VAD is PEAK-based, not average/RMS -- sox's `silence` gates on average
+# level, which at low input gain never crossed a usable threshold; speech
+# peaks do. Output: transcriptions scroll; a live "MIC [####|....] 12.3%
+# TALK" meter redraws on the bottom line. Ctrl-C to quit.
 import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, urllib.error, json, re, signal, fcntl, termios
 import importlib.util
 from collections import deque

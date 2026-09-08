@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 # Slow-scrolling pager for long text on the CRT.
 #
-# VISION (per 2026-07-19 direction): the printer is the channel for long-form
-# output (job reports, logs) -- the CRT stays terse. But when longer text DOES
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# VISION (2026-07-19): the printer carries long-form output; when text must
+# scroll here instead, do it slowly and steerably -- a MIDI knob or voice
+# (next/back/pause/resume) via the shared CRT_CTL_FILE (bin/crt-stt-solo.py),
+# parsed in main()'s own loop below. NOT hardware-verified; wrap/width logic
+# is covered by tests/test_pager.py. detect_size() auto-detects the real
+# terminal so this doesn't silently misrender when it's NOT the actual
+# 40x15 CRT pane (a resized dev window, a VM) -- CLAUDE.md's default is
+# only a last resort, when detection itself fails.
 import sys, os, time, shutil, textwrap
 
 FALLBACK_WIDTH = 40   # CLAUDE.md's assumed CRT geometry -- last resort only
