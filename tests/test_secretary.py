@@ -667,6 +667,55 @@ class TestUndeliveredUtterance(unittest.TestCase):
         self.assertEqual(recorded, [])
 
 
+class TestSshBrainMode(unittest.TestCase):
+    """The ssh brain path (crt#48): untested before this class."""
+
+    def setUp(self):
+        self.sec = load_secretary()
+        self.tmp = tempfile.mkdtemp()
+        self.sec.BRAIN_LOG = os.path.join(self.tmp, "brain-unreachable.log")
+        self.sec.CLAUDE_SSH_HOST = "dexter"
+        self.sec.CLAUDE_REMOTE_PORT = 18993
+
+    def test_ssh_host_outranks_remote_port(self):
+        self.assertEqual(self.sec.brain_mode(), "ssh")
+
+    def test_capture_pane_uses_ssh_request(self):
+        calls = []
+        self.sec._ssh_request = lambda command, host, timeout=None: \
+            calls.append((command, host)) or "some text"
+        self.assertEqual(self.sec.capture_pane(), "some text")
+        self.assertEqual(calls, [("CAPTURE", "dexter")])
+
+    def test_capture_pane_empty_reply_is_none(self):
+        self.sec._ssh_request = lambda command, host, timeout=None: ""
+        self.assertIsNone(self.sec.capture_pane())
+
+    def test_send_ok_is_delivered(self):
+        self.sec._ssh_request = lambda command, host, timeout=None: "OK"
+        self.assertTrue(self.sec.send_to_claude("hello"))
+
+    def test_send_passes_host_and_one_line_command(self):
+        calls = []
+        self.sec._ssh_request = lambda command, host, timeout=None: \
+            calls.append((command, host)) or "OK"
+        self.sec.send_to_claude("hello\nworld")
+        self.assertEqual(calls, [("SEND hello world", "dexter")])
+
+    def test_send_failure_is_not_delivered_and_logged(self):
+        self.sec._ssh_request = lambda command, host, timeout=None: \
+            "ERR key refused"
+        self.assertFalse(self.sec.send_to_claude("hello"))
+        with open(self.sec.BRAIN_LOG) as f:
+            self.assertIn("ERR key refused", f.read())
+
+    def test_send_silence_logs_the_host_it_could_not_reach(self):
+        self.sec._ssh_request = lambda command, host, timeout=None: ""
+        self.sec.send_to_claude("hello")
+        with open(self.sec.BRAIN_LOG) as f:
+            self.assertIn("dexter", f.read())
+
+
 class TestIdleFacePaneIsNotABrain(unittest.TestCase):
     def setUp(self):
         self.sec = load_secretary()
