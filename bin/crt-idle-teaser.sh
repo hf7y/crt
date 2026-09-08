@@ -4,10 +4,8 @@
 # unset by default -- see below) for new entries, and turns each
 # new one into exactly one first-person teaser line on screen (via
 # crt-think.sh -> crt-monologue.sh), plus an earcon for genuine judgment
-# calls only -- see IDLE-BAIT.md for the design and why this is
-# deliberately not a repeating notification. Kept as its own watcher
-# rather than folded into crt-monologue.py: PHILOSOPHY.md's open thread on
-# always-on narration already competing for the same attention.
+# calls only -- see IDLE-BAIT.md for the design. Kept as its own watcher,
+# not folded into crt-monologue.py (PHILOSOPHY.md's always-on-narration thread).
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -23,13 +21,10 @@ POLL_SECS="${CRT_IDLE_POLL:-30}"
 ANNOUNCE_LOCK="${CRT_ANNOUNCE_LOCK:-$HOME/.crt/announce.lastrun}"
 ANNOUNCE_MIN_GAP="${CRT_ANNOUNCE_MIN_GAP:-900}"
 
-# Idle timeout (2026-07-19, replaces an earlier "quiet hours" clock-window
-# idea per Chris: "like a screensaver... a combination of low handset
-# volume and other markers going idle"). The WHOLE idle-bait mechanism --
-# teaser line AND chime, not just audio -- only activates once the room's
-# been quiet a while, the way a screensaver only appears after inactivity
-# (IDLE-BAIT.md). "Activity" = newest mtime across IDLE_MARKERS below;
-# mic-level is a placeholder no writer touches yet.
+# Idle timeout (2026-07-19): the WHOLE idle-bait mechanism -- teaser line
+# AND chime -- only activates once the room's been quiet a while, like a
+# screensaver (IDLE-BAIT.md). "Activity" = newest mtime across
+# IDLE_MARKERS below; mic-level is a placeholder no writer touches yet.
 IDLE_TIMEOUT_SECS="${CRT_IDLE_TIMEOUT_SECS:-1200}"   # 20min, first guess, tune once live
 IDLE_MARKERS="${CRT_IDLE_MARKERS:-$HOME/.crt/stt.log $HOME/.crt/mic-level $HOME/.crt/sideband.state}"
 
@@ -75,10 +70,8 @@ chime() {
   # $1 = bait|question -- shares crt-announce.sh's lockfile so a chime and
   # a TV announcement can never stack (IDLE-BAIT.md's single-rate-limit rule).
   #
-  # 2026-07-25: this was `crt-earcon.sh "$1" >/dev/null 2>&1 || true` with
-  # the stamp spent whether or not anything played -- same class as
-  # cdf05cc's silent earcon and f187a45's discarded exit status. Stamp
-  # first (blocks a concurrent chime), roll back only if nothing played.
+  # 2026-07-25: used to spend the stamp whether or not anything played.
+  # Stamp first (blocks a concurrent chime), roll back if nothing played.
   local prev had_lock=0 err status=0
   can_chime || return 0
   if [ -f "$ANNOUNCE_LOCK" ]; then
@@ -103,14 +96,9 @@ chime() {
   return 0
 }
 
-# ANSI color-per-register (2026-07-20, EXPRESSIVE-TONE.md's color
-# dimension, named but not reached until now): each teaser kind gets a
-# color matching its register in that doc's table -- clipped/urgent
-# (blocker) reads bold magenta, a real question reads yellow (present, not
-# alarming), an ordinary find reads cyan -- CRT-safe per CLAUDE.md's banned
-# 31/32/34 codes (this file shipped with bold red until 2026-07-25, the one
-# register most worth reading drawn in the worst color the tube has;
-# enforced now by tests/test_crt_safe_colors.sh).
+# ANSI color-per-register (EXPRESSIVE-TONE.md): CRT-safe per CLAUDE.md's
+# banned 31/32/34 codes -- shipped with bold red until 2026-07-25, now
+# enforced by tests/test_crt_safe_colors.sh.
 COLOR_URGENT=$'\033[1;35m'    # blocker (clipped register, CRT-safe)
 COLOR_QUESTION=$'\033[33m'    # a real judgment call
 COLOR_CURIOUS=$'\033[36m'     # ordinary find

@@ -3,18 +3,14 @@
 # plain `tail -f | fold` version: a scrolling tail can't fade/re-style
 # already-printed lines, so this redraws the whole visible buffer instead.
 #
-# Look: fresh lines show bare (no timestamp) -- a live stream of thought.
-# A line older than STALE_SECS gains a hex timestamp and dims; older than
-# DROP_SECS it's dropped outright (ephemeral, not a transcript -- that's
-# thoughts.log/stt.log on disk). Dim/bold readability on the real
-# phosphor is not yet confirmed.
+# Look: fresh lines show bare (no timestamp). A line older than STALE_SECS
+# gains a hex timestamp and dims; older than DROP_SECS it's dropped
+# outright (ephemeral, not a transcript -- that's thoughts.log/stt.log).
 #
 # SIZE IS RECOMPUTED EVERY FRAME (2026-07-25), not read once at import:
-# crt-console.sh creates this window detached, which tmux sizes 80x24
-# regardless of the tube, so a fixed height once drew 9 lines past a real
-# 15-row pane and scrolled the top away before it could be read. See
-# viewport()'s own docstring for the resulting size precedence and the
-# overscan margin this shares with crt-pager.py.
+# crt-console.sh creates this window detached, tmux-sized 80x24 regardless
+# of the tube, so a fixed height once scrolled the top away before it
+# could be read. See viewport()'s own docstring for the precedence.
 import os, sys, time, textwrap, shutil, importlib.util
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -150,13 +146,9 @@ def main():
             if sz > pos:
                 # errors="replace", not strict: this read races every
                 # writer appending to thoughts.log, so it can land inside a
-                # multi-byte character (a book title's accent, an em-dash
-                # in a quote) that a writer's buffer split across two
-                # flushes. Strict decoding would raise UnicodeDecodeError
-                # (a ValueError, NOT caught by `except OSError` below) --
-                # and this is window 1, the one screen every honest-failure
-                # line this project reports to. One torn byte must not
-                # take it down.
+                # multi-byte character split across two flushes. Strict
+                # decoding raises UnicodeDecodeError, not caught below --
+                # and this is window 1, which must not go down over one byte.
                 with open(LOG, encoding="utf-8", errors="replace") as f:
                     f.seek(pos)
                     chunk = f.read()

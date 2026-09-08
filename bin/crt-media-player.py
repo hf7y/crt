@@ -2,10 +2,9 @@
 # Voice-driven local media playback -- PARKING-LOT.md's second "primary
 # product surface" job (alongside morning reports): "play the thing",
 # "next", "pause" via handset voice, no Claude call for the common case
-# (same "90% offline supervisor" spirit as SUPERVISOR.md). v1 scope is
-# command parsing plus a pluggable Backend -- FakeBackend proves the
-# dispatch logic end to end; see VlcBackend's own docstring below for the
-# real (never live-tested) implementation and why.
+# (same "90% offline supervisor" spirit as SUPERVISOR.md). v1: command
+# parsing plus a pluggable Backend -- see VlcBackend's own docstring below
+# for the real (never live-tested) implementation.
 import os
 import re
 import subprocess

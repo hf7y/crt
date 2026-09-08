@@ -4,15 +4,10 @@
 # see IDLE-BAIT.md for why these must read as curious/playful, never as an
 # alarm (that's the thing that gets the TV turned off).
 #
-# STATUS: device routing below was confirmed live 2026-07-23 (Zach, by
-# ear); the tone/duration choices per name are still first-draft, never
-# individually retuned by ear, except `alarm` (Zach-directed, 2026-07-28).
-#
-# CRT_EARCON_FADE_SCALE (default 1.0) scales every tone's fade-out only,
-# independent of which contour is picked -- small (~0.3) reads
-# clipped/urgent, large (~2.5+) wistful. All bait/curious/question calls
-# MUST share crt-announce.sh's 15-minute lockfile so a chime and a TV
-# announcement never stack -- enforced at the call site, not here.
+# STATUS: device routing confirmed live 2026-07-23 by ear; per-name tones
+# are first-draft except `alarm` (Zach-directed). CRT_EARCON_FADE_SCALE
+# scales fade-out only. bait/curious/question calls share
+# crt-announce.sh's 15-minute lockfile, enforced at the call site.
 set -euo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -151,25 +146,19 @@ mkdir -p "$(dirname "$SIDEBAND_MUTE_FILE")" 2>/dev/null || true
 unduck() { rm -f "$SIDEBAND_MUTE_FILE" 2>/dev/null || true; }
 trap 'rm -rf "$TMP"; unduck' EXIT
 
-# Device routing, rewritten 2026-07-23 for potato's real hardware (this
-# used to POST to a dexter-hosted audio bridge -- a VirtualBox
-# one-sink-per-VM workaround from the old dexter+VM architecture (crt#162),
-# meaningless on bare-metal potato, and the actual reason earcons never
-# reached the TV/handset here at all. Confirmed live 2026-07-23 by ear
-# (Zach on the handset): plughw:2,0 (card 2, vc4-hdmi) is the TV/RF path;
-# plughw:1,0 (card 1, "KT USB Audio" -- the same device the mic uses) is
-# the handset earpiece. `plug`, not bare `hw`: tested, bare hw:2,0 fails
-# "Sample format non available", hw:1,0 fails "Channels count non available".
+# Device routing, rewritten 2026-07-23 for potato's real hardware (retired
+# the old dexter-VM audio-bridge POST, crt#162). Confirmed live by ear:
+# plughw:2,0 (card 2, vc4-hdmi) is the TV/RF path; plughw:1,0 (card 1, the
+# mic's own USB adapter) is the handset earpiece. `plug`, not bare `hw`:
+# bare hw:2,0/1,0 each fail with a different ALSA format error.
 TV_DEVICE="${CRT_EARCON_TV_DEVICE:-plughw:2,0}"
 HANDSET_DEVICE="${CRT_EARCON_HANDSET_DEVICE:-plughw:1,0}"
 
-# Capture duck (2026-07-24, see crt-tts.py's _capture_mute for the full
-# rationale): the handset output is the same USB adapter as the live mic
-# capture, and playing on it while crt-stt-solo.py's arecord is running
-# leaves the recording near-dead (measured by crt-earcon-loopback-test.py).
-# Suppresses VAD for the duration via the same CTL-file "mute" reference
-# count crt-tts.py's handset path uses -- ref-counted, not a last-write-
-# wins flag, so this can't unmute early out from under a concurrent TTS duck.
+# Capture duck (2026-07-24, see crt-tts.py's _capture_mute): the handset
+# output shares the mic's USB adapter, so playing on it leaves capture
+# near-dead (measured by crt-earcon-loopback-test.py). Ref-counted via the
+# same CTL-file "mute" count crt-tts.py's handset path uses, so this can't
+# unmute early out from under a concurrent TTS duck.
 CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
 CAPTURE_MUTED=0
 capture_mute() {
@@ -181,14 +170,11 @@ capture_mute() {
 # skip a plain post-aplay "capture_mute 0" and leave capture muted forever.
 trap 'rm -rf "$TMP"; unduck; [ "$CAPTURE_MUTED" = 1 ] && capture_mute 0; true' EXIT
 
-# Resolve the device FIRST, then decide about the duck from what the audio
-# actually comes out of -- not from the caller having used the word
-# "handset". See ducks_capture() in crt-tts.py for the full reasoning; the
-# short version is that crt-idle-teaser.sh's chime() and crt-secretary.py's
-# play_earcon() both call this script with no --device, landing in the `*)`
-# branch below, so they used to play into the console's own mic unducked.
-# An unknown device (`default`) now ducks: an unneeded duck just costs one
-# chime's worth of suppressed VAD; a missing one feeds our own tone to whisper.
+# Resolve the device FIRST, then decide the duck from what audio actually
+# comes out of -- not the caller's word choice. See ducks_capture() in
+# crt-tts.py: callers with no --device land in the `*)` branch below, so an
+# unknown device (`default`) now ducks too -- a missing duck feeds our own
+# tone to whisper, worse than an unneeded one costing a chime's VAD.
 case "$DEVICE" in
   tv)      ALSA_DEVICE="$TV_DEVICE" ;;
   handset) ALSA_DEVICE="$HANDSET_DEVICE" ;;

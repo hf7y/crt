@@ -4,11 +4,9 @@
 # the mic? Answers this by measurement, not by trusting a subprocess exit
 # code -- exactly the gap that let the dexter-bridge earcon bug (silent
 # no-op, exit 0, no sound) go unnoticed earlier the same night. Records a
-# baseline, plays a pure sine tone (sox synth, easier to detect reliably
-# than crt-earcon.sh's synthesized contours) partway through, and runs a
-# Goertzel energy check (stdlib math, no scipy) for that frequency against
-# the baseline. Also reports the room's noise-floor peak/RMS, useful for
-# retuning CRT_VAD_THRESHOLD without a live-by-ear session.
+# baseline, plays a pure sine tone (sox synth), and runs a Goertzel energy
+# check (stdlib math, no scipy) against it. Also reports the room's
+# noise-floor peak/RMS, useful for retuning CRT_VAD_THRESHOLD unattended.
 import math
 import os
 import subprocess
