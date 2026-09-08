@@ -1,6 +1,4 @@
-# mcp-auth-revisit.yml -- crt#194: the old reminder lived inside a hermes cron
-# job and delivered into Zaxon, so it reported "ok" through an 8-day outage.
-# This one runs on GitHub's own schedule, not the thing it reminds about.
+# crt#194
 name: mcp-auth-revisit
 
 on:
