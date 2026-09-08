@@ -3,7 +3,7 @@
 #
 # bin/crt-calibration-game.py is the one place a HUMAN can teach the wake
 # gate a new alias by ear -- FOCUS.md's second top-priority item, running
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# live in tmux window 9 on potato -- accepted ANY word ever heard, not just what was shown on screen, so a 18%-similar word got confirmed as a mishear.
 import importlib.util
 import io
 import json

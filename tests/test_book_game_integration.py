@@ -2,8 +2,7 @@
 # End-to-end offline integration test for the Book Game funnel
 # (.claude/FOCUS.md's 2026-07-21 end-goal: idle-bait -> scan -> question
 # -> spoken answer -> STT training log -> actionable fixup). Every piece
-# already has its own unit tests against synthetic fixtures; this file's
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# already has its own unit tests against synthetic fixtures; this file runs SEVERAL pieces together against one shared books.db + training.jsonl.
 import importlib.util
 import json
 import os

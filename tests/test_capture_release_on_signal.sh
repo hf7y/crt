@@ -2,8 +2,7 @@
 # Offline test: when crt-stt-solo.py is stopped, it must RELEASE the mic --
 # i.e. its arecord child must actually be gone, not merely signalled.
 #
-# READ THIS BEFORE TRUSTING IT -- the four assertions per signal are not all
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# READ THIS BEFORE TRUSTING IT -- two are regression guards on behaviour that was already correct; only the "announced the stop" and "exited 0" pair are real witnesses against the pre-2026-07-25 code.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0
@@ -116,8 +115,7 @@ done
 # --- the real `tmux kill-window` shape: the pty goes away FIRST -------------
 # The loop above signals a process whose stdout is a plain file, which is the
 # `systemctl stop` / `pkill` case. It is NOT the tmux case, and the difference
-# is load-bearing: tmux delivers SIGHUP *because* it destroyed the pty, so by
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# is load-bearing: tmux delivers SIGHUP *because* it destroyed the pty, so an unguarded farewell print after that raises and the clean shutdown exits 1.
 cat > "$WORK/pty_hangup.py" <<'PY'
 import os, pty, sys, time
 bindir, fakebin = sys.argv[1], sys.argv[2]

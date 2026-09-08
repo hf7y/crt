@@ -2,8 +2,7 @@
 # The CRT-safe palette rule, enforced across EVERY file that draws on the
 # tube -- not just one program's palette constants.
 #
-# HARD RULE (CLAUDE.md; BOOK-GAME-STYLE.md's color section, updated
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# HARD RULE (CLAUDE.md): only yellow/magenta/cyan/white (33/35/36/37) render safely on a real composite/RF tube. Scope: bin/ and tests/, a plain grep over source text so every language is covered.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$DIR/.." && pwd)"
@@ -12,8 +11,7 @@ fail=0
 # An ANSI SGR sequence written any of the four ways this repo writes them
 # ($'\033[..m' in shell, "\033[..m"/"\x1b[..m" in Python, or a literal ESC
 # byte), whose parameter list contains a banned code as a WHOLE parameter:
-# `1;31` and `31` fire, `131` and `3` do not. The leading `([0-9]+;)*`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# `1;31` and `31` fire, `131` and `3` do not. Excludes the 256-color selector form (`;5;94` is a palette index, not an SGR color) -- everything else still fires.
 BANNED='31|32|34|91|92|94'
 PATTERN='(\\033|\\x1b|\\e|'$'\x1b'')\[([0-9]+;)*(?<!;5;)('"$BANNED"')(;[0-9]+)*m'
 GREP=(grep -P)

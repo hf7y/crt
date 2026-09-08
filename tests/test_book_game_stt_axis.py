@@ -2,8 +2,7 @@
 # correct_stt and correct_content were the same flag (2026-07-25,
 # fourteenth nightly cycle).
 #
-# BOOK-GAME.md is explicit about why the Book Game logs two axes: "a wrong
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# BOOK-GAME.md is explicit about why the Book Game logs two axes: grade_answer() computed both from the same string, so an honest wrong answer logged as an STT mismatch.
 import importlib.util
 import json
 import os

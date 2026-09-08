@@ -346,8 +346,7 @@ class TestConcurrentAccess(unittest.TestCase):
         # The HARSHER, less realistic case: many connections racing to
         # initialize a brand-new file at the exact same instant (only
         # plausible in practice if several real processes all happened
-        # to start at the same literal moment against a database that's
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # to start at the same literal moment) -- asserts every raising thread gets a real sqlite3.OperationalError, not zero errors under thundering-herd.
         results = []
 
         def register_one(i):
@@ -428,8 +427,7 @@ class TestColorAndArt(unittest.TestCase):
         # HARD RULE (2026-07-21, Zach, confirmed live): never 31/32/34
         # (standard-intensity red/green/blue) or 91/92/94 (their bright
         # variants), at ANY boldness/dimness -- these are exactly the
-        # colors that bleed/smear on a real composite/RF CRT. Only
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # colors that bleed/smear on a real composite/RF CRT. Only yellow/magenta/cyan/white (33/35/36/37) are safe -- enforced here, see CLAUDE.md.
         banned_codes = {31, 32, 34, 91, 92, 94}
         palette = [bg.COLOR_QUESTION, bg.COLOR_CORRECT, bg.COLOR_WRONG, bg.COLOR_QUOTE, bg.COLOR_TITLE]
         for code in palette:

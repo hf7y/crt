@@ -2,8 +2,7 @@
 # Offline test for bin/crt-audio-doctor.sh -- the capture-liveness instrument
 # AUDIO-DEBUG.md calls Approach D.
 #
-# Why this file exists (2026-07-25): tests/run_tests.sh has printed the header
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Why this file exists (2026-07-25): tests what the script HERE emits (LIVE / DEAD-STALE, a usage exit), not an inherited header's stale claims.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

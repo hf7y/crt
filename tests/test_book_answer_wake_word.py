@@ -2,8 +2,7 @@
 # A question for Claude is not a trivia answer (2026-07-25, fourteenth
 # nightly cycle).
 #
-# crt-stt-solo.py writes EVERY recognized utterance to ~/.crt/stt.log before
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# crt-stt-solo.py writes EVERY utterance to ~/.crt/stt.log before its wake gate runs -- a question addressed to Claude got graded as a trivia answer too.
 import importlib.util
 import json
 import os

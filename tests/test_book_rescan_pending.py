@@ -2,8 +2,7 @@
 # A book can be answered more than once (2026-07-25, twelfth nightly cycle).
 #
 # The Book Game funnel is idle-bait -> scan -> question -> SPOKEN ANSWER ->
-# STT training log, and its whole premise is a shelf of books someone picks
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# STT training log -- register_book() caches on re-scan, but nothing recorded a re-scan happened, so its answer graded against the WRONG book's question.
 import importlib.util
 import json
 import os

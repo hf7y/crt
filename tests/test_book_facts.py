@@ -3,7 +3,7 @@
 # directed): bin/crt-book-game.py's fetch_wikipedia_extract/
 # extract_fact_candidates/build_facts_batch_prompt, plus
 # bin/crt-book-facts-batch.py's two stages and bin/crt-book-console.py's
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# batch trigger. No network -- fetchers/posters are injected, same pattern as every other AI/scrape call in this project.
 import importlib.util
 import json
 import os

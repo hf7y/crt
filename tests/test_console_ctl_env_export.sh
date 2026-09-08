@@ -2,8 +2,7 @@
 # Offline test for bin/crt-console.sh: CRT_CTL_FILE must be exported before
 # any tmux window is created, so crt-stt-solo.py (which only reads its own
 # CTL file when CRT_CTL_FILE is non-empty) actually picks it up. Found
-# 2026-07-24: this was never exported anywhere in the script, so the whole
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# 2026-07-24: this was never exported anywhere in the script, so the whole CTL-file mechanism was silently dead on potato. A fake `tmux` on PATH records whether it was actually exported into ITS environment.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$DIR/../bin/crt-console.sh"

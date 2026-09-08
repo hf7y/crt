@@ -2,8 +2,7 @@
 # A scan opens ONE graded round, not a 20-second grading window
 # (2026-07-25, thirteenth nightly cycle).
 #
-# crt-book-answer-listen.py derives "a question is pending" from the scan
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# crt-book-answer-listen.py derives "a question is pending" from the scan timestamp alone, so the 20s window kept grading after the round was answered.
 import importlib.util
 import json
 import os

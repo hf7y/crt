@@ -3,7 +3,7 @@
 # that replaced the mandark reverse-tunnel bridge. See DEXTER-MOVE.md
 # section 2 and bin/crt-brain-shell.py's header.
 #
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# These run anywhere, no network: the point is the DEGRADE contract -- a short honest reply, not a two-minute wait that lies about having sent something.
 import importlib.util
 import os
 import subprocess

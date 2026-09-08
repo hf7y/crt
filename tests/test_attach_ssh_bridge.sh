@@ -2,8 +2,7 @@
 # Offline test for crt-attach-ssh-bridge.sh's project-dir resolution
 # (2026-07-21, twelfth pass, REAL BUG FOUND LIVE): the first version
 # derived the Claude Code project directory from `pwd` (the Bash tool's
-# CURRENT working directory), which is wrong whenever the conversation
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# CURRENT working directory) -- fixed to search for the session's own transcript file by UUID instead.
 set -uo pipefail
 fail=0
 
