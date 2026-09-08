@@ -3,7 +3,17 @@
 # morning report -- parses the morning-report script's own output and decides
 # what becomes a CRT one-liner vs. a printer page. See
 # MORNING-REPORT-PRESENTATION.md for the full design/contract this
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# implements and what it still needs from the scheduler side.
+#
+# Deliberately does NOT reimplement morning-report.sh's own logic (report
+# discovery, DEPLOY_FRESH_CMD eval, QUESTIONS.md filtering) -- that engine
+# is shared across every project; this only adds a presentation layer on
+# top of its stdout. No LLM involved, on purpose -- the "90% offline
+# supervisor" (SUPERVISOR.md) applied to the morning report specifically.
+#
+# STATUS: parsing is covered by tests/test_present_morning_report.py
+# against a synthetic sample. Never run against the real scheduler script
+# end-to-end (no VM; see SESSION-STATE.md).
 import os
 import re
 import subprocess
@@ -59,7 +69,10 @@ def fetch_raw(script=SCRIPT):
     # (unrelated to this file -- confirmed by running it standalone) on
     # this same evaluation, plausibly a slow/unreachable per-project
     # DEPLOY_FRESH_CMD probe (e.g. a network check against an
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # unreachable host, per home-assistant's own report elsewhere in this
+    # project archive). A hang in a shared script this presenter depends
+    # on must never hang the CRT console -- timeout defensively here
+    # rather than trying to fix the shared script from this repo.
     try:
         r = subprocess.run(["bash", script], capture_output=True, text=True,
                             timeout=FETCH_TIMEOUT)

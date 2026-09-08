@@ -3,7 +3,15 @@
 #
 # THREAT MODEL / WHY THIS SHAPE, NOT A GENERIC SSH SERVER: mandark
 # (a personal dev laptop) has never run an SSH server -- it has only
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# ever been the SSH CLIENT reaching out to potato. Giving potato a network
+# path INTO mandark (installing sshd, opening a port) was flagged by Zach
+# as a real vulnerability. This server instead: binds 127.0.0.1 ONLY
+# (never LAN-reachable); speaks a tiny two-command protocol (CAPTURE
+# returns the pane, SEND <text> types into ONE named tmux session) -- not
+# a shell, nothing else possible even if compromised upstream; and never
+# opens a connection TO potato itself -- potato reaches it only via a
+# reverse tunnel mandark's own outbound ssh establishes, so there is no
+# new inbound path to mandark at all.
 import argparse
 import os
 import socketserver

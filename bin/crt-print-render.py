@@ -3,7 +3,9 @@
 # width is the standard for this model -- CRT_PRINT_WIDTH overrides if the
 # real hardware differs). Reads text on stdin, writes PNG to argv[1].
 #
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# STATUS: NOT hardware-verified -- 384px is documented, not measured
+# against the real printer. Monospace fallback font since none is bundled;
+# swap in something nicer once real printed output is checked.
 import sys, os, textwrap
 from PIL import Image, ImageDraw, ImageFont
 

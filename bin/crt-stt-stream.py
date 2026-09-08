@@ -3,7 +3,18 @@
 # AUDIO-DEBUG.md. NEW, OPT-IN, does not touch crt-stt-solo.py's working batch
 # pipeline. NOT hardware-verified -- written on the dev box (no VM/handset).
 #
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# WHY: crt-stt-solo.py transcribes once, after VAD trail -- nothing shows
+# on screen until you stop talking. This re-decodes a growing buffer every
+# ~0.5s and commits a word once two consecutive decodes agree
+# (LocalAgreement-2, from whisper_streaming) to approximate streaming
+# without swapping the model.
+#
+# COST: re-decodes the WHOLE utterance-so-far every tick (~12x decodes for
+# a 6s utterance) -- may be too slow on a CPU-capped VM; point
+# CRT_WHISPER_SERVER at a native-host faster-whisper to sidestep that.
+#
+# Reuses crt-stt-solo.py's VAD/capture, hallucination filter, CRT_STT_LOG/
+# sink conventions -- not its ring/ctl-file/HUD machinery (kept minimal).
 import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request
 from collections import deque
 
