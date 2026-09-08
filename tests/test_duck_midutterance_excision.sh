@@ -2,8 +2,7 @@
 # Offline end-to-end test: a capture duck that arrives WHILE an utterance is
 # already in progress must not end up inside that utterance's audio.
 #
-# The bug (Zach's note on the 2026-07-25 report): crt-stt-solo.py's VAD checked
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# The bug (Zach's note on the 2026-07-25 report): crt-stt-solo.py's VAD checked MUTED only at utterance onset, not again once buffering had already started.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

@@ -2,8 +2,7 @@
 # Tests for bin/crt_config.py's fixups_path(), and for the three scripts
 # that used to resolve bin/stt-fixups.json for themselves.
 #
-# The defect: crt-stt-solo.py (the wake gate, the only READER) and
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# The defect: two writers read different env vars for the same default path, so setting one pointed a writer and the reader at different files.
 import importlib.util
 import os
 import unittest

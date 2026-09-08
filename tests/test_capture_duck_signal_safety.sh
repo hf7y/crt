@@ -2,8 +2,7 @@
 # Offline test: a capture duck must be RELEASED even when its producer is
 # killed mid-playback.
 #
-# Why this exists (2026-07-25): the CTL "mute" flag became a reference count
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Why this exists (2026-07-25): the CTL "mute" flag became a reference count, so a leaked increment from a killed producer never comes back down.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

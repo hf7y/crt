@@ -2,8 +2,7 @@
 # Offline test for bin/crt-console.sh: the Book Game funnel windows (book,
 # bookidle, bookanswer, windowswitch) plus mono/bridge/stt must compose
 # identically regardless of CRT_NO_IDLE_CLAUDE (FOCUS.md stability-bar item
-# 4 -- "Book Game funnel re-verified... post VM->potato move"). Reading the
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# 4 -- "Book Game funnel re-verified... post VM->potato move"). A fake `tmux` on PATH logs invocations instead of executing them -- pure argv-shape checking.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$DIR/../bin/crt-console.sh"

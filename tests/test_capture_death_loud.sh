@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # Offline test: when capture dies, crt-stt-solo.py must say so and exit
 # NONZERO -- it must not quietly return 0 and leave a console that looks
-# alive but hears nothing.
-#
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# alive but hears nothing -- the still-open half of the 2026-07-23 07:10 finding, after device-name resolution closed the other half.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

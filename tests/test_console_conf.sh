@@ -2,8 +2,7 @@
 # Offline test for bin/crt-conf.sh and its two consumers.
 #
 # The bug, live 2026-07-29: the console's identity (CRT_WAKE_WORD,
-# CRT_EARCON_DEVICE, ...) lived only as exports in ~/.bash_profile.
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# CRT_EARCON_DEVICE, ...) lived only as exports in ~/.bash_profile -- restarting a window over ssh (a non-login shell) gave it none, silently falling back to library defaults.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN="$DIR/../bin"
