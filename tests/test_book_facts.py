@@ -3,7 +3,10 @@
 # directed): bin/crt-book-game.py's fetch_wikipedia_extract/
 # extract_fact_candidates/build_facts_batch_prompt, plus
 # bin/crt-book-facts-batch.py's two stages and bin/crt-book-console.py's
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# batch trigger. No network -- fetchers/posters are injected. REDESIGNED
+# same day: distill stage now writes real, fact-grounded two-option
+# questions directly into questions_json (Zach: "clean design is to
+# phrase it as a question"), replacing the generic template outright.
 import importlib.util
 import json
 import os

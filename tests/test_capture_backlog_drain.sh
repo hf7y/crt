@@ -3,7 +3,10 @@
 # transcription is bounded, said out loud, and never eats a real utterance.
 #
 # The unit half lives in tests/test_capture_backpressure.py (real pipes, real
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# fcntl/ioctl, measured capacities). THIS test drives the real CLI end to
+# end: one utterance, a whisper that takes 5s while capture keeps producing
+# audio in real time, then a second utterance. Both must still reach the
+# STT log -- the drain runs BETWEEN utterances so it never excises live speech.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

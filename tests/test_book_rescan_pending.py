@@ -3,7 +3,12 @@
 #
 # The Book Game funnel is idle-bait -> scan -> question -> SPOKEN ANSWER ->
 # STT training log, and its whole premise is a shelf of books someone picks
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# up again and again. register_book() caches on re-scan, but `first_scanned`
+# was the only timestamp the books table carried -- so a re-scan left no
+# record a scan had happened, and crt-book-answer-listen.py derives "a
+# question is pending" entirely from that timestamp. Worse than silence:
+# with another book registered within the answer window, the re-scan's
+# answer got graded against the WRONG book's question.
 import importlib.util
 import json
 import os

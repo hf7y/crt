@@ -3,7 +3,11 @@
 # twentieth nightly cycle).
 #
 # This is the fourteenth cycle's defect (tests/test_book_answer_wake_word.py)
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# through the one door that fix could not close: inside an open arm window
+# (bin/crt-wake-arm.py), a follow-up reaches Claude with NO wake word by
+# design, but crt-book-answer-listen.py still grades it as a trivia answer.
+# CRT_WAKE_ARM_ENABLED is default-OFF -- these tests are what lets it be
+# turned on without taking the Book Game training log with it.
 import importlib.util
 import json
 import os

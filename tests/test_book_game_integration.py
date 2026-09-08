@@ -3,7 +3,11 @@
 # (.claude/FOCUS.md's 2026-07-21 end-goal: idle-bait -> scan -> question
 # -> spoken answer -> STT training log -> actionable fixup). Every piece
 # already has its own unit tests against synthetic fixtures; this file's
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# job is different -- it runs SEVERAL pieces together against one shared
+# books.db + training.jsonl to catch data-shape mismatches unit tests
+# (each mocking its own neighbor) can't see: crt-book-game.py (register)
+# -> crt-book-console.py (scan) -> crt-book-answer-listen.py (grade) ->
+# crt-book-game-stats.py (summarize, export a fixup). No mic/tmux/network.
 import importlib.util
 import json
 import os
