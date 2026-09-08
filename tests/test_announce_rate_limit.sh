@@ -2,10 +2,7 @@
 # crt-announce.sh -- the TV-facing voice and, more importantly, the writer
 # of the rate-limit window that crt-idle-teaser.sh's chime() shares with it
 # (IDLE-BAIT.md's single-rate-limit rule: a chime and an announcement must
-# never stack). Had no test until 2026-07-25: it stamped the shared window,
-# then `exec`d into crt-tts.py and could not know whether anything was said,
-# so a bad TV device bought silence on both channels. crt-tts.py is faked
-# via a `python3` first on PATH -- what's under test is the lock protocol.
+# never stack). crt-tts.py is faked via a `python3` first on PATH -- what's under test is the lock protocol, not real audio.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

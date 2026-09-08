@@ -2,11 +2,7 @@
 # Offline end-to-end test: the capture backlog that piles up during a slow
 # transcription is bounded, said out loud, and never eats a real utterance.
 #
-# The unit half lives in tests/test_capture_backpressure.py (real pipes, real
-# fcntl/ioctl, measured capacities). THIS test drives the real CLI end to
-# end: one utterance, a whisper that takes 5s while capture keeps producing
-# audio in real time, then a second utterance. Both must still reach the
-# STT log -- the drain runs BETWEEN utterances so it never excises live speech.
+# The unit half lives in tests/test_capture_backpressure.py -- THIS test drives the real CLI end to end, since the wiring is what actually has to work.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

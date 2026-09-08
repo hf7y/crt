@@ -2,11 +2,7 @@
 # A scan opens ONE graded round, not a 20-second grading window
 # (2026-07-25, thirteenth nightly cycle).
 #
-# crt-book-answer-listen.py derives "a question is pending" from the scan
-# timestamp alone, so the full 20s window kept grading even after the round
-# was already answered -- against WHATEVER anyone said next, since
-# crt-stt-solo.py logs every utterance to stt.log before the wake gate runs.
-# A mislabelled training row is worse than a missing one.
+# crt-book-answer-listen.py derives "a question is pending" from the scan timestamp alone, so the 20s window kept grading after the round was answered.
 import importlib.util
 import json
 import os

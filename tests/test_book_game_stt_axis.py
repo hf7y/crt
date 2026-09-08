@@ -2,14 +2,7 @@
 # correct_stt and correct_content were the same flag (2026-07-25,
 # fourteenth nightly cycle).
 #
-# BOOK-GAME.md is explicit about why the Book Game logs two axes: "a wrong
-# content-answer with correct STT is useless training noise; a right
-# content-answer with wrong STT is the valuable case." grade_answer()
-# computed both flags from the same string -- both live callers pass
-# expected=correct_option=q["correct"] -- so an honest wrong answer
-# ("nonfiction" when the truth is "fiction", heard perfectly) logged as an
-# STT mismatch and got auto-merged into stt-fixups.json as a mishear. Fixed
-# by asking whether the transcription landed on an offered option instead.
+# BOOK-GAME.md is explicit about why the Book Game logs two axes: grade_answer() computed both from the same string, so an honest wrong answer logged as an STT mismatch.
 import importlib.util
 import json
 import os

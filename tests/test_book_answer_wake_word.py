@@ -2,13 +2,7 @@
 # A question for Claude is not a trivia answer (2026-07-25, fourteenth
 # nightly cycle).
 #
-# crt-stt-solo.py writes EVERY recognized utterance to ~/.crt/stt.log before
-# its wake gate runs, and crt-book-answer-listen.py graded anything inside a
-# book's answer window as a trivia answer regardless -- so asking Claude
-# about the book you just scanned mislabelled a training row AND cost the
-# real answer that would have followed it, since the round closes on the
-# first graded utterance. Fixed the same way the 2026-07-21 voice-command
-# fix did: ask bin/crt_wake_gate.py first.
+# crt-stt-solo.py writes EVERY utterance to ~/.crt/stt.log before its wake gate runs -- a question addressed to Claude got graded as a trivia answer too.
 import importlib.util
 import json
 import os

@@ -2,12 +2,7 @@
 # A sticky-conversation follow-up is not a trivia answer (2026-07-25,
 # twentieth nightly cycle).
 #
-# This is the fourteenth cycle's defect (tests/test_book_answer_wake_word.py)
-# through the one door that fix could not close: inside an open arm window
-# (bin/crt-wake-arm.py), a follow-up reaches Claude with NO wake word by
-# design, but crt-book-answer-listen.py still grades it as a trivia answer.
-# CRT_WAKE_ARM_ENABLED is default-OFF -- these tests are what lets it be
-# turned on without taking the Book Game training log with it.
+# This is the fourteenth cycle's defect through the door bin/crt-wake-arm.py opened: a wake-less arm-window follow-up still gets graded as a trivia answer.
 import importlib.util
 import json
 import os

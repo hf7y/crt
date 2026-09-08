@@ -3,9 +3,7 @@
 # that replaced the mandark reverse-tunnel bridge. See DEXTER-MOVE.md
 # section 2 and bin/crt-brain-shell.py's header.
 #
-# These run anywhere: no dexter, no potato, no tmux session, no network. The
-# point is the DEGRADE contract -- whether a dead brain gives a short honest
-# reply or the console waits two minutes and lies about having sent something.
+# These run anywhere, no network: the point is the DEGRADE contract -- a short honest reply, not a two-minute wait that lies about having sent something.
 import importlib.util
 import os
 import subprocess
