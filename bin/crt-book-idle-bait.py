@@ -3,7 +3,13 @@
 # quiet a while -- see BOOK-GAME-STYLE.md's "Idle-bait quotes" section.
 # Mirrors bin/crt-idle-bait.sh's shape (poll, check quiet-time, append a
 # line) but reuses bin/crt-book-game.py's registry/quote/entice logic
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# instead of a hardcoded LINES array. Mixes three registers via
+# ENTICE_RATE/BIBQUOTES_RATE below: an entice nudge (always available), a
+# quote from an already-scanned book, or a bibliothecaire excerpt -- so an
+# empty registry never goes silent. NON-API-BY-DESIGN throughout (see
+# crt-book-game.py's pick_bibquotes_line comment); polling loop not
+# hardware-verified, pick_and_format_line() is tested in
+# tests/test_book_idle_bait.py.
 import importlib.util
 import os
 import random
@@ -102,7 +108,10 @@ def main():
     # of this loop; the rest of the body never got it. Still unguarded
     # until 2026-07-25: pick_and_format_line() reaches sqlite through
     # pick_idle_quote(), and the getmtime() below is a plain
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # exists-then-stat race on stt.log -- either one used to end this loop
+    # outright (step ONE of the funnel: no bait, no scan, no question, no
+    # training row). The guard now wraps the whole body, not just the log
+    # write.
     guard = loop_guard.LoopGuard("bookidle")
     while True:
         time.sleep(POLL_SECS)
