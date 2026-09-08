@@ -668,8 +668,6 @@ class TestUndeliveredUtterance(unittest.TestCase):
 
 
 class TestSshBrainMode(unittest.TestCase):
-    """The ssh brain path (crt#48): untested before this class."""
-
     def setUp(self):
         self.sec = load_secretary()
         self.tmp = tempfile.mkdtemp()

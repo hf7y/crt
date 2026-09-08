@@ -3,9 +3,7 @@
 # playbook model, first real implementation. Sits between stt-feed.sh and
 # the claude tmux pane: runs an ordered list of PLAYBOOKS, each a plain
 # (match, handle) pair -- the first one whose match() fires handles the
-# utterance, so PLAYBOOKS order is the tiebreak when a phrase could
-# plausibly match more than one. See TestPlaybookMatching.
-# test_first_match_wins_no_double_fire.
+# utterance, so PLAYBOOKS order is the tiebreak -- see TestPlaybookMatching.test_first_match_wins_no_double_fire.
 import datetime
 import importlib.util
 import os
