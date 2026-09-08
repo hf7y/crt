@@ -28,3 +28,6 @@ STT command lives, and why a relay that merely answers is never `OK`.
   export and extracted `ggml-base.en.bin` are at
   `/mnt/d/gardien-backups/hermes-wsl-export/` on dexter.
 - Still **no auth** on the MCP port, only a bind — today, the tailnet.
+- **Migration hazard (crt#193):** never run two hermes stacks against this
+  `data/` at once — the old stack must stop before the new starts, or a
+  second holder can revoke the single-use Nous session (an eight-day outage).
