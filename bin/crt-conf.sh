@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 # The console's config, read from ONE place by everything that needs it.
 # Sourced, never executed:  . "$BIN_DIR/crt-conf.sh"
-#
-# WHY THIS EXISTS (2026-07-29, found live): potato's console identity was
-# silently wrong after any non-boot restart. Full incident and the
-# console.conf/brain.conf/mandark.conf precedence it fixes are witnessed by
-# tests/test_console_conf.sh's own header and numbered PASS/FAIL cases.
+# WHY THIS EXISTS (2026-07-29, found live): potato's console identity was silently wrong
+# after any non-boot restart. See tests/test_console_conf.sh for the incident and the
+# console.conf/brain.conf/mandark.conf precedence.
 
 # Executing this instead of sourcing it does nothing useful and would
 # fail silently -- the assignments would land in a shell that then exits.

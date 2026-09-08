@@ -3,11 +3,9 @@
 # audio device (distinct from the phone earpiece device) so Chris can hear a
 # simple request without touching anything -- he can only respond by talking
 # into the phone. Hard rate limit: at most one announcement per 15 minutes,
-# enforced by a lockfile timestamp, so hooks/batch jobs can call this
-# freely without risking a barrage. STATUS: potato is bare-metal, so this
-# routes through crt-tts.py's local ALSA tv/handset path rather than the
-# old dexter-audio-server.py bridge (VirtualBox-era, now legacy) -- set
-# CRT_AUDIO_OUT_URL to restore it. Usage: crt-announce.sh "message"
+# enforced by a lockfile timestamp. STATUS: routes through crt-tts.py's
+# local ALSA path (potato is bare-metal); dexter-audio-server.py is
+# legacy VirtualBox-era, restorable via CRT_AUDIO_OUT_URL.
 set -euo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -40,14 +38,11 @@ fi
 # Stamp BEFORE speaking, then roll the stamp back if nothing was said
 # (2026-07-25). Both halves matter and they pull in opposite directions:
 #
-#   - Stamping first is what stops a barrage. Two hooks firing at once must
-#     not produce two overlapping voices on the TV. Rolling back on failure
-#     keeps that protection but frees the window the instant an attempt is
-#     known to have made no sound (crt-tts.py's exit status is real
-#     evidence, not an unconditional True). Mirrors crt-idle-teaser.sh's
-#     chime(), which stamps/rolls back against this same lockfile on
-#     purpose (IDLE-BAIT.md's single-rate-limit rule) -- a broken TV must
-#     not silence a working earpiece chime.
+#   - Stamping first stops two hooks firing at once from overlapping on
+#     the TV. Rolling back on failure frees the window once crt-tts.py's
+#     exit status proves no sound was made. Mirrors crt-idle-teaser.sh's
+#     chime() against this same lockfile (IDLE-BAIT.md's single-rate-limit
+#     rule) -- a broken TV must not silence a working earpiece chime.
 echo "$now" > "$LOCK"
 # `status=0; cmd || status=$?` rather than `if cmd; then ... fi; status=$?`:
 # an `if` with no else branch that takes the false path leaves `$?` at 0,

@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
-# Summarizes Book Game progress toward its actual end-goal
-# (.claude/FOCUS.md's 2026-07-21 statement: idle-bait -> scan -> question
-# -> spoken answer -> STT training log is one funnel) -- how many books
-# have been scanned, how many trivia rounds actually got a spoken answer,
-# and the STT-training payoff itself: how often grading agreed with what
-# was actually said. That number is the point of this subsystem existing
-# at all (CLAUDE.md's "improve STT inference over time"), so it gets top
-# billing here, not buried under trivia scores. Zero Claude/API calls --
-# pure local reads, tested against synthetic fixtures in
-# tests/test_book_game_stats.py.
+# Summarizes Book Game progress toward its actual end-goal (.claude/FOCUS.md's
+# 2026-07-21 statement: idle-bait -> scan -> question -> spoken answer -> STT training
+# log is one funnel) -- books scanned, trivia rounds that got a spoken answer, and the
+# STT-training payoff: how often grading agreed with what was said -- the point of the
+# subsystem (CLAUDE.md's "improve STT inference over time"), so it leads. See tests/test_book_game_stats.py.
 import importlib.util
 import json
 import os

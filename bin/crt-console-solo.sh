@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 # crt console -- SINGLE-READER variant (Approach B in AUDIO-DEBUG.md).
-#
-# Same as bin/crt-console.sh (full-screen Claude Code, voice typed in), but the
-# mic is read by exactly ONE process: bin/crt-stt-solo.py in CRT_STT_SINK=claude
-# mode, removing the "second reader starves the capture" staleness class.
-# Verified live 2026-07-19/20 and promoted as crt-console.sh's own boot
-# default (AUDIO-DEBUG.md's "Approach B" section) -- this script is now just
-# a thinner standalone variant of the same idea, not the only way to get it.
+# Same as bin/crt-console.sh (full-screen Claude Code, voice typed in), but the mic is
+# read by exactly ONE process: bin/crt-stt-solo.py in CRT_STT_SINK=claude mode, removing
+# the "second reader starves the capture" staleness class. Verified live 2026-07-19/20
+# and promoted as crt-console.sh's own boot default -- this is now just a thinner standalone variant of that idea.
 set -euo pipefail
 
 export PATH="$HOME/.local/bin:$PATH"

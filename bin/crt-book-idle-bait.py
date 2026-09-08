@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
-# Book Game idle-bait: pops a line into thoughts.log when the room's been
-# quiet a while -- see BOOK-GAME-STYLE.md's "Idle-bait quotes" section.
-# Mirrors bin/crt-idle-bait.sh's shape (poll, check quiet-time, append a
-# line) but reuses bin/crt-book-game.py's registry/quote/entice logic
-# instead of a hardcoded LINES array. Mixes three registers via
-# ENTICE_RATE/BIBQUOTES_RATE below: an entice nudge (always available), a
-# quote from an already-scanned book, or a bibliothecaire excerpt -- so an
-# empty registry never goes silent. NON-API-BY-DESIGN throughout (see
-# crt-book-game.py's pick_bibquotes_line comment); polling loop not
-# hardware-verified, pick_and_format_line() is tested in
-# tests/test_book_idle_bait.py.
+# Book Game idle-bait: pops a line into thoughts.log when the room's been quiet a while
+# -- see BOOK-GAME-STYLE.md's "Idle-bait quotes" section. Mirrors bin/crt-idle-bait.sh's
+# shape (poll, check quiet-time, append a line) but reuses bin/crt-book-game.py's
+# registry/quote/entice logic instead of a hardcoded LINES array. ENTICE_RATE/BIBQUOTES_RATE
+# mix three registers so an empty registry never goes silent. NON-API-BY-DESIGN (see
+# crt-book-game.py's pick_bibquotes_line); see tests/test_book_idle_bait.py.
 import importlib.util
 import os
 import random
@@ -107,11 +102,7 @@ def main():
     # append_thought_line() above already learned this lesson for ONE line
     # of this loop; the rest of the body never got it. Still unguarded
     # until 2026-07-25: pick_and_format_line() reaches sqlite through
-    # pick_idle_quote(), and the getmtime() below is a plain
-    # exists-then-stat race on stt.log -- either one used to end this loop
-    # outright (step ONE of the funnel: no bait, no scan, no question, no
-    # training row). The guard now wraps the whole body, not just the log
-    # write.
+    # pick_idle_quote(), and the getmtime() below races stt.log's exists-then-stat -- either used to end this loop outright. Guard now wraps the whole body.
     guard = loop_guard.LoopGuard("bookidle")
     while True:
         time.sleep(POLL_SECS)

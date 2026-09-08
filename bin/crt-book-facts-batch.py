@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
-# Trivia-fact enrichment batch job (2026-07-28, Zach-directed): "wire up
-# the web-based scrape of better facts, non-AI pass for webscrape on
-# each, then ai-pass in batches to generate 3-ish high quality facts per
-# book for trivia."
-#
-# Redesigned same day (Zach, live: "I'm still getting generic facts?"):
-# now writes fact-grounded two-option questions straight into
-# questions_json instead of generic flavor text -- same schema
-# crt-book-answer-listen.py already grades. Two cache-once stages
-# (Wikipedia scrape, then batched Gemini distill); distill skips loudly
-# with no Gemini key configured.
+# Trivia-fact enrichment batch job (2026-07-28, Zach-directed): "wire up the web-based
+# scrape of better facts, non-AI pass for webscrape on each, then ai-pass in batches to
+# generate 3-ish high quality facts per book for trivia." Redesigned same day (Zach:
+# "I'm still getting generic facts?"): writes two-option questions into questions_json
+# (schema crt-book-answer-listen.py grades). Two cache-once stages: Wikipedia scrape,
+# then batched Gemini distill.
 import argparse
 import importlib.util
 import json
@@ -136,10 +131,7 @@ def _timestamped_log(msg):
     # Only main()'s own default -- run_scrape_stage/run_distill_stage
     # still default to plain print() so tests asserting on exact log
     # text don't have to match a timestamp. This is what actually lands
-    # in ~/.crt/facts-batch.log when crt-book-console.py's fire-and-
-    # forget trigger fires -- see maybe_trigger_facts_batch's own comment
-    # there for why that stream is logged, not discarded; a timestamp is
-    # what makes it debuggable across runs.
+    # in ~/.crt/facts-batch.log when crt-book-console.py's trigger fires -- see maybe_trigger_facts_batch's comment; timestamp aids debugging.
     import datetime
     print("%s  %s" % (datetime.datetime.now().strftime("%H:%M:%S"), msg))
 

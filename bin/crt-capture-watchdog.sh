@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 # crt capture watchdog -- Approach A (+ C keep-alive) from AUDIO-DEBUG.md.
-#
-# The bug: on the VirtualBox guest the emulated capture intermittently goes
-# STALE -- the signal flatlines mid-session while the ALSA mixer still reads
-# correct, so stt-feed hears nothing and STT silently "stops detecting".
-# Full design, verification status, and tunables (CRT_WD_*, defaulted just
-# below) live in AUDIO-DEBUG.md's "Approach A" / "Approach C" sections.
+# The bug: on the VirtualBox guest the emulated capture intermittently goes STALE -- the
+# signal flatlines mid-session while the ALSA mixer still reads correct, so stt-feed hears
+# nothing and STT silently "stops detecting". Tunables: CRT_WD_*, defaulted below.
 set -uo pipefail
 
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
-# The "potato game" (filed in FOCUS.md 2026-07-23, built same night): an
-# interactive calibration session, not a background service. Run it in a
-# tmux window, say the wake word (or whatever else it prompts for) into
-# the real mic, and watch the words STT actually heard splash around an
-# ASCII potato, sized/colored by similarity to the target word (reuses
-# crt-wake-pool.py's closest_pool_word()).
-#
-# Two rounds: wake (say the wake word repeatedly; STT-heard words are
-# scored by similarity and offered for saving into stt-fixups.json as
-# CONFIRMED aliases) and earcon (play each output device's tone, confirm
-# by typing -- not voice, to avoid a circular "did the mic hear the beep"
-# dependency -- which device it came from, logging each verdict to
-# CRT_EARCON_ROUTING_LOG). Reads ~/.crt/stt.log passively, same posture as
-# crt-monologue.py -- never touches the live capture process.
+# The "potato game" (filed in FOCUS.md 2026-07-23, built same night): an interactive
+# calibration session, not a background service. Run it in a tmux window, say the wake
+# word into the real mic, and watch the words STT heard splash around an ASCII potato,
+# colored by similarity (reuses crt-wake-pool.py's closest_pool_word()). Two rounds:
+# wake (score words, offer to save into stt-fixups.json as CONFIRMED) and earcon (play
+# each device's tone, confirm by TYPING not voice, logged to CRT_EARCON_ROUTING_LOG).
+# Reads ~/.crt/stt.log passively, never a second capture reader.
 import difflib
 import importlib.util
 import json
@@ -282,13 +275,9 @@ def offer_to_save(seen, target):
         print("Skipped.")
         return
     # Only what was offered. Until 2026-07-25 this accepted any word the
-    # tailer had EVER heard, which is every word said in the room since the
-    # game launched -- so a typed "about" (18% similar, never on the list)
-    # was written as a CONFIRMED mishear of the wake word, and confirmed is
-    # the tier crt-stt-solo.py's gate acts on with no further review -- the
-    # console then woke on "what is this book about". Editing
-    # bin/stt-fixups.json by hand (tracked in git) remains the reviewable
-    # escape hatch for a word that genuinely belongs.
+    # tailer had EVER heard -- a typed "about" (18% similar, unlisted) got written
+    # CONFIRMED (crt-stt-solo.py's gate trusts that tier, no review), waking the
+    # console on "what is this book about". stt-fixups.json stays hand-editable (git-tracked).
     if choice not in offered:
         print("%r was not offered -- only the words listed above can be "
               "confirm-saved here." % choice)

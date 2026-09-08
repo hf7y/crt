@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-# The overscan calibration game -- see DISPLAY-CALIBRATION.md for the full
-# design. Renders a numbered-ruler/corner-letter test pattern inset by a
-# safe-margin guess, asks (by voice, in real use) which edges are cut off,
-# and hill-climbs the margin until it converges.
-#
-# NOT hardware-verified: render_pattern()/adjust_margins() are pure and
-# covered by tests/test_calibrate_display.py, but main()'s interactive
-# loop has never run against a real screen/STT -- see DISPLAY-CALIBRATION.md.
+# The overscan calibration game -- see DISPLAY-CALIBRATION.md for the full design.
+# Renders a numbered-ruler/corner-letter test pattern inset by a safe-margin guess, asks
+# (by voice, in real use) which edges are cut off, and hill-climbs the margin until it
+# converges. NOT hardware-verified: render_pattern()/adjust_margins() are pure and covered
+# by tests/test_calibrate_display.py; main()'s interactive loop has never run for real.
 import json
 import os
 import sys

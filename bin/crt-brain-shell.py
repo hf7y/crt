@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
-# The dexter-side half of "run Claude Code off potato" (2026-07-28) --
-# successor to crt-remote-claude-bridge.py, which this replaces.
-#
-# WHY THIS SHAPE, AND WHY THE OLD ONE IS GONE: DEXTER-MOVE.md section 2 --
-# the old bridge's socket/tunnel design was a consequence of mandark being
-# an unreachable laptop, not a property worth keeping on an always-on box.
-# This is an sshd forced command instead: authorized_keys pins it with
-# `restrict` so a compromised potato gets CAPTURE/SEND against one named
-# tmux session, never a shell -- tests/test_brain_ssh.py holds that
-# degrade contract and proves SEND's payload is never shell-interpreted.
+# The dexter-side half of "run Claude Code off potato" (2026-07-28) -- successor to
+# crt-remote-claude-bridge.py, which this replaces. WHY (DEXTER-MOVE.md section 2): the
+# old socket/tunnel was a mandark-unreachable workaround, not worth keeping on an
+# always-on box. Now an sshd forced command: authorized_keys `restrict`s it so a
+# compromised potato gets CAPTURE/SEND on one tmux session, never a shell -- see tests/test_brain_ssh.py.
 import argparse
 import os
 import subprocess
