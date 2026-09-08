@@ -9,12 +9,6 @@
 # arm() was only reachable from a disarmed state. The two emit()-driven
 # tests below fail against the parent with the real symptom -- a dropped
 # utterance -- not an AttributeError about a missing kwarg.
-#
-# CONFIRMED BY ZACH 2026-07-25 (thirteenth cycle, replying inline on that
-# report): "saying the wake word again is deliberate, so it resets the
-# ARM_MAX_SECS ceiling rather than being swallowed by the conversation
-# already in progress." These tests are pinning a decision the human made,
-# not an inference from a docstring.
 import importlib.util
 import os
 import shutil
