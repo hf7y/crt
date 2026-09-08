@@ -26,12 +26,16 @@ services:
       HERMES_LOCAL_STT_COMMAND: /opt/zaxon-relay/bin/whisper_stt.sh {input_path} {output_dir} {language}
 
   # THE MCP DOOR, separate as it was in the distro: it owns ask_zach.
+  # ONE-HOLDER RULE (crt#195): neither zaxon_relay_db.py nor zaxon_relay_server.py
+  # reads auth.json, .env, config.yaml or whatsapp/session -- mount only the
+  # subpath it actually uses, same rule README.md states for whatsapp/session.
   relay:
     image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-relay
     restart: always
     volumes:
-      - ./data:/home/zaxon/.hermes
+      - ./data/zaxon_relay:/home/zaxon/.hermes/zaxon_relay
+      - ./data/logs/agent.log:/home/zaxon/.hermes/logs/agent.log:ro
       - ./uv:/home/zaxon/.local/share/uv
     working_dir: /opt/zaxon-relay
     # `hermes send` reaches the Baileys bridge on localhost:3000, a gateway child.
@@ -48,12 +52,14 @@ services:
       start_period: 30s
 
   # Tails agent.log for Zach's replies, matching them to tickets. Reads only.
+  # ONE-HOLDER RULE (crt#195): see relay's mount above -- same subpath, no more.
   watcher:
     image: ghcr.io/hf7y/zaxon:latest
     container_name: zaxon-watcher
     restart: always
     volumes:
-      - ./data:/home/zaxon/.hermes
+      - ./data/zaxon_relay:/home/zaxon/.hermes/zaxon_relay
+      - ./data/logs/agent.log:/home/zaxon/.hermes/logs/agent.log:ro
       - ./uv:/home/zaxon/.local/share/uv
     working_dir: /opt/zaxon-relay
     network_mode: "service:gateway"

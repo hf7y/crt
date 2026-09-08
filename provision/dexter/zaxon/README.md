@@ -12,6 +12,15 @@ relay answers. By hand: `sudo docker compose pull && sudo docker compose up -d`
 
 `data/` is service state, never overwritten from a repo; the relay's SOURCE ships in the image.
 
+**One-holder rule, two files:** `data/whatsapp/session` is a linked-device
+session and exactly one process may hold it; two, and WhatsApp logs the link
+out, costing a QR scan. `data/auth.json` carries a single-use Nous refresh
+token and has the identical property — a second holder that refreshes it
+without persisting the rotation revokes the session (crt#193, an eight-day
+outage). `gateway` is the only container meant to hold either file; `relay`
+and `watcher` mount only the `zaxon_relay/` subpath and a read-only
+`agent.log` (crt#195).
+
 ## The status page
 
 `hf7y.com/zaxon` — `zaxon-watch.sh --apply` hourly, `--install` writes the timer,
