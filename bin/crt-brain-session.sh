@@ -2,8 +2,11 @@
 # Ensure the tmux session that crt-brain-shell.py drives is alive on the
 # brain host (dexter, as of 2026-07-28 -- see DEXTER-MOVE.md).
 #
-# This is the piece the old mandark bridge never had: there, a human
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# The old mandark bridge never had this: a human started `claude` by hand
+# and the bridge just assumed it, so a dead session went quiet forever --
+# nothing ever put the brain BACK. Being always-on is the whole reason
+# dexter was chosen, so "the session exists" has to be asserted, not
+# remembered. Usage: [ensure|status|restart], see the case below.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,8 +25,14 @@ fi
 # Where Claude starts. The crt checkout, so the console's brain can answer
 # questions about its own project without being told where it lives.
 #
-# But NOT the same working tree a human is editing in. The brain now runs
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# But NOT the same working tree a human is editing in: the brain runs with
+# permissions bypassed (below) and is expected to make real, durable
+# changes -- talk into the handset, have potato commit its own rules. Two
+# writers in one checkout means a spoken commit and a hand edit collide in
+# the index. Prefer a dedicated git worktree if one exists
+# (`git -C <crt-repo> worktree add ~/crt-brain -b voice`), so the brain's
+# work lands on its own branch; falls back to the repo root, just a
+# colliding one, so a box that hasn't set one up still gets a working brain.
 CRT_BRAIN_VOICE_TREE="${CRT_BRAIN_VOICE_TREE:-$HOME/crt-brain}"
 if [ -z "${CRT_BRAIN_CWD:-}" ] && [ -d "$CRT_BRAIN_VOICE_TREE" ]; then
   CRT_BRAIN_CWD="$CRT_BRAIN_VOICE_TREE"
@@ -31,11 +40,14 @@ fi
 CRT_BRAIN_CWD="${CRT_BRAIN_CWD:-$(cd "$HERE/.." && pwd)}"
 CLAUDE_BIN="${CRT_BRAIN_CLAUDE:-claude}"
 
-# Zero permission prompts. Not a convenience -- a correctness requirement
-# for THIS process, decided by Zach 2026-07-29 after watching it happen.
-#
-# The brain has no keyboard. Its only input is `tmux send-keys` from
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Zero permission prompts -- a correctness requirement, not a convenience
+# (Zach, 2026-07-29, after a read-only `ls` stalled the dexter brain live):
+# its only input is `tmux send-keys` from a landline, so nobody is there
+# to answer a permission modal -- the pane just parks and the console goes
+# quiet mid-sentence. potato's own bypass setting stops at the ssh
+# boundary, so the brain host makes the same choice for itself. Scoped to
+# this one named session on a trusted box; override with
+# CRT_BRAIN_CLAUDE_ARGS='' for a prompting brain.
 CRT_BRAIN_CLAUDE_ARGS="${CRT_BRAIN_CLAUDE_ARGS:---permission-mode bypassPermissions}"
 
 have_session() { tmux has-session -t "$SESSION" 2>/dev/null; }
@@ -132,11 +144,9 @@ Clear it with: tmux attach -t $SESSION, or restart: $0 restart" >&2
       pane="$(tmux capture-pane -t "$SESSION" -p -S -50 2>/dev/null || true)"
       [ -n "${pane//[[:space:]]/}" ] || continue
 
-      # A painted pane is NOT a ready brain, learned the hard way on
-      # dexter 2026-07-28: the first start in an untrusted directory
-      # parks on "Do you trust the files in this folder?" and waits.
-      # That pane paints beautifully, so the old check called it UP --
-      #   [rest: vault:crt/header-archaeology-20260817.md]
+      # A painted pane is NOT a ready brain -- see parked_reason() above
+      # for the states that render beautifully while waiting on a human
+      # who does not exist.
       if reason="$(parked_reason "$pane")"; then
         echo "crt-brain-session: $SESSION is $reason -- not a usable brain. \
 Clear it with: tmux attach -t $SESSION" >&2

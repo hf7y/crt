@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Offline test for bin/crt-brain-session.sh's 2026-07-29 changes.
-#
-# The bug: the dexter brain was started with a bare `claude`. Its only
-# input is `tmux send-keys` from potato, driven by someone speaking into
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Offline test for bin/crt-brain-session.sh's 2026-07-29 bypass-permissions
+# changes -- see that script's own CRT_BRAIN_CLAUDE_ARGS comment for why a
+# brain with no keyboard cannot afford a permission prompt. Two things
+# under test: the brain must START bypassed, and `status` must be able to
+# say a session is up but not answering. No real tmux/claude -- a shim
+# records what it was asked to do and replays a canned pane.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$DIR/../bin/crt-brain-session.sh"
