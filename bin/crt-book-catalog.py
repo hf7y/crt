@@ -2,13 +2,7 @@
 # The personal-library-catalog half of the Book Game (BOOK-GAME.md's own
 # vision: the registry "documents the books for safe keeping... doubles
 # as a personal library catalog, independent of the game"). That vision
-# line was never actually implemented -- books.db has held every scanned
-# book's title/author/year/LCC all along, but there was no way to actually
-# SEE the catalog (crt-book-game-stats.py is a distinct concern: aggregate
-# STT-training stats, kept in its own file on purpose). Zero Claude/API
-# calls -- pure local sqlite reads. See tests/test_book_catalog.py for the
-# pure-function coverage; NOT yet hardware-verified against real scanned
-# data.
+# line was never actually implemented -- see tests/test_book_catalog.py.
 import importlib.util
 import json
 import os

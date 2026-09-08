@@ -3,16 +3,8 @@
 # interactive calibration session, not a background service. Run it in a
 # tmux window, say the wake word (or whatever else it prompts for) into
 # the real mic, and watch the words STT actually heard splash around an
-# ASCII potato, sized/colored by similarity to the target word (reuses
-# crt-wake-pool.py's closest_pool_word()).
-#
-# Two rounds: wake (say the wake word repeatedly; STT-heard words are
-# scored by similarity and offered for saving into stt-fixups.json as
-# CONFIRMED aliases) and earcon (play each output device's tone, confirm
-# by typing -- not voice, to avoid a circular "did the mic hear the beep"
-# dependency -- which device it came from, logging each verdict to
-# CRT_EARCON_ROUTING_LOG). Reads ~/.crt/stt.log passively, same posture as
-# crt-monologue.py -- never touches the live capture process.
+# ASCII potato, sized/colored by similarity. Two rounds: wake and earcon --
+# see tests/test_calibration_game.py.
 import difflib
 import importlib.util
 import json
@@ -281,14 +273,7 @@ def offer_to_save(seen, target):
     if not choice:
         print("Skipped.")
         return
-    # Only what was offered. Until 2026-07-25 this accepted any word the
-    # tailer had EVER heard, which is every word said in the room since the
-    # game launched -- so a typed "about" (18% similar, never on the list)
-    # was written as a CONFIRMED mishear of the wake word, and confirmed is
-    # the tier crt-stt-solo.py's gate acts on with no further review -- the
-    # console then woke on "what is this book about". Editing
-    # bin/stt-fixups.json by hand (tracked in git) remains the reviewable
-    # escape hatch for a word that genuinely belongs.
+    # Only what was offered -- see tests/test_calibration_game.py.
     if choice not in offered:
         print("%r was not offered -- only the words listed above can be "
               "confirm-saved here." % choice)

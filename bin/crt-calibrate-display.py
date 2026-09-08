@@ -4,9 +4,7 @@
 # safe-margin guess, asks (by voice, in real use) which edges are cut off,
 # and hill-climbs the margin until it converges.
 #
-# NOT hardware-verified: render_pattern()/adjust_margins() are pure and
-# covered by tests/test_calibrate_display.py, but main()'s interactive
-# loop has never run against a real screen/STT -- see DISPLAY-CALIBRATION.md.
+# NOT hardware-verified -- see tests/test_calibrate_display.py.
 import json
 import os
 import sys

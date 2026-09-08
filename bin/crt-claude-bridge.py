@@ -3,10 +3,7 @@
 # window 1's ephemeral pretty-print pane (crt-monologue.py) shows claude's
 # own responses instead of a separate external narration. Tails claude's own
 # session transcript (JSONL, same format Claude Code always writes) rather
-# than screen-scraping the tmux pane -- structured and far less fragile.
-# The bugs found live here (hardcoded project dir, transcript flip-flop,
-# marker flood/fallback) are regression-tested in tests/test_claude_bridge.py;
-# the marker convention itself is documented in CLAUDE.md.
+# than screen-scraping the tmux pane -- see tests/test_claude_bridge.py.
 import glob, json, os, time
 
 def _default_project_dir():

@@ -4,12 +4,8 @@
 # each, then ai-pass in batches to generate 3-ish high quality facts per
 # book for trivia."
 #
-# Redesigned same day (Zach, live: "I'm still getting generic facts?"):
-# now writes fact-grounded two-option questions straight into
-# questions_json instead of generic flavor text -- same schema
-# crt-book-answer-listen.py already grades. Two cache-once stages
-# (Wikipedia scrape, then batched Gemini distill); distill skips loudly
-# with no Gemini key configured.
+# Redesigned same day (Zach: "I'm still getting generic facts?") to write
+# fact-grounded questions into questions_json instead of flavor text.
 import argparse
 import importlib.util
 import json
@@ -135,10 +131,7 @@ def run_distill_stage(conn, api_key=None, poster=None, log=print):
 def _timestamped_log(msg):
     # Only main()'s own default -- run_scrape_stage/run_distill_stage
     # still default to plain print() so tests asserting on exact log
-    # text don't have to match a timestamp. This is what actually lands
-    # in ~/.crt/facts-batch.log when crt-book-console.py's fire-and-
-    # forget trigger fires -- see maybe_trigger_facts_batch's own comment
-    # there for why that stream is logged, not discarded; a timestamp is
+    # text don't have to match a timestamp -- a timestamp is
     # what makes it debuggable across runs.
     import datetime
     print("%s  %s" % (datetime.datetime.now().strftime("%H:%M:%S"), msg))
