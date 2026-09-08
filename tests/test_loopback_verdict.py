@@ -3,7 +3,17 @@
 # finding from a run in which nothing was played or nothing was recorded
 # (2026-07-25).
 #
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# FOCUS.md and the nightly-batch skill both name this tool as the one thing
+# that can stand in for Zach's own ear, so its verdicts carry more weight
+# than any other output here -- yet until now it had two outcomes for three
+# situations: played+heard (DETECTED), played+not-heard (a hardware claim),
+# and never-played-at-all (identical output to the second). The third
+# indicts a device name, the second the USB adapter; the 2026-07-23 handset
+# finding rests on telling them apart.
+#
+# Two more fixed alongside: a FAILED baseline recording returned rms 0.0,
+# and the ratio is best/(base_rms + 1e-6) -- so a broken mic made every
+# device DETECTED. And main() exited 0 no matter what it found.
 import importlib.util
 import os
 import unittest

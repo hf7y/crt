@@ -3,7 +3,14 @@
 #
 # bin/stt-fixups.json is what this console has learned about how this room
 # says its wake word, and it has two writers -- crt-calibration-game.py (a
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# human confirming a mishear by ear) and crt-stt-training-merge.py's
+# `stttrain` window (unattended, every 600s) -- plus a live reader, the wake
+# gate itself, re-reading on every utterance since 0ccdf13. Same torn-file
+# and lost-update shape test_fixups_store.py's header covers; see there for
+# the mechanism. What this file adds: it deliberately does NOT import
+# bin/crt_fixups_store.py, so it runs against the parent as well as the
+# fix -- the point is what the two real writers do to one real file, not
+# what a new module claims about it.
 import importlib.util
 import json
 import os
