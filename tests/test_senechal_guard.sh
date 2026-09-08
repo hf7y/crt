@@ -2,8 +2,10 @@
 # bin/crt-senechal-guard.sh -- the PostToolUse(Bash) hook that catches
 # machine-scoped changes owing senechal a note (CLAUDE.md's ecosystem
 # protocols). Added 2026-07-28, Zach-directed: "set up a trigger to
-# notify-senechal automatically, in case I forget."
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# notify-senechal automatically, in case I forget." crt-senechal-guard.sh's
+# own header covers why this reminds rather than auto-files. The two
+# failure modes worth testing are opposite: staying SILENT on a change
+# that owes a note, and NAGGING on read-only inspection.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$DIR/../bin/crt-senechal-guard.sh"
