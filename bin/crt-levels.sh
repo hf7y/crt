@@ -2,8 +2,10 @@
 # Live microphone level meter for the crt console.
 #
 # Holds ONE continuous arecord on the shared ALSA capture ('crtmic', the dsnoop
-# device from systemd/asound.conf) and pipes raw PCM to crt-meter.py. Two
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# device from systemd/asound.conf) and pipes raw PCM to crt-meter.py -- see
+# that script's own header for why it's a real file, not a `python3 -`
+# heredoc (stdin theft). A second concurrent reader (this + stt-feed) is
+# fine on dsnoop; a stale/stuck arecord holding it in a bad state was not.
 set -uo pipefail
 
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
