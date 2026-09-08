@@ -3,7 +3,14 @@
 # question -> SPOKEN ANSWER -> STT training log, see .claude/FOCUS.md's
 # 2026-07-21 end-goal statement): watches ~/.crt/stt.log (already written
 # by crt-stt-solo.py for every recognized utterance, whether or not it's
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# addressed to Claude) for the next utterance after a scan and grades it
+# against that scan's pending question automatically. Its own file rather
+# than an edit to crt-book-console.py/crt-book-game.py, since both were
+# mid-live-debug elsewhere as of 2026-07-21 -- avoids colliding with that
+# work. Not a new Claude/API call or STT engine -- reuses crt-book-game.py's
+# existing grade_answer()/log_training_row(). See tests/test_book_answer_listen.py
+# for the "pending question" window logic and env vars (CRT_BOOKS_DB,
+# CRT_STT_LOG, CRT_THOUGHT_LOG, CRT_BOOK_ANSWER_WINDOW_SECS).
 import calendar
 import importlib.util
 import json
@@ -316,7 +323,10 @@ def main():
     # item. Before 2026-07-25 one raising utterance ended it for the rest
     # of the console's uptime: grade_pending_answer() reaches sqlite (a
     # locked or corrupt books.db), json.loads (a malformed questions_json
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # row), and log_training_row's own write, any of which took the whole
+    # window down silently. See crt_loop_guard.py's LoopGuard docstring for
+    # the general per-iteration-catch pattern this and every other
+    # long-lived window use.
     guard = loop_guard.LoopGuard("bookanswer")
     for line in tail_new_lines(STT_LOG):
         if line is None:
