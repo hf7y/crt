@@ -37,7 +37,7 @@ ever touches the mic. `crt-stt-solo.py` already is that one process for STT-only
 extending it to also type into the Claude tmux pane makes it a drop-in
 replacement for the whole stt-feed + dsnoop-meter stack.
 
-**Verified live 2026-07-19/20** (real handset session on crt-vm) and, as of
+**Verified live 2026-07-19/20** (real handset session on the retired VM, crt#162) and, as of
 2026-07-20, promoted into `bin/crt-console.sh` itself as the actual boot
 default (see that file's own comments, and `vault:crt/HANDOFF-20260829.md`'s
 "what's running" section) — `bin/crt-console-solo.sh` is no longer the only way to get this,

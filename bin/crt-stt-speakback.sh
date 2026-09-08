@@ -4,7 +4,7 @@
 # earpiece via crt-tts.py, so a person on the handset can debug the mic/STT
 # purely by voice/ear, without reading the CRT. Chris-facing debug tool.
 #
-# STATUS: pipeline verified end-to-end on crt-vm (espeak-ng installed, TTS
+# STATUS: pipeline verified end-to-end on the pre-retirement VM (espeak-ng installed, TTS
 # plays with exit 0). NOT confirmed audible by a human yet.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

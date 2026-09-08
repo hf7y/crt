@@ -179,7 +179,7 @@ tmux new-window -d -t "$SESSION" -n stttrain -c "$BIN_DIR" "python3 ./crt-stt-tr
 tmux set-option -t "$SESSION" status off
 
 # `book` is the default selected window on boot, NOT window 0 (`claude`)
-# -- confirmed live 2026-07-21 (hands-on agent, crt-vm) that a physical
+# -- confirmed live 2026-07-21 (hands-on agent, pre-retirement VM) that a physical
 # scan's raw keystrokes land in WHICHEVER window has focus, regardless of
 # which one "should" have them (SCANNER.md's "2026-07-21 late session"
 #   [rest: vault:crt/header-archaeology-20260817.md]

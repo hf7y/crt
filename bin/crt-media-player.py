@@ -85,7 +85,7 @@ class VlcBackend:
     tooling, not a finished integration. Every method swallows OSError
     (missing binary, no real media library mounted) rather than raising,
     since this account's sandbox can never actually exercise it -- a
-    live crt-vm session with a real cvlc install and music library needs
+    live session on the console with a real cvlc install and music library needs
     to validate and very likely revise this."""
     def __init__(self, library_dir=None):
         self.library_dir = library_dir or MEDIA_LIBRARY_DIR

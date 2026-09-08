@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the whole offline test suite. No VM/hardware/network needed --
-# these are exactly the checks that CAN run before ever touching crt-vm.
+# these are exactly the checks that CAN run before ever touching real hardware.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fail=0
@@ -296,7 +296,7 @@ echo "== crt-book-catalog.py =="
 python3 -m unittest discover -s "$DIR" -p "test_book_catalog.py" -v 2>&1 | tail -5 || fail=1
 echo
 
-echo "== crt-wake-pool.py (fuzzy wake-word pool, pulled from crt-vm) =="
+echo "== crt-wake-pool.py (fuzzy wake-word pool, pulled from the retired VM) =="
 python3 -m unittest discover -s "$DIR" -p "test_wake_pool.py" -v 2>&1 | tail -5 || fail=1
 echo
 
@@ -320,15 +320,15 @@ echo "== crt-calibration-game.py (what the confirm prompt will accept, 2026-07-2
 python3 -m unittest discover -s "$DIR" -p "test_calibration_game.py" -v 2>&1 | tail -5 || fail=1
 echo
 
-echo "== crt-wake-pool-tally.py (near-miss tally, pulled from crt-vm) =="
+echo "== crt-wake-pool-tally.py (near-miss tally, pulled from the retired VM) =="
 python3 -m unittest discover -s "$DIR" -p "test_wake_pool_tally.py" -v 2>&1 | tail -5 || fail=1
 echo
 
-echo "== crt-wake-judge.py (autonomous wake-word tuning judge, pulled from crt-vm) =="
+echo "== crt-wake-judge.py (autonomous wake-word tuning judge, pulled from the retired VM) =="
 python3 -m unittest discover -s "$DIR" -p "test_wake_judge.py" -v 2>&1 | tail -5 || fail=1
 echo
 
-echo "== crt-attach-ssh-bridge.sh (pulled from crt-vm) =="
+echo "== crt-attach-ssh-bridge.sh (pulled from the retired VM) =="
 bash "$DIR/test_attach_ssh_bridge.sh" || fail=1
 echo
 

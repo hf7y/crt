@@ -41,11 +41,11 @@ Rather than every utterance being typed verbatim into Claude's terminal input
 ## Current implementation status
 - TTS engine + calibration: written, not yet audited by ear (`bin/crt-tts.py`,
   `bin/crt-tts-calibrate.py`). Deployed + smoke-tested (exit 0, no errors) on
-  crt-vm 2026-07-19 via `espeak-ng`.
+  the pre-retirement VM console (crt#162) 2026-07-19 via `espeak-ng`.
 - Speak-back debug loop (`bin/crt-stt-speakback.sh`): runs the STT engine in
   **debug mode (stdout only, NOT wired to Claude)** and speaks back
   "heard: ..." for each transcription — lets a person on the handset debug
-  the mic/STT purely by ear. Running live on crt-vm's `stt` tmux window as of
+  the mic/STT purely by ear. Running live on the pre-retirement VM's `stt` tmux window as of
   2026-07-19 14:40 (replaced the old stt-feed.sh+crt-levels.sh pipeline for
   this debug session — restore with `crt-console.sh` for the normal
   Claude-wired flow).
