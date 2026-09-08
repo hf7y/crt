@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # Two writers, one file, and no lock (2026-07-25, twelfth nightly cycle).
 #
-# stt-fixups.json has two writers -- crt-calibration-game.py (a human
-# confirming a mishear by ear) and crt-stt-training-merge.py's `stttrain`
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# bin/crt_fixups_store.py's own header and update()'s docstring cover the
+# two writers, the torn-file/lost-update race this fixes, and why an
+# exclusive lock around a temp-then-rename is the shape of the fix.
 import importlib.util
 import json
 import os

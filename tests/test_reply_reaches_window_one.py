@@ -2,8 +2,8 @@
 # Offline test: with the brain on mandark, Claude's answer has to reach the
 # tube as well as the earpiece (2026-07-25, nineteenth nightly cycle).
 #
-# handle() switches the tube to `mono` the moment a request escalates,
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# handle() switches the tube to `mono` on escalation -- bin/crt-secretary.py's
+# comment above MIRROR_REPLY_TO_TUBE and show_reply_line()'s docstring cover why.
 import importlib.util
 import os
 import unittest

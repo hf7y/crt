@@ -2,8 +2,8 @@
 # Offline test: a console that cannot speak has to SAY SO somewhere a person
 # will find it (2026-07-25).
 #
-# Two defects, one chain. bin/crt-tts.py's play_wav() discarded aplay's exit
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Two defects, one chain -- play_wav() discarded aplay's exit status, then
+# speak() discarded crt-tts.py's too -- see speak()'s own docstring for why.
 import importlib.util
 import os
 import shutil

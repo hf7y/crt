@@ -3,7 +3,7 @@
 #
 # The barcode scanner is a USB HID keyboard -- it types into whichever tmux
 # window has FOCUS (SCANNER.md, proven live), which is why crt-console.sh
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# made `book` the boot-default window. scan_forwarder()'s docstring covers why.
 import atexit
 import importlib.util
 import io
