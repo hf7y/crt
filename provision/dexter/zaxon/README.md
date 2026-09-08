@@ -23,8 +23,7 @@ STT command lives, and why a relay that merely answers is never `OK`.
 
 ## Open
 
-- `hermes` is still registered, so it can still seize the session; the page
-  reports it every hour. Before `wsl --unregister hermes`: its verified `.vhdx`
-  export and extracted `ggml-base.en.bin` are at
-  `/mnt/d/gardien-backups/hermes-wsl-export/` on dexter.
+- `hermes` is still registered and can still seize the session (page reports it hourly); before `wsl --unregister hermes`, its verified `.vhdx`/`ggml-base.en.bin` export is at `/mnt/d/gardien-backups/hermes-wsl-export/` on dexter.
 - Still **no auth** on the MCP port, only a bind — today, the tailnet.
+- Stop the old stack before starting a new one against this same `data/`: two stacks holding one
+  Nous refresh token revoked the session for 8 days (crt#193, 2026-08-30's migration overlap).
