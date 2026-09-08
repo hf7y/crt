@@ -21,11 +21,9 @@ BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # crash drops to the `; exec bash` fallback below.
 export PATH="$BIN_DIR:$HOME/.local/bin:$PATH"
 
-# Real bug found 2026-07-24: this was never set anywhere in the console's
-# boot path, so the whole CTL-file live-tune mechanism (crt-ring.sh, the
-# "mute" flag crt-tts.py/crt-earcon.sh's handset paths now write to duck
-# capture during playback, crt-midi-knobs.py) was silently dead on potato
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Real bug found 2026-07-24: unexported, the CTL-file live-tune mechanism
+# (crt-ring.sh, crt-tts.py/crt-earcon.sh's mute flag) was silently dead --
+# crt-stt-solo.py defaults to "" (off) otherwise. Set once, inherited like PATH above.
 export CRT_CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
 
 # The console's config -- wake word, earcon sink, mic, whisper server,
@@ -59,11 +57,9 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
   exec tmux attach -t "$SESSION"
 fi
 
-# Flash the current IP on the real tty (still plain tty1 here, tmux hasn't
-# started yet) for CRT_IP_FLASH_SECS before the console takes over --
-# mDNS (install.sh's avahi-daemon + CRT_HOSTNAME.local) is the normal way
-# to reach this box without knowing its IP, but that only works from the
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Flash the IP on the real tty for CRT_IP_FLASH_SECS -- mDNS is the normal
+# way to reach this box, but multicast doesn't cross routers/VLANs. Only on
+# a genuine fresh boot (reattach exited above).
 if [ "${CRT_IP_FLASH_SECS:-4}" != "0" ]; then
   IP_ADDRS="$(hostname -I 2>/dev/null | xargs)"
   clear
@@ -79,7 +75,10 @@ fi
 # quits, stt-solo crashes), it drops to a shell instead of closing -- which would
 # otherwise collapse the session and break the attach/respawn loop.
 #
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Claude gets window 0 to itself, full screen -- hands-free Yes/No is painful,
+# so acceptEdits auto-accepts edits. CRT_NO_IDLE_CLAUDE=1 -> no Claude brain
+# resident while idle (~37% of this 1GB Pi's RAM); escalates to mandark's
+# remote Claude instead. Default keeps it always-resident.
 if [ "${CRT_NO_IDLE_CLAUDE:-0}" = "1" ]; then
   # Which window is the idle face, written ONCE: the same value selects it
   # at boot (bottom of this file) and tells crt-book-console.py where to
@@ -106,7 +105,10 @@ fi
 # thinking), pretty-printed and ephemeral (crt-monologue.py fades/drops old
 # lines, see that file's own header). This is the one background-feature window
 # meant to actually be looked at -- switch to it with prefix+1.
-#   [rest: vault:crt/header-archaeology-20260817.md]
+#
+# Wired in HERE, not just documented: hand-built ad hoc 2026-07-19, then
+# silently lost the next day when a reboot respawned the old default layout
+# with no record it had existed. Boot code is what survives a respawn.
 tmux new-window -d -t "$SESSION" -n mono -c "$BIN_DIR" "./crt-monologue.py; exec bash"
 
 # Background: feeds window 1's log from claude's own transcript (dialogue only,
@@ -117,7 +119,13 @@ tmux new-window -d -t "$SESSION" -n bridge -c "$BIN_DIR" "./crt-claude-bridge.py
 # window 0), replacing the old stt-feed.sh + crt-levels.sh dsnoop pair --
 # see AUDIO-DEBUG.md Approach B for why single-reader avoids that design's
 # whole class of staleness bugs. Its own meter/flash HUD writes to this
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# window's pane. SINK=secretary routes through crt-secretary.py's playbook
+# dispatcher, escalating to Claude only on fallthrough; GATE=1 drops
+# anything not addressed to "claude" before that (2026-07-21, Zach's call --
+# casual room talk rarely matched a playbook). crt-stt-supervisor.sh wraps
+# the launch so a USB replug that kills the process gets restarted, not
+# silently deaf -- it sources crt-conf.sh itself, so only window-specific
+# vars (sink/gate/pane) need retyping here.
 tmux new-window -d -t "$SESSION" -n stt -c "$BIN_DIR" \
   "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 ./crt-stt-supervisor.sh; exec bash"
 
@@ -129,7 +137,9 @@ fi
 # ~/.crt/scanner.log -- written by crt-book-console.py's OWN stdin path
 # (format_scan_log_line(), 2026-07-21 stdin pivot). The old dexter->8993
 # HTTP receiver (crt-scanner-feed.py) that used to write this log was
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# retired 2026-07-23 (Zach: "kill scanner feed, keep claude"). Display-only,
+# doesn't grade an answer. Unconditional (unlike `hook`) -- the scanner
+# bridge is a systemd service, not optional hardware.
 tmux new-window -d -t "$SESSION" -n book -c "$BIN_DIR" "python3 ./crt-book-console.py; exec bash"
 
 # Background: Book Game idle-bait -- pops a cached book quote into
@@ -144,14 +154,13 @@ tmux new-window -d -t "$SESSION" -n bookidle -c "$BIN_DIR" "python3 ./crt-book-i
 # "idlebait also show page92 excerpts via \\192.168.0.27\bibquotes") --
 # keeps ~/.crt/bibquotes.txt fresh from bibliothecaire's published-quotes
 # Samba share so crt-book-idle-bait.py's own render path can read it with
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# zero network calls -- excerpts appear via bookidle mixing into thoughts.log.
 tmux new-window -d -t "$SESSION" -n bibquotes -c "$BIN_DIR" "./crt-bibquotes-sync.sh --daemon; exec bash"
 
 # Background: closes the Book Game funnel's last link (idle-bait -> scan
-# -> question -> SPOKEN ANSWER -> STT training log, .claude/FOCUS.md's
-# 2026-07-21 end-goal). Watches ~/.crt/stt.log (crt-stt-solo.py already
-# writes every recognized utterance there, addressed-to-Claude or not)
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# -> question -> SPOKEN ANSWER -> STT training log). Watches ~/.crt/stt.log,
+# grades the next utterance after a scan -- see crt-book-answer-listen.py's
+# own header. Debug trail only; the question is already on `book`.
 tmux new-window -d -t "$SESSION" -n bookanswer -c "$BIN_DIR" "python3 ./crt-book-answer-listen.py; exec bash"
 
 # Background: the idle half of "switch to mono when Claude's engaged,
@@ -167,7 +176,8 @@ tmux new-window -d -t "$SESSION" -n windowswitch -c "$BIN_DIR" "python3 ./crt-wi
 # ask) -- periodically recomputes mishear candidates from the accumulated
 # Book Game training log (crt-book-game-stats.py's
 # generate_candidate_fixups()) and auto-merges new ones straight into the
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# live stt-fixups.json, tagged confidence:"auto", never touching a human-
+# reviewed entry -- see crt-stt-training-merge.py's header.
 tmux new-window -d -t "$SESSION" -n stttrain -c "$BIN_DIR" "python3 ./crt-stt-training-merge.py --loop; exec bash"
 
 # NOT YET BUILT (flagged explicitly so it doesn't get assumed-done next time):
@@ -182,7 +192,9 @@ tmux set-option -t "$SESSION" status off
 # -- confirmed live 2026-07-21 (hands-on agent, pre-retirement VM) that a physical
 # scan's raw keystrokes land in WHICHEVER window has focus, regardless of
 # which one "should" have them (SCANNER.md's "2026-07-21 late session"
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# finding). In the idle-lean layout the screensaver (CRT_IDLE_FACE_WINDOW
+# above) IS the idle face, so select it instead -- crt-screensaver.py
+# forwards any scan it catches to scanner.log either way.
 if [ "${CRT_NO_IDLE_CLAUDE:-0}" = "1" ]; then
   tmux select-window -t "${SESSION}:${CRT_IDLE_FACE_WINDOW}"
 else
