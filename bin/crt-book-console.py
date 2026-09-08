@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # Book Game's own tmux window -- wired into crt-console.sh alongside
-# mono/bridge/stt. Reads scans from TWO sources and treats either as a
-# real scan event: (1) ~/.crt/scanner.log (crt-scanner-feed.py's
-# dexter-bridge path, SCANNER.md), and (2) this window's OWN STDIN --
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# mono/bridge/stt. Reads scans from TWO sources, either a real scan:
+# ~/.crt/scanner.log (crt-scanner-feed.py's dexter-bridge path,
+# SCANNER.md) or this window's OWN STDIN -- now the primary path, since
+# a scan types into whichever tmux window has focus (SCANNER.md).
+# Display-only: bin/crt-book-answer-listen.py grades the spoken answer
+# separately. See tests/test_book_console.py.
 import collections
 import datetime
 import importlib.util
@@ -41,11 +43,9 @@ _ws_spec = importlib.util.spec_from_file_location(
 window_switcher = importlib.util.module_from_spec(_ws_spec)
 _ws_spec.loader.exec_module(window_switcher)
 
-# A seconds-valued env var, junk-tolerant. These names are set by
-# crt-console.sh, i.e. by shell, and a bare float() on a misspelled value
-# raises at IMPORT time -- before main() draws anything -- leaving a bash
-# prompt on the one window that is the console's face. Negative is junk too;
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Junk-tolerant env-number parsing, moved to bin/crt_config.py (2026-07-25)
+# after this window and crt-screensaver.py grew byte-for-byte copies --
+# see env_number()'s own docstring for why 0 stays a valid "disable".
 _cfg_spec = importlib.util.spec_from_file_location(
     "crt_config_for_book_console", os.path.join(BIN_DIR, "crt_config.py"))
 crt_config = importlib.util.module_from_spec(_cfg_spec)
@@ -68,11 +68,9 @@ POLL_SECS = _env_secs("CRT_BOOK_CONSOLE_POLL_SECS", 0.5)
 # "still reading..." hint firing well before someone's finished reading
 # a real question read as the console rushing them.
 WAIT_HINT_SECS = _env_secs("CRT_BOOK_CONSOLE_WAIT_HINT_SECS", 15.0)
-# How often the resting screen redraws itself. render_idle_screen() picks a
-# fresh caption and a fresh position every call -- see its docstring, which
-# quotes Zach on both halves -- and until 2026-07-25 main() called it once and
-# then only on a scan's timeout, so the "rotating" idle-bait was a still frame
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# How often the resting screen redraws itself -- render_idle_screen()'s own
+# docstring has the full "why rotate" reasoning. 0 disables, same escape
+# hatch env_number() gives every other timer here.
 IDLE_ROTATE_SECS = _env_secs("CRT_BOOK_IDLE_ROTATE_SECS", 8.0)
 # Which window is the idle face, when it is not this one. Set by
 # crt-console.sh's idle-lean branch (CRT_NO_IDLE_CLAUDE=1 -> the potato
@@ -82,11 +80,10 @@ IDLE_ROTATE_SECS = _env_secs("CRT_BOOK_IDLE_ROTATE_SECS", 8.0)
 IDLE_FACE_WINDOW = os.environ.get("CRT_IDLE_FACE_WINDOW", "").strip()
 
 
-# Overscan safe margin (2026-07-28, Zach-directed, live finding): this
-# window never consumed ~/.crt/display.conf at all -- crt-pager.py and
-# crt-monologue.py both shrink their canvas by the calibrated margin,
-# this one drew straight to the full grid. First live calibration test
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Overscan safe margin (2026-07-28, Zach, live on potato's real bezel:
+# "overscan is a major problem" -- row 0 was getting eaten). This window
+# used to draw straight to the full grid; load_safe_margins() below now
+# reuses crt-pager.py's calibrated margin the way crt-monologue.py already did.
 MIN_VERTICAL_PAD = int(os.environ.get("CRT_BOOK_MIN_VERTICAL_PAD", "1"))
 
 
@@ -224,11 +221,10 @@ def _render_idle_frame(book_count, width, height, rng):
     available_rows = [r for r in range(1, height) if r not in art_rows]
     caption = (bg.pick_entice_line(rng=rng) if rng.random() < 0.5
                else f"{book_count} book(s) registered -- scan one!")
-    # HARD RULE (2026-07-21, Zach): never more than MAX_CONTENT_WIDTH
-    # (30) columns of actual text, even on a wider screen -- entice
-    # lines especially can run well past that.
-    #
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # HARD RULE (2026-07-21, Zach): never more than MAX_CONTENT_WIDTH (30)
+    # columns of actual text -- wrapped, not cut, so all six enticement
+    # lines keep their close ("scan one", "try it?"). See BOOK-GAME-STYLE.md's
+    # "Screen real estate: content capped at 30 characters" for the full rule.
     def wrapped(rows):
         return bg.wrap_to_width(caption, bg.MAX_CONTENT_WIDTH, max_lines=rows)
 
@@ -324,10 +320,10 @@ def render_scan_result(row, width, height, show_waiting_hint=False):
     tall answer-options block; acceptable for a first pass, not
     reworked here."""
     # questions_json IS the trivia-fact enrichment output now (2026-07-28
-    # redesign, see crt-book-facts-batch.py's header): a book processed
-    # by the AI distill stage has real, fact-grounded questions here
-    # ("Who guest edited the 2016 edition? Junot Diaz / Stephen King")
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # redesign, see crt-book-facts-batch.py): fact-grounded questions
+    # ("Who guest edited the 2016 edition?") instead of
+    # generate_template_question()'s generic fiction/nonfiction guess --
+    # same field, same render path, same answer-listen.py grading.
     questions = json.loads(row["questions_json"] or "[]")
     question = questions[0] if questions else {"text": "(no question on file)", "options": []}
     lines = bg.render_question_screen(scan_title(row, width), question, width, height)
@@ -474,11 +470,11 @@ def maybe_trigger_facts_batch(conn, spawner=None, runner=None):
         if spawner is not None:
             spawner(["python3", os.path.join(BIN_DIR, "crt-book-facts-batch.py")])
         else:
-            # Real log, not DEVNULL (2026-07-28, live): a real Gemini
-            # batch timeout on potato went completely unseen the first
-            # time this fired, because a fire-and-forget subprocess with
-            # both streams discarded is indistinguishable from one that
-            #   [rest: vault:crt/header-archaeology-20260817.md]
+            # Real log, not DEVNULL (2026-07-28, live): a real Gemini batch
+            # timeout on potato went unseen the first time this fired --
+            # a fire-and-forget subprocess with discarded streams looks
+            # identical to one that quietly succeeded. Appended, not
+            # truncated: this can fire many times in a session.
             log_path = os.path.expanduser(
                 os.environ.get("CRT_BOOK_FACTS_BATCH_LOG", "~/.crt/facts-batch.log"))
             try:
@@ -560,11 +556,12 @@ def tail_new_lines(path):
     sleeping silently) on every empty poll too, so a caller can use each
     tick to check its own idle timeout regardless of whether a line
     actually arrived."""
-    # Open (creating if absent) up front rather than polling
-    # os.path.exists() first -- polling first has a real race, seeking to
-    # the END of a file that appeared *between* the exists() check and
-    # the open() would silently skip whatever was written in that gap
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # Open (creating if absent) up front rather than polling exists()
+    # first -- polling has a real race, a fast writer can create the file
+    # with its first line already in it before this loop notices, and
+    # seeking to the END would skip that line silently. mkdir first too:
+    # a freshly-imaged host may not have ~/.crt/ yet, and open(path, "a")
+    # alone raises FileNotFoundError -- hit live 2026-07-21.
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a"):
         pass  # ensure it exists, without truncating/duplicating scanner.log's own writes
@@ -720,11 +717,12 @@ def stdin_reader(q):
 
 def main():
     conn = bg.get_db()
-    # Re-measured every tick below, not once here. crt-console.sh creates this
-    # window with `tmux new-window -d` and only runs `exec tmux attach` at the
-    # very end, after every window exists -- so this process starts inside a
-    # DETACHED session, which tmux sizes 80x24 whatever the tube actually is.
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # Re-measured every tick below, not once here. crt-console.sh starts this
+    # window detached (`tmux new-window -d`, attaching only once every window
+    # exists), and a detached session sizes 80x24 regardless of the tube --
+    # sizing once at startup would cache that and never recover. Third window
+    # to have had this bug: crt-screensaver.py and crt-monologue.py both
+    # re-measure every frame now too.
     margins = load_safe_margins()
     width, height = safe_screen_size(margins)
     # How to draw the screen currently on the tube, again, at whatever size
@@ -910,11 +908,12 @@ def main():
             pass
 
     stdin_alive = True
-    # tail_new_lines' own docstring points at "main()'s crash-log wrapper
-    # below" as the fix for a traceback scrolling off this 15-row pane.
-    # There was no such wrapper -- grep it, the comment outlived whatever
-    # was meant to satisfy it. This is it, and it does two jobs at once on
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # `book` is the window crt-console.sh boots selected, so a raise here
+    # (sqlite, a file another process is appending to, a terminal write)
+    # must not end the loop on one bad scan -- LoopGuard's own docstring
+    # covers the report/skip/continue mechanism. echo=False: draw() owns
+    # this pane's stdout, so a report printed mid-frame would sit on the
+    # tube until the next draw; the line still reaches window 1.
     guard = loop_guard.LoopGuard("book", echo=False)
     for line in tail_new_lines(SCANNER_LOG):
         with guard:
@@ -937,11 +936,12 @@ def main():
                     log_stdin_scan(isbn)
                     show_scan(isbn)
                 elif showing_idle:
-                    # A non-ISBN-shaped line (bad scan, stray keystrokes, a
-                    # library-card barcode, whatever) still gets echoed to the
-                    # pane by the terminal's own cooked-mode echo -- draw()
-                    # only runs on a recognized scan or the idle-timeout tick,
-                    #   [rest: vault:crt/header-archaeology-20260817.md]
+                    # A non-ISBN-shaped line (bad scan, stray keystrokes) still
+                    # gets echoed by the terminal's own cooked-mode echo, and
+                    # draw() only runs on a recognized scan or the idle
+                    # timeout -- redraw here so it doesn't sit under the idle
+                    # screen forever. Only while idle: don't interrupt a
+                    # question someone is actively reading.
                     draw_idle()
 
             if line is not None:
@@ -957,20 +957,17 @@ def main():
                 showing_idle = True
                 release_tube()
 
-            # The resting screen, again, somewhere else. render_idle_screen()
-            # moves the caption and swaps between the book count and an
-            # enticement line on every call, and nothing ever called it twice:
-            # the console picked one layout at boot and held it until a scan
-            #   [rest: vault:crt/header-archaeology-20260817.md]
+            # Rotate the resting screen -- render_idle_screen()'s own
+            # docstring has the "why rotate" reasoning. Guarded on
+            # showing_idle so an active question is never painted over.
             elif showing_idle and IDLE_ROTATE_SECS and (
                     time.time() - last_idle_draw_at >= IDLE_ROTATE_SECS):
                 draw_idle()
 
-            # The tube's real geometry, asked again every tick (~POLL_SECS).
-            # Cheap -- one ioctl, or one env read when crt-console.sh pins
-            # CRT_COLS/CRT_ROWS -- and the only thing that ever corrects the
-            # 80x24 this process was born believing. Repainting on the change
-            #   [rest: vault:crt/header-archaeology-20260817.md]
+            # The tube's real geometry, asked again every tick (~POLL_SECS,
+            # same detached-session reason main() re-measures at the top).
+            # Repainting on the change matters because there may not be a
+            # next draw -- `book`'s idle shelf can hold for a long time.
             size = safe_screen_size(margins)
             if size != (width, height):
                 width, height = size

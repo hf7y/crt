@@ -2,8 +2,10 @@
 # Re-run the potato<->Zach voice calibration loop mechanically, with as
 # little AI in the loop as possible.
 #
-# WHY (Zach, 2026-07-29, going afk): "make it use mechanical script calls
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# WHY (Zach, 2026-07-29): "re-run the calibration voice interaction with
+# minimal ai" -- that session's voice path broke in four places, each
+# found only by a human noticing and a model looking, which doesn't repeat.
+# Usage: stage / check / say TEXT (no mic) / watch -- stage first, idempotent.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -197,10 +199,8 @@ case "${1:-check}" in
     head_ "injecting utterance (bypassing the mic, not the pipeline)"
     printf '  > %s\n' "$*"
     # Source the console's config FIRST. crt-secretary.py is Python and
-    # cannot read a shell conf itself -- it takes CRT_CLAUDE_SSH_HOST
-    # from its environment, which crt-console.sh supplies at boot. An ssh
-    # command shell has none of it, so an unsourced invocation here picks
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # cannot read a shell conf itself -- an unsourced ssh shell has no
+    # CRT_CLAUDE_SSH_HOST, so this would pick no brain, misread as broken.
     CRT_SSH_TIMEOUT="${CRT_SAY_TIMEOUT:-180}" \
       ssh_potato "cd $POTATO_BIN && . ./crt-conf.sh && python3 ./crt-secretary.py $(printf '%q' "$*")"
     rc=$?
