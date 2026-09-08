@@ -983,8 +983,8 @@ def _confirm_in_background(text, local_answer):
         return
     reply, status = wait_for_claude_reply(before)
     if status != "ok":
-        # Same reasoning one step later: an answer nobody could read is not
-        # an answer that disagreed. Scoring it would poison the same state.
+        # Same defect one step later: tests/test_secretary.py's
+        # test_unobserved_reply_records_no_confidence_hit.
         return
     with _CONFIDENCE_STATE_LOCK:
         state = stt_confidence.load_state()

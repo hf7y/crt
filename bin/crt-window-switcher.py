@@ -146,9 +146,8 @@ def main():
             # stop, which is the failure this loop exists to avoid.
             returned_from, reported = last_active, None
             continue
-        # Once per distinct cause, not once per poll: this loop wakes every
-        # two seconds, and window 1 fades the person's own words out from
-        # the top.
+        # Reported once, not once per poll: tests/test_window_switcher.py's
+        # test_a_failing_select_window_is_reported_once_and_keeps_trying.
         if detail != reported:
             reported = detail
             line = switch_failure_report("%s:%s" % (SESSION, RETURN_WINDOW), detail)

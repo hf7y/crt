@@ -34,9 +34,8 @@ STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 # further down the funnel were fixed for exactly this in earlier cycles; this
 # is the one that was still carrying it. See bin/crt_config.py's env_number.
 IDLE_SECS = crt_config.env_number("CRT_BOOK_IDLE_BAIT_SECS", 180.0)
-# A positive floor, not 0: this one is a POLL interval, and zero here is not
-# an escape hatch, it is a hot while-True on a 1GB Pi that is also the sole
-# mic reader's box. Nothing else in this file has that shape.
+# A positive floor, not 0: tests/test_config_fixups_path.py's
+# test_a_positive_floor_rejects_zero.
 POLL_SECS = crt_config.env_number("CRT_BOOK_IDLE_BAIT_POLL", 10.0, minimum=0.1)
 ENTICE_RATE = crt_config.env_number("CRT_BOOK_ENTICE_RATE", 0.4)
 # THIRD register (2026-07-28, Zach-directed: "idlebait also show page92

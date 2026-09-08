@@ -777,9 +777,8 @@ class FixupsFile:
             with open(self.path) as f:
                 data = json.load(f)
         except (OSError, ValueError) as e:
-            # Report once per distinct bad state, not once per utterance:
-            # a file left malformed would otherwise fill window 1 with the
-            # same line and push the person's own words off the top.
+            # Reported once, not once per utterance: tests/test_fixups_reload.py's
+            # test_malformed_reports_once_not_once_per_utterance.
             if sig != self.failed_signature or not self.loaded:
                 self.failed_signature = sig
                 if self._on_error:
