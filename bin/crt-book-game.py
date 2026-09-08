@@ -3,7 +3,9 @@
 # offline-safe slice registered in .claude/FOCUS.md 2026-07-21: ISBN
 # lookup, question generation (template + pluggable batched-Claude/Gemini
 # source), grading/logging, SQLite registry, naive LCC heuristic. Built
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# standalone, tests/test_book_game.py covers it. Env: CRT_BOOKS_DB,
+# CRT_BOOK_GAME_TRAINING_LOG, CRT_BOOK_GAME_CLAUDE_RATE (Gemini vs
+# template fraction), CRT_GEMINI_API_KEY/~/.crt/gemini.key, CRT_GEMINI_MODEL.
 import argparse
 import hashlib
 import importlib.util
@@ -626,11 +628,10 @@ def _init_schema(conn, retries=5):
             # pre-column behaviour -- the round is still open.
             if "last_answered" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN last_answered TEXT")
-            # Added 2026-07-28 (Zach-directed): the trivia-fact enrichment
-            # pipeline (bin/crt-book-facts-batch.py). facts_raw: candidate
-            # sentences from a non-AI Wikipedia scrape (cheap, no API key,
-            # re-runnable freely), NULL meaning "not yet scraped" not "no
-            #   [rest: vault:crt/header-archaeology-20260817.md]
+            # Added 2026-07-28: trivia-fact pipeline (crt-book-facts-batch.py).
+            # facts_raw: Wikipedia-scrape candidates, NULL = not yet scraped.
+            # facts_json: VESTIGIAL -- redesigned same day to write questions
+            # straight into questions_json instead; kept, nothing reads/writes it.
             if "facts_raw" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN facts_raw TEXT")
             if "facts_json" not in existing_cols:
@@ -729,7 +730,7 @@ def get_book(conn, isbn):
 # Screen real estate: width/height variables, centering
 # ---------------------------------------------------------------------------
 # Same env-override > real-terminal-size > CLAUDE.md-40x15-fallback pattern
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# as bin/crt-pager.py -- see BOOK-GAME-STYLE.md's "Screen real estate".
 FALLBACK_WIDTH = 40
 FALLBACK_HEIGHT = 15
 # HARD RULE (2026-07-21, Zach): actual text content never spans more
@@ -853,8 +854,9 @@ def render_question_screen(book_title, question, width=None, height=None):
 # ---------------------------------------------------------------------------
 # Color palette: register-matched, CRT-safe (see BOOK-GAME-STYLE.md)
 # ---------------------------------------------------------------------------
-# CRT PERSISTENT LIMITATION, flag every time this file is touched: this is
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# CRT PERSISTENT LIMITATION, flag every time this file is touched: the
+# hard rule (never 31/32/34/91/92/94, CLAUDE.md) is enforced mechanically
+# by tests/test_book_game.py's test_no_primary_rgb_codes_in_palette.
 COLOR_QUESTION = "\033[33m"    # warm/curious register -- a question posed
 COLOR_CORRECT = "\033[1;37m"   # content/settled -- got it right (bold white, was green -- fixed)
 COLOR_WRONG = "\033[35m"       # clipped -- got it wrong (magenta, was red -- fixed)
@@ -871,7 +873,8 @@ def wrap_color(text, color_code):
 # ASCII art library: small curated set, book-themed
 # ---------------------------------------------------------------------------
 # Hand-curated, in the well-known public style of ASCII-art collections
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# shared across BBSes for decades -- NOT scraped live, since this
+# project's offline-safe bar means no render-time fetch dependency.
 ASCII_ART = {
     "book": r"""
      .-------.
@@ -1072,10 +1075,10 @@ def scrape_quote(title, fetcher=None, rng=None):
 
 
 # ---------------------------------------------------------------------------
-# Trivia-fact enrichment (2026-07-28, Zach-directed): two-stage pipeline,
-# same cache-once philosophy as quote/lcc -- see crt-book-facts-batch.py
-# for the runner. Stage 1 (here): a NON-AI Wikipedia scrape per book,
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Trivia-fact enrichment (2026-07-28): two-stage pipeline, same
+# cache-once philosophy as quote/lcc. Stage 1 (here): a NON-AI Wikipedia
+# scrape per book, cached into facts_raw. Stage 2 (also here, a real AI
+# call): distills those into ~3 trivia facts, batched like the calls above.
 
 WIKIPEDIA_SUMMARY_URL = "https://en.wikipedia.org/api/rest_v1/page/summary/{title}"
 
@@ -1194,10 +1197,10 @@ def pick_idle_quote(conn, rng=None):
 
 
 # ---------------------------------------------------------------------------
-# bibliothecaire "bibquotes" integration (2026-07-28, Zach-directed):
-# the quotes-file publishing side realisateur's 2026-07-26 FOCUS.md entry
-# queued ("extend the idle-bait quote rotation to ALSO draw from an
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# bibliothecaire "bibquotes" integration (2026-07-28): draws idle-bait
+# quotes from \\192.168.0.27\bibquotes (mandark Samba share, already
+# filtered per its own README.txt). NON-API-BY-DESIGN, same as
+# pick_idle_quote() above: reads only the local cached copy.
 
 BIBQUOTES_LOCAL_PATH = os.path.expanduser(
     os.environ.get("CRT_BIBQUOTES_PATH", "~/.crt/bibquotes.txt"))
