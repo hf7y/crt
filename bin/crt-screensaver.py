@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # The potato screensaver: what the CRT shows while the console is idle and
-# holding NO Claude brain (see POTATO.md). Renders Zach's braille-art
-# potato (potato-small.txt) centered on the 40x15 tube, breathing gently,
-# with a small caption line. On wake the console switches away from this
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# holding NO Claude brain (see POTATO.md). Renders potato.txt/potato2.txt
+# (test_screensaver_art_rotation.py) centered on the 40x15 tube, breathing
+# gently, caption moving so the screen never looks frozen
+# (test_screensaver_caption_moves.py). Also forwards barcode scans it
+# catches to the book window rather than handling them itself
+# (test_screensaver_forwards_scans.py). On wake the console switches away
+# from this window to whichever brain crt-wake-router.py chose.
 import argparse
 import importlib.util
 import os
@@ -13,11 +16,10 @@ import threading
 import time
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
-# 2026-07-28, Zach-directed, in three steps same session:
-#   1. potato.txt introduced, alternated with the old potato-small.txt
-#      until a 30-day sunset.
-#   2. "hard prefer the new potato.txt, sunset old potato_small.txt
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# potato.txt/potato2.txt: a permanent pair, not a rotation with a sunset
+# (2026-07-28, Zach-directed through three revisions same session --
+# potato-small.txt is fully retired). See TestActiveArtPaths and
+# TestBothArtFilesLoadReal in test_screensaver_art_rotation.py.
 DEFAULT_ART = os.path.join(BIN_DIR, "..", "potato.txt")
 NEW_ART = os.path.join(BIN_DIR, "..", "potato2.txt")
 
@@ -42,22 +44,21 @@ scan_line = _load_sibling("crt_scan_line_for_screensaver", "crt_scan_line.py")
 caption_lib = _load_sibling("crt_caption_for_screensaver", "crt_caption.py")
 
 
-# A seconds-valued env var, junk-tolerant. These names are set by
-# crt-console.sh, i.e. by shell. A bare float() on a misspelled value raises
-# inside argparse's defaults -- before a single frame is drawn -- and leaves a
-# bash prompt on the window that IS the console's face in the idle-lean
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Third light stdlib-only sibling, same rule as the two above -- env_number
+# used to be a byte-for-byte copy of crt-book-console.py's own; see its
+# docstring in crt_config.py for what it tolerates and why.
 crt_config = _load_sibling("crt_config_for_screensaver", "crt_config.py")
 _env_secs = crt_config.env_number
 
 
 SCANNER_LOG = os.path.expanduser(os.environ.get("CRT_SCANNER_LOG", "~/.crt/scanner.log"))
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
-# Sleep/wake (2026-07-28, Zach-directed): "have potato 2 for long
-# stretches 'potato is asleep' ... on any sound, volume over threshold,
-# go to the blink animation ... potato wakes up. then have a >60s
-# silence resulting in sleep again." Reuses crt-stt-solo.py's own
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Sleep/wake (2026-07-28, Zach-directed) reuses crt-stt-solo.py's own
+# STT_LOG/GATE_LOG rather than reading the mic directly, which would
+# violate that script's sole-reader design (POTATO.md): every utterance
+# crossing the capture threshold gets a stt.log line unconditionally,
+# before any gate/wake-word check, so its mtime alone is a real
+# volume-over-threshold signal. See is_asleep()/last_sound_at() below.
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
 GATE_LOG = os.path.expanduser(os.environ.get("CRT_STT_GATE_LOG", "~/.crt/gate.log"))
 SLEEP_SILENCE_SECS = _env_secs("CRT_SCREENSAVER_SLEEP_SILENCE_SECS", 60.0)
@@ -73,11 +74,10 @@ FALLBACK_ART = [
 CYAN, YELLOW, WHITE = "36", "33", "37"
 DIM, BOLD, RESET = "\x1b[2m", "\x1b[1m", "\x1b[0m"
 
-# Potato-colored variety for the ART ONLY (2026-07-28, Zach-directed,
-# three passes now): "tan, brown, logos don't need to be exactly read
-# safe" -> "more potato colored (brown, yellow, golden)" -> LIVE, on the
-# real CRT: "should not be flashing between grey and red... red is no
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Potato-colored variety for the ART ONLY -- a bright gold/yellow 256-color
+# pick red-bled on the real tube even though it's outside CLAUDE.md's basic-
+# code ban; olive/brown/tan is the live-confirmed default now. See
+# TestLogoColorVariety in test_screensaver_art_rotation.py for the story.
 LOGO_COLORS = [
     c.strip() for c in os.environ.get(
         "CRT_SCREENSAVER_LOGO_COLORS", "38;5;100,38;5;94,38;5;137"
@@ -114,11 +114,9 @@ def gradient_colors(n, palette=None, offset=0):
            for i in range(n)]
 
 
-# Blink model (2026-07-28, Zach-directed): "make the shimmer stay long
-# on potato.txt with a quick potato2.txt, random delay, about 80-90% on
-# potato one. this is a blink. shouldn't be predictable, just a flash."
-# REPLACES the earlier fixed-cadence art_idx cycling entirely -- a
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Blink model (2026-07-28, Zach-directed), replacing the earlier fixed-
+# cadence art_idx cycling: an unpredictable flash, not a metronome. See
+# next_blink_state()'s own docstring below for the probability math.
 BLINK_PROBABILITY = float(os.environ.get("CRT_SCREENSAVER_BLINK_PROBABILITY", "0.15"))
 REST_HOLD_RANGE = (4.0, 14.0)   # seconds potato.txt is held between blink rolls
 # 2026-07-28, live, Zach: "blink should be on the order of a human
@@ -464,11 +462,9 @@ def main(argv=None):
     # default caption is now empty. Still overridable via --caption/
     # CRT_SCREENSAVER_CAPTION for anyone who wants a caption back.
     p.add_argument("--caption", default=os.environ.get("CRT_SCREENSAVER_CAPTION", ""))
-    # 2026-07-28, live, Zach: "general timing of animation is too slow" --
-    # a 2.5s repaint cadence meant a 0.3-0.9s blink hold (BLINK_HOLD_RANGE)
-    # could never actually be SEEN as short; the loop just repainted once
-    # or twice during it and moved on, reading as a long hold rather than
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # 2.5s (the old default) never repainted fast enough to show a
+    # BLINK_HOLD_RANGE hold as a quick flash rather than a slow swap
+    # (2026-07-28, live, Zach: "general timing of animation is too slow").
     p.add_argument("--interval", type=float,
                     default=_env_secs("CRT_SCREENSAVER_INTERVAL", 0.15))
     p.add_argument("--caption-move-secs", type=float,
@@ -512,19 +508,17 @@ def main(argv=None):
     slot, move_at = None, 0.0
     art_move_at = 0.0
     was_asleep = False
-    # Rotating gradient (2026-07-28, live, Zach: "instead of flash to
-    # grey, have rotating gradient of olive, brown, tan (all at once,
-    # but the gradient crossover changes)"). gradient_offset only
-    # advances while awake -- sleep already renders flat WHITE
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # Rotating gradient (2026-07-28, live): only advances while awake --
+    # frame_color_for_state() renders sleep flat WHITE, so freezing the
+    # offset then means waking resumes the rotation, never jumps. See
+    # TestGradientOffsetRotation in test_screensaver_blink_sleep.py.
     gradient_offset = 0
     gradient_move_at = 0.0
     GRADIENT_ROTATE_SECS = float(os.environ.get("CRT_SCREENSAVER_GRADIENT_ROTATE_SECS", "3.0"))
-    # Breathing dim pulse (pre-existing feature): used to be one
-    # `itertools.cycle([True, False])` step per loop iteration, which
-    # was fine when --interval defaulted to 2.5s (a 5s breathing cycle)
-    # but ties the pulse's cadence directly to the repaint rate. Now
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # Its own timer, decoupled from the repaint rate: a bare
+    # itertools.cycle() step per loop iteration was fine at the old 2.5s
+    # --interval default but would flicker ~17x/sec at the current 0.15s
+    # one, same fix as gradient_offset above.
     dim = True
     dim_move_at = 0.0
     BREATHE_SECS = float(os.environ.get("CRT_SCREENSAVER_BREATHE_SECS", "2.5"))
@@ -534,11 +528,9 @@ def main(argv=None):
             dim_move_at = time.time() + BREATHE_SECS
         raw_cols, raw_rows = resolve_size()
         cols, rows = safe_screen_size(raw_cols, raw_rows, margins)
-        # Sleep/wake (2026-07-28): frozen on arts[1] (potato2.txt,
-        # "potato is asleep") after SLEEP_SILENCE_SECS with no sound
-        # heard (is_asleep() reads crt-stt-solo.py's own STT_LOG/
-        # GATE_LOG mtimes -- see that function's docstring for why this
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # Sleep/wake (2026-07-28): frozen on arts[1] (potato2.txt, "potato
+        # is asleep") after SLEEP_SILENCE_SECS with no sound heard -- see
+        # is_asleep()'s own docstring for the mtime-based signal it reads.
         asleep = len(arts) > 1 and is_asleep(time.time())
         if asleep:
             if not was_asleep:
@@ -565,11 +557,9 @@ def main(argv=None):
             # land inside the other's rows until caption_move_secs
             # catches up on its own schedule otherwise.
             move_at = 0.0
-        # Color: a real gradient across the art's own rows, not one flat
-        # shade per frame (2026-07-28, live, replacing an earlier
-        # discrete per-tick LOGO_COLORS rotation -- Zach: "colors are
-        # wrong... can get mixed color output yellow and brown and
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # A real gradient across the art's own rows, not one flat shade
+        # per frame (2026-07-28, live, replacing a discrete per-tick
+        # LOGO_COLORS rotation) -- see gradient_colors()'s own docstring.
         if args.caption_move_secs and time.time() >= move_at:
             slot = pick_caption_slot(art, cols, rows, avoid=slot,
                                      reserve_caption=bool(args.caption))
