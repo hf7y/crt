@@ -2,12 +2,12 @@
 
 Retired 2026-07-21, the same day it was built: originally a USB 1D barcode
 scanner plugged into `dexter` forwarded scans to `crt-vm` over the network
-(Pieces #1-3 below), arriving in the tmux Claude Code pane the same way STT
+(see History below), arriving in the tmux Claude Code pane the same way STT
 transcriptions do. Live path now: the scanner types like a real keyboard
 directly into whatever tmux window has focus on the single machine that
 hosts the console (`potato` today) -- `bin/crt-book-console.py` reads it
-off its own stdin (see "2026-07-21, later still" below). `crt-vm`, named
-throughout the history below, no longer exists (`hf7y/crt#162`).
+off its own stdin. `crt-vm`, named throughout the history below, no longer
+exists (`hf7y/crt#162`).
 
 ## History
 
