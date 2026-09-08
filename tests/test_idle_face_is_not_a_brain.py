@@ -1,19 +1,10 @@
 #!/usr/bin/env python3
 # Offline tests for "the pane behind the idle face is not a brain"
-# (2026-07-25, nineteenth nightly cycle). See bin/crt_config.py's PANE_ENV
-# block for the finding; the short version:
-#
-# In the idle-lean layout (CRT_NO_IDLE_CLAUDE=1), window 0 is
-# crt-screensaver.py, not Claude Code -- yet two engines typed into it
-# anyway: crt-stt-solo.py's single-word CONTROL utterances (which bypass the
-# wake gate by design, so ambient "okay"/"no" got typed onto the console's
-# own face), and crt-secretary.py's whole escalation path whenever
-# CRT_CLAUDE_REMOTE_PORT is 0. tmux accepts keys into any real pane, so
-# delivery checks passed and wait_for_claude_reply() diffed the potato's own
-# moving caption looking for an answer that was never coming.
-#
-# The tests that matter here are the negative ones: nothing is sent, and the
-# historical layout is byte-for-byte unaffected.
+# (2026-07-25). See bin/crt_config.py's PANE_ENV block for the finding: in
+# the idle-lean layout (CRT_NO_IDLE_CLAUDE=1), window 0 is
+# crt-screensaver.py, not Claude Code, yet two engines typed into it anyway
+# -- tmux accepts keys into any real pane, so delivery checks passed while
+# nothing was ever read. The tests that matter here are the negative ones.
 import importlib.util
 import os
 import unittest

@@ -2,16 +2,10 @@
 # A deliberate re-wake mid-conversation has to start a FRESH session
 # (2026-07-25, twelfth nightly cycle).
 #
-# bin/crt-wake-arm.py's ArmState.arm() documents itself, and carries Zach's
-# CONFIRMED-BY quote directly, on the "always starts a fresh session"
-# contract -- see its own docstring. The gap this file closes: the old test
-# asserted that by CALLING arm() directly, but in the live wiring an
-# utterance arriving while armed never reaches that call --
-# consume_arm_with_followup() runs first and returns as soon as it consumes,
-# so arm() was only ever reachable from a disarmed state, where resetting
-# the ceiling means nothing. The tests below drive emit() instead, so they
-# fail against the parent with the real symptom (a spoken follow-up never
-# delivered), not an AttributeError about a missing kwarg.
+# ArmState.arm()'s own docstring has the contract and Zach's CONFIRMED-BY
+# quote. Gap this file closes: an armed utterance never reaches arm()
+# directly in live wiring (consume_arm_with_followup() consumes first), so
+# these tests drive emit() instead, failing on the real symptom.
 import importlib.util
 import os
 import shutil

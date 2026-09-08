@@ -2,16 +2,12 @@
 # Offline end-to-end test: audio captured DURING a capture duck must not reach
 # whisper via the pre-roll deque either.
 #
-# f13c7a4 closed the mid-utterance half of this (a duck arriving while `in_utt`
-# is true now excises), but `pre.append(data)` ran unconditionally regardless
-# of duck state -- so the pre-roll deque (whose job is prepending the moments
-# just before onset, since a word's attack sits below the VAD threshold)
-# happily filled with our own handset playback and handed it to whisper as
-# the start of the next utterance. Measured by PEAK AMPLITUDE of the first
-# 100ms handed to whisper (playback emits at 0.9, speech at 0.3): a clean 3x
-# separation, not a chunk-counting race. See crt-stt-solo.py's pre.append() site.
-# CRT_VAD_PREROLL=8 below (default 3) widens the leak window past a one-chunk
-# race so the test pins the mechanism, not a lucky sample.
+# f13c7a4 fixed the mid-utterance half; `pre.append(data)` still ran
+# unconditionally, so the pre-roll deque filled with our own handset
+# playback and handed it to whisper as the utterance's start. Measured by
+# peak amplitude (playback 0.9, speech 0.3). CRT_VAD_PREROLL=8 (default 3)
+# widens the window past a one-chunk race. See crt-stt-solo.py's
+# pre.append() site.
 set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
 fail=0

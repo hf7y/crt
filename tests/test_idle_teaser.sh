@@ -20,20 +20,10 @@ TMPDIR="$(mktemp -d)"
 FAKE_BIN="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR" "$FAKE_BIN"' EXIT
 
-# This file reaches the LIVE console through two doors, both found
-# 2026-07-25 by run_tests.sh's live-state guard and by reading what it
-# actually runs. Neither is about what is under test here.
-#
-# 1. `chime` stamps CRT_ANNOUNCE_LOCK, the 15-minute rate limit SHARED with
-#    crt-announce.sh's TV announcements (IDLE-BAIT.md's single-rate-limit
-#    rule, see crt-idle-teaser.sh's own chime()) -- running unpinned would
-#    buy the console 15 real minutes of silence on both channels.
-# 2. `chime` execs the real bin/crt-earcon.sh, which on a box with sox
-#    ends in `aplay -D default` -- an unfaked run makes the console beep.
-#    Faked on PATH below, same shim idea as test_earcon_capture_duck.sh.
-#
-# CRT_IDLE_SEEN is pinned too: this script touches it at SOURCE time, so
-# every case below reaches the live ~/.crt/idle-bait.seen ledger.
+# Pinned below: `chime` stamps CRT_ANNOUNCE_LOCK (the 15-min rate limit
+# SHARED with crt-announce.sh, IDLE-BAIT.md's single-rate-limit rule) and
+# execs the real crt-earcon.sh (faked on PATH, or an unpinned run beeps).
+# CRT_IDLE_SEEN is pinned too -- this script touches it at SOURCE time.
 export CRT_ANNOUNCE_LOCK="$TMPDIR/announce.lastrun"
 export CRT_IDLE_SEEN="$TMPDIR/seen.default"
 cat > "$FAKE_BIN/aplay" <<'EOF'
