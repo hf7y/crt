@@ -12,7 +12,7 @@ reason about *why* a given transcription got garbled the way it did.
    resolved by NAME from `arecord -l` (`CRT_AUDIO_DEV_NAME`, default "USB
    Audio") with `CRT_AUDIO_DEV` as a hard override — potato pins
    `plughw:1,0`. (Older notes here said `crtmic`, a dsnoop wrapper; that was
-   the crt-vm era and is gone.)
+   the pre-retirement VM era (crt#162) and is gone.)
 
    **Capture pauses while whisper runs, and that is where follow-ups go to
    die.** Step 4 happens *inside* this same loop, so for the 1–3s a

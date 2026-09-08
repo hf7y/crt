@@ -144,7 +144,7 @@ trap 'rm -rf "$TMP"; unduck' EXIT
 
 # Device routing, rewritten 2026-07-23 for potato's real hardware (this
 # used to POST to a dexter-hosted audio bridge -- a VirtualBox
-# one-sink-per-VM workaround from the old dexter+crt-vm architecture,
+# one-sink-per-VM workaround from the old dexter+VM architecture (crt#162),
 # meaningless on bare-metal potato, and the actual reason earcons never
 #   [rest: vault:crt/header-archaeology-20260817.md]
 TV_DEVICE="${CRT_EARCON_TV_DEVICE:-plughw:2,0}"
