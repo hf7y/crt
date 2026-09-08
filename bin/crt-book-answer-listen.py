@@ -3,7 +3,8 @@
 # question -> SPOKEN ANSWER -> STT training log, see .claude/FOCUS.md's
 # 2026-07-21 end-goal statement): watches ~/.crt/stt.log (already written
 # by crt-stt-solo.py for every recognized utterance, whether or not it's
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# addressed to Claude) for the next utterance after a scan and grades it
+# against that scan's pending question -- see tests/test_book_answer_listen.py.
 import calendar
 import importlib.util
 import json
@@ -314,9 +315,7 @@ def main():
     conn = bg.get_db()
     # This is the LAST link of the Book Game funnel and a stability-bar
     # item. Before 2026-07-25 one raising utterance ended it for the rest
-    # of the console's uptime: grade_pending_answer() reaches sqlite (a
-    # locked or corrupt books.db), json.loads (a malformed questions_json
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # of the console's uptime -- see crt_loop_guard.py's LoopGuard docstring.
     guard = loop_guard.LoopGuard("bookanswer")
     for line in tail_new_lines(STT_LOG):
         if line is None:

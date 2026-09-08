@@ -3,7 +3,9 @@
 # the web-based scrape of better facts, non-AI pass for webscrape on
 # each, then ai-pass in batches to generate 3-ish high quality facts per
 # book for trivia."
-#   [rest: vault:crt/header-archaeology-20260817.md]
+#
+# Redesigned same day (Zach: "I'm still getting generic facts?") to write
+# fact-grounded questions into questions_json instead of flavor text.
 import argparse
 import importlib.util
 import json
@@ -129,9 +131,8 @@ def run_distill_stage(conn, api_key=None, poster=None, log=print):
 def _timestamped_log(msg):
     # Only main()'s own default -- run_scrape_stage/run_distill_stage
     # still default to plain print() so tests asserting on exact log
-    # text don't have to match a timestamp. This is what actually lands
-    # in ~/.crt/facts-batch.log when crt-book-console.py's fire-and-
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # text don't have to match a timestamp -- a timestamp is
+    # what makes it debuggable across runs.
     import datetime
     print("%s  %s" % (datetime.datetime.now().strftime("%H:%M:%S"), msg))
 

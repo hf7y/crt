@@ -2,8 +2,8 @@
 # The dexter-side half of "run Claude Code off potato" (2026-07-28) --
 # successor to crt-remote-claude-bridge.py, which this replaces.
 #
-# WHY THIS SHAPE, AND WHY THE OLD ONE IS GONE. The bridge existed because
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# WHY THIS SHAPE: DEXTER-MOVE.md section 2 -- see tests/test_brain_ssh.py
+# for the CAPTURE/SEND-only degrade contract.
 import argparse
 import os
 import subprocess

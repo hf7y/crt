@@ -2,8 +2,8 @@
 # Book Game idle-bait: pops a line into thoughts.log when the room's been
 # quiet a while -- see BOOK-GAME-STYLE.md's "Idle-bait quotes" section.
 # Mirrors bin/crt-idle-bait.sh's shape (poll, check quiet-time, append a
-# line) but reuses bin/crt-book-game.py's registry/quote/entice logic
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# line) but reuses bin/crt-book-game.py's registry/quote/entice logic --
+# see tests/test_book_idle_bait.py.
 import importlib.util
 import os
 import random
@@ -99,10 +99,9 @@ def append_thought_line(line):
 def main():
     conn = bg.get_db()
     # append_thought_line() above already learned this lesson for ONE line
-    # of this loop; the rest of the body never got it. Still unguarded
-    # until 2026-07-25: pick_and_format_line() reaches sqlite through
-    # pick_idle_quote(), and the getmtime() below is a plain
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # of this loop; the rest of the body never got it. The guard now wraps
+    # the whole body, not just the log
+    # write.
     guard = loop_guard.LoopGuard("bookidle")
     while True:
         time.sleep(POLL_SECS)

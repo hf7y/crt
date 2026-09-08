@@ -2,8 +2,7 @@
 # The personal-library-catalog half of the Book Game (BOOK-GAME.md's own
 # vision: the registry "documents the books for safe keeping... doubles
 # as a personal library catalog, independent of the game"). That vision
-# line was never actually implemented -- books.db has held every scanned
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# line was never actually implemented -- see tests/test_book_catalog.py.
 import importlib.util
 import json
 import os

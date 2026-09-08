@@ -3,7 +3,8 @@
 #
 # Same as bin/crt-console.sh (full-screen Claude Code, voice typed in), but the
 # mic is read by exactly ONE process: bin/crt-stt-solo.py in CRT_STT_SINK=claude
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# mode, removing the "second reader starves the capture" staleness class
+# (AUDIO-DEBUG.md's "Approach B").
 set -euo pipefail
 
 export PATH="$HOME/.local/bin:$PATH"

@@ -3,7 +3,8 @@
 # interactive calibration session, not a background service. Run it in a
 # tmux window, say the wake word (or whatever else it prompts for) into
 # the real mic, and watch the words STT actually heard splash around an
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# ASCII potato, sized/colored by similarity. Two rounds: wake and earcon --
+# see tests/test_calibration_game.py.
 import difflib
 import importlib.util
 import json
@@ -272,11 +273,7 @@ def offer_to_save(seen, target):
     if not choice:
         print("Skipped.")
         return
-    # Only what was offered. Until 2026-07-25 this accepted any word the
-    # tailer had EVER heard, which is every word said in the room since the
-    # game launched -- so a typed "about" (18% similar, never on the list)
-    # was written as a CONFIRMED mishear of the wake word, and confirmed is
-    #   [rest: vault:crt/header-archaeology-20260817.md]
+    # Only what was offered -- see tests/test_calibration_game.py.
     if choice not in offered:
         print("%r was not offered -- only the words listed above can be "
               "confirm-saved here." % choice)

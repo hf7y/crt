@@ -2,8 +2,7 @@
 # crt's half of the ecosim cast contract (ecosim/BRIEF-potato-sight-and-sound.md,
 # 2026-07-29). ecosim can't write into this repo -- categorically forbidden by
 # its own CLAUDE.md -- so the two projects meet at a named line protocol and
-# each builds its own side. This is our side, and the whole surface is:
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# each builds its own side. This is our side -- see tests/test_cast_sink.py.
 import os
 import sys
 import subprocess

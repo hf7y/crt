@@ -2,8 +2,8 @@
 # Wires the CURRENT Claude Code session (wherever this is run from -- an
 # SSH debugging conversation, a second terminal, whatever) into the
 # physical console's `mono` display, tagged distinctly from window 0's
-# own [claude] dialogue (2026-07-21, twelfth pass, Zach's direct ask:
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# own [claude] dialogue. Must be run from WITHIN the session to mirror --
+# see tests/test_attach_ssh_bridge.sh.
 set -euo pipefail
 
 if [ -z "${CLAUDE_CODE_SESSION_ID:-}" ]; then
@@ -22,10 +22,8 @@ if ! tmux has-session -t "$SESSION" 2>/dev/null; then
 fi
 
 # Find this session's OWN Claude Code project dir by SEARCHING for its
-# transcript file (2026-07-21, found live: deriving the dir name from
-# `pwd` -- the Bash tool's CURRENT cwd -- is wrong whenever the
-# conversation has `cd`'d around since Claude Code itself launched;
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# transcript file, not deriving it from `pwd` -- see
+# tests/test_attach_ssh_bridge.sh for why.
 FOUND_TRANSCRIPT="$(find "$HOME/.claude/projects" -maxdepth 2 -iname "${CLAUDE_CODE_SESSION_ID}.jsonl" 2>/dev/null | head -1)"
 if [ -z "$FOUND_TRANSCRIPT" ]; then
   echo "error: could not find a transcript file for session $CLAUDE_CODE_SESSION_ID under $HOME/.claude/projects" >&2

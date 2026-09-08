@@ -2,8 +2,8 @@
 # Summarizes Book Game progress toward its actual end-goal
 # (.claude/FOCUS.md's 2026-07-21 statement: idle-bait -> scan -> question
 # -> spoken answer -> STT training log is one funnel) -- how many books
-# have been scanned, how many trivia rounds actually got a spoken answer,
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# have been scanned and how many got a spoken answer, graded -- see
+# tests/test_book_game_stats.py.
 import importlib.util
 import json
 import os

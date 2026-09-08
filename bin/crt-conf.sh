@@ -2,8 +2,7 @@
 # The console's config, read from ONE place by everything that needs it.
 # Sourced, never executed:  . "$BIN_DIR/crt-conf.sh"
 #
-# WHY THIS EXISTS (2026-07-29, found live). potato's console identity --
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# WHY THIS EXISTS: see tests/test_console_conf.sh for the incident.
 
 # Executing this instead of sourcing it does nothing useful and would
 # fail silently -- the assignments would land in a shell that then exits.

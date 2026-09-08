@@ -3,7 +3,7 @@
 # window 1's ephemeral pretty-print pane (crt-monologue.py) shows claude's
 # own responses instead of a separate external narration. Tails claude's own
 # session transcript (JSONL, same format Claude Code always writes) rather
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# than screen-scraping the tmux pane -- see tests/test_claude_bridge.py.
 import glob, json, os, time
 
 def _default_project_dir():

@@ -3,7 +3,8 @@
 # design. Renders a numbered-ruler/corner-letter test pattern inset by a
 # safe-margin guess, asks (by voice, in real use) which edges are cut off,
 # and hill-climbs the margin until it converges.
-#   [rest: vault:crt/header-archaeology-20260817.md]
+#
+# NOT hardware-verified -- see tests/test_calibrate_display.py.
 import json
 import os
 import sys

@@ -3,7 +3,7 @@
 # a fix: characterize the capture so we can tell whether the "stops detecting"
 # staleness correlates with idle time, utterance boundaries, or a fixed
 # interval -- which decides whether the watchdog (A) or single-reader (B) is the
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# real fix. See AUDIO-DEBUG.md's "Approach D".
 set -uo pipefail
 
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
