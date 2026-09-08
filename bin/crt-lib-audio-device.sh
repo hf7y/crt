@@ -2,11 +2,14 @@
 # of crt-stt-solo.py's resolve_capture_device_by_name()/_detect_capture_device()
 # (commit 3b87b14, 2026-07-24) -- a hardcoded ALSA card index (plughw:0,0)
 # means something different on every box a script happens to run on: potato's
-# onboard vs. USB mic, or mandark's own HDA card (FOCUS.md's "batch run
-# audio tests outputting to mandark card, not pi"). 2026-07-25 fix folded
-# in below: a name miss used to fall back to hardcoded plughw:0,0 even
-# with no card 0 -- on potato that's playback-only, so crt-capture-watchdog.sh
-# read the instant-exit as a dead mic and looped recover() forever.
+# onboard vs. USB mic, or mandark's own HDA card -- the exact bug behind the
+# 2026-07-24 FOCUS.md note "batch run audio tests are outputting to mandark
+# card, not pi". A 2026-07-25 fix folded in below: a name miss used to fall
+# back to hardcoded plughw:0,0 even when no card 0 existed -- on potato
+# that's a playback-only card, so arecord on it exits instantly, and
+# crt-capture-watchdog.sh read that as a dead mic and looped recover()
+# forever. Source this file, then call crt_resolve_capture_device_by_name /
+# crt_resolve_capture_card_by_name / crt_detect_capture_device below.
 
 crt_resolve_capture_device_by_name() {
   local arecord_text="${1:-}"
