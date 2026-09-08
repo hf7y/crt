@@ -91,11 +91,10 @@ def _sideband_mute(muted):
         pass
 
 
-# Capture duck (2026-07-24, closes the stability-bar handset play-while-
-# capture item): crt-earcon-loopback-test.py measured that the handset
-# output (plughw:1,0) is the SAME USB adapter as the live capture device,
-# and playing through it while crt-stt-solo.py's arecord is running leaves
-#   [rest: vault:crt/header-archaeology-20260817.md]
+# Capture duck (2026-07-24): the handset output shares the capture
+# device's USB adapter, so playback has to mute crt-stt-solo.py's VAD via
+# this ref-counted CTL file around it -- full rationale and behavior in
+# tests/test_tts_capture_duck.py's own header.
 CTL_FILE = os.path.expanduser(os.environ.get("CRT_CTL_FILE", "~/.crt/ctl"))
 
 
@@ -186,11 +185,8 @@ def play_wav(wav, device):
             except Exception as e:
                 sys.stderr.write("[crt-tts] dexter audio-out failed: %s\n" % e)
                 return False
-        # aplay's exit status is the ONLY evidence that this console said
-        # anything out loud (2026-07-25). It used to be discarded and `True`
-        # returned unconditionally, so a device that does not exist, is busy,
-        # or is misnamed produced a confident "spoken" from a silent room --
-        #   [rest: vault:crt/header-archaeology-20260817.md]
+        # aplay's exit status is the ONLY evidence this console spoke out
+        # loud -- checked, not discarded, per tests/test_speech_failure_visible.py.
         alsa_device = resolve_alsa_device(device)
         r = subprocess.run(["aplay", "-D", alsa_device, "-q", wav],
                            capture_output=True, text=True)
