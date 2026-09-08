@@ -17,9 +17,9 @@ relay answers. By hand: `sudo docker compose pull && sudo docker compose up -d`
 `hf7y.com/zaxon` — `zaxon-watch.sh --apply` hourly, `--install` writes the timer,
 `--check` publishes nothing. What used to be written down here as rules a reader
 had to remember is enforced by `tests/test_zaxon_watch_guards.sh` and reported
-by the page itself: the one-holder rule for `data/whatsapp/session`, the
-never-bind-`0.0.0.0` rule, where the STT command lives, and why a relay that
-merely answers is never `OK`.
+by the page itself: the one-holder rule for `data/whatsapp/session` and
+`data/auth.json` (crt#193, crt#195), the never-bind-`0.0.0.0` rule, where the
+STT command lives, and why a relay that merely answers is never `OK`.
 
 ## Open
 
