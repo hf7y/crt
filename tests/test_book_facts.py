@@ -323,6 +323,40 @@ class TestMaybeTriggerFactsBatch(_FactsBatchDBTestCase):
             runner=lambda cmd: type("R", (), {"stdout": ""})())
         self.assertFalse(fired)
 
+    def test_real_spawn_logs_instead_of_devnull(self):
+        # No `spawner` injected -- exercises the real subprocess.Popen branch
+        # a 2026-07-28 live Gemini batch timeout went completely unseen
+        # through: a fire-and-forget subprocess with both streams discarded
+        # is indistinguishable from one that is working.
+        for i in range(bc.FACTS_BATCH_TRIGGER):
+            self._register(str(i), f"Book {i}")
+        log_path = os.path.join(self.tmpdir, "facts-batch.log")
+        os.environ["CRT_BOOK_FACTS_BATCH_LOG"] = log_path
+        self.addCleanup(os.environ.pop, "CRT_BOOK_FACTS_BATCH_LOG", None)
+        calls = []
+
+        def fake_popen(cmd, **kwargs):
+            calls.append(kwargs)
+            return type("FakeProcess", (), {})()
+
+        real_popen = bc.subprocess.Popen
+        bc.subprocess.Popen = fake_popen
+        self.addCleanup(setattr, bc.subprocess, "Popen", real_popen)
+        try:
+            fired = bc.maybe_trigger_facts_batch(
+                self.conn, runner=lambda cmd: type("R", (), {"stdout": ""})())
+        finally:
+            for kwargs in calls:
+                stdout = kwargs.get("stdout")
+                if hasattr(stdout, "close"):
+                    stdout.close()
+        self.assertTrue(fired)
+        self.assertEqual(len(calls), 1)
+        stdout = calls[0]["stdout"]
+        self.assertNotEqual(stdout, bc.subprocess.DEVNULL)
+        self.assertEqual(getattr(stdout, "name", None), log_path)
+        self.assertTrue(os.path.exists(log_path))
+
 
 if __name__ == "__main__":
     unittest.main()
