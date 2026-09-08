@@ -869,20 +869,15 @@ def log_fallthrough(text):
 BRAIN_LOG = os.path.expanduser(
     os.environ.get("CRT_BRAIN_LOG", "~/.crt/brain-unreachable.log"))
 
-# Short on purpose: this is spoken through a handset earpiece, and it has
-# to be distinguishable BY EAR from route_claude_reply()'s "didn't catch a
-# reply" line -- that one means Claude was reached and said nothing useful,
-# this one means the utterance never left the building.
+# Distinguishable by ear from route_claude_reply()'s "didn't catch a reply"
+# line -- see test_failed_send_does_not_claim_it_sent_anything.
 BRAIN_UNREACHABLE_LINE = os.environ.get(
     "CRT_BRAIN_UNREACHABLE_LINE",
     "I can't reach my brain right now, so that didn't go anywhere. Try again in a moment.")
 
-# The third of three outcomes, and it needs its own line for the same reason
-# the second one does. This one means the utterance DID land -- so it must not
-# claim otherwise (BRAIN_UNREACHABLE_LINE's job) and must not blame Claude for
-# being quiet (route_claude_reply's job). Deliberately does not say "check the
-# screen": whether the answer is on the tube is exactly what this outcome
-# doesn't know.
+# Third outcome: the utterance DID land, so it must not claim otherwise or
+# blame Claude for being quiet -- see
+# test_drop_after_send_does_not_blame_claude_for_being_quiet.
 REPLY_UNOBSERVED_LINE = os.environ.get(
     "CRT_REPLY_UNOBSERVED_LINE",
     "I sent that to Claude, but I lost my view of the answer partway through.")
