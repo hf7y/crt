@@ -289,92 +289,11 @@ then-print pattern `crt-print.sh` already uses for reports.
 
 ## Blockers / open questions for a human
 
-- **Barcode scanner bridge: RESOLVED and confirmed LIVE, 2026-07-21 —
-  see `SCANNER.md` for the full build.** The dexter-side network-bridge
-  path predicted below was exactly right: `bin/dexter-scanner-forward.ps1`
-  (runs on dexter, Win32 RawInput API, filtered to this scanner's
-  `HID\VID_0145&PID_0012`) POSTs each decoded barcode to a listener
-  (runs on crt-vm, systemd-managed, survives
-  reboot) over a new NAT port-forward (host 8993 → guest 8993), which
-  delivers into the tmux Claude Code pane prefixed
-  `[scan] <isbn>` — same channel STT transcriptions already use, just
-  visibly tagged as a scan event, not a spoken sentence. **Confirmed
-  working end-to-end with a real physical scan**, not just a synthetic
-  POST. `crt-book-game.py`'s `parse_scan_line()` (added this pass)
-  strips that `[scan] ` prefix and validates the ISBN shape, so the
-  hands-on wiring step below is now "call `parse_scan_line()` then
-  `crt-book-game.py --isbn <n>`," not a new integration to design.
-  Superseded finding, kept below for history:
-  <details><summary>original NOT-reaching-the-VM finding (2026-07-21, superseded)</summary>
-
-  Identified the scanner on dexter's host USB list (`0145:0012`,
-  "Unknown" manufacturer, confirmed by unplug/replug diff) and ran
-  `VBoxManage controlvm crt-vm usbattach <uuid>` directly. The command
-  returned **no error** (unlike the MIDI controller's explicit "busy
-  with a previous request"), but: `VBoxManage list usbhost` afterward
-  still showed the device `Current State: Busy`, never `Captured`: and
-  `ls /dev/bus/usb/*/*` on the guest showed only the two root hubs, no
-  new device. So the attach silently no-ops — same underlying failure
-  class as the MIDI controller, just a quieter symptom.
-  </details>
-- **USB passthrough risk (MIDI controller, unconfirmed for anything
-  else):** `vault:crt/HANDOFF-20260829.md`'s MIDI section documents `VBoxManage usbattach`
-  failing ("busy with a previous request") for the Arturia MiniLab,
-  root-caused to a stuck VBoxSVC host-proxy state, not yet cleared. Fix
-  is a VBoxSVC restart on dexter (needs a human's direct OK, live VM
-  depends on it) or a full dexter reboot — not attempted from here.
-- **Reboot survival of the STT/meter pane — checked live 2026-07-21,
-  did NOT reproduce.** Zach flagged a concern that the tmux pane carrying
-  the audio meter might not spawn on reboot at all. Checked directly on
-  `crt-vm` after this morning's 04:25 boot: `tmux list-windows -t claude`
-  shows all 4 windows present (`bash`/claude, `mono`, `bridge-`, `stt`);
-  `tmux capture-pane -t claude:stt -p` shows the meter live (`MIC
-  [.|..] 0.8%`); `ps aux` confirms `crt-stt-solo.py` (pid 1118) running
-  since 04:25, wired to `CRT_STT_SINK=claude`/`CRT_TMUX_PANE=0.0` as
-  expected. So on this boot, the pipeline the book game depends on is
-  intact — the 2026-07-20 fix (wiring the good layout directly into
-  `crt-console.sh`) appears to be holding. Not proof it's fixed for
-  every reboot (single data point), but no reproduction of the specific
-  failure mode Zach was worried about. Re-check after any future reboot
-  before assuming this is settled either way.
-- **Long-term direction, explicitly parked (2026-07-21, Zach):** the real
-  fix for reboot fragility isn't just "make the layout survive a reboot"
-  — it's booting the VM into an **auto mode that lets Claude keep making
-  ongoing modifications to the VM's own design**, specifically to reduce
-  live API calls by replacing more of the STT-handling with on-site
-  scripted logic over time (the same direction as `FOCUS.md`'s "Now
-  (core STT)" long-term item: "replace gate-then-type-into-Claude with a
-  real local text-handling service... escalates to Claude only when it
-  doesn't know what to do"). Not being built now — parked alongside that
-  existing long-term item, flagging here so it isn't lost and isn't
-  conflated with the book game's own scope.
-- **Label printing — resolved 2026-07-21, Zach: skip for v1.** Printer
-  identity is settled (Phomemo M02, known-working, already the
-  `bin/catprint` report channel) but it connects via Bluetooth, and
-  Bluetooth-through-VM is unverified and likely hits the same class of
-  passthrough problem as the scanner's USB path and the MIDI
-  controller's USB path. Rather than debug a third passthrough route,
-  v1 displays the computed LCC number on the CRT instead of printing a
-  label (see Roadmap step 4, demoted from stretch-goal-now to
-  later-revisit). Not blocking anything above it.
-- **Book-metadata API choice:** Open Library's ISBN API needs no key and
-  is fully offline-buildable-against (mockable); Google Books' has richer
-  data but usage limits. Recommend starting with Open Library only,
-  falling back to Google Books later if fact quality/coverage is
-  insufficient for generating good multiple-choice questions — this is a
-  build-time choice, not one that needs a human decision now.
-- **LCC computation accuracy — resolved 2026-07-21, Zach: build a naive
-  heuristic now, not a stub.** A small subject-keyword → LCC-range table
-  (e.g. subject contains "fiction" → PS/PR, "history" → D, "science" →
-  Q) computed from the Open Library lookup's subject headings, clearly
-  labeled "best effort, not authoritative" wherever shown/printed — real
-  subject→LCC assignment is a genuinely fuzzy library-science problem,
-  this is explicitly not trying to solve that, just get the
-  registry/label-printing pipeline wired end to end now.
-- **Network egress — checked live 2026-07-21, confirmed working.** This
-  disposable-clone environment successfully reached
-  `openlibrary.org` (`curl` got a real `302`, not a timeout/DNS
-  failure) — the offline-safe build can be verified against the real
-  API, not only mocks, though tests should still mock by default for
-  determinism/speed and use a real call only as an occasional smoke
-  check.
+This section tracked vision-day (2026-07-21) unknowns -- scanner delivery,
+metadata-API choice, LCC accuracy, label printing, reboot survival --
+against `crt-vm`, since retired (`hf7y/crt#162`). All of them resolved the
+way the Roadmap above already shows: shipped and running on `potato`, not
+tracked twice here. One item outlived the VM: `bin/crt-midi-knobs.py` is
+still not hardware-verified on any current host (its own header covers
+the how; the original blocker, a stuck VirtualBox `VBoxSVC` state on
+dexter, is moot now that VirtualBox itself left dexter).
