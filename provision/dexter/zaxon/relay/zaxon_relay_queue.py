@@ -38,13 +38,11 @@ ADMIT_MAX_UNANSWERED = int(os.environ.get("ZAXON_ADMIT_MAX_UNANSWERED", "10"))
 
 HERMES_BIN = str(Path.home() / ".hermes" / "hermes-agent" / ".venv" / "bin" / "hermes")
 
-# The Baileys bridge, which hermes-agent runs as a gateway child. The relay
-# container shares the gateway's network namespace (network_mode:
-# "service:gateway"), so this loopback address is the bridge's, not ours.
-# It is the ONLY way to edit a sent message: hermes-agent's WhatsApp adapter
-# never overrides edit_message, so BasePlatformAdapter.edit_message returns
-# "Not supported" and every caller falls back to sending a SECOND message --
-# the exact spam this relay exists to prevent.
+# The Baileys bridge, reached over loopback because the relay container
+# shares the gateway's network namespace (compose.yaml: network_mode
+# "service:gateway"). It is the only way to edit a sent message -- see
+# TestEditDelivered for why that matters (hermes's WhatsApp adapter has
+# no edit_message of its own).
 BRIDGE_URL = os.environ.get("ZAXON_BRIDGE_URL", "http://127.0.0.1:3000")
 
 # `hermes send --to whatsapp:Zach` resolves the name; the bridge's /edit
