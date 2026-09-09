@@ -1,5 +1,7 @@
 # potato-only (see SELF-REPAIR.md). NOT installed by install.sh -- that
-# script is shared with crt-vm, which does not get autonomous self-editing.
+# script's shared default is acceptEdits, not potato's escalated
+# bypassPermissions (crt-vm, which used that shared default, is retired --
+# crt#162).
 # Offset from crt-vm-hardware-check's 06:30 slot and the mandark scheduler's
 # own windows so reports don't all land at once.
 [Unit]
