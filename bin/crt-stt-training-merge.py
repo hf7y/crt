@@ -77,9 +77,10 @@ def run_merge_pass(fixups_path=None, training_log_path=None, min_repeats=None):
     candidates = stats.generate_candidate_fixups(mismatches, min_repeats=min_repeats)
 
     # The merge happens INSIDE crt_fixups_store.update()'s lock, against the
-    # file as it is at that instant. Reading first and merging afterwards is
-    # what let this loop's 600s tick silently drop a word a human had
-    # confirmed by ear in the seconds between -- see that module's header.
+    # file as it is at that instant -- merging against a stale read let this
+    # loop's 600s tick silently drop a word a human had just confirmed by
+    # ear. Witnessed by
+    # tests/test_fixups_two_writers.py::TestTheTwoRealWriters.test_a_merge_tick_does_not_erase_a_word_a_human_just_confirmed.
     added = []
 
     def merge(existing):
