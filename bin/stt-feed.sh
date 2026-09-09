@@ -24,6 +24,17 @@ USE_SECRETARY="${CRT_SECRETARY:-0}"
 USE_GATE="${CRT_STT_GATE:-0}"
 GATE_LOG="${CRT_STT_GATE_LOG:-$HOME/.crt/thoughts.log}"
 
+is_whisper_noise_hallucination() {
+  local key
+  key=$(printf '%s' "$1" | tr 'A-Z' 'a-z' | tr -cd 'a-z')
+  case "$key" in
+    ''|you|thankyou|thanks|thankyouforwatching|bye\
+    |musicplaying|cricketschirping|silence|blankaudio|soundeffects|applause\
+    |inaudible|foreignspeech|speaking) return 0 ;;
+  esac
+  [ "${#key}" -lt 2 ]
+}
+
 addressed_to_console() {
   BIN_DIR="$BIN_DIR" python3 -c '
 import importlib.util, os, sys
@@ -117,16 +128,9 @@ while true; do
 
   [ -z "$text" ] && continue
 
-  # Drop whisper's canonical noise/silence hallucinations. On AC/room noise it
-  # confidently emits bracketed sound tags or filler words; normalization makes
-  # these worse. Don't let them get typed into claude as spurious commands.
-  key=$(printf '%s' "$text" | tr 'A-Z' 'a-z' | tr -cd 'a-z')
-  case "$key" in
-    ''|you|thankyou|thanks|thankyouforwatching|bye\
-    |musicplaying|cricketschirping|silence|blankaudio|soundeffects|applause\
-    |inaudible|foreignspeech|speaking) continue ;;
-  esac
-  [ "${#key}" -lt 2 ] && continue
+  # Drop whisper's canonical noise/silence hallucinations -- witnessed by
+  # test_stt_feed_noise_filter.sh.
+  is_whisper_noise_hallucination "$text" && continue
 
   # Standalone view: just show what was heard, timestamped, and loop. No claude,
   # no control-word keystrokes -- this mode is for watching/​debugging the STT.
