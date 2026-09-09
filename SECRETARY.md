@@ -52,24 +52,16 @@ Rather than every utterance being typed verbatim into Claude's terminal input
 - Pager (`bin/crt-pager.py`): written, syntax-tested with synthetic text
   (wraps to 40 cols, scrolls, footer shows page%/END). Not yet wired to any
   real Claude output or a MIDI knob.
-- The secretary wrapper (steps 1-4 above) has a first real implementation:
-  `bin/crt-secretary.py` (2026-07-19). Takes one utterance, decides (a)
-  whether it's answerable **locally** with zero Claude call — "what's up"/
-  "any reports"/"anything new" etc. read straight from
-  `~/reports/crt/LATEST.md` + `.claude/QUESTIONS.md` and get a spoken
-  summary + offer to print full detail (`bin/crt-print.sh` -> PIL render ->
-  `catprint`, also new this session) — or (b) needs Claude: sends via
-  `tmux send-keys` as today, polls `tmux capture-pane` for the reply to go
-  idle, then speaks it if short or speaks-a-summary-and-prints if long.
-  **NOT hardware-verified** — the local-answer path was tested standalone
-  against real report/question files and works; the Claude-routing path's
-  idle-detection (poll capture-pane until unchanged for N seconds) is an
-  untested heuristic, the riskiest part of this design, see the script's
-  own header. **Not wired into `stt-feed.sh` yet** — that still does raw
-  `tmux send-keys` for every utterance; swapping it to call
-  `crt-secretary.py` per utterance is the next step, deliberately not done
-  automatically this session since it changes the live default pipeline
-  and nobody could watch it run.
+- The secretary wrapper (steps 1-4 above) is `bin/crt-secretary.py`
+  (2026-07-19) — the playbook-vs-Claude routing and local-answer detail
+  now live in `SUPERVISOR.md`, not duplicated here. **Wired into both live
+  entry points, opt-in and default off in each:** `stt-feed.sh`'s
+  `CRT_SECRETARY` flag (`tests/test_stt_feed_secretary_flag.sh`) and
+  `crt-stt-solo.py`'s `SINK=secretary` mode
+  (`tests/test_stt_secretary_sink.py`). Neither opt-in has been flipped on
+  and watched live yet — the Claude-routing path's idle-detection (poll
+  `capture_pane()` until unchanged for N seconds) is still an untested
+  heuristic, the riskiest part of this design.
 
 ## The three outcomes of a Claude escalation, and why they are three (2026-07-25)
 
