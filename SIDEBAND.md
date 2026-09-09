@@ -41,42 +41,16 @@ for. Two guards, both non-negotiable:
 | `thinking` | the same bed, gently amplitude-pulsed (a slow "breathing" rhythm) | slightly above listening | "the gears are turning" — old-computer-processing-sound energy, distinct from listening by *rhythm*, not just volume, so it's tellable apart without conscious effort |
 | `speaking` | none (fully ducked) | 0 | TTS/earcons own the device outright while active |
 
-## What's built this session (offline; the tone loop itself is unheard)
-- `bin/crt-sideband.sh` — background loop: reads `~/.crt/sideband.state`
-  (written by `crt-sideband-set.sh <state>`), (re)generates the matching
-  low-volume sox-synthesized loop on first use (cached under
-  `~/.crt/sideband/`, not committed as binary assets — same "synthesize,
-  don't ship audio files" pattern as `crt-earcon.sh`), and plays it on
-  loop via `aplay`, restarting promptly on a state change. Checks
-  `~/.crt/sideband.mute` each cycle and stays silent while it's set
-  (earcons/TTS should touch this flag around their own playback — not
-  wired automatically this session, same reasoning as not auto-wiring
-  `crt-secretary.py` into `stt-feed.sh`: a continuous background process
-  competing for the one real ALSA device needs to be watched live before
-  it's trusted to duck correctly).
-- `bin/crt-sideband-set.sh <idle|listening|thinking|speaking>` — the
-  one-line state-transition helper other scripts would call.
-- The pure state-to-tone-spec mapping is covered by
-  `tests/test_sideband.sh` (extracts `select_state_spec` the same
-  source-under-a-test-mode-guard technique used for
-  `hookswitch-listen.sh`'s debounce logic).
-
-## Wiring, done 2026-07-20
-- `crt-stt-solo.py`: opt-in (`CRT_SIDEBAND=1`, default off) —
-  `set_sideband_state("listening")` once at startup, `"thinking"` around
-  each `transcribe()` call (the same latency window `predictive_flash()`
-  addresses visually), back to `"listening"` after. Never writes
-  `"idle"`/`"speaking"` — those belong to `crt-idle-teaser.sh`'s
-  screensaver gate and whatever's actually playing TTS.
-- `crt-tts.py` / `crt-earcon.sh`: the mute-duck is **always on**, no flag
-  needed — touching `~/.crt/sideband.mute` is inert unless
-  `crt-sideband.sh` happens to be running (nothing auto-starts it), so
-  there's no live-behavior risk in leaving it unconditional. Both use a
-  `finally`/`trap`-guaranteed unmute so a playback failure can't leave the
-  console muted forever.
-- Covered by `tests/test_sideband_wiring.py` (stt-solo gate + tts duck,
-  mocked subprocess) and `tests/test_earcon_sideband_duck.sh` (real sox
-  render, a fake `aplay` observes the mute flag's presence).
+## Shipped 2026-07-20 (offline; the tone loop itself is unheard)
+`bin/crt-sideband.sh` runs the loop, `bin/crt-sideband-set.sh
+<state>` is the transition helper, `crt-stt-solo.py` is the sole writer
+of `listening`/`thinking` (opt-in, off by default), and `crt-tts.py` /
+`crt-earcon.sh` duck it unconditionally with a `finally`/`trap`-guaranteed
+unmute. Each script's own header comment covers its own piece now, not
+duplicated here. Covered by `tests/test_sideband.sh` (the pure
+state-to-tone-spec mapping), `tests/test_sideband_wiring.py` (stt-solo
+gate + tts duck), and `tests/test_earcon_sideband_duck.sh` (real sox
+render).
 
 ## Not done this session
 - The tone textures themselves (a noise bed + a pulse) are still a first
