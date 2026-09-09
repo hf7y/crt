@@ -458,11 +458,130 @@ class TestMessageReuse(unittest.TestCase):
                 old_ts = time.strftime(
                     "%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - q.QUESTION_TTL_SECS - 10)
                 )
-                conn.execute("UPDATE tickets SET created_at=? WHERE id=?", (old_ts, f"t{i}"))
+                # Staleness is measured from delivered_at (crt#231), not
+                # created_at -- backdate both to force expiry.
+                conn.execute(
+                    "UPDATE tickets SET created_at=?, delivered_at=? WHERE id=?",
+                    (old_ts, old_ts, f"t{i}"),
+                )
                 conn.commit()
 
             self.assertEqual(len(sent), 1)
             self.assertEqual(len(edited), 2)
+
+
+class TestPerAgentSlot(unittest.TestCase):
+    """crt#230/crt#232: the slot is keyed on from_agent, not global. 172
+    tickets from four different agents used to land in one WhatsApp
+    message, each overwriting the last."""
+
+    def _insert_agent(self, conn, ticket_id, from_agent, question, status, created_at=None):
+        conn.execute(
+            "INSERT INTO tickets (id, from_agent, question, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (ticket_id, from_agent, question, status, created_at or q._iso_now()),
+        )
+        conn.commit()
+
+    def test_two_different_agents_both_promote_in_the_same_sweep(self):
+        """A chatty repo occupying its own slot must not block a different
+        repo's question -- the old global slot let exactly one ticket,
+        from any agent, be pending at a time."""
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            self._insert_agent(conn, "t1", "monkey-watch", "flap alert", "queued")
+            self._insert_agent(conn, "t2", "groc-mangr", "deliver window ok?", "queued")
+            sent = []
+            q.sweep_and_promote(
+                conn, sender=lambda text: sent.append(text) or {"success": True, "message_id": f"wa{len(sent)}"}
+            )
+            statuses = dict(conn.execute("SELECT from_agent, status FROM tickets").fetchall())
+            self.assertEqual(statuses, {"monkey-watch": "pending", "groc-mangr": "pending"})
+            self.assertEqual(len(sent), 2, "each agent should get its own fresh message")
+
+    def test_a_second_question_from_the_same_agent_still_queues(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            self._insert_agent(conn, "t1", "monkey-watch", "Q1", "pending")
+            self._insert_agent(conn, "t2", "monkey-watch", "Q2", "queued")
+            q.sweep_and_promote(conn, sender=lambda text: self.fail("should not send yet"))
+            status = conn.execute("SELECT status FROM tickets WHERE id='t2'").fetchone()[0]
+            self.assertEqual(status, "queued")
+
+    def test_deliver_only_edits_this_agents_own_prior_message_not_a_different_agents(self):
+        """The exact shape of crt#232: a monkey-watch ticket must not edit
+        groc-mangr's message just because it was delivered most recently."""
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            self._insert_agent(conn, "t0", "groc-mangr", "Q0", "answered")
+            conn.execute(
+                "UPDATE tickets SET wa_message_id='wa-groc', chat_id='chat1' WHERE id='t0'"
+            )
+            conn.commit()
+            self._insert_agent(conn, "t1", "monkey-watch", "Q1", "queued")
+
+            sent, edited = [], []
+            q.sweep_and_promote(
+                conn,
+                sender=lambda text: sent.append(text) or {"success": True, "message_id": "wa-monkey"},
+                editor=lambda *a: edited.append(a) or {"success": True},
+            )
+            self.assertEqual(len(edited), 0, "must not reuse a different agent's message")
+            self.assertEqual(len(sent), 1)
+            row = conn.execute("SELECT wa_message_id FROM tickets WHERE id='t1'").fetchone()
+            self.assertEqual(row[0], "wa-monkey")
+            groc_message_id = conn.execute(
+                "SELECT wa_message_id FROM tickets WHERE id='t0'"
+            ).fetchone()[0]
+            self.assertEqual(groc_message_id, "wa-groc", "the other agent's message must be untouched")
+
+    def test_a_stale_agent_frees_only_its_own_slot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            old_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - q.QUESTION_TTL_SECS - 10))
+            self._insert_agent(conn, "t1", "monkey-watch", "Q1", "pending", created_at=old_ts)
+            self._insert_agent(conn, "t2", "groc-mangr", "Q2", "pending")
+            self._insert_agent(conn, "t3", "monkey-watch", "Q3", "queued")
+            q.sweep_and_promote(
+                conn, sender=lambda text: {"success": True, "message_id": "wa3"}
+            )
+            statuses = dict(conn.execute("SELECT id, status FROM tickets").fetchall())
+            self.assertEqual(statuses["t1"], "stale")
+            self.assertEqual(statuses["t2"], "pending", "unrelated agent's fresh slot must be untouched")
+            self.assertEqual(statuses["t3"], "pending")
+
+
+class TestDeliveredAtTTL(unittest.TestCase):
+    """crt#231: a ticket's TTL is spent while it waits in the queue, not
+    while it is actually on the phone -- the clock must start at delivery,
+    not at filing."""
+
+    def test_deliver_stamps_delivered_at(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            _insert(conn, "t1", "Q1", "queued")
+            q.sweep_and_promote(conn, sender=lambda text: {"success": True, "message_id": "wa1"})
+            delivered_at = conn.execute(
+                "SELECT delivered_at FROM tickets WHERE id='t1'"
+            ).fetchone()[0]
+            self.assertIsNotNone(delivered_at)
+
+    def test_a_ticket_that_waited_almost_a_full_ttl_in_queue_still_gets_a_fresh_ttl_once_delivered(self):
+        """Before crt#231: a ticket promoted after waiting most of a TTL in
+        the queue inherited the old created_at clock and expired almost
+        immediately. Now the clock restarts at delivery."""
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            old_ts = time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - q.QUESTION_TTL_SECS + 30)
+            )
+            _insert(conn, "t1", "Q1", "queued", created_at=old_ts)
+            q.sweep_and_promote(conn, sender=lambda text: {"success": True, "message_id": "wa1"})
+            # A second sweep right after promotion must not immediately
+            # mark it stale, even though created_at is nearly TTL-old.
+            q.sweep_and_promote(conn, sender=lambda text: self.fail("should not need to resend"))
+            status = conn.execute("SELECT status FROM tickets WHERE id='t1'").fetchone()[0]
+            self.assertEqual(status, "pending")
 
 
 class TestOptionsColumnMigration(unittest.TestCase):
@@ -548,14 +667,20 @@ class TestSlotReport(unittest.TestCase):
         self.assertEqual(q.slot_report(self.conn, "a")["queued_ahead"], 0)
 
     def test_a_queued_ticket_counts_the_slot_and_everything_older(self):
-        _insert(self.conn, "a", "q", "pending", created_at="2026-08-28T00:00:00Z")
-        _insert(self.conn, "b", "q", "queued", created_at="2026-08-28T00:01:00Z")
-        _insert(self.conn, "c", "q", "queued", created_at="2026-08-28T00:02:00Z")
+        """The pending ticket must still be within its TTL to count as
+        ahead (crt#231) -- use recent, not long-decayed, timestamps."""
+        now = time.time()
+        ts = lambda offset: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now + offset))
+        _insert(self.conn, "a", "q", "pending", created_at=ts(-120))
+        _insert(self.conn, "b", "q", "queued", created_at=ts(-60))
+        _insert(self.conn, "c", "q", "queued", created_at=ts(0))
         self.assertEqual(q.slot_report(self.conn, "c")["queued_ahead"], 2)
 
     def test_the_wait_is_the_worst_case_every_one_ahead_expiring(self):
-        _insert(self.conn, "a", "q", "pending", created_at="2026-08-28T00:00:00Z")
-        _insert(self.conn, "b", "q", "queued", created_at="2026-08-28T00:01:00Z")
+        now = time.time()
+        ts = lambda offset: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now + offset))
+        _insert(self.conn, "a", "q", "pending", created_at=ts(-60))
+        _insert(self.conn, "b", "q", "queued", created_at=ts(0))
         r = q.slot_report(self.conn, "b")
         self.assertEqual(r["est_wait_hours"],
                          round(r["queued_ahead"] * q.QUESTION_TTL_SECS / 3600, 1))

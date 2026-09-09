@@ -90,13 +90,13 @@ class TestRefusals(unittest.TestCase):
 
     def test_revise_zach_question_refuses_too_long_without_raising(self):
         self._insert_queued_bypassing_delivery("t1", "Coffee or tea?")
-        result = server.revise_zach_question("t1", "x" * 200)
+        result = server.revise_zach_question("t1", "crt", "x" * 200)
         self.assertEqual(result["status"], "refused")
         self.assertIn("140", result["error"])
 
     def test_revise_zach_question_refusal_leaves_original_question(self):
         self._insert_queued_bypassing_delivery("t1", "Coffee or tea?")
-        server.revise_zach_question("t1", "x" * 200)
+        server.revise_zach_question("t1", "crt", "x" * 200)
         conn = db.get_conn()
         try:
             question = conn.execute(
@@ -105,6 +105,31 @@ class TestRefusals(unittest.TestCase):
         finally:
             conn.close()
         self.assertEqual(question, "Coffee or tea?")
+
+    def test_revise_zach_question_refuses_a_caller_who_does_not_own_it(self):
+        """crt#232: revise_zach_question had no owner check -- any agent
+        could rewrite any other agent's pending question."""
+        self._insert_queued_bypassing_delivery("t1", "Coffee or tea?", from_agent="crt")
+        result = server.revise_zach_question("t1", "groc-mangr", "Pizza tonight?")
+        self.assertEqual(result["status"], "refused")
+        self.assertIn("crt", result["error"])
+
+    def test_a_refused_revision_by_a_non_owner_leaves_the_question_untouched(self):
+        self._insert_queued_bypassing_delivery("t1", "Coffee or tea?", from_agent="crt")
+        server.revise_zach_question("t1", "groc-mangr", "Pizza tonight?")
+        conn = db.get_conn()
+        try:
+            question = conn.execute(
+                "SELECT question FROM tickets WHERE id=?", ("t1",)
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual(question, "Coffee or tea?")
+
+    def test_the_owning_agent_can_still_revise(self):
+        self._insert_queued_bypassing_delivery("t1", "Coffee or tea?", from_agent="crt")
+        result = server.revise_zach_question("t1", "crt", "Pizza tonight?")
+        self.assertEqual(result, {"ticket_id": "t1", "status": "queued", "revised": True})
 
 
 if __name__ == "__main__":

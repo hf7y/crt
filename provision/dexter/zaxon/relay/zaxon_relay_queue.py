@@ -1,11 +1,15 @@
-"""Single-slot question queue over the tickets table (crt#67), and admission
-control on that slot (crt#96).
+"""Per-from_agent question queue over the tickets table (crt#67, crt#230), and
+admission control on each agent's slot (crt#96).
 
-One question is visible on Zach's phone at a time: three in flight looked like
-three separate pings, the spam this relay exists to avoid. sweep_and_promote()
-is the only place a ticket moves 'queued' -> 'pending'; it is a plain
-read-then-maybe-write against sqlite, safe from anywhere holding a connection,
-so calling it more often only promotes sooner. deliver() edits in place (crt#100).
+One question per repo is visible on Zach's phone at a time: three in flight
+from the same repo looked like three separate pings, the spam this relay
+exists to avoid. The slot is keyed on from_agent, not global (crt#230,
+crt#232) -- a chatty caller edits only its own message and cannot starve or
+overwrite a quiet one. sweep_and_promote() is the only place a ticket moves
+'queued' -> 'pending'; it is a plain read-then-maybe-write against sqlite,
+safe from anywhere holding a connection, so calling it more often only
+promotes sooner. deliver() edits in place (crt#100), scoped to the ticket's
+own from_agent.
 """
 import calendar
 import json
@@ -133,30 +137,39 @@ def _default_sender(text: str) -> dict:
     return json.loads(proc.stdout or "{}")
 
 
-def _last_delivered(conn, exclude_ticket_id=None):
-    if exclude_ticket_id is None:
-        return conn.execute(
-            "SELECT wa_message_id, chat_id FROM tickets "
-            "WHERE wa_message_id IS NOT NULL "
-            "ORDER BY created_at DESC LIMIT 1"
-        ).fetchone()
-    return conn.execute(
-        "SELECT wa_message_id, chat_id FROM tickets "
-        "WHERE wa_message_id IS NOT NULL AND id != ? "
-        "ORDER BY created_at DESC LIMIT 1",
-        (exclude_ticket_id,),
-    ).fetchone()
+def _last_delivered(conn, exclude_ticket_id=None, from_agent=None):
+    """The message this ticket may reuse by editing. Scoped to from_agent
+    for the ask_zach queue (crt#232) -- without it, an unrelated agent's
+    ticket edits *the* one message on Zach's phone, not its own."""
+    clauses = ["wa_message_id IS NOT NULL"]
+    params = []
+    if from_agent is not None:
+        clauses.append("from_agent=?")
+        params.append(from_agent)
+    if exclude_ticket_id is not None:
+        clauses.append("id != ?")
+        params.append(exclude_ticket_id)
+    query = (
+        "SELECT wa_message_id, chat_id FROM tickets WHERE "
+        + " AND ".join(clauses)
+        + " ORDER BY created_at DESC LIMIT 1"
+    )
+    return conn.execute(query, params).fetchone()
 
 
 def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sender=None, editor=None) -> str:
-    """Edits the prior delivered message in place (crt#100), falling back
-    to sender() only when there's none to edit or the edit fails. Returns
-    'pending' or 'failed'. `sender`/`editor` are injectable for tests."""
+    """Edits the prior message delivered for this SAME from_agent in place
+    (crt#100, crt#232), falling back to sender() only when there's none to
+    edit or the edit fails. Stamps delivered_at so the TTL is counted from
+    when the question actually reached the phone, not from when it was
+    filed (crt#231). Returns 'pending' or 'failed'. `sender`/`editor` are
+    injectable for tests."""
     send = sender or _default_sender
     edit = editor or _default_editor
     text = format_message(from_agent, question, options)
+    now = _iso_now()
 
-    prior = _last_delivered(conn, exclude_ticket_id=ticket_id)
+    prior = _last_delivered(conn, exclude_ticket_id=ticket_id, from_agent=from_agent)
     if prior and prior[0]:
         prior_message_id, prior_chat_id = prior
         try:
@@ -165,8 +178,8 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
             edit_payload = {"success": False}
         if edit_payload.get("success"):
             conn.execute(
-                "UPDATE tickets SET status='pending', wa_message_id=?, chat_id=? WHERE id=?",
-                (prior_message_id, prior_chat_id or CHAT_ID, ticket_id),
+                "UPDATE tickets SET status='pending', wa_message_id=?, chat_id=?, delivered_at=? WHERE id=?",
+                (prior_message_id, prior_chat_id or CHAT_ID, now, ticket_id),
             )
             conn.commit()
             return "pending"
@@ -185,8 +198,8 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
         return "failed"
 
     conn.execute(
-        "UPDATE tickets SET status='pending', wa_message_id=?, chat_id=? WHERE id=?",
-        (payload.get("message_id"), payload.get("chat_id") or CHAT_ID, ticket_id),
+        "UPDATE tickets SET status='pending', wa_message_id=?, chat_id=?, delivered_at=? WHERE id=?",
+        (payload.get("message_id"), payload.get("chat_id") or CHAT_ID, now, ticket_id),
     )
     conn.commit()
     return "pending"
@@ -277,29 +290,37 @@ def _recover_from_gateway_cache(conn, ticket_id: str, created_at: str, cache_dir
 
 
 def sweep_and_promote(conn, sender=None, editor=None, cache_dir=None, transcribe=None) -> None:
-    """Expires an overdue 'pending' ticket, then promotes the oldest
-    'queued' ticket into the freed slot. No-op if the slot is occupied by
-    a still-fresh 'pending' ticket, or nothing is queued."""
-    pending = conn.execute(
-        "SELECT id, created_at FROM tickets WHERE status='pending' LIMIT 1"
-    ).fetchone()
-    if pending is not None:
-        ticket_id, created_at = pending
-        if time.time() - _epoch(created_at) <= QUESTION_TTL_SECS:
-            return
-        if not _recover_from_gateway_cache(conn, ticket_id, created_at, cache_dir, transcribe):
+    """Expires any overdue 'pending' ticket, then promotes the oldest
+    'queued' ticket for each from_agent that doesn't already hold a
+    still-fresh 'pending' one. The slot is per from_agent (crt#230): a
+    chatty repo's own backlog no longer blocks a different repo's question
+    from reaching the phone. Staleness is measured from delivered_at, the
+    moment the question actually reached the phone, falling back to
+    created_at for rows delivered before that column existed (crt#231)."""
+    pending_rows = conn.execute(
+        "SELECT id, from_agent, created_at, delivered_at FROM tickets WHERE status='pending'"
+    ).fetchall()
+    fresh_agents = set()
+    for ticket_id, from_agent, created_at, delivered_at in pending_rows:
+        clock = delivered_at or created_at
+        if time.time() - _epoch(clock) <= QUESTION_TTL_SECS:
+            fresh_agents.add(from_agent)
+            continue
+        if not _recover_from_gateway_cache(conn, ticket_id, clock, cache_dir, transcribe):
             conn.execute("UPDATE tickets SET status='stale' WHERE id=?", (ticket_id,))
             conn.commit()
 
-    nxt = conn.execute(
+    queued = conn.execute(
         "SELECT id, from_agent, question, options FROM tickets "
-        "WHERE status='queued' ORDER BY created_at LIMIT 1"
-    ).fetchone()
-    if nxt is None:
-        return
-    ticket_id, from_agent, question, options_json = nxt
-    options = json.loads(options_json) if options_json else None
-    deliver(conn, ticket_id, from_agent, question, options, sender=sender, editor=editor)
+        "WHERE status='queued' ORDER BY created_at"
+    ).fetchall()
+    promoted_agents = set()
+    for ticket_id, from_agent, question, options_json in queued:
+        if from_agent in fresh_agents or from_agent in promoted_agents:
+            continue
+        options = json.loads(options_json) if options_json else None
+        deliver(conn, ticket_id, from_agent, question, options, sender=sender, editor=editor)
+        promoted_agents.add(from_agent)
 
 
 def _window_start(now=None) -> str:
@@ -332,23 +353,32 @@ def admission_error(conn, from_agent: str, now=None):
 
 
 def slot_report(conn, ticket_id: str) -> dict:
-    """How many questions clear before this one reaches the phone, and the
-    worst case if each expires rather than being answered. `pending` alone read
-    the same next-up and 18 hours deep (crt#89)."""
+    """How many of THIS from_agent's own questions clear before this one
+    reaches the phone, and the worst case if each expires rather than being
+    answered. Scoped to from_agent (crt#230): with a per-agent slot, a
+    ticket only waits behind its own repo's earlier tickets, not every
+    repo's. `pending` alone read the same next-up and 18 hours deep
+    (crt#89); an already-overdue pending ticket is excluded (crt#231) --
+    the next sweep frees it, so it does not cost this ticket a full TTL."""
     row = conn.execute(
-        "SELECT status, created_at FROM tickets WHERE id=?", (ticket_id,)
+        "SELECT status, created_at, from_agent FROM tickets WHERE id=?", (ticket_id,)
     ).fetchone()
     if row is None:
         return {}
-    status, created_at = row
+    status, created_at, from_agent = row
     if status != "queued":
         ahead = 0
     else:
-        ahead = conn.execute(
-            "SELECT COUNT(*) FROM tickets WHERE status='pending' "
-            "OR (status='queued' AND created_at<?)",
-            (created_at,),
-        ).fetchone()[0]
+        rows = conn.execute(
+            "SELECT status, created_at, delivered_at FROM tickets WHERE from_agent=? AND "
+            "(status='pending' OR (status='queued' AND created_at<?))",
+            (from_agent, created_at),
+        ).fetchall()
+        now = time.time()
+        ahead = sum(
+            1 for st, ca, da in rows
+            if st == "queued" or now - _epoch(da or ca) <= QUESTION_TTL_SECS
+        )
     return {
         "queued_ahead": ahead,
         "est_wait_hours": round(ahead * QUESTION_TTL_SECS / 3600, 1),

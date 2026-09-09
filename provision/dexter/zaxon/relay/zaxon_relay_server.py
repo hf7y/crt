@@ -49,8 +49,10 @@ mcp = MCPServer(
         "use options= for multiple choices on the ONE question. If a ticket "
         "goes stale unanswered, do NOT just re-send the same question -- "
         "that is what starved the slot before (crt#89); reconsider whether "
-        "it still needs asking. To change a question already sent, "
-        "call revise_zach_question -- never ask a second time. fetch_inbox "
+        "it still needs asking. To change a question already sent, call "
+        "revise_zach_question with the same from_agent you asked it with -- "
+        "never ask a second time, and you cannot revise another repo's "
+        "ticket. fetch_inbox "
         "reads messages that arrived matching no ticket of yours -- an "
         "unsolicited note from Zach, or a late reply to something that "
         "already went stale. Pass your repo as for_agent to see notes Zach "
@@ -118,7 +120,7 @@ def ask_zach(question: str, from_agent: str = "agent", options: list[str] | None
 
 @mcp.tool()
 def revise_zach_question(
-    ticket_id: str, question: str, options: list[str] | None = None
+    ticket_id: str, from_agent: str, question: str, options: list[str] | None = None
 ) -> dict:
     """Change a question you have already asked, IN PLACE. If it has reached
     Zach's phone the message there is edited; he is not pinged twice. This
@@ -126,9 +128,14 @@ def revise_zach_question(
     second notification on the same question, which is what the single-slot
     queue exists to prevent.
 
+    from_agent must be the same repo that filed the ticket -- refused
+    otherwise (crt#232), so one repo cannot rewrite another's pending
+    question out from under it.
+
     Only 'queued' (not yet sent, so the row is simply updated) and 'pending'
     (sent, so the message is edited) can be revised. An answered question is
-    not revisable: ask a new one. Refuses (status 'refused') if too long or the repo tag is bad."""
+    not revisable: ask a new one. Refuses (status 'refused') if too long, the
+    repo tag is bad, or from_agent does not own the ticket."""
     conn = get_conn()
     try:
         row = conn.execute(
@@ -136,7 +143,12 @@ def revise_zach_question(
         ).fetchone()
         if row is None:
             return {"status": "not_found"}
-        status, from_agent = row
+        status, owner = row
+        if owner != from_agent:
+            return {
+                "status": "refused",
+                "error": f"ticket {ticket_id} belongs to {owner}, not {from_agent}",
+            }
         if status not in ("queued", "pending"):
             return {
                 "status": status,
