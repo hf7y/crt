@@ -45,38 +45,19 @@ numeric settings. The shape:
    (converged). Save the result to `~/.crt/display.conf`.
 6. Every renderer reads that margin from then on.
 
-## What's built this session (offline, all testable)
-- `bin/crt-calibrate-display.py`:
-  - `render_pattern(width, height, margins)` — pure function, builds the
-    numbered-ruler/corner-letter test pattern as a list of lines, inset by
-    the given margins. Fully unit-testable (exact line count, ruler
-    numbers land where expected, margin actually shrinks the drawn area).
-  - `adjust_margins(margins, feedback, step=1)` — pure function, the
-    hill-climb described above. Also fully unit-tested, including that it
-    reports "converged" once a round changes nothing.
-  - `load_display_conf` / `save_display_conf` — same simple `KEY=value`
-    shape as `~/.crt/tts.conf` (existing convention from
-    `crt-tts-calibrate.py`), so this fits the pattern already established
-    rather than inventing a new config format.
-  - A `main()` CLI loop exists but **cannot be tested this session** — it
-    needs a real STT response and a real screen to look at. Treat it as a
-    first draft to run live, not a verified interactive flow.
-- `tests/test_calibrate_display.py` — covers the two pure functions above
-  with synthetic feedback sequences (including a deliberately
-  contradictory one, to confirm it doesn't oscillate forever).
-
-## Not done this session (as of 2026-07-19)
-- ~~Wiring the saved margin into rendering~~ **DONE (2026-07-20)**: both
-  `crt-pager.py` (`load_display_margins`/`apply_margins`, applied
-  regardless of whether WIDTH/HEIGHT came from env override or
-  auto-detect) and `crt-monologue.sh` now read `~/.crt/display.conf` and
-  shrink the usable area accordingly. No-op until the calibration game
-  has actually produced a real margin — still untested against a real
-  overscan crop, only against synthetic conf files
-  (`tests/test_pager.py`, `tests/test_monologue_margin.sh`).
-- The STT-response-to-per-edge-feedback parser is a first-draft guess at
-  phrasing ("top right is gone," "all four are fine") — real voice
-  responses in a noisy room will need the same charitable-inference
-  treatment as everything else in `STT-MECHANISM.md`; this hasn't been
-  tuned against anything real.
-- Any actual VirtualBox resolution change (lever #1 above).
+## Shipped, and what's still a guess
+`bin/crt-calibrate-display.py` (`render_pattern`/`adjust_margins`/
+`load_display_conf`/`save_display_conf`, each documented at its own
+definition) implements the ritual above; `crt-pager.py` and
+`crt-monologue.sh` read the saved margin on every render
+(`load_display_margins`/`apply_margins`). Covered by
+`tests/test_calibrate_display.py` (the pure functions, including a
+deliberately contradictory feedback sequence that must not oscillate
+forever), `tests/test_pager.py`, `tests/test_monologue_margin.sh` — all
+against synthetic conf files, never a real overscan crop. Two things
+remain untested against anything real: `main()`'s interactive loop (needs
+a real STT response and a real screen to look at), and the STT-response
+parser's phrasing guesses ("top right is gone," "all four are fine") —
+same charitable-inference treatment as everything else in
+`STT-MECHANISM.md`. Lever #1 (an actual VirtualBox resolution change)
+still needs dexter access.
