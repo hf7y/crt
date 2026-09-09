@@ -21,9 +21,8 @@ BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # crash drops to the `; exec bash` fallback below.
 export PATH="$BIN_DIR:$HOME/.local/bin:$PATH"
 
-# Real bug found 2026-07-24: unexported, the CTL-file live-tune mechanism
-# (crt-ring.sh, crt-tts.py/crt-earcon.sh's mute flag) was silently dead --
-# crt-stt-solo.py defaults to "" (off) otherwise. Set once, inherited like PATH above.
+# See tests/test_console_ctl_env_export.sh (real bug, 2026-07-24). Set
+# once, inherited like PATH above.
 export CRT_CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
 
 # The console's config -- wake word, earcon sink, mic, whisper server,

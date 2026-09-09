@@ -975,16 +975,11 @@ def _confirm_in_background(text, local_answer):
         return
     before = capture_pane()
     if not send_to_claude(text):
-        # Nothing was sent, so there is no call to record. Recording one
-        # anyway would have booked an unconfirmed miss against this
-        # utterance shape every time the tunnel was down -- teaching the
-        # confidence model that the local playbook disagrees with Claude,
-        # from an exchange that never happened.
+        # See test_failed_send_records_no_claude_call.
         return
     reply, status = wait_for_claude_reply(before)
     if status != "ok":
-        # Same reasoning one step later: an answer nobody could read is not
-        # an answer that disagreed. Scoring it would poison the same state.
+        # See test_unobserved_reply_records_no_confidence_hit.
         return
     with _CONFIDENCE_STATE_LOCK:
         state = stt_confidence.load_state()

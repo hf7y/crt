@@ -100,14 +100,12 @@ class LoopGuard:
         self._log_path = log_path
         self._echo = echo
         self._report = report if report is not None else self._default_report
-        # OFF by default. `book` is the window crt-console.sh boots selected,
-        # so that pane's stdout/stderr IS the tube -- a traceback there is
-        # painted over the console's face and stays until the next draw(),
-        # which may be a long time if nothing is scanned. The one-line report
-        # already carries the exception type and message; set
-        # CRT_LOOP_GUARD_TRACEBACK=1 when attached to a window and wanting
-        # frames. Junk-tolerant per crt_config.env_flag's own docstring --
-        # this flag is exactly the case that fix was written for.
+        # OFF by default -- see test_traceback_is_off_with_no_env_set. The
+        # one-line report already carries the exception type and message;
+        # set CRT_LOOP_GUARD_TRACEBACK=1 when attached to a window and
+        # wanting frames. Junk-tolerant per crt_config.env_flag's own
+        # docstring -- this flag is exactly the case that fix was written
+        # for.
         self.verbose = crt_config.env_flag("CRT_LOOP_GUARD_TRACEBACK") \
             if verbose is None else verbose
 

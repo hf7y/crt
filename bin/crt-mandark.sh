@@ -30,10 +30,8 @@ EOF
 # (reverse-tunneled) socket, send CAPTURE, expect a non-empty pane back.
 # Returns 0 if the bridge answered, 1 otherwise. Never blocks longer than
 # the timeout. Uses python3 (always present here) so we match the real
-# client's behavior rather than guessing with nc. Takes the port as $1
-# (2026-07-25) -- it used to always read the DEFAULT while current_port()
-# read the CONFIGURED one, so a non-default port made status report on
-# the wrong socket with no error either way.
+# client's behavior rather than guessing with nc. Takes the port as $1 --
+# see tests/test_mandark_toggle.sh's CONFIGURED-port case.
 probe_bridge() {
   python3 - "$1" <<'PY'
 import socket, sys
