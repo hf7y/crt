@@ -48,11 +48,12 @@
   the estate is delivered through it, so when it goes quiet the tracker does not
   fill with alarms — it goes silent, which reads from outside like a calm night.
   The verdict is deliberately never <b>OK</b> for a relay that merely answers:
-  an open port is not a reachable human. The queue holds
-  <b>one question at a time</b> (crt#67, so three agents are not three pings),
-  which means an ignored question occupies the channel for its full TTL before
-  going stale — <code>stale_slot_hours</code> is how much of the day that cost
-  every other caller.
+  an open port is not a reachable human. Each repo holds
+  <b>one editable message of its own</b> (crt#230, so a chatty caller cannot
+  starve or clobber a quiet one), which means an ignored question still
+  occupies that repo's slot for its full TTL before going stale —
+  <code>stale_slot_hours</code> is how much of the day that cost, summed
+  across every repo sharing this window.
 </footer>
 </main>
 <script>
@@ -82,8 +83,8 @@ fetch("status.json?t="+Date.now()).then(r=>r.json()).then(d=>{
     ${fact("relay", R.answers?`answers in ${R.ms} ms`:"no answer", R.answers?"ok":"bad")}
     ${fact("containers", C.length?`${C.length-bad.length}/${C.length} running`:"unknown",
            C.length&&!bad.length?"ok":C.length?"bad":"mut")}
-    ${fact("open slot", L.slot?`${L.slot.from}, ${L.slot.age_hours} h`:"free",
-           L.slot?"warn":"ok")}
+    ${fact("open slots", (L.slots||[]).length?L.slots.map(s=>`${s.from} ${s.age_hours}h`).join(", "):"free",
+           (L.slots||[]).length?"warn":"ok")}
     ${fact("queued behind it", L.queued??0, L.queued?"warn":"mut")}
     ${fact("last answer", ago(L.last_answered_at), L.last_answered_at?"":"bad")}
     ${fact("lifetime", `${T.answered||0} answered / ${T.stale||0} stale`,"mut")}
@@ -100,11 +101,12 @@ fetch("status.json?t="+Date.now()).then(r=>r.json()).then(d=>{
     took the question and WhatsApp did not. This is the failure that looks healthy from
     every caller's side: <code>ask_zach</code> returns a ticket either way.`);
   if (L.stale_slot_hours >= 6) items.push(`<span class="warn">${L.stale_slot_hours} h of the
-    last ${L.window_hours} h</span> were spent holding the single slot for questions that
-    expired unanswered. A blocking question from any other agent queues behind that.`);
-  if (L.slot && L.slot.age_hours > (L.ttl_hours||1)) items.push(`<span class="bad">the slot is
-    past its TTL</span> — <code>${H(L.slot.id)}</code> has held it ${L.slot.age_hours} h and the
-    sweep has not freed it.`);
+    last ${L.window_hours} h</span> were spent holding some repo's slot for questions that
+    expired unanswered, summed across every repo. A repo's own later question queues behind
+    its own stale one; a different repo's slot is unaffected (crt#230).`);
+  (L.slots||[]).filter(s=>s.age_hours > (L.ttl_hours||1)).forEach(s=>items.push(`<span class="bad">
+    <code>${H(s.from)}</code>'s slot is past its TTL</span> — <code>${H(s.id)}</code> has held it
+    ${s.age_hours} h and the sweep has not freed it.`));
   (d.hazards||[]).forEach(h=>items.push(`<span class="warn">a second holder for the
     WhatsApp session</span> — the WSL distro <code>${H(h.distro)}</code> is registered, and
     ${H(h.why)}. Booting it logs the link out and costs a QR scan.`));
