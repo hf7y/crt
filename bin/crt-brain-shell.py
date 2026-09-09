@@ -124,10 +124,8 @@ def main():
         _log("SEND failed: %s" % detail)
         return 1
 
-    # An unrecognized verb is a bug in the caller or someone probing. The
-    # bridge answered every such request with an empty body and exit 0 --
-    # an exit-0 no-op that made a typo indistinguishable from a dead tmux.
-    # Refuse it loudly instead; the empty body keeps potato's contract.
+    # See test_unknown_verb_refuses_loudly_with_empty_body: refuse loudly
+    # rather than the old bridge's exit-0 empty-body no-op.
     _log("unknown request %r -- refusing" % line[:120])
     return 2
 
