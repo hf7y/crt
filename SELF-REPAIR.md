@@ -33,12 +33,10 @@ crt-vm guest as the console. Mirrored nowhere else.
 - `~/crt` on potato is its own local git repo (`git init`, not connected
   to mandark's remote yet — see "Not yet built"). First commit is the
   as-deployed snapshot, the revert baseline.
-- `bin/crt-self-repair.sh` — the nightly wrapper. Does NOT trust the
-  `claude -p` invocation to remember to commit: it force-commits
-  before AND after the run regardless of what Claude itself did, so a
-  crash/timeout mid-run still leaves a clean revertible history. Logs to
-  `~/reports/crt-self-repair/<date>.log` on potato itself (not yet synced
-  anywhere off-box — see below).
+- `bin/crt-self-repair.sh` — the nightly wrapper, force-commits before AND
+  after the run regardless of what `claude -p` did (see its own header).
+  Logs to `~/reports/crt-self-repair/<date>.log` on potato itself (not yet
+  synced anywhere off-box — see below).
 - `systemd/crt-self-repair.timer`/`.service` — nightly, potato-only unit,
   deliberately not installed by the shared `install.sh`. By hand on potato:
   `sudo cp systemd/crt-self-repair.{service,timer} /etc/systemd/system/ &&

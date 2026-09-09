@@ -41,16 +41,12 @@ reason about *why* a given transcription got garbled the way it did.
    explanation for some garbling, not just whisper mishearing.
 
    **The capture duck can also punch a hole in an utterance.** While the
-   handset is playing something (a TTS reply, an earcon), capture is "ducked"
-   via the control file, and those chunks are *dropped from the buffer* — the
-   silence timer freezes, and speech either side of the duck is spliced
-   together (`utt_chunk()` in `crt-stt-solo.py`; before 2026-07-25 the
-   console's own playback was buffered into the sentence instead, which is
-   worse). So a second explanation for a mangled word: the console started
+   handset is playing something (a TTS reply, an earcon), capture is
+   "ducked" — see `utt_chunk()`'s own docstring in `crt-stt-solo.py` for the
+   mechanism and why it's excise-and-splice rather than buffer-through or
+   truncate. So a second explanation for a mangled word: the console started
    talking over the speaker, and the word straddling that moment lost its
-   middle. If the duck outlasts `CRT_MUTE_UTT_MAX_SECS` (2s) the utterance is
-   closed and transcribed as-is, so a long reply can also cut a sentence in
-   half rather than clipping a word.
+   middle.
 
    The same applies to the **pre-roll** — the `CRT_VAD_PREROLL` chunks kept
    before onset so a first word's soft attack isn't lost. Ducked chunks are
@@ -78,18 +74,14 @@ reason about *why* a given transcription got garbled the way it did.
    are a real lever now, passed via `provision/dexter/zaxon/compose.yaml`.
 
    **A failure here is not a silence, and since 2026-07-25 it no longer
-   pretends to be one.** `transcribe_remote()` returns `None` when it could
-   not get an answer out of the server at all (unreachable, timeout, HTTP
-   error, unparseable body) and `""` only when the server genuinely heard
-   nothing. Before that it returned `""` for both, so an unreachable mandark
-   made the console go completely silent with nothing anywhere saying why —
-   if you are reading `stt.log` from before this date and a stretch of a
-   session is simply *missing*, a dead whisper server is a live candidate,
-   not just a quiet room. Now: `! stt lost it` flashes on the tube every time
-   it happens, and the pane carries a `TRANSCRIPTION FAILED` line on the
-   first failure of a run and every tenth after it, plus one when it
-   recovers. A failed call falls back to the local `whisper.cpp` build on this
-   box, if one is present (`CRT_WHISPER_LOCAL_FALLBACK=0` disables it; crt#132).
+   pretends to be one** — see `transcribe_remote()`, `transcribe_failure_report()`,
+   and `transcribe_recovery_report()`'s own docstrings in `crt-stt-solo.py`
+   for the None-vs-empty-string distinction and the HUD/pane reporting
+   cadence. If you are reading `stt.log` from before this date and a
+   stretch of a session is simply *missing*, a dead whisper server is a
+   live candidate, not just a quiet room. A failed call falls back to the
+   local `whisper.cpp` build on this box, if one is present
+   (`CRT_WHISPER_LOCAL_FALLBACK=0` disables it; crt#132).
 5. **Filtering before it reaches you**: a hardcoded set of whisper's known
    noise-hallucination outputs get dropped entirely (`HALLU` in
    `crt-stt-solo.py` — things like "thank you", "music playing"), as does

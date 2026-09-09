@@ -47,14 +47,9 @@ this path**, pure parsing of `morning-report.sh`'s existing stdout.
   emits — would make the CRT one-liner reliably good instead of
   heuristic-dependent. This is the single highest-value change on the
   scheduler side for this to work well.
-- **`morning-report.sh` itself was observed to hang** this session (ran
-  it standalone, independent of anything in this repo, timed out at
-  120s). Root cause not investigated (likely a slow/unreachable
-  per-project `DEPLOY_FRESH_CMD` network probe — home-assistant's own
-  report already documents an unreachable-Pi scenario that could match).
-  `crt-present-morning-report.py` defends against this with its own
-  20s timeout (returns empty rather than hanging the console), but the
-  underlying hang is a real bug in shared scheduler infra worth fixing
+- **`morning-report.sh` itself was observed to hang** this session — see
+  `fetch_raw()`'s own comment for the timeout defense and suspected cause.
+  The underlying hang is a real bug in shared scheduler infra worth fixing
   there directly — not attempted here, out of scope for this repo, but
   flagging since a console that "just goes quiet" on the actual hardware
   would be a real bad experience.
