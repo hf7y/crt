@@ -13,6 +13,11 @@ still 'pending'.
 A voice note that failed to transcribe is NOT resolved as a reply: its
 audio is retained instead and the ticket stays pending (retain_audio).
 
+An untagged reply that quotes nothing is matched against the one pending
+ticket, if exactly one exists (resolve_unthreaded_reply, crt#244) -- the
+only way a reply can quote nothing is that its question never reached the
+phone to be quoted.
+
 Also the only long-running loop the relay has, so it carries crt#67's
 staleness sweep too (STALE_SWEEP_EVERY_TICKS): otherwise a queued question
 only gets promoted next time some agent happens to poll, which may be never.
@@ -112,6 +117,29 @@ def resolve_reply(reply_id: str, msg: str, via: str = "text") -> bool:
         conn.close()
 
 
+def resolve_unthreaded_reply(msg: str, via: str = "text") -> bool:
+    """Safe to guess only when exactly one ticket is pending: the
+    per-from_agent slot (crt#230) already keeps that number small, and at
+    exactly one there is nothing else it could be."""
+    conn = get_conn()
+    try:
+        rows = conn.execute("SELECT id FROM tickets WHERE status='pending'").fetchall()
+        if len(rows) != 1:
+            return False
+        ticket_id = rows[0][0]
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        conn.execute(
+            "UPDATE tickets SET status='answered', answer=?, answered_at=?, via=? "
+            "WHERE id=?",
+            (msg, now, via, ticket_id),
+        )
+        conn.commit()
+        sweep_and_promote(conn)
+        return True
+    finally:
+        conn.close()
+
+
 def retain_audio(reply_id: str, audio_path: str) -> bool:
     """Not an answer -- the ticket stays pending -- but the audio is copied
     out of the gateway's cache (which gets swept) so zaxon-retranscribe can
@@ -168,8 +196,10 @@ def _handle_message(reply_id: str, msg: str, via: str) -> None:
             handled = resolve_reply(reply_id, msg, via)
     if not handled:
         handled = _retag(msg)
+    for_agent, body = _split_for_agent(msg)
+    if not handled and reply_id == "None" and for_agent is None:
+        handled = resolve_unthreaded_reply(msg, via)
     if not handled:
-        for_agent, body = _split_for_agent(msg)
         entry_id = record_unclassified(
             body, None if reply_id == "None" else reply_id, via, for_agent=for_agent
         )
