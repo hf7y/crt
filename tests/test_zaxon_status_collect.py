@@ -77,6 +77,19 @@ class VerdictLadder(unittest.TestCase):
         self.add("pending", hours_ago=5)
         self.assertEqual(self.verdict(), "WEDGED")
 
+    def test_one_stuck_slot_among_several_pending_is_still_WEDGED(self):
+        # crt#230: the slot is per from_agent, so more than one can be
+        # pending at once. A single stuck one must not hide behind a fresh one.
+        self.add("pending", hours_ago=5, agent="stuck-repo")
+        self.add("pending", hours_ago=0.1, agent="fresh-repo")
+        self.assertEqual(self.verdict(), "WEDGED")
+
+    def test_collect_reports_every_pending_slot_not_just_one(self):
+        self.add("pending", hours_ago=5, agent="stuck-repo")
+        self.add("pending", hours_ago=0.1, agent="fresh-repo")
+        slots = zsc.collect()["slots"]
+        self.assertEqual({s["from"] for s in slots}, {"stuck-repo", "fresh-repo"})
+
     def test_empty_window_is_QUIET_not_OK(self):
         self.add("answered", hours_ago=100, answered_at=_ago(99))
         self.assertEqual(self.verdict(), "QUIET")
@@ -87,9 +100,9 @@ class VerdictLadder(unittest.TestCase):
 
 
 class SlotCost(unittest.TestCase):
-    """The single slot (crt#67) is the resource an ignored question spends.
-    stale_slot_hours is what it cost every OTHER caller, which is the number
-    a miss-rate percentage hides."""
+    """Each repo's own slot (crt#230) is the resource an ignored question
+    spends. stale_slot_hours sums that cost across every repo, which is the
+    number a miss-rate percentage hides."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
