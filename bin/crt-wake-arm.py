@@ -61,11 +61,7 @@ class ArmState:
         # Ceiling for the whole conversation, set by the wake word itself and
         # NOT pushed back by follow-ups (see ARM_MAX_SECS).
         self.session_deadline = 0.0
-        # True once the window has been slid by a consumed follow-up. Such a
-        # window closing is a conversation ending normally, not a wake that
-        # went unanswered -- reporting it to the judge as a timeout would
-        # teach it the wake word was unwanted, when a follow-up already
-        # proved the opposite.
+        # See test_continuation_timeout_is_not_reported_as_an_unanswered_wake.
         self.continuation = False
 
     def arm(self, text, match_kind, match_source=None, matched_word=None,
