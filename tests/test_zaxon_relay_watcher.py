@@ -160,6 +160,75 @@ class TestUnclassifiedInbound(unittest.TestCase):
         self.assertEqual(len(inbox.fetch_inbox(limit=2)), 2)
 
 
+class TestUnthreadedReply(unittest.TestCase):  # crt#244
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmp.name) / "tickets.db"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _insert(self, tid, status, wa_message_id="wa1", from_agent="groc"):
+        db.get_conn().execute(
+            "INSERT INTO tickets (id, from_agent, question, status, created_at, "
+            "wa_message_id) VALUES (?, ?, 'Q', ?, '2026-09-09T00:00:00Z', ?)",
+            (tid, from_agent, status, wa_message_id),
+        ).connection.commit()
+
+    def test_the_lone_pending_ticket_is_answered(self):
+        self._insert("t1", "pending")
+        self.assertTrue(w.resolve_unthreaded_reply("order it"))
+        row = db.get_conn().execute(
+            "SELECT status, answer, via FROM tickets WHERE id='t1'"
+        ).fetchone()
+        self.assertEqual(row, ("answered", "order it", "text"))
+
+    def test_two_pending_tickets_are_left_alone(self):
+        self._insert("t1", "pending", "wa1")
+        self._insert("t2", "pending", "wa2", from_agent="filmb")
+        self.assertFalse(w.resolve_unthreaded_reply("order it"))
+        statuses = {
+            r[0] for r in db.get_conn().execute("SELECT status FROM tickets")
+        }
+        self.assertEqual(statuses, {"pending"})
+
+    def test_no_pending_ticket_is_left_alone(self):
+        self.assertFalse(w.resolve_unthreaded_reply("order it"))
+
+    def test_handle_message_routes_an_unthreaded_reply_to_the_lone_ticket(self):
+        self._insert("t1", "pending")
+        w._handle_message("None", "order it", "text")
+        self.assertEqual(
+            db.get_conn().execute("SELECT status FROM tickets WHERE id='t1'").fetchone(),
+            ("answered",),
+        )
+        self.assertEqual(inbox.fetch_inbox(), [])
+
+    def test_an_explicitly_tagged_note_does_not_answer_the_lone_ticket(self):
+        """Addressed elsewhere on purpose -- not a stray reply to Zach's own
+        pending question, so it must not be swallowed as its answer."""
+        self._insert("t1", "pending")
+        w._handle_message("None", "realisateur: fix the thing", "text")
+        self.assertEqual(
+            db.get_conn().execute("SELECT status FROM tickets WHERE id='t1'").fetchone(),
+            ("pending",),
+        )
+        self.assertEqual(len(inbox.fetch_inbox()), 1)
+
+    def test_a_retag_that_names_nothing_does_not_answer_the_lone_ticket(self):
+        """Matches the tag grammar but resolves nothing (bad repo, no
+        untagged note) -- must land in the inbox like any other failed
+        retag, not get read as the pending ticket's answer just because
+        it's also the lone one."""
+        self._insert("t1", "pending")
+        w._handle_message("None", "tag realisateur", "text")
+        self.assertEqual(
+            db.get_conn().execute("SELECT status FROM tickets WHERE id='t1'").fetchone(),
+            ("pending",),
+        )
+        self.assertEqual(len(inbox.fetch_inbox()), 1)
+
+
 class TestForAgentTag(unittest.TestCase):  # crt#130
     def test_a_leading_repo_tag_is_split_out(self):
         for_agent, body = w._split_for_agent("realisateur: the vault notation needs a second example")
