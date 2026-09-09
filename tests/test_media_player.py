@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Tests for bin/crt-media-player.py -- PARKING-LOT.md's "play media" job.
+# Tests for bin/crt-media-player.py -- vault:crt/PARKING-LOT.md's "play media" job.
 # No audio hardware, no real cvlc/mpv -- FakeBackend records calls,
 # VlcBackend is only exercised for its OSError-swallowing behavior.
 import atexit

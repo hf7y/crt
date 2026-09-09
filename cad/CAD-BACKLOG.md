@@ -61,7 +61,7 @@ print done and confirmed fine — Ender 3 SD path is not a blocker anymore.
 
 ## New this session (speculative, design-stage only)
 - `ir_blaster_mount.scad` — bracket to aim an IR LED at the TV. **Parked
-  2026-07-21** (see `PARKING-LOT.md`) — the blaster itself is now
+  2026-07-21** (see `vault:crt/PARKING-LOT.md`) — the blaster itself is now
   load-bearing again (drives the channel-confirmation loop below), but
   Chris is not building the physical case/mount right now. LED still
   sourced (https://www.amazon.com/dp/B099ZJ6555); TV sensor position
@@ -77,10 +77,10 @@ print done and confirmed fine — Ender 3 SD path is not a blocker anymore.
   TV channels instead of a separate switch — IR blaster emits the channel
   code to reinforce the active persona, TV's built-in speaker beeps a
   confirmation tone, handset mic picks it up to confirm the channel
-  matched. Full idea in `PARKING-LOT.md`'s "Channel-confirmation loop."
+  matched. Full idea in `vault:crt/PARKING-LOT.md`'s "Channel-confirmation loop."
   No faceplate/knob CAD needed; the previously-sourced switch
   (https://www.amazon.com/dp/B088W8WMTB) is no longer needed for this.
-- **HDMI-to-RF multi-channel modulator housing** (`PARKING-LOT.md`'s
+- **HDMI-to-RF multi-channel modulator housing** (`vault:crt/PARKING-LOT.md`'s
   multi-persona TV-channel idea) — **the modulator itself is already
   owned** (2026-07-20, supports daisy-chain multi-channel) — this is no
   longer a sourcing blocker, just an unstubbed housing/mounting/wiring

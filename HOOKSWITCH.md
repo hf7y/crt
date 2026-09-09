@@ -1,7 +1,7 @@
 # Hookswitch: behavior spec
 
 The physical embodiment of `PHILOSOPHY.md` #4 (verbs, not menus) — per
-`PARKING-LOT.md`, this is the **primary** interface hardware, ahead of the
+`vault:crt/PARKING-LOT.md`, this is the **primary** interface hardware, ahead of the
 CRT or any knob. Formalizing the intended behavior here so
 `bin/hookswitch-listen.sh` has a spec to be checked against, not just
 whatever the first draft happened to do.
@@ -9,7 +9,7 @@ whatever the first draft happened to do.
 ## States
 - **On-hook** (handset resting, switch closed): STT paused. This is the
   console's resting state — inert, not listening, matching
-  `PARKING-LOT.md`'s RF-power-on vision where resting = actually off/idle,
+  `vault:crt/PARKING-LOT.md`'s RF-power-on vision where resting = actually off/idle,
   not silently-still-recording standby.
 - **Off-hook** (handset lifted, switch open): STT active, listening.
 - **Transition (bounce)**: a mechanical switch does not move cleanly

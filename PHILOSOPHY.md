@@ -1,13 +1,13 @@
 # Philosophy
 
-`PARKING-LOT.md` captured the first pass at this ("as close to nothing as
+`vault:crt/PARKING-LOT.md` captured the first pass at this ("as close to nothing as
 possible," blinking cursor, hidden transcription). This doc names the
 underlying principles explicitly and pushes them further — the "why" behind
 the parking lot, and behind `IDLE-BAIT.md`/`SIDETONE.md`. Living document;
 extend it rather than replacing sections as the project teaches us more.
 
 ## 1. Answer first, be right later
-The predictive-typing-then-overwrite idea in `PARKING-LOT.md` (cheap local
+The predictive-typing-then-overwrite idea in `vault:crt/PARKING-LOT.md` (cheap local
 guess appears instantly, gets overwritten by the real answer once Claude
 Code returns) isn't just a latency trick — it's the same move as:
 - **Earcons before words** (`crt-earcon.sh`): a beep lands in ~0ms, the
@@ -54,11 +54,11 @@ switch modes — these are bodily rituals with real friction and real
 finality, not taps on a flat menu. The design privileges physical action
 that means something (picking up a phone is a *decision* in a way tapping
 an icon isn't) over app-like navigation. This is also why the hookswitch
-is explicitly the "primary" interface hardware per `PARKING-LOT.md`, ahead
+is explicitly the "primary" interface hardware per `vault:crt/PARKING-LOT.md`, ahead
 of the CRT or any knob — it's the one piece of hardware that IS a verb.
 
 ## 5. One body, several selves
-The HDMI-to-RF multi-channel idea (`PARKING-LOT.md`) — different personas/
+The HDMI-to-RF multi-channel idea (`vault:crt/PARKING-LOT.md`) — different personas/
 modes living on different TV "channels," each reinforcing its identity by
 actually changing the channel via IR when it activates — proposes
 something more specific than "modes": each channel is close to a distinct
@@ -75,7 +75,7 @@ on/off.
 not a black box to blame. Philosophically: this console is more like a
 slightly-deaf old friend in a noisy room than a voice-recognition product.
 The *output* stays polished (garbled input never surfaces raw per
-`PARKING-LOT.md`'s "never shown raw" rule), but the *character* is allowed
+`vault:crt/PARKING-LOT.md`'s "never shown raw" rule), but the *character* is allowed
 to be a little hard of hearing, a little uncertain, occasionally charmed
 by its own mishears (see `CLAUDE.md`'s "did you say fax or facts, asking
 for research purposes" spirit). This is a deliberate contrast with the
@@ -83,7 +83,7 @@ polished-omniscient-assistant genre most voice products aim for.
 
 ## 7. Local-first, cloud as a favor asked, not a dependency
 "A chatbot that runs as locally as possible, with occasional callouts to
-Claude Code only when needed" (`PARKING-LOT.md`) means the device's
+Claude Code only when needed" (`vault:crt/PARKING-LOT.md`) means the device's
 *presence* (beeps, sidetone, the blinking cursor, quick local guesses)
 should never depend on a network round-trip. Only genuinely open-ended
 reasoning should. This is both a latency argument (#1) and an

@@ -63,7 +63,7 @@ the TV." Concretely:
 
 ## On-screen idle state (CRT)
 
-Per `PARKING-LOT.md`'s existing interface philosophy ("as close to nothing
+Per `vault:crt/PARKING-LOT.md`'s existing interface philosophy ("as close to nothing
 as possible... a blinking cursor, not a transcript"), the idle screen stays
 minimal. Proposal, layered on top of that blinking cursor:
 

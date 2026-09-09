@@ -2,7 +2,7 @@
 # Cheap local "what did they probably just say" guesser, trained on
 # ~/.crt/stt.log. Flashes a guess the instant an utterance ends, before
 # whisper (real wall-clock time) has run, then gets overwritten by the
-# real transcription -- PARKING-LOT.md's predictive-typing-then-overwrite
+# real transcription -- vault:crt/PARKING-LOT.md's predictive-typing-then-overwrite
 # aesthetic, PHILOSOPHY.md #1 (answer first) in its most literal form.
 # Deliberately NOT a real language model, just bigram frequency over this
 # room's own history (STT-MECHANISM.md). NOT hardware-verified against

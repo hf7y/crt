@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Offline tests for crt-stt-solo.py's CRT_STT_SINK=secretary routing
-# (PARKING-LOT.md's "Local-first STT routing" plan, 2026-07-21) -- no
+# (vault:crt/PARKING-LOT.md's "Local-first STT routing" plan, 2026-07-21) -- no
 # mic/tmux/live crt-secretary.py needed; send_to_claude/send_to_secretary
 # are monkeypatched to record calls instead of touching tmux/Popen.
 import importlib.util

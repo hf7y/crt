@@ -172,7 +172,7 @@ def dispatch_untracked_line(reason):
 def send_to_secretary(text):
     """Fire-and-forget: hands the utterance to crt-secretary.py's local-
     playbook-first router (SECRETARY.md) instead of typing straight into
-    Claude's pane -- PARKING-LOT.md's 'Local-first STT routing' plan.
+    Claude's pane -- vault:crt/PARKING-LOT.md's 'Local-first STT routing' plan.
     Popen, not run/check_call -- must never block this capture loop on
     crt-secretary.py's own Claude-escalation wait (up to
     CRT_SECRETARY_MAX_WAIT seconds for an unmatched request)."""

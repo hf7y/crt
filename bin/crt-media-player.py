@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Voice-driven local media playback -- PARKING-LOT.md's second "primary
+# Voice-driven local media playback -- vault:crt/PARKING-LOT.md's second "primary
 # product surface" job (alongside morning reports): "play the thing",
 # "next", "pause" via handset voice, no Claude call for the common case
 # (same "90% offline supervisor" spirit as SUPERVISOR.md). v1 scope is
@@ -83,7 +83,7 @@ class FakeBackend:
 class VlcBackend:
     """Real (never live-tested) backend: shells out to `cvlc` for a one-
     shot play, and to a VLC RC-interface socket for pause/resume/next/
-    stop -- sketched per PARKING-LOT.md's own naming of VLC/ffmpeg-class
+    stop -- sketched per vault:crt/PARKING-LOT.md's own naming of VLC/ffmpeg-class
     tooling, not a finished integration. Every method swallows OSError
     (missing binary, no real media library mounted) rather than raising,
     since this account's sandbox can never actually exercise it -- a

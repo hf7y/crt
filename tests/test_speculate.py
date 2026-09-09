@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Tests for bin/crt-speculate.py -- PARKING-LOT.md's speculative/
+# Tests for bin/crt-speculate.py -- vault:crt/PARKING-LOT.md's speculative/
 # optimistic-response filler line.
 import importlib.util
 import os

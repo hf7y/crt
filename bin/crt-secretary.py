@@ -33,7 +33,7 @@ _conf_spec.loader.exec_module(stt_confidence)
 CONFIDENCE_ENABLED = os.environ.get("CRT_SECRETARY_CONFIDENCE", "0") == "1"
 _CONFIDENCE_STATE_LOCK = threading.Lock()
 
-# PARKING-LOT.md's speculative/optimistic-response filler, loaded the
+# vault:crt/PARKING-LOT.md's speculative/optimistic-response filler, loaded the
 # same importlib way. Opt-in, default OFF, same "never change live
 # default behavior without hands-on verification" rule -- see handle()'s
 # Claude-escalation branch below for where this fires.
@@ -44,7 +44,7 @@ _spec_spec.loader.exec_module(speculate)
 
 SPECULATE_ENABLED = os.environ.get("CRT_SECRETARY_SPECULATE", "0") == "1"
 
-# PARKING-LOT.md's second "primary product surface" job: voice-driven
+# vault:crt/PARKING-LOT.md's second "primary product surface" job: voice-driven
 # media playback. Loaded the same importlib way as the other bin/
 # scripts this file reuses -- see crt-media-player.py's own header for
 # why it's a pluggable Backend (FakeBackend for tests, VlcBackend
@@ -432,7 +432,7 @@ def handle_book_catalog(text):
 
 
 # --- Playbook: media --------------------------------------------------
-# PARKING-LOT.md's second "primary product surface" job: "play the
+# vault:crt/PARKING-LOT.md's second "primary product surface" job: "play the
 # thing", "next", "pause" via handset voice. match_media() delegates the
 # actual parsing to crt-media-player.py's parse_media_command() (its own
 # pure function) instead of a separate trigger tuple here, so the two
@@ -1050,7 +1050,7 @@ def show_composing_line(_pane_snapshot):
 
 
 def show_filler_line():
-    """PARKING-LOT.md's speculative/optimistic-response idea: an instant,
+    """vault:crt/PARKING-LOT.md's speculative/optimistic-response idea: an instant,
     content-free acknowledgment shown via crt-think.sh (crt-monologue.sh
     already tails and displays that log) the moment a request is about to
     sit through wait_for_claude_reply's real round-trip (up to
