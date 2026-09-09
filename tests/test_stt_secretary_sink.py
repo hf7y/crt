@@ -3,7 +3,9 @@
 # (PARKING-LOT.md's "Local-first STT routing" plan, 2026-07-21) -- no
 # mic/tmux/live crt-secretary.py needed; send_to_claude/send_to_secretary
 # are monkeypatched to record calls instead of touching tmux/Popen.
+import contextlib
 import importlib.util
+import io
 import os
 import tempfile
 import unittest
@@ -128,6 +130,50 @@ class TestPersonaControlOverride(unittest.TestCase):
         self.stt.emit("yes")
         self.assertEqual(self.claude_calls, [("yes", "yes")])
         self.assertEqual(self.secretary_calls, [])
+
+
+class TestSttLogAlwaysWritesDebugPersistOnlyGatesPrint(unittest.TestCase):
+    """crt-stt-solo.py's STT_LOG/STT_DEBUG_PERSIST comment: the log write
+    (for the claude-feed merge to read) happens either way, but the
+    terminal print/scrollback line only happens when debug mode is on."""
+
+    def setUp(self):
+        self.stt = load_stt_solo()
+        self.tmpdir = tempfile.mkdtemp()
+        self.stt.STT_LOG = os.path.join(self.tmpdir, "stt.log")
+        self.stt.GATE_LOG = os.path.join(self.tmpdir, "thoughts.log")
+        self.stt.SINK = "secretary"
+        self.stt.GATE = False
+        self.stt.send_to_claude = lambda text, key: None
+        self.stt.send_to_secretary = lambda text: None
+
+    def _emit_capturing_stdout(self, text):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            self.stt.emit(text)
+        return buf.getvalue()
+
+    def test_logs_to_stt_log_when_debug_persist_is_off(self):
+        self.stt.STT_DEBUG_PERSIST = False
+        self._emit_capturing_stdout("what time is it")
+        with open(self.stt.STT_LOG) as f:
+            self.assertIn("what time is it", f.read())
+
+    def test_does_not_print_transcript_when_debug_persist_is_off(self):
+        self.stt.STT_DEBUG_PERSIST = False
+        out = self._emit_capturing_stdout("what time is it")
+        self.assertNotIn("what time is it", out)
+
+    def test_prints_transcript_when_debug_persist_is_on(self):
+        self.stt.STT_DEBUG_PERSIST = True
+        out = self._emit_capturing_stdout("what time is it")
+        self.assertIn("what time is it", out)
+
+    def test_still_logs_to_stt_log_when_debug_persist_is_on(self):
+        self.stt.STT_DEBUG_PERSIST = True
+        self._emit_capturing_stdout("what time is it")
+        with open(self.stt.STT_LOG) as f:
+            self.assertIn("what time is it", f.read())
 
 
 if __name__ == "__main__":

@@ -606,11 +606,11 @@ def set_sideband_state(state):
     except Exception:
         pass
 
-# STT text always gets logged to CRT_STT_LOG (for the claude-feed merge to
-# read), but only gets PRINTED/scrolled to this pane's terminal (persisting
-# in scrollback) when debug mode is on. Off by default: raw STT should only
-# flash briefly, never linger, to mask recognition errors -- the merged,
-# cleaned-up text from claude is what should persist on screen instead.
+# Off by default: raw STT should only flash briefly, never linger, to mask
+# recognition errors -- the merged, cleaned-up text from claude is what
+# should persist on screen instead. Log-always-print-only-if-debug split
+# witnessed by tests/test_stt_secretary_sink.py's
+# TestSttLogAlwaysWritesDebugPersistOnlyGatesPrint.
 STT_LOG = os.environ.get("CRT_STT_LOG", os.path.expanduser("~/.crt/stt.log"))
 STT_DEBUG_PERSIST = os.environ.get("CRT_STT_DEBUG_PERSIST", "0") != "0"
 
