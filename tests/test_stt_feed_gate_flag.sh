@@ -3,10 +3,10 @@
 # gate", 2026-07-20). Can't source the real script (it does unconditional
 # mixer/tmux-wait side effects at the top, same reason
 # test_stt_feed_secretary_flag.sh doesn't either) -- exercises the real
-# addressed_to_console() bash function by extracting it verbatim from the
-# script, and confirms the default-off guard line and gate call site are
-# still present, so a refactor that silently drops the opt-in default or
-# the gate check gets caught here.
+# addressed_to_console() and is_whisper_noise_hallucination() bash functions
+# by extracting them verbatim from the script, and confirms the default-off
+# guard line and gate call site are still present, so a refactor that
+# silently drops the opt-in default or the gate check gets caught here.
 set -uo pipefail
 fail=0
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
@@ -70,5 +70,23 @@ else
   echo "FAIL - stt-feed.sh's gate check site is missing/changed"
   fail=1
 fi
+
+# is_whisper_noise_hallucination() -- the canonical-noise-token drop list
+# (AC/room noise whisper confidently mishears as bracketed sound tags or
+# filler words), extracted verbatim same as addressed_to_console() above.
+eval "$(sed -n '/^is_whisper_noise_hallucination() {/,/^}/p' "$BIN_DIR/stt-feed.sh")"
+
+drops() {
+  local text="$1"
+  if is_whisper_noise_hallucination "$text"; then echo "dropped"; else echo "kept"; fi
+}
+
+check "a bare 'thank you' is dropped" "dropped" "$(drops "thank you")"
+check "the full 'thank you for watching' hallucination is dropped" "dropped" "$(drops "Thank you for watching!")"
+check "a bracketed sound tag normalizes and is dropped" "dropped" "$(drops "[Music playing]")"
+check "empty text is dropped" "dropped" "$(drops "")"
+check "a single letter is dropped by the length guard" "dropped" "$(drops "a")"
+check "real speech addressed to the console is kept" "kept" "$(drops "claude what time is it")"
+check "a short but real two-letter word is kept" "kept" "$(drops "ok")"
 
 exit "$fail"
