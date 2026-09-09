@@ -37,23 +37,15 @@ whatever emotional register is being expressed (per `SECRETARY.md`'s
 existing TV-vs-handset channel split) — same taxonomy, turned down.
 
 ## Concrete mechanism: one dial, not five separate tone sets
-Rather than hand-authoring a distinct sound for every register (doesn't
-scale, gets inconsistent fast), `bin/crt-earcon.sh` now exposes
-**`CRT_EARCON_FADE_SCALE`**, a single multiplier over every tone's fade
-envelope. Register becomes: pick a base tone (bait/question/success/ack/
-oops) for *what kind of thing this is*, then scale its fade for *how urgent
-it feels right now*. Two axes, cheaply combined, rather than an
-combinatorial explosion of named sounds. `CRT_EARCON_FADE_SCALE=0.3` for
-clipped/urgent, `1.0` (default) for warm/curious, `2.0`+ for wistful/quiet.
-
-Also added: **`curious`** and **`content`** earcons, a genuinely new pitch-
-contour pair (not just fade variants) — `curious` is a slow gentle rise
-(distinct from `bait`'s faster rise: bait says "look over here," curious
-says "hm, interesting," a real register difference worth its own contour,
-not just a slower version of the same one), `content` is a small settle
-(rise then fall back), for when something that was pending finally
-resolves — the "ahh, good" sound, which nothing in the original five-tone
-set covered.
+Register is two cheaply-combined axes: a base tone (bait/question/success/
+ack/oops/curious/content) for *what kind of thing this is*, then
+**`CRT_EARCON_FADE_SCALE`** scales that tone's fade for *how urgent it
+feels right now* — rather than hand-authoring a distinct sound per
+register. `curious`/`content` are a genuinely new pitch-contour pair, not
+just fade variants of existing tones. The scale values, per-tone contour
+choices, and the rationale for each (why `curious` isn't just a slower
+`bait`) now live in `bin/crt-earcon.sh`'s own header and case-arm comments,
+not duplicated here.
 
 ## On-screen line length as the same dial
 `bin/crt-idle-teaser.sh`'s `teaser_for_line()` already varies phrasing by
@@ -69,25 +61,19 @@ exactly the kind of dissonance that reads as "off" in a real conversation).
 
 ## Explicitly not doing (yet)
 - ~~No actual pitch-contour synthesis beyond simple note sequences~~
-  **DONE (2026-07-20)**: `bait`/`curious`/`question` are now single
-  continuous glissando sweeps (`sox`'s `f1-f2` syntax, previously only
-  `oops` used it) instead of stepped notes; `content` is two joined
-  sweeps (rise, then settle) instead of three discrete notes. Still
-  unheard by a human — all 21 tone×fade-scale combinations synth-render
-  clean, that's the only verification possible offline.
+  **DONE (2026-07-20)** — `bin/crt-earcon.sh`'s `sweep()` glissandos, see
+  its own comments. Still unheard by a human; synth-render is the only
+  offline verification.
 - No color/brightness dimension yet, despite `CLAUDE.md` explicitly
   granting ANSI control of the screen — a natural extension (register
   also picks a color, not just line length) that this pass didn't reach.
   Worth its own follow-up rather than bolting on hastily.
-- ~~No TTS prosody control~~ **DONE (2026-07-20)**: `crt-tts.py` now
-  post-processes either backend's raw wav with sox (`pitch`/`tempo`/`vol`
-  effects) via `--mood <urgent|curious|content|wistful>` or explicit
-  `--pitch-semitones`/`--rate-mult`/`--volume-mult` flags (or the
-  `speak()` kwargs directly) — one mechanism for both backends, since
-  piper's CLI has no pitch knob and espeak's flags are baked in before
-  synthesis. No flags = byte-identical to the old behavior. Real sox
-  invocations tested (`tests/test_tts_prosody.py`); never heard by ear —
-  no TTS backend installed in this sandbox at all.
+- ~~No TTS prosody control~~ **DONE (2026-07-20)** — `bin/crt-tts.py`'s
+  `--mood`/`MOOD_PRESETS` (its own comment points back at this file's
+  register table) plus explicit `--pitch-semitones`/`--rate-mult`/
+  `--volume-mult` overrides; no flags = byte-identical to the old
+  behavior. `tests/test_tts_prosody.py` covers it; never heard by ear —
+  no TTS backend installed in this sandbox.
 
 ## Status
 Design + a first mechanism (`CRT_EARCON_FADE_SCALE`, `curious`/`content`
