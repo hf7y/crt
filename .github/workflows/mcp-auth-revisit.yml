@@ -1,0 +1,21 @@
+# crt#194
+name: mcp-auth-revisit
+
+on:
+  schedule:
+    - cron: '0 12 1 * *'
+  workflow_dispatch:
+
+jobs:
+  revisit:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state=$(gh issue view 194 --repo hf7y/crt --json state -q .state)
+          if [ "$state" = "OPEN" ]; then
+            gh issue comment 194 --repo hf7y/crt --body "Monthly MCP-auth revisit: the MCP door still has zero auth, reachable from the tailnet. Add a shared-secret header now, or keep deferring?"
+          fi
