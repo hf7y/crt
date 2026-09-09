@@ -37,20 +37,6 @@ the moment local matching gets ambiguous, that ambiguity itself is a
 "novel" case, and the right answer is to fall through to Claude, not to
 tune a heuristic to guess harder.
 
-## Playbooks built this session
-- **`status`** (was already there as the informal "local trigger" logic,
-  now a named playbook) — "what's up"/"any reports"/etc. Reads
-  `~/reports/crt/LATEST.md` + `.claude/QUESTIONS.md` directly, speaks a
-  count + offers to print. Zero Claude call.
-- **`run_tests`** — "run the tests"/"run the test suite"/"are the tests
-  passing" runs `tests/run_tests.sh` right there on the console and speaks
-  a pass/fail summary. This is the supervisor directly using this
-  session's own new test suite — a routine maintenance question that
-  should never need to wake Claude to answer.
-- **`what_time`** — "what time is it"/"what's the time" — the simplest
-  possible playbook, included mostly to prove the pattern scales down to
-  the trivial case cleanly, not because it's an important feature.
-
 ## What decides whether something becomes a playbook vs. stays a Claude call
 A playbook is worth writing when the answer is **deterministic given
 local state** — a file to read, a script to run, a clock to check. The
@@ -70,28 +56,14 @@ a new playbook is worth writing (log it — `bin/crt-report.sh`-shaped note,
 below). This keeps the 90%-offline number actually climbing over time
 instead of being a one-time snapshot.
 
-## Open items
-- ~~No usage tracking on Claude fallthroughs~~ **DONE (2026-07-20)**:
-  `handle()` now appends every unmatched request to
-  `~/.crt/fallthrough.log` (timestamped, best-effort — a broken log write
-  can never block the real Claude routing that follows it) before
-  escalating. Nothing reads/summarizes this log yet — that's still a
-  manual "eyeball it periodically" step, not automated.
-- ~~No playbook yet for the display-calibration game~~ **DONE
-  (2026-07-20)**: `calibrate` runs `crt-calibrate-display.py show` (the
-  single-shot pattern render only, not the interactive multi-round `run`
-  loop — that needs real voice back-and-forth, which doesn't fit a
-  one-shot request/response playbook).
-- The playbook registry currently lives inline in `crt-secretary.py` — if
-  the list grows much past what's here, worth splitting into its own
-  `bin/crt-playbooks/` directory, one file per playbook, rather than one
-  growing script. Not done preemptively (three playbooks doesn't justify
-  it yet) — noted so it isn't rediscovered as a surprise refactor later.
-
-## Status
-`bin/crt-secretary.py` refactored to the playbook model this session,
-3 playbooks built, all covered by `tests/test_secretary.py` against
-synthetic report/question files and a real (this repo's own)
-`tests/run_tests.sh` invocation. Untested against a live Claude Code pane
-or real voice traffic — same caveat as the rest of `crt-secretary.py`,
-see `SECRETARY.md`.
+## Shipped, and what's still open
+`bin/crt-secretary.py`'s `PLAYBOOKS` tuple is the live registry — the
+source of truth for which playbooks exist now, not this doc. Every
+request that falls through gets appended to `~/.crt/fallthrough.log`
+(timestamped, best-effort); nothing reads/summarizes that log yet, so
+"this got asked twice, worth a playbook" is still a manual eyeball-it
+step, not automated. The registry still lives inline in one script —
+worth splitting into its own `bin/crt-playbooks/` directory if it keeps
+growing, not done preemptively. Covered by `tests/test_secretary.py`;
+untested against a live Claude Code pane or real voice traffic, same
+caveat as the rest of `crt-secretary.py` (`SECRETARY.md`).
