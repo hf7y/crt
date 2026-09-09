@@ -9,9 +9,11 @@ is our own sqlite file. The single slot, its TTL, the 140-char rendered-message
 guard and the admission check all live in zaxon_relay_queue.py.
 """
 import json
+import os
 import time
 import uuid
 
+from mcp import MCPError
 from mcp.server.mcpserver import MCPServer
 
 from zaxon_relay_db import get_conn
@@ -26,6 +28,29 @@ from zaxon_relay_queue import (
     sweep_and_promote,
     validate_message,
 )
+
+# crt#194: the door has no auth, only a bind (loopback + tailnet). Opt-in shared
+# secret, same convention as this file's other ZAXON_* env vars -- unset (the
+# unconfigured default) is a no-op so landing this never changes live behavior
+# by itself; it only takes effect once someone sets ZAXON_SHARED_SECRET
+# alongside the relay container (compose.yaml's own .env, gitignored).
+SHARED_SECRET_HEADER = "X-Zaxon-Shared-Secret"
+SHARED_SECRET = os.environ.get("ZAXON_SHARED_SECRET", "")
+
+
+async def _require_shared_secret(ctx, call_next):
+    """MCPServer middleware (crt#194): reject every inbound message, including
+    `initialize`, unless it carries the configured header. `ctx.headers` is
+    `None` on transports without HTTP headers (stdio) -- this relay only ever
+    runs streamable-http, so that case is treated as unauthenticated, not
+    trusted. -32600 (INVALID_REQUEST) matches how the SDK's own
+    NoBackChannelError signals a request that cannot proceed."""
+    if SHARED_SECRET:
+        headers = ctx.headers or {}
+        if headers.get(SHARED_SECRET_HEADER) != SHARED_SECRET:
+            raise MCPError(-32600, "unauthorized: missing or incorrect shared secret")
+    return await call_next(ctx)
+
 
 mcp = MCPServer(
     "zaxon",
@@ -64,6 +89,7 @@ mcp = MCPServer(
         "it hides the note from fetch_inbox for everyone else so you don't "
         "act on it twice. send_zach sends one; no reply, no ticket, no slot."
     ),
+    middleware=[_require_shared_secret],
 )
 
 

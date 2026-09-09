@@ -39,6 +39,14 @@ services:
       - ./data/config.yaml:/home/zaxon/.hermes/config.yaml:ro
       - ./data/channel_directory.json:/home/zaxon/.hermes/channel_directory.json:ro
       - ./uv:/home/zaxon/.local/share/uv
+    environment:
+      # crt#194: unset = the door stays unauthenticated (today's behavior, and
+      # what a fresh `docker compose up` gets with no secret configured). To
+      # require it, put ZAXON_SHARED_SECRET=... in a `.env` file next to this
+      # compose.yaml (gitignored, NOT data/.env -- the relay process itself
+      # never reads that mount, only the gateway's hermes_cli bootstrap does)
+      # and send the same value as the X-Zaxon-Shared-Secret header.
+      ZAXON_SHARED_SECRET: ${ZAXON_SHARED_SECRET:-}
     working_dir: /opt/zaxon-relay
     # `hermes send` reaches the Baileys bridge on localhost:3000, a gateway child.
     network_mode: "service:gateway"
