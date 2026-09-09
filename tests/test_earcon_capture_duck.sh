@@ -87,4 +87,23 @@ else
   echo "ok - an explicitly named non-capture device did not duck"
 fi
 
+# The unmute lives in the EXIT trap, not a plain line after aplay, precisely
+# so a failing/killed aplay still unmutes capture under `set -e` (crt-earcon.sh
+# would otherwise exit at the failed aplay before reaching a post-aplay
+# capture_mute 0, leaving capture muted forever).
+rm -f "$CTL_FILE"
+cat > "$FAKE_BIN/aplay" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$FAKE_BIN/aplay"
+PATH="$FAKE_BIN:$PATH" CRT_CTL_FILE="$CTL_FILE" \
+  bash "$BIN_DIR/crt-earcon.sh" ack --device handset >/dev/null 2>&1
+if [ -f "$CTL_FILE" ] && grep -qx "mute 1" "$CTL_FILE" && grep -qx "mute 0" "$CTL_FILE"; then
+  echo "ok - a failing aplay still unmutes capture via the EXIT trap"
+else
+  echo "FAIL - a failing aplay left capture muted (CTL: $(cat "$CTL_FILE" 2>/dev/null | tr '\n' '/'))"
+  fail=1
+fi
+
 exit "$fail"
