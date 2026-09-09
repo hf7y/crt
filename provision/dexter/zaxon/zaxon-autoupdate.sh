@@ -69,7 +69,7 @@ fi
 moved=0; blind=0
 # Hash only after proving there is output -- a failed `docker manifest
 # inspect` piped straight to sha256sum hashes the empty string into a
-# valid-looking digest, see test_zaxon_autoupdate_blind.sh.
+# valid-looking digest, see test_zaxon_autoupdate_rollback.sh.
 digest_of() {
   local out rc
   out="$(docker manifest inspect "$1" 2>/dev/null)"; rc=$?

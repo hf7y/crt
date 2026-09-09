@@ -63,8 +63,6 @@ grep -qE '(/srv|/var)[^ ]*(known.good|last.good|digest)' "$A" \
   && bad "records the known-good digest in a file that can rot" \
   || ok "reads the known-good digest from docker, not from a file under /srv that can disagree with the host it describes"
 
-# digest_of() must not hash docker's empty stdout into a valid-looking digest
-# when the registry is unreadable -- see zaxon-autoupdate.sh's own comment.
 BLINDTMP="$(mktemp -d)"; trap 'rm -rf "$TMP" "$BLINDTMP"' EXIT
 mkdir -p "$BLINDTMP/bin"
 cp "$TMP/compose.yaml" "$BLINDTMP/compose.yaml"
