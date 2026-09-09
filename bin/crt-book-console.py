@@ -184,12 +184,7 @@ def render_idle_screen(book_count, width, height, rng=None, avoid=None):
     every single time, which is what both paragraphs above exist to prevent.
     CRT_BOOK_IDLE_ROTATE_SECS is what calls this again."""
     rng = rng or random
-    # `avoid` is the frame that is ON THE TUBE right now. Each draw samples
-    # independently, so roughly one rotation in eighty re-picks the same
-    # caption in the same place -- a repaint nobody can tell from a hung
-    # process, on the screen whose entire job is looking alive. Rejected and
-    # redrawn rather than left to luck; a geometry with only one possible
-    # frame (never the real tube) gets that frame rather than an exception.
+    # See IdleScreenNeverRepeatsItselfTest in tests/test_book_idle_screen_moves.py.
     for _ in range(IDLE_REDRAW_TRIES):
         frame = _render_idle_frame(book_count, width, height, rng)
         if avoid is None or list(avoid) != frame:
