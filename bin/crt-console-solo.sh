@@ -32,6 +32,7 @@ fi
 
 # Optional capture watchdog (Approach A) as a background safety net -- it can
 # coexist here because it reads its OWN device; set CRT_SOLO_WATCHDOG=1 to add.
+# Witnessed by test_console_ctl_env_export.sh's solo-watchdog cases.
 if [ "${CRT_SOLO_WATCHDOG:-0}" = "1" ]; then
   tmux new-window -d -t "$SESSION" -n wd -c "$BIN_DIR" \
     "CRT_WD_RESTART_STT=0 ./crt-capture-watchdog.sh; exec bash"

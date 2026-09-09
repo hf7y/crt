@@ -58,4 +58,45 @@ else
   fail=1
 fi
 
+# crt-console-solo.sh's optional watchdog window (Approach A safety net,
+# AUDIO-DEBUG.md): CRT_SOLO_WATCHDOG=1 adds a 'wd' tmux window that forces
+# CRT_WD_RESTART_STT=0 -- the watchdog reads its OWN device and must not
+# restart crt-stt-solo.py itself. Unset/0 must add no such window at all.
+SOLO_SCRIPT="$DIR/../bin/crt-console-solo.sh"
+SOLO_LOG="$TMP/tmux-solo.log"
+cat > "$FAKEBIN/tmux" <<'EOF'
+#!/usr/bin/env bash
+echo "$*" >> "$TMUX_LOG"
+case "$1" in
+  has-session) exit 1 ;;
+  attach) exit 0 ;;
+  *) exit 0 ;;
+esac
+EOF
+chmod +x "$FAKEBIN/tmux"
+
+: > "$SOLO_LOG"
+TMUX_LOG="$SOLO_LOG" PATH="$FAKEBIN:$PATH" \
+  CRT_SOLO_WATCHDOG=1 CRT_TMUX_SESSION="testsess-solo-wd" \
+  bash "$SOLO_SCRIPT" >/dev/null 2>&1
+
+if grep -q "new-window.*-n wd" "$SOLO_LOG" && grep -q "CRT_WD_RESTART_STT=0" "$SOLO_LOG"; then
+  echo "PASS: CRT_SOLO_WATCHDOG=1 adds a wd window forcing CRT_WD_RESTART_STT=0"
+else
+  echo "FAIL: CRT_SOLO_WATCHDOG=1 did not add the expected watchdog window"
+  fail=1
+fi
+
+: > "$SOLO_LOG"
+TMUX_LOG="$SOLO_LOG" PATH="$FAKEBIN:$PATH" \
+  CRT_TMUX_SESSION="testsess-solo-nowd" \
+  bash "$SOLO_SCRIPT" >/dev/null 2>&1
+
+if grep -q "new-window.*-n wd" "$SOLO_LOG"; then
+  echo "FAIL: watchdog window created without CRT_SOLO_WATCHDOG=1"
+  fail=1
+else
+  echo "PASS: no watchdog window without CRT_SOLO_WATCHDOG=1"
+fi
+
 exit "$fail"
