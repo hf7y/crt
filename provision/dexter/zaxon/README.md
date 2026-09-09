@@ -24,6 +24,10 @@ STT command lives, and why a relay that merely answers is never `OK`.
 ## Open
 
 - `hermes` is still registered and can still seize the session (page reports it hourly); before `wsl --unregister hermes`, its verified `.vhdx`/`ggml-base.en.bin` export is at `/mnt/d/gardien-backups/hermes-wsl-export/` on dexter.
-- Still **no auth** on the MCP port, only a bind — today, the tailnet.
+- **Opt-in shared-secret auth landed (crt#194)** — `relay/zaxon_relay_server.py`
+  refuses any request missing the right `X-Zaxon-Shared-Secret` header once
+  `ZAXON_SHARED_SECRET` is set, but ships unconfigured (a no-op, same as
+  before) until dexter's own `provision/dexter/zaxon/.env` sets it. Still
+  unauthenticated on the tailnet until that step happens.
 - Stop the old stack before starting a new one against this same `data/`: two stacks holding one
   Nous refresh token revoked the session for 8 days (crt#193, 2026-08-30's migration overlap).

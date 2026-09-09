@@ -16,7 +16,7 @@ sys.path.insert(0, RELAY_DIR)
 
 class _FakeMCPServer:
     def __init__(self, *args, **kwargs):
-        pass
+        self.middleware = kwargs.get("middleware")
 
     def tool(self):
         def deco(fn):
@@ -27,6 +27,17 @@ class _FakeMCPServer:
         raise AssertionError("mcp.run() should never be called from a test")
 
 
+class _FakeMCPError(Exception):
+    """Stands in for the real SDK's mcp.MCPError -- the real one wraps a JSON-RPC
+    ErrorData object, but every test here only checks that this raises at all
+    and reads args[0]/args[1], which both shapes support the same way."""
+
+    def __init__(self, code, message, data=None):
+        super().__init__(code, message, data)
+        self.code = code
+        self.message = message
+
+
 if "mcp" not in sys.modules:
     fake_mcp = types.ModuleType("mcp")
     fake_mcp_server = types.ModuleType("mcp.server")
@@ -34,6 +45,7 @@ if "mcp" not in sys.modules:
     fake_mcpserver.MCPServer = _FakeMCPServer
     fake_mcp_server.mcpserver = fake_mcpserver
     fake_mcp.server = fake_mcp_server
+    fake_mcp.MCPError = _FakeMCPError
     sys.modules["mcp"] = fake_mcp
     sys.modules["mcp.server"] = fake_mcp_server
     sys.modules["mcp.server.mcpserver"] = fake_mcpserver
@@ -296,3 +308,46 @@ class TestSendZach(unittest.TestCase):
         finally:
             conn.close()
         self.assertEqual(count, 0)
+
+
+class _Ctx:
+    def __init__(self, headers):
+        self.headers = headers
+
+
+class TestRequireSharedSecret(unittest.IsolatedAsyncioTestCase):
+    """crt#194: the MCP door answers unauthenticated over the tailnet.
+    _require_shared_secret is opt-in -- unset (the shipped default until
+    dexter's compose.yaml is given a secret) must be a complete no-op, since
+    landing this must not itself break a live, unauthenticated caller."""
+
+    def setUp(self):
+        self._orig = server.SHARED_SECRET
+        self.addCleanup(setattr, server, "SHARED_SECRET", self._orig)
+
+    async def _call_next_recording(self, ctx):
+        self.called_with = ctx
+        return {"ok": True}
+
+    async def test_unconfigured_secret_lets_every_request_through(self):
+        server.SHARED_SECRET = ""
+        result = await server._require_shared_secret(_Ctx(headers=None), self._call_next_recording)
+        self.assertEqual(result, {"ok": True})
+
+    async def test_configured_secret_refuses_a_missing_header(self):
+        server.SHARED_SECRET = "s3cr3t"
+        with self.assertRaises(server.MCPError):
+            await server._require_shared_secret(_Ctx(headers=None), self._call_next_recording)
+
+    async def test_configured_secret_refuses_the_wrong_value(self):
+        server.SHARED_SECRET = "s3cr3t"
+        ctx = _Ctx(headers={server.SHARED_SECRET_HEADER: "wrong"})
+        with self.assertRaises(server.MCPError):
+            await server._require_shared_secret(ctx, self._call_next_recording)
+
+    async def test_configured_secret_admits_the_right_value(self):
+        server.SHARED_SECRET = "s3cr3t"
+        ctx = _Ctx(headers={server.SHARED_SECRET_HEADER: "s3cr3t"})
+        result = await server._require_shared_secret(ctx, self._call_next_recording)
+        self.assertEqual(result, {"ok": True})
+        self.assertIs(self.called_with, ctx)
