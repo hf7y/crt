@@ -88,8 +88,8 @@ NONE = woken but no brain → short honest earcon/line, never silence.
   *no* path into the brain host, because that host was a personal laptop.
   dexter is a dedicated always-on box that already runs sshd, so potato
   now connects inward — narrowed to one forced command rather than
-  eliminated. This was the fork chosen on 2026-07-28; see DEXTER-MOVE.md
-  section 2 for the two rejected alternatives.
+  eliminated. This was the fork chosen on 2026-07-28; see
+  vault:crt/DEXTER-MOVE-20260909.md section 2 for the two rejected alternatives.
 - **Local** path: unchanged — the onsite fallback, a Claude on potato +
   local whisper, for when dexter is unreachable. Highest RAM cost; only
   spun up on demand, never held at idle.

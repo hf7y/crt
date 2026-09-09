@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Ensure the tmux session that crt-brain-shell.py drives is alive on the
-# brain host (dexter, as of 2026-07-28 -- see DEXTER-MOVE.md).
+# brain host (dexter, as of 2026-07-28 -- see vault:crt/DEXTER-MOVE-20260909.md).
 #
 # The old mandark bridge never had this: a human started `claude` by hand
 # and the bridge just assumed it, so a dead session went quiet forever --
