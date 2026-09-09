@@ -26,10 +26,8 @@ _cfg_spec.loader.exec_module(crt_config)
 
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
 
-# The tube is 40 columns and crt-monologue.py textwraps rather than
-# truncates, so an untrimmed sqlite/OSError message would eat several of
-# the 15 rows on its own. Enough to tell two causes apart, not enough to
-# take the screen.
+# Enough to tell two causes apart on the 40x15 tube, not enough to take
+# the screen -- witnessed by TestDescribe.test_truncates_to_fit_the_tube.
 DETAIL_MAX = 70
 
 
@@ -100,22 +98,17 @@ class LoopGuard:
         self._log_path = log_path
         self._echo = echo
         self._report = report if report is not None else self._default_report
-        # OFF by default. `book` is the window crt-console.sh boots selected,
-        # so that pane's stdout/stderr IS the tube -- a traceback there is
-        # painted over the console's face and stays until the next draw(),
-        # which may be a long time if nothing is scanned. The one-line report
-        # already carries the exception type and message; set
-        # CRT_LOOP_GUARD_TRACEBACK=1 when attached to a window and wanting
-        # frames. Junk-tolerant per crt_config.env_flag's own docstring --
-        # this flag is exactly the case that fix was written for.
+        # OFF by default: `book` is the boot-selected window, so its
+        # stdout/stderr IS the tube -- a traceback there paints over the
+        # console's face. Witnessed by
+        # TestGuardAnnounce.test_traceback_is_off_with_no_env_set.
         self.verbose = crt_config.env_flag("CRT_LOOP_GUARD_TRACEBACK") \
             if verbose is None else verbose
 
     def _default_report(self, line):
-        # echo=False for any window whose stdout is a drawn screen rather
-        # than scrollback: the line would land in the middle of the frame
-        # and sit there. Window 1 still gets it, which is where this
-        # project puts its bad news anyway.
+        # echo=False for a drawn-screen window (the line would sit mid-frame);
+        # window 1 still gets it either way. Witnessed by
+        # TestGuardAnnounce.test_echo_false_keeps_the_pane_clean_but_still_logs.
         if self._echo:
             print(line, flush=True)
         announce(line, self._log_path)
