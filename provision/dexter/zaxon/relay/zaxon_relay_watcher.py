@@ -14,9 +14,9 @@ A voice note that failed to transcribe is NOT resolved as a reply: its
 audio is retained instead and the ticket stays pending (retain_audio).
 
 An untagged reply that quotes nothing is matched against the one pending
-ticket, if exactly one exists (resolve_unthreaded_reply, crt#244) -- the
-only way a reply can quote nothing is that its question never reached the
-phone to be quoted.
+ticket, if exactly one exists, falling back to a lone stale one if none is
+pending (resolve_unthreaded_reply, crt#244) -- the only way a reply can
+quote nothing is that its question never reached the phone to be quoted.
 
 Also the only long-running loop the relay has, so it carries crt#67's
 staleness sweep too (STALE_SWEEP_EVERY_TICKS): otherwise a queued question
@@ -120,12 +120,22 @@ def resolve_reply(reply_id: str, msg: str, via: str = "text") -> bool:
 def resolve_unthreaded_reply(msg: str, via: str = "text") -> bool:
     """Safe to guess only when exactly one ticket is pending: the
     per-from_agent slot (crt#230) already keeps that number small, and at
-    exactly one there is nothing else it could be."""
+    exactly one there is nothing else it could be.
+
+    Falls back to a lone 'stale' ticket when none is pending (crt#244): a
+    question that never reached the phone in time to be quoted is the same
+    reason it may also have aged out before Zach could reply to it -- the
+    reply is not late, the delivery was. Only when nothing is pending, so
+    this never steals a reply that plainly belongs to the current question."""
     conn = get_conn()
     try:
         rows = conn.execute("SELECT id FROM tickets WHERE status='pending'").fetchall()
         if len(rows) != 1:
-            return False
+            if rows:
+                return False
+            rows = conn.execute("SELECT id FROM tickets WHERE status='stale'").fetchall()
+            if len(rows) != 1:
+                return False
         ticket_id = rows[0][0]
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         conn.execute(

@@ -195,6 +195,46 @@ class TestUnthreadedReply(unittest.TestCase):  # crt#244
     def test_no_pending_ticket_is_left_alone(self):
         self.assertFalse(w.resolve_unthreaded_reply("order it"))
 
+    def test_the_lone_stale_ticket_is_answered_when_none_pending(self):
+        self._insert("t1", "stale")
+        self.assertTrue(w.resolve_unthreaded_reply("order it"))
+        row = db.get_conn().execute(
+            "SELECT status, answer, via FROM tickets WHERE id='t1'"
+        ).fetchone()
+        self.assertEqual(row, ("answered", "order it", "text"))
+
+    def test_two_stale_tickets_are_left_alone(self):
+        self._insert("t1", "stale", "wa1")
+        self._insert("t2", "stale", "wa2", from_agent="filmb")
+        self.assertFalse(w.resolve_unthreaded_reply("order it"))
+        statuses = {
+            r[0] for r in db.get_conn().execute("SELECT status FROM tickets")
+        }
+        self.assertEqual(statuses, {"stale"})
+
+    def test_a_pending_ticket_takes_precedence_over_a_stale_one(self):
+        self._insert("t1", "pending", "wa1")
+        self._insert("t2", "stale", "wa2", from_agent="filmb")
+        self.assertTrue(w.resolve_unthreaded_reply("order it"))
+        self.assertEqual(
+            db.get_conn().execute("SELECT status FROM tickets WHERE id='t1'").fetchone(),
+            ("answered",),
+        )
+        self.assertEqual(
+            db.get_conn().execute("SELECT status FROM tickets WHERE id='t2'").fetchone(),
+            ("stale",),
+        )
+
+    def test_two_pending_does_not_fall_back_to_a_lone_stale_one(self):
+        self._insert("t1", "pending", "wa1")
+        self._insert("t2", "pending", "wa2", from_agent="filmb")
+        self._insert("t3", "stale", "wa3", from_agent="realisateur")
+        self.assertFalse(w.resolve_unthreaded_reply("order it"))
+        statuses = {
+            r[0] for r in db.get_conn().execute("SELECT status FROM tickets")
+        }
+        self.assertEqual(statuses, {"pending", "stale"})
+
     def test_handle_message_routes_an_unthreaded_reply_to_the_lone_ticket(self):
         self._insert("t1", "pending")
         w._handle_message("None", "order it", "text")
