@@ -445,6 +445,37 @@ class TestMessageReuse(unittest.TestCase):
             )
             self.assertEqual(len(sent), 1)
 
+    def test_fresh_send_stamps_delivered_via_send(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            _insert(conn, "t1", "Q1", "queued")
+            q.sweep_and_promote(
+                conn,
+                sender=lambda text: {"success": True, "message_id": "wa1"},
+                editor=lambda *a: {"success": True},
+            )
+            row = conn.execute("SELECT delivered_via FROM tickets WHERE id='t1'").fetchone()
+            self.assertEqual(row[0], "send")
+
+    def test_reused_edit_stamps_delivered_via_edit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = _fresh_conn(tmp)
+            old_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - q.QUESTION_TTL_SECS - 10))
+            _insert(conn, "t1", "Q1", "pending", created_at=old_ts)
+            conn.execute(
+                "UPDATE tickets SET wa_message_id='wa1', chat_id='chat1', delivered_via='send' WHERE id='t1'"
+            )
+            conn.commit()
+            _insert(conn, "t2", "Q2", "queued")
+
+            q.sweep_and_promote(
+                conn,
+                sender=lambda text: {"success": True, "message_id": "wa2"},
+                editor=lambda *a: {"success": True},
+            )
+            row = conn.execute("SELECT delivered_via FROM tickets WHERE id='t2'").fetchone()
+            self.assertEqual(row[0], "edit")
+
     def test_three_tickets_in_a_row_only_ever_send_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             conn = _fresh_conn(tmp)
