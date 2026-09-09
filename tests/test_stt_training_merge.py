@@ -105,5 +105,29 @@ class TestRunMergePass(unittest.TestCase):
             self.assertEqual(added, [])
 
 
+class TestFailureModeByLoopFlag(unittest.TestCase):
+    """Witnesses the claim main()'s comment used to make in prose:
+    one-shot (no guard) propagates a raise; --loop (LoopGuard) swallows
+    it and keeps going."""
+
+    def test_no_guard_propagates_the_raise(self):
+        def boom():
+            raise RuntimeError("disk full")
+        with self.assertRaises(RuntimeError):
+            tm._run_pass_guarded(None, merge_pass=boom)
+
+    def test_loop_guard_swallows_the_raise_and_counts_it(self):
+        calls = []
+
+        def boom():
+            calls.append(1)
+            raise OSError("ENOSPC")
+
+        guard = tm.loop_guard.LoopGuard("stttrain", report=lambda line: None, echo=False)
+        tm._run_pass_guarded(guard, merge_pass=boom)  # must not raise
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(guard.failures, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

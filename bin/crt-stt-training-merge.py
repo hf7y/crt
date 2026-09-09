@@ -91,19 +91,26 @@ def run_merge_pass(fixups_path=None, training_log_path=None, min_repeats=None):
     return added
 
 
+def _run_pass_guarded(guard, merge_pass=None):
+    """No guard (one-shot): a raise propagates, ending the process
+    non-zero. A LoopGuard (--loop): a raise is swallowed so ENOSPC on a
+    Pi's SD card skips one tick instead of silently ending unattended
+    learning for the rest of uptime. See TestFailureModeByLoopFlag.
+    `merge_pass` resolves late (not a default-arg binding) so tests can
+    patch this module's own run_merge_pass and have main() see it too."""
+    pass_fn = merge_pass or run_merge_pass
+    if guard is None:
+        report_merge(pass_fn())
+    else:
+        with guard:
+            report_merge(pass_fn())
+
+
 def main():
     loop = "--loop" in sys.argv
-    # OPPOSITE failure behaviour (2026-07-25): one-shot must exit non-zero
-    # on a raise; --loop must NOT let a raise end the loop, or ENOSPC on a
-    # Pi's SD card silently kills unattended learning for the rest of
-    # uptime (0ccdf13's live re-read makes a surviving loop worth more).
     guard = loop_guard.LoopGuard("stttrain") if loop else None
     while True:
-        if guard is None:
-            report_merge(run_merge_pass())
-        else:
-            with guard:
-                report_merge(run_merge_pass())
+        _run_pass_guarded(guard)
         if not loop:
             break
         time.sleep(MERGE_INTERVAL_SECS)
