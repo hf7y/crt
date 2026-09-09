@@ -177,8 +177,8 @@ capture_mute() {
   echo "mute $1" >> "$CTL_FILE" 2>/dev/null || true
 }
 # Unmute via the same EXIT trap as the sideband unduck, not just after a
-# successful aplay -- `set -e` means a failed/killed aplay would otherwise
-# skip a plain post-aplay "capture_mute 0" and leave capture muted forever.
+# successful aplay, so a failing aplay still unmutes under `set -e` --
+# witnessed by test_earcon_capture_duck.sh's failing-aplay case.
 trap 'rm -rf "$TMP"; unduck; [ "$CAPTURE_MUTED" = 1 ] && capture_mute 0; true' EXIT
 
 # Resolve the device FIRST, then decide about the duck from what the audio
