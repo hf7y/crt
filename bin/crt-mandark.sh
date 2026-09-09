@@ -86,10 +86,7 @@ case "$cmd" in
     p="$(current_port)"
     if [ "$p" = "0" ]; then
       echo "config: OFF (local/onsite brain)"
-      # Nothing is configured, so there is no port the console is using.
-      # Probing the default is still the useful thing to report -- it
-      # answers "is the bridge up, if I turned this back on" -- but the
-      # line has to say that's what it did.
+      # See tests/test_mandark_toggle.sh's OFF-status case.
       probe_port="$PORT"
       probe_note=" (default; config is OFF, the console is not using it)"
     else
