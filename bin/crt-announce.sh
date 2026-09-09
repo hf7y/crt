@@ -36,9 +36,7 @@ fi
 # Stamp BEFORE speaking, then roll back on failure -- see
 # tests/test_announce_rate_limit.sh.
 echo "$now" > "$LOCK"
-# `status=0; cmd || status=$?` rather than `if cmd; then ... fi; status=$?`:
-# an `if` with no else branch that takes the false path leaves `$?` at 0,
-# so the obvious spelling would report every failure as exit 0.
+# See tests/test_announce_rate_limit.sh's "reports crt-tts.py's own exit status" case.
 status=0
 python3 "$BIN_DIR/crt-tts.py" --device "$TV_DEV" "$msg" || status=$?
 [ "$status" = 0 ] && exit 0
