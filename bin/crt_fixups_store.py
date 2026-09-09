@@ -35,6 +35,25 @@ def dumps(data):
     return json.dumps(data, indent=2, sort_keys=True) + "\n"
 
 
+def _try_lock(path):
+    """Best-effort exclusive lock on `<path>.lock`. Returns the held fd, or
+    None if it couldn't be acquired -- a directory that refuses a new file
+    (read-only mount, odd permissions) must not be the reason a human's
+    confirmed mishear is thrown away, so update() falls back to unlocked
+    rather than raising: the same risk both writers carried before this
+    module existed, not a new one. See
+    tests/test_fixups_store.py's test_falls_back_to_unlocked_when_the_lock_file_cannot_be_made."""
+    lock_fd = None
+    try:
+        lock_fd = os.open(path + ".lock", os.O_CREAT | os.O_RDWR, 0o644)
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        return lock_fd
+    except OSError:
+        if lock_fd is not None:
+            os.close(lock_fd)
+        return None
+
+
 def update(path, mutate):
     """Read-modify-write `path` under an exclusive lock.
 
@@ -50,19 +69,7 @@ def update(path, mutate):
     in a sidecar `<file>.lock` rather than on the file itself, because the
     file gets replaced by rename: a lock on the old inode would mean
     nothing to whoever opened the new one."""
-    lock_fd = None
-    try:
-        lock_fd = os.open(path + ".lock", os.O_CREAT | os.O_RDWR, 0o644)
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
-    except OSError:
-        # A directory we cannot make a lock file in (read-only mount, odd
-        # permissions) must not be the reason a human's confirmed mishear
-        # is thrown away. Proceed unlocked -- that is exactly the behaviour
-        # both writers had before this module existed, so it is a fallback
-        # to the old risk, not a new one.
-        if lock_fd is not None:
-            os.close(lock_fd)
-            lock_fd = None
+    lock_fd = _try_lock(path)
     try:
         result = mutate(read(path))
         if result is None:
