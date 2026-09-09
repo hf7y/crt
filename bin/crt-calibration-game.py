@@ -197,13 +197,10 @@ class Tailer:
             self.pos = 0
 
     def run(self):
-        # Guarded, because this thread going quiet is invisible: the game
-        # keeps prompting, the round still "ends", offer_to_save() still says
-        # "Nothing worth saving", and the person is still saying the word into
-        # a mic nothing is reading. An iteration that raises now says so on
-        # this screen and on window 1, and the next one carries on -- which is
-        # the whole reason crt_loop_guard.py exists. echo=True: unlike the four
-        # background windows, someone is looking at this pane.
+        # Guarded: this thread going quiet is otherwise invisible (the game
+        # keeps prompting into a mic nothing is reading). echo=True: unlike
+        # the background windows, someone is looking at this pane. Witnessed
+        # by tests/test_calibration_game.py::TheTailerKeepsListening.test_an_iteration_that_raises_is_reported_and_the_loop_goes_on.
         guard = loop_guard.LoopGuard("calibration-game")
 
         def loop():

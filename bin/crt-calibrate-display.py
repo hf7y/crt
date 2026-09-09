@@ -26,9 +26,9 @@ def render_pattern(width, height, margins):
 
     canvas = [[" "] * width for _ in range(height)]
 
-    # Rulers first, corners drawn last so they always win the shared cell
-    # at each corner (a ruler digit and a corner letter both want (top,left)
-    # etc. -- the corner label is the more important signal to preserve).
+    # Rulers first, corners drawn last so a corner label always wins the
+    # shared cell over a ruler tick. Witnessed by
+    # tests/test_calibrate_display.py::TestRenderPattern.test_zero_margin_uses_full_canvas.
     for row in (top, top + inner_h - 1):
         if 0 <= row < height:
             for i in range(0, inner_w, 5):
