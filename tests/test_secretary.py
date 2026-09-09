@@ -530,6 +530,16 @@ class TestConfidenceRouting(unittest.TestCase):
         self.assertEqual(state[key]["confirmed_hits"], 0)
         self.assertEqual(state[key]["claude_hits"], 1)
 
+    def test_confirm_in_background_records_nothing_when_send_fails(self):
+        # A dead tunnel must not book a miss against this utterance shape
+        # -- that would teach the confidence model that the local playbook
+        # disagreed with Claude, for an exchange that never happened.
+        self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
+        self.sec.capture_pane = lambda: "before"
+        self.sec.send_to_claude = lambda text: False
+        self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
+        self.assertEqual(self.sec.stt_confidence.load_state(), {})
+
 
 class TestUndeliveredUtterance(unittest.TestCase):
     """A dropped reverse tunnel used to be indistinguishable from a Claude

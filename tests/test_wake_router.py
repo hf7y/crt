@@ -87,6 +87,16 @@ class TestCli(unittest.TestCase):
         self.assertTrue(out["mandark_on"])
         self.assertFalse(out["mandark_reachable"])
 
+    def test_ssh_mode_reports_mandark_keys_false(self):
+        # ssh mode wins over any leftover port config; the legacy
+        # mandark_* keys describe the port-mode half only (see the
+        # comment above their emission in main()) so both read false here.
+        out = self._run({"CRT_CLAUDE_SSH_HOST": "dexter", "CRT_CLAUDE_REMOTE_PORT": "8993",
+                          "CRT_LOCAL_CLAUDE": "0"})
+        self.assertEqual(out["brain_mode"], "ssh")
+        self.assertFalse(out["mandark_on"])
+        self.assertFalse(out["mandark_reachable"])
+
 
 if __name__ == "__main__":
     unittest.main()

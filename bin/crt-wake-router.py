@@ -157,10 +157,7 @@ def main(argv=None):
             "choice": choice,
             "brain_mode": mode,
             "brain_target": target,
-            # The mandark_* keys predate the dexter move and are kept so
-            # existing consumers/tests do not break. In ssh mode they
-            # describe the port-mode half only, which is now off -- read
-            # brain_mode/brain_target for the truth.
+            # See test_ssh_mode_reports_mandark_keys_false.
             "mandark_on": on and mode == "port",
             "mandark_port": port,
             "mandark_reachable": reachable and mode == "port",

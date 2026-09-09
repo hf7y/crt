@@ -120,6 +120,17 @@ class TestRenderScreenSummary(unittest.TestCase):
         lines = st.render_screen_summary(book_stats, training_stats, width=20)
         self.assertTrue(all(len(l) <= 20 for l in lines))
 
+    def test_ungraded_stt_reports_na_not_zero_percent(self):
+        # Rounds exist but none recorded an option list to judge the
+        # transcription against -- correct_stt is None throughout, so
+        # stt_accuracy is None, not 0. "0%" would read as a real measured
+        # failure rate rather than "nothing to measure yet".
+        book_stats = {"total": 2}
+        training_stats = st.summarize_training([{"correct_stt": None, "correct_content": True}] * 2)
+        lines = st.render_screen_summary(book_stats, training_stats, width=40)
+        self.assertTrue(any("n/a" in l for l in lines))
+        self.assertFalse(any("0%" in l for l in lines))
+
 
 class TestGenerateCandidateFixups(unittest.TestCase):
     def test_single_occurrence_not_surfaced(self):
