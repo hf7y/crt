@@ -115,8 +115,7 @@ This is where "never annoying" has to be a hard rule, not a vibe:
 ## What's missing to make this real (in order)
 
 1. ~~`~/reports/crt/LATEST.md` doesn't exist yet~~ **DONE (2026-07-19)**:
-   `bin/crt-report.sh` writes it in the scheduler's exact shape
-   (`--blocker`/`--question`/plain note), so idle-bait has content even
+   `bin/crt-report.sh` writes it (see its header) -- content exists even
    before crt's Tier 2 nightly batch actually runs (still just registered,
    see `HANDOFF.md`).
 2. The secretary wrapper (`SECRETARY.md` steps 1-4) is still design-only —
@@ -126,13 +125,8 @@ This is where "never annoying" has to be a hard rule, not a vibe:
 3. ~~`crt-earcon.sh` — not built yet~~ **DONE (2026-07-19)**: `bin/crt-earcon.sh`
    (bait/question/success/ack/oops tones), untested by ear.
 4. ~~idle-screen teaser line~~ **DONE (2026-07-19)**: `bin/crt-idle-teaser.sh`
-   is a separate watcher (deliberately not baked into `crt-monologue.sh` —
-   see `PHILOSOPHY.md`'s open thread on narration vs. restraint) that polls
-   `~/reports/crt/LATEST.md` + `QUESTIONS.md`, dedupes by line hash
-   (`~/.crt/idle-bait.seen`), and emits one `crt-think.sh` teaser + (for
-   real judgment calls only) one `crt-earcon.sh` chime per new item,
-   sharing `crt-announce.sh`'s rate-limit lock so nothing can stack.
-   Not yet run against live traffic — needs a VM session to actually watch.
+   implements the poll/dedupe/chime mechanism above -- see its header
+   comment. Not yet run against live traffic — needs a session to watch.
 
 ## Explicitly not doing
 
