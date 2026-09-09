@@ -16,10 +16,9 @@ MEDIA_LIBRARY_DIR = os.path.expanduser(os.environ.get("CRT_MEDIA_LIBRARY_DIR", "
 # a skip; a file because both processes are fresh-per-utterance.
 MEDIA_STATE_FILE = os.path.expanduser(os.environ.get("CRT_MEDIA_STATE_FILE", "~/.crt/media-state"))
 
-# Ordered so longer/more specific phrasings match before a generic
-# "play" fragment could steal them -- e.g. "play the next one" should
-# resolve as "next", not "play" with query "the next one". Bare "next" is
-# back (crt#34) now that is_media_active() resolves its CONTROL collision.
+# Ordered so longer/more specific phrasings match before a generic "play"
+# fragment could steal them. Witnessed by
+# tests/test_media_player.py::TestParseMediaCommand.test_next_phrasing_does_not_get_captured_as_a_play_query.
 _NEXT_TRIGGERS = ("next", "skip", "play the next one", "next track", "next song")
 _PAUSE_TRIGGERS = ("pause", "hold on", "wait a second")
 _RESUME_TRIGGERS = ("resume", "unpause", "keep going", "continue playing")

@@ -242,11 +242,9 @@ SUMMARY_TEXT = {
     INCONCLUSIVE: "MEASURED NOTHING -- see above, this run proves nothing",
 }
 
-# Exit status, so this can be a real check rather than something a person has
-# to read (FOCUS.md ranked-backlog item 6 asks for exactly this: pass/fail
-# plus numbers, not exit 0 regardless). 3 rather than 2 for inconclusive:
-# 2 is a usage error elsewhere in this repo, and "the test could not run" must
-# not be confused with "you called it wrong" -- or, worse, with a pass.
+# 3 rather than 2 for inconclusive: 2 is a usage error elsewhere in this
+# repo. Witnessed by tests/test_loopback_verdict.py::test_inconclusive_is_never_confused_with_a_pass
+# and test_inconclusive_outranks_not_detected.
 EXIT_OK, EXIT_NOT_DETECTED, EXIT_INCONCLUSIVE = 0, 1, 3
 
 

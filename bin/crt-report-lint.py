@@ -21,8 +21,7 @@ import sys
 
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 
-# Fenced code blocks can legitimately contain lines starting with '#'
-# (shell comments, python comments). Those are not headings.
+# Witnessed by tests/test_report_lint.py::test_ignores_shell_comments_in_fenced_blocks.
 FENCE = re.compile(r"^\s*(```|~~~)")
 
 
