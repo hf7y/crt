@@ -77,6 +77,16 @@ class VerdictLadder(unittest.TestCase):
         self.add("pending", hours_ago=5)
         self.assertEqual(self.verdict(), "WEDGED")
 
+    def test_a_second_agents_wedged_slot_is_not_hidden_by_a_fresh_first_one(self):
+        """crt#233: since crt#230, several tickets can be 'pending' at once,
+        one per from_agent -- collect() used to report only the first one
+        found, so a second agent's stuck ticket was invisible."""
+        self.add("pending", hours_ago=0.1, agent="quiet-repo")
+        self.add("pending", hours_ago=5, agent="stuck-repo")
+        v, why = zsc.verdict(zsc.collect(), UP)
+        self.assertEqual(v, "WEDGED")
+        self.assertIn("stuck-repo", why)
+
     def test_empty_window_is_QUIET_not_OK(self):
         self.add("answered", hours_ago=100, answered_at=_ago(99))
         self.assertEqual(self.verdict(), "QUIET")
@@ -118,6 +128,41 @@ class SlotCost(unittest.TestCase):
         top = zsc.collect()["senders"][0]
         self.assertEqual((top["from"], top["sent"], top["answered"]),
                          ("ausculte-cadence", 6, 0))
+
+
+class MultiSlot(unittest.TestCase):
+    """crt#233: `slots` is a list, one entry per currently-pending
+    from_agent (crt#230 made several concurrently pending possible)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        zsc.DB = os.path.join(self.tmp.name, "tickets.db")
+        self.conn = sqlite3.connect(zsc.DB)
+        self.conn.execute("CREATE TABLE tickets (id TEXT PRIMARY KEY, from_agent TEXT, "
+                          "question TEXT, wa_message_id TEXT, status TEXT, answer TEXT, "
+                          "created_at TEXT, answered_at TEXT, options TEXT)")
+        self.conn.commit()
+
+    def add(self, ticket_id, status, hours_ago, agent):
+        self.conn.execute(
+            "INSERT INTO tickets (id, from_agent, question, status, created_at) "
+            "VALUES (?,?,?,?,?)",
+            (ticket_id, agent, "q?", status, _ago(hours_ago)))
+        self.conn.commit()
+
+    def test_no_pending_ticket_is_an_empty_list_not_none(self):
+        self.assertEqual(zsc.collect()["slots"], [])
+
+    def test_one_pending_ticket_per_agent_all_appear(self):
+        self.add("t1", "pending", 0.2, "monkey-watch")
+        self.add("t2", "pending", 0.1, "groc-mangr")
+        slots = zsc.collect()["slots"]
+        self.assertEqual({s["from"] for s in slots}, {"monkey-watch", "groc-mangr"})
+
+    def test_a_queued_ticket_does_not_count_as_a_slot(self):
+        self.add("t1", "queued", 0.1, "monkey-watch")
+        self.assertEqual(zsc.collect()["slots"], [])
 
 
 class InboxLedger(unittest.TestCase):  # crt#87's inbox has no consumed_by yet: read-only count+age

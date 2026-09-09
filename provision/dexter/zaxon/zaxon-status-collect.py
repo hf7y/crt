@@ -3,8 +3,12 @@
 
 Runs ON dexter; the ledger is a local sqlite file. Reads only. The verdict
 ladder is pinned by tests/test_zaxon_status_collect.py, and stale_slot_hours
-by its SlotCost cases -- a single slot (crt#67) means an ignored question
-holds the channel for its full TTL, so a miss is a cost to every other caller.
+by its SlotCost cases -- the channel holds one question per from_agent
+(crt#67, crt#230), so a miss is a cost to every other caller asking as the
+SAME agent, not to every caller. Since crt#230, several tickets can be
+'pending' at once (one per agent currently asking), so `ledger["slots"]`
+is a list, not a single ticket -- reporting only the first one found would
+hide a second agent's wedged question.
 """
 import calendar
 import json
@@ -60,7 +64,10 @@ def collect():
             s[t["status"]] += 1
 
     open_now = [t for t in tickets if t["status"] in ("pending", "queued")]
-    pending = next((t for t in open_now if t["status"] == "pending"), None)
+    pending = sorted(
+        (t for t in open_now if t["status"] == "pending"),
+        key=lambda t: t["_t"],
+    )
     answered = [t for t in tickets if t["answered_at"]]
     answered.sort(key=lambda t: t["answered_at"])
     recent = sorted(tickets, key=lambda t: t["_t"], reverse=True)[:12]
@@ -85,11 +92,14 @@ def collect():
         "window_sent": len(win),
         "stale_slot_hours": round(tally(win).get("stale", 0) * TTL_H, 1),
         "queued": sum(1 for t in open_now if t["status"] == "queued"),
-        "slot": None if pending is None else {
-            "id": pending["id"], "from": pending["from"],
-            "age_hours": round((now - pending["_t"]) / 3600, 1),
-            "question": pending["question"][:140],
-        },
+        "slots": [
+            {
+                "id": t["id"], "from": t["from"],
+                "age_hours": round((now - t["_t"]) / 3600, 1),
+                "question": t["question"][:140],
+            }
+            for t in pending
+        ],
         "last_answered_at": answered[-1]["answered_at"] if answered else None,
         "inbox": inbox,
         "senders": sorted(senders.values(), key=lambda s: -s["sent"]),
@@ -110,10 +120,13 @@ def verdict(ledger, relay):
     if w.get("failed"):
         return "DOWN", (f"{w['failed']} send(s) failed in {ledger['window_hours']}h -- "
                         "the relay accepts questions and WhatsApp does not take them")
-    slot = ledger["slot"]
-    if slot and slot["age_hours"] > ledger["ttl_hours"]:
-        return "WEDGED", (f"the one slot has held {slot['id']} for {slot['age_hours']}h, "
-                          "past its own TTL, and the sweep has not freed it")
+    wedged = [s for s in ledger["slots"] if s["age_hours"] > ledger["ttl_hours"]]
+    if wedged:
+        worst = max(wedged, key=lambda s: s["age_hours"])
+        also = f" ({len(wedged) - 1} other slot(s) also past TTL)" if len(wedged) > 1 else ""
+        return "WEDGED", (f"{worst['from']}'s slot has held {worst['id']} for "
+                          f"{worst['age_hours']}h, past its own TTL, and the sweep has not "
+                          f"freed it{also}")
     if sent and not w.get("answered"):
         return "UNANSWERED", (
             f"{sent} question(s) sent in {ledger['window_hours']}h, none answered; "
