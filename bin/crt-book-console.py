@@ -560,11 +560,10 @@ def tail_new_lines(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a"):
         pass  # ensure it exists, without truncating/duplicating scanner.log's own writes
-    # errors="replace": a barcode scanner is a keyboard-emulating device
-    # and a bad read can put arbitrary bytes into scanner.log. Raised here
-    # in the generator, a UnicodeDecodeError is outside main()'s LoopGuard
-    # (which wraps the body only), and this is the window the console boots
-    # selected -- one bad scan must not leave a bash prompt on the tube.
+    # errors="replace": raised here, in the generator, a UnicodeDecodeError
+    # is outside main()'s LoopGuard, and this is the boot-selected window.
+    # Witnessed by
+    # tests/test_log_reader_decoding.py::test_book_console_tail_does_not_raise.
     with open(path, "r", encoding="utf-8", errors="replace") as f:
         f.seek(0, os.SEEK_END)
         while True:

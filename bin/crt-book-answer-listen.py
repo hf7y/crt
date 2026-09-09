@@ -283,11 +283,9 @@ def tail_new_lines(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a"):
         pass
-    # errors="replace": a readline() racing crt-stt-solo.py's appends can
-    # land inside a multi-byte character. UnicodeDecodeError raised HERE,
-    # in the generator, is outside main()'s LoopGuard (which wraps the body
-    # only) -- so strict decoding is one of the few remaining ways this
-    # window can still die outright.
+    # errors="replace": raised here, in the generator, a UnicodeDecodeError
+    # is outside main()'s LoopGuard. Witnessed by
+    # tests/test_log_reader_decoding.py::test_book_answer_listen_tail_does_not_raise.
     with open(path, "r", encoding="utf-8", errors="replace") as f:
         f.seek(0, os.SEEK_END)
         while True:

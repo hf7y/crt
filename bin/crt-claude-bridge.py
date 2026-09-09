@@ -105,13 +105,10 @@ def main():
                 sz = os.path.getsize(current)
                 if sz > pos:
                     last_growth = time.time()
-                    # errors="replace": this reads a transcript file Claude
-                    # Code is actively appending to, so a read can land
-                    # mid-character. UnicodeDecodeError is a ValueError and
-                    # the `except OSError` below would not catch it -- one
-                    # torn byte would end the process that puts Claude's
-                    # replies on window 1. A replacement char in one line
-                    # is a far smaller loss than the mirror going dark.
+                    # errors="replace": a torn byte mid-write must not raise
+                    # UnicodeDecodeError here and end the process that mirrors
+                    # Claude's replies. Witnessed by
+                    # tests/test_log_reader_decoding.py::TestClaudeBridgeReadsTornBytes.
                     with open(current, encoding="utf-8", errors="replace") as f:
                         f.seek(pos)
                         chunk = f.read()

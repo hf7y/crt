@@ -4,9 +4,6 @@
 #
 # WHY THIS EXISTS: see tests/test_console_conf.sh for the incident.
 
-# Executing this instead of sourcing it does nothing useful and would
-# fail silently -- the assignments would land in a shell that then exits.
-# Say so loudly rather than looking like a successful no-op.
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   echo "crt-conf.sh must be SOURCED, not executed: . \$BIN_DIR/crt-conf.sh" >&2
   exit 2

@@ -148,15 +148,10 @@ def main():
             if sz < pos:
                 pos = 0
             if sz > pos:
-                # errors="replace", not strict: this read races every
-                # writer appending to thoughts.log, so it can land inside a
-                # multi-byte character (a book title's accent, an em-dash
-                # in a quote) that a writer's buffer split across two
-                # flushes. Strict decoding would raise UnicodeDecodeError
-                # (a ValueError, NOT caught by `except OSError` below) --
-                # and this is window 1, the one screen every honest-failure
-                # line this project reports to. One torn byte must not
-                # take it down.
+                # errors="replace": a strict decode can raise mid-write on a
+                # torn multi-byte char, and this is window 1 -- the one
+                # screen honest failures report to. Witnessed by
+                # tests/test_log_reader_decoding.py::TestMonologueReadsTornBytes.
                 with open(LOG, encoding="utf-8", errors="replace") as f:
                     f.seek(pos)
                     chunk = f.read()
