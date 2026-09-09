@@ -67,11 +67,9 @@ UNIT
 fi
 
 moved=0; blind=0
-# A failed registry read must never look like "nothing to do", so HASH ONLY
-# AFTER PROVING THERE IS OUTPUT. A failed `docker manifest inspect`
-# piped to sha256sum hashes the EMPTY STRING into a valid-looking digest, so
-# BLIND could never fire and two unreadable images would compare EQUAL and
-# report "up to date". Caught by pointing --check at a nonexistent repo.
+# Hash only after proving there is output -- a failed `docker manifest
+# inspect` piped straight to sha256sum hashes the empty string into a
+# valid-looking digest, see test_zaxon_autoupdate_rollback.sh.
 digest_of() {
   local out rc
   out="$(docker manifest inspect "$1" 2>/dev/null)"; rc=$?

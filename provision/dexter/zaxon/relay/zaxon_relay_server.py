@@ -29,11 +29,8 @@ from zaxon_relay_queue import (
     validate_message,
 )
 
-# crt#194: the door has no auth, only a bind (loopback + tailnet). Opt-in shared
-# secret, same convention as this file's other ZAXON_* env vars -- unset (the
-# unconfigured default) is a no-op so landing this never changes live behavior
-# by itself; it only takes effect once someone sets ZAXON_SHARED_SECRET
-# alongside the relay container (compose.yaml's own .env, gitignored).
+# crt#194: opt-in shared secret; unset is a no-op, see TestRequireSharedSecret.
+# Set alongside the relay container via compose.yaml's own .env, gitignored.
 SHARED_SECRET_HEADER = "X-Zaxon-Shared-Secret"
 SHARED_SECRET = os.environ.get("ZAXON_SHARED_SECRET", "")
 
@@ -253,10 +250,9 @@ def send_zach(message: str, from_agent: str = "agent") -> dict:
     return {"status": "sent", "message_id": payload.get("message_id")}
 
 
-# All interfaces, not loopback: reachable over Tailscale from other machines
-# (e.g. mandark), not just from other WSL distros on dexter. No auth yet, so
-# this also means reachable from the LAN, not just the tailnet -- revisit
-# once per-consumer auth lands (see ZAXON_ROADMAP.md Phase 1).
+# All interfaces, not loopback -- see TestBindsToAllInterfaces. No auth yet
+# beyond crt#194's opt-in secret, so also reachable from the LAN, not just
+# the tailnet -- revisit once per-consumer auth lands (ZAXON_ROADMAP.md Phase 1).
 BIND_HOST = "0.0.0.0"
 BIND_PORT = 8643
 MCP_PATH = "/mcp"
