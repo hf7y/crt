@@ -26,17 +26,14 @@ _cfg_spec.loader.exec_module(crt_config)
 
 THOUGHT_LOG = os.path.expanduser(os.environ.get("CRT_THOUGHT_LOG", "~/.crt/thoughts.log"))
 STT_LOG = os.path.expanduser(os.environ.get("CRT_STT_LOG", "~/.crt/stt.log"))
-# Junk-tolerant since 2026-07-25 (twentieth cycle). These were bare
-# int()/float() calls at module scope, so one typo in a value crt-console.sh
-# passes from shell raised at IMPORT -- taking down the funnel's FIRST link
-# before it ever ran, with `; exec bash` leaving a prompt in its place and no
-# bait, no scan, no question and no training row after it. The two windows
-# further down the funnel were fixed for exactly this in earlier cycles; this
-# is the one that was still carrying it. See bin/crt_config.py's env_number.
+# Junk-tolerant (env_number's own docstring covers why): a bare int()/float()
+# here used to raise at IMPORT on one shell typo, killing this window with
+# `; exec bash` in its place. Witnessed by test_config_fixups_path.py's
+# TestATypoDoesNotTakeAWindowDown::test_the_idle_bait_window_still_loads_at_its_defaults.
 IDLE_SECS = crt_config.env_number("CRT_BOOK_IDLE_BAIT_SECS", 180.0)
-# A positive floor, not 0: this one is a POLL interval, and zero here is not
-# an escape hatch, it is a hot while-True on a 1GB Pi that is also the sole
-# mic reader's box. Nothing else in this file has that shape.
+# Positive floor, not 0 -- a poll interval on the sole mic reader's box must
+# not become a hot while-True. env_number's docstring covers the general
+# rule; TestEnvNumber::test_a_positive_floor_rejects_zero witnesses it here.
 POLL_SECS = crt_config.env_number("CRT_BOOK_IDLE_BAIT_POLL", 10.0, minimum=0.1)
 ENTICE_RATE = crt_config.env_number("CRT_BOOK_ENTICE_RATE", 0.4)
 # THIRD register (2026-07-28, Zach-directed: "idlebait also show page92
