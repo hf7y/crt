@@ -215,6 +215,19 @@ class TestUnthreadedReply(unittest.TestCase):  # crt#244
         )
         self.assertEqual(len(inbox.fetch_inbox()), 1)
 
+    def test_a_retag_that_names_nothing_does_not_answer_the_lone_ticket(self):
+        """Matches the tag grammar but resolves nothing (bad repo, no
+        untagged note) -- must land in the inbox like any other failed
+        retag, not get read as the pending ticket's answer just because
+        it's also the lone one."""
+        self._insert("t1", "pending")
+        w._handle_message("None", "tag realisateur", "text")
+        self.assertEqual(
+            db.get_conn().execute("SELECT status FROM tickets WHERE id='t1'").fetchone(),
+            ("pending",),
+        )
+        self.assertEqual(len(inbox.fetch_inbox()), 1)
+
 
 class TestForAgentTag(unittest.TestCase):  # crt#130
     def test_a_leading_repo_tag_is_split_out(self):

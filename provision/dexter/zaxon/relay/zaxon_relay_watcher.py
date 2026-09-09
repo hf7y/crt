@@ -197,7 +197,10 @@ def _handle_message(reply_id: str, msg: str, via: str) -> None:
     if not handled:
         handled = _retag(msg)
     for_agent, body = _split_for_agent(msg)
-    if not handled and reply_id == "None" and for_agent is None:
+    if not handled and reply_id == "None" and for_agent is None and not RETAG_RE.match(msg.strip()):
+        # A retag that named nothing to retag (bad repo, no untagged note)
+        # must still land in the inbox, not get swallowed as a ticket's
+        # answer just because it also happens to be the lone pending one.
         handled = resolve_unthreaded_reply(msg, via)
     if not handled:
         entry_id = record_unclassified(
