@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Offline tests for the SSH-direct brain path (2026-07-28) -- the wiring
-# that replaced the mandark reverse-tunnel bridge. See DEXTER-MOVE.md
-# section 2 and bin/crt-brain-shell.py's header.
+# that replaced the mandark reverse-tunnel bridge. See
+# vault:crt/DEXTER-MOVE-20260909.md section 2 and bin/crt-brain-shell.py's header.
 #
 # These run anywhere, no network: the point is the DEGRADE contract -- a short honest reply, not a two-minute wait that lies about having sent something.
 import importlib.util
