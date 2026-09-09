@@ -117,6 +117,24 @@ class TestUpdate(StoreTestCase):
         # The old file is still intact -- that is what the temp is for.
         self.assertEqual(set(store.read(self.path)), {"a"})
 
+    def test_falls_back_to_unlocked_when_the_lock_file_cannot_be_made(self):
+        self.write({"a": {"intent": "claude"}})
+        real_open = os.open
+
+        def refuse(path, flags, *a, **kw):
+            if path == self.path + ".lock":
+                raise OSError("read-only file system")
+            return real_open(path, flags, *a, **kw)
+
+        os.open = refuse
+        try:
+            result = store.update(self.path, lambda cur: dict(cur, b={"intent": "claude"}))
+        finally:
+            os.open = real_open
+        self.assertEqual(result, {"a": {"intent": "claude"}, "b": {"intent": "claude"}})
+        self.assertEqual(set(store.read(self.path)), {"a", "b"})
+        self.assertFalse(os.path.exists(self.path + ".lock"))
+
     def test_the_on_disk_format_matches_what_the_file_is_committed_as(self):
         store.update(self.path, lambda cur: {"b": {"intent": "claude"},
                                              "a": {"intent": "claude"}})
