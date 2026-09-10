@@ -77,4 +77,32 @@ else
   fail=1
 fi
 
+# A guard that cannot see jq must say so loudly instead of silently
+# reminding about nothing forever (found blind on dexter, no jq installed
+# -- crt-senechal-guard.sh's own comment). Hide jq from PATH by pointing it
+# at a minimal dir holding just the other tools the hook needs.
+NOJQ_DIR="$(mktemp -d)"
+BASH_BIN="$(command -v bash)"
+for tool in cat grep hostname; do
+  ln -s "$(command -v "$tool")" "$NOJQ_DIR/$tool"
+done
+payload='{"tool_name":"Bash","tool_input":{"command":"cp foo.desktop ~/.config/autostart/"}}'
+nojq_stderr="$(printf '%s' "$payload" | PATH="$NOJQ_DIR" "$BASH_BIN" "$HOOK" 2>&1 1>/dev/null)"
+nojq_stdout="$(printf '%s' "$payload" | PATH="$NOJQ_DIR" "$BASH_BIN" "$HOOK" 2>/dev/null)"
+rm -rf "$NOJQ_DIR"
+
+case "$nojq_stderr" in
+  *"BLIND"*)
+    echo "ok - missing jq is reported loudly instead of silently swallowed" ;;
+  *)
+    echo "FAIL - missing jq produced no warning: [$nojq_stderr]"
+    fail=1 ;;
+esac
+if [ -z "$nojq_stdout" ]; then
+  echo "ok - missing jq still exits quiet on stdout (no bogus hook JSON)"
+else
+  echo "FAIL - missing jq emitted stdout: [$nojq_stdout]"
+  fail=1
+fi
+
 exit "$fail"

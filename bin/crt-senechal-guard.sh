@@ -13,12 +13,8 @@ set -uo pipefail
 payload="$(cat)"
 
 # A guard that cannot parse its input must SAY SO, not wave the command
-# through (2026-07-28). Before this, a missing jq made `cmd` empty and the
-# next line exited 0 -- so on any host without jq this hook silently
-# reminded about nothing, forever, while looking installed and healthy.
-# That is precisely the failure it exists to prevent, turned on itself.
-# Found on dexter, which has no jq: an entire session's worth of ~/.ssh
-# and authorized_keys edits drew no reminder.
+# through (found blind on dexter, no jq installed) -- witnessed by
+# tests/test_senechal_guard.sh's missing-jq case.
 if ! command -v jq >/dev/null 2>&1; then
   printf '%s\n' \
     "[crt-senechal-guard] jq is NOT INSTALLED on $(hostname) -- this hook is BLIND." \

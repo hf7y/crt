@@ -6,10 +6,9 @@
 import random
 
 # A handful of warm/curious-register lines (EXPRESSIVE-TONE.md's table),
-# not one fixed phrase -- repeating the exact same filler every time
-# would read as a canned loading spinner, not a voice. Deliberately
-# short and content-free: this says nothing about what's being asked,
-# only that something's happening.
+# not one fixed phrase -- see tests/test_speculate.py's pool-size/variety
+# cases. Deliberately short and content-free: this says nothing about
+# what's being asked, only that something's happening.
 FILLER_LINES = (
     "let me think on that...",
     "one sec, working on it...",

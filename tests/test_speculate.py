@@ -26,6 +26,15 @@ class TestPickFillerLine(unittest.TestCase):
         line = spec_mod.pick_filler_line()
         self.assertIn(line, spec_mod.FILLER_LINES)
 
+    def test_pool_has_more_than_one_line(self):
+        # If FILLER_LINES ever collapsed to one entry, the module's own
+        # "not one fixed phrase" rationale would quietly stop being true.
+        self.assertGreater(len(spec_mod.FILLER_LINES), 1)
+
+    def test_many_seeds_produce_more_than_one_distinct_line(self):
+        lines = {spec_mod.pick_filler_line(rng=random.Random(seed)) for seed in range(50)}
+        self.assertGreater(len(lines), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
