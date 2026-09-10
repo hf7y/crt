@@ -184,6 +184,30 @@ class TestSlotVisibility(unittest.TestCase):
         self.assertEqual(r["question"], "publish topic 999?")
         self.assertEqual(r["answer"], "publish")
 
+    def test_check_zach_reply_surfaces_delivered_via_for_a_pending_edit(self):
+        conn = db.get_conn()
+        conn.execute(
+            "INSERT INTO tickets (id, from_agent, question, status, created_at, "
+            "wa_message_id, delivered_via) VALUES ('t1', 'crt', 'q?', 'pending', "
+            "strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'wa1', 'edit')"
+        )
+        conn.commit()
+        conn.close()
+        r = server.check_zach_reply("t1")
+        self.assertEqual(r["delivered_via"], "edit")
+
+    def test_check_zach_reply_omits_delivered_via_when_answered(self):
+        conn = db.get_conn()
+        conn.execute(
+            "INSERT INTO tickets (id, from_agent, question, status, created_at, "
+            "answer, delivered_via) VALUES ('t1', 'crt', 'q?', 'answered', "
+            "strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'yes', 'send')"
+        )
+        conn.commit()
+        conn.close()
+        r = server.check_zach_reply("t1")
+        self.assertNotIn("delivered_via", r)
+
     def test_a_caller_nobody_answers_is_refused_and_files_no_ticket(self):
         conn = db.get_conn()
         for i in range(queue.ADMIT_MAX_UNANSWERED):

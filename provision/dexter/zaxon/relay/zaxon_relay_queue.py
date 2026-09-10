@@ -160,8 +160,12 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
     (crt#100, crt#232), falling back to sender() only when there's none to
     edit or the edit fails. Stamps delivered_at so the TTL is counted from
     when the question actually reached the phone, not from when it was
-    filed (crt#231). Returns 'pending' or 'failed'. `sender`/`editor` are
-    injectable for tests."""
+    filed (crt#231). Returns 'pending' or 'failed'. Stamps delivered_via
+    ('edit' or 'send') so a caller can weigh a 'pending' status accordingly --
+    an edit's "success" is only the bridge's own report against a message id
+    that is never independently confirmed to still be live (crt#244), while
+    a fresh send's message_id came back from that same send call.
+    `sender`/`editor` are injectable for tests."""
     send = sender or _default_sender
     edit = editor or _default_editor
     text = format_message(from_agent, question, options)
@@ -176,7 +180,8 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
             edit_payload = {"success": False}
         if edit_payload.get("success"):
             conn.execute(
-                "UPDATE tickets SET status='pending', wa_message_id=?, chat_id=?, delivered_at=? WHERE id=?",
+                "UPDATE tickets SET status='pending', wa_message_id=?, chat_id=?, delivered_at=?, "
+                "delivered_via='edit' WHERE id=?",
                 (prior_message_id, prior_chat_id or CHAT_ID, now, ticket_id),
             )
             conn.commit()
@@ -196,7 +201,8 @@ def deliver(conn, ticket_id: str, from_agent: str, question: str, options, sende
         return "failed"
 
     conn.execute(
-        "UPDATE tickets SET status='pending', wa_message_id=?, chat_id=?, delivered_at=? WHERE id=?",
+        "UPDATE tickets SET status='pending', wa_message_id=?, chat_id=?, delivered_at=?, "
+        "delivered_via='send' WHERE id=?",
         (payload.get("message_id"), payload.get("chat_id") or CHAT_ID, now, ticket_id),
     )
     conn.commit()

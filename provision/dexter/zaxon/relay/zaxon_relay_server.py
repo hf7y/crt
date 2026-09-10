@@ -203,12 +203,19 @@ def check_zach_reply(ticket_id: str) -> dict:
     queued_ahead / est_wait_hours say how far back; 'stale' means this one
     expired unanswered and its slot was freed -- do NOT just re-send it
     (crt#190); reconsider whether it still needs asking. `question` always
-    comes back too."""
+    comes back too.
+
+    A 'pending' result also carries delivered_via ('send' or 'edit').
+    'edit' means this reused a prior WhatsApp message in place, and the
+    bridge's own reported success is the only confirmation that edit
+    actually reached the phone (crt#244) -- it is not independently
+    verified the way a fresh send's message_id is. Treat a long-pending
+    'edit' delivery with a bit less certainty than a 'send' one."""
     conn = get_conn()
     try:
         sweep_and_promote(conn)
         row = conn.execute(
-            "SELECT status, answer, question FROM tickets WHERE id=?", (ticket_id,)
+            "SELECT status, answer, question, delivered_via FROM tickets WHERE id=?", (ticket_id,)
         ).fetchone()
         report = slot_report(conn, ticket_id)
     finally:
@@ -216,12 +223,14 @@ def check_zach_reply(ticket_id: str) -> dict:
 
     if row is None:
         return {"status": "not_found"}
-    status, answer, question = row
+    status, answer, question, delivered_via = row
     result = {"status": status, "question": question, **report}
     if status == "answered":
         result["answer"] = answer
     elif status == "failed":
         result["error"] = answer
+    elif status == "pending" and delivered_via:
+        result["delivered_via"] = delivered_via
     return result
 
 
