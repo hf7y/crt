@@ -42,7 +42,8 @@ def wake_word(env=None):
 def tokenize(text):
     """Word characters only, never str.split(). Whisper output rarely
     carries reliable punctuation, and a stray comma ("hey claude, run the
-    tests") must not defeat the match."""
+    tests") must not defeat the match. Witnessed by
+    test_book_answer_wake_word.py::test_a_stray_comma_does_not_defeat_the_match."""
     return re.findall(r"[a-z0-9']+", text.lower())
 
 
@@ -50,7 +51,8 @@ def contains_phrase(words, phrase):
     """Whole-word containment: `phrase` (space-separated) must appear as a
     contiguous run of whole words in `words`, not as a bare substring --
     else a fixup fragment like "slide" would false-positive inside an
-    unrelated word like "landslide"."""
+    unrelated word like "landslide". Witnessed by
+    test_book_answer_wake_word.py::test_an_alias_fragment_inside_a_longer_word_is_still_an_answer."""
     phrase_words = phrase.split()
     n = len(phrase_words)
     return any(words[i:i + n] == phrase_words for i in range(len(words) - n + 1))
@@ -60,7 +62,9 @@ def live_fixups(path=None):
     """The fixups on disk right now, minus the file's own "_comment" doc
     key. Tolerant of a missing/malformed file (crt_fixups_store.read's
     contract): the gate degrades to exact-word matching, it never fails
-    closed and never raises into a caller's loop."""
+    closed and never raises into a caller's loop. Witnessed by
+    test_book_answer_wake_word.py::test_a_missing_fixups_file_does_not_break_grading
+    and ::test_live_fixups_drops_the_files_own_comment_key."""
     path = path or _config.fixups_path()
     return {k: v for k, v in _fixups_store.read(path).items()
             if not str(k).startswith("_")}
@@ -74,7 +78,8 @@ def addressed_to_console(text, word=None, fixups=None):
     `fixups=None` means read the live file. crt-stt-solo.py always passes an
     explicit dict (it holds a change-reporting view of the same file, see
     its FixupsFile) -- so its behaviour through this function is exactly
-    what it was when the logic lived there."""
+    what it was when the logic lived there. Witnessed by
+    test_book_answer_wake_word.py::test_stt_solo_delegates_to_the_shared_gate."""
     word = wake_word() if word is None else word
     if fixups is None:
         fixups = live_fixups()
