@@ -88,10 +88,8 @@ LOGO_COLORS = [
 # Sentinel for _frame_rows()'s `color` param: a real yellow-through-
 # brown BLEND across the art's own rows, not one flat shade per frame
 # (2026-07-28, live, Zach: "colors are wrong... can get mixed color
-# output yellow and brown and inbetween?"). The discrete per-tick
-# LOGO_COLORS rotation this replaced picked ONE color for the whole
-# frame; this picks one PER ROW, sampled evenly across LOGO_COLORS
-# top-to-bottom, so a single frame shows the actual gradient.
+# output yellow and brown and inbetween?"). Witnessed by
+# tests/test_screensaver_blink_sleep.py::TestFrameRowsGradient::test_gradient_sentinel_produces_more_than_one_color_in_output.
 GRADIENT = "gradient"
 
 
