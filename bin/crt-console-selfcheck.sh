@@ -5,12 +5,9 @@
 # retired, every utterance died at step 4, and the only evidence was a
 # `TRANSCRIPTION FAILED` line on a tube in an empty room (crt#132).
 #
-# Probes CAPABILITY, never activity. ~/.crt/stt.log only moves when someone
-# speaks, so staleness would cry wolf over a quiet week and stay silent
-# through a broken one. Asked instead: is the reader running, and does the
-# server IT points at -- read from the live process, not a config file --
-# answer in the shape the console needs. Speaks only on TRANSITION, through
-# Zaxon: a sensor that repeats itself is one you learn to ignore.
+# Probes CAPABILITY, never activity, and speaks only on TRANSITION, through
+# Zaxon. Witnessed by tests/test_console_selfcheck.sh: GREEN/RED capability
+# probing, and the say-it-once-per-transition cases.
 set -uo pipefail
 
 STATE="${CRT_SELFCHECK_STATE:-$HOME/.crt/selfcheck.state}"
@@ -51,9 +48,9 @@ verdict() {
 
   local wav body
   wav="$(mktemp --suffix=.wav)" || { printf 'RED\tno temp file'; return; }
-  # A tone transcribes to nothing; that the server ANSWERED in the shape the
-  # console parses is the whole question. Posted the way transcribe_remote()
-  # posts, which is what catches a server speaking another dialect.
+  # Posted the way transcribe_remote() posts, which is what catches a server
+  # speaking another dialect. GREEN/RED-on-shape witnessed by
+  # tests/test_console_selfcheck.sh.
   sox -n -r 16000 -c 1 "$wav" synth 0.5 sine 440 2>/dev/null
   body="$(curl -sf -m 20 -X POST "$SERVER" -F "file=@$wav" \
           -F "response_format=json" -F "language=en" 2>/dev/null)"

@@ -28,11 +28,11 @@ fi
 # But NOT the same working tree a human is editing in: the brain runs with
 # permissions bypassed (below) and is expected to make real, durable
 # changes -- talk into the handset, have potato commit its own rules. Two
-# writers in one checkout means a spoken commit and a hand edit collide in
-# the index. Prefer a dedicated git worktree if one exists
-# (`git -C <crt-repo> worktree add ~/crt-brain -b voice`), so the brain's
-# work lands on its own branch; falls back to the repo root, just a
-# colliding one, so a box that hasn't set one up still gets a working brain.
+# writers in one checkout collide in the index, so a dedicated git worktree
+# is preferred when one exists (`git -C <crt-repo> worktree add ~/crt-brain
+# -b voice`); falls back to the repo root otherwise, so a box that hasn't
+# set one up still gets a working brain. Witnessed by
+# tests/test_brain_session_bypass.sh, case 6.
 CRT_BRAIN_VOICE_TREE="${CRT_BRAIN_VOICE_TREE:-$HOME/crt-brain}"
 if [ -z "${CRT_BRAIN_CWD:-}" ] && [ -d "$CRT_BRAIN_VOICE_TREE" ]; then
   CRT_BRAIN_CWD="$CRT_BRAIN_VOICE_TREE"
@@ -46,8 +46,9 @@ CLAUDE_BIN="${CRT_BRAIN_CLAUDE:-claude}"
 # to answer a permission modal -- the pane just parks and the console goes
 # quiet mid-sentence. potato's own bypass setting stops at the ssh
 # boundary, so the brain host makes the same choice for itself. Scoped to
-# this one named session on a trusted box; override with
-# CRT_BRAIN_CLAUDE_ARGS='' for a prompting brain.
+# this one named session on a trusted box; overridable via
+# CRT_BRAIN_CLAUDE_ARGS. Witnessed by tests/test_brain_session_bypass.sh,
+# cases 1-2.
 CRT_BRAIN_CLAUDE_ARGS="${CRT_BRAIN_CLAUDE_ARGS:---permission-mode bypassPermissions}"
 
 have_session() { tmux has-session -t "$SESSION" 2>/dev/null; }
