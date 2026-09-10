@@ -12,7 +12,11 @@
 # earlier cycles get their own file and a link. Reports live in
 # ~/reports/crt/, outside the repo; committed fallback copies stopped
 # being re-linted 2026-08-17 (a three-week-old archive proves nothing
-# about tonight).
+# about tonight). The repeat-detection this fix depends on is witnessed by
+# tests/test_report_lint.py::TestDuplicateDetection's
+# test_the_real_nested_cycle_shape_is_caught,
+# test_level_does_not_rescue_a_repeat, and
+# test_case_and_spacing_do_not_rescue_a_repeat.
 #
 # Usage: crt-report-lint.py FILE [FILE...]
 # Exit: 0 clean, 1 duplicate headings, 2 unreadable file.

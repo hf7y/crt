@@ -7,7 +7,9 @@
 # that files a note nobody wrote, marking the debt PAID while the actual
 # knowledge stays unrecorded. This hook makes forgetting loud instead; a
 # human/agent still writes the sentence. Prefer "reminded twice" over
-# "filed wrong once".
+# "filed wrong once". Witnessed by tests/test_senechal_guard.sh's fires()
+# cases (loud on a real change) and its "quiet - a notify-senechal call
+# itself" case (never re-files what is already filed).
 set -uo pipefail
 
 payload="$(cat)"

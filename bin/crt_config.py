@@ -4,7 +4,9 @@
 # WHY THIS FILE EXISTS: vault:crt/REFACTOR-ASSESSMENT.md / ranked-backlog item 1
 # -- one config source for values retyped across many files (port 8993,
 # whisper URL, ALSA device, stt-fixups.json's path -- see fixups_path()'s
-# own docstring below for that founding instance).
+# own docstring below for that founding instance). The one-source contract
+# is witnessed end-to-end by
+# tests/test_config_fixups_path.py::TestAllThreeScriptsAgree.
 import os
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
