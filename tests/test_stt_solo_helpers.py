@@ -479,5 +479,43 @@ class TranscribeFallbackTest(unittest.TestCase):  # crt#132
             local.assert_called_once()
 
 
+class EarconDefaultsTest(unittest.TestCase):
+    """EARCON_* module constants read os.environ once at import time; reload
+    with the relevant vars unset to see what an out-of-the-box console gets."""
+
+    def _reload_unset(self):
+        keys = ("CRT_EARCON_ON_THRESHOLD", "CRT_EARCON_ON_ADDRESSED",
+                "CRT_EARCON_ON_CONTROL", "CRT_EARCON_DEVICE")
+        backup = {k: os.environ.get(k) for k in keys}
+        for k in keys:
+            os.environ.pop(k, None)
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "crt_stt_solo_earcon_defaults", os.path.join(BIN_DIR, "crt-stt-solo.py"))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+        finally:
+            for k, v in backup.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+    def test_threshold_earcon_defaults_off(self):
+        # "heard" would fire on every utterance, including all the room
+        # chatter that never has a wake word -- too noisy to default on.
+        self.assertFalse(self._reload_unset().EARCON_ON_THRESHOLD)
+
+    def test_addressed_and_control_earcons_default_on(self):
+        mod = self._reload_unset()
+        self.assertTrue(mod.EARCON_ON_ADDRESSED)
+        self.assertTrue(mod.EARCON_ON_CONTROL)
+
+    def test_earcon_device_defaults_to_handset(self):
+        # The person actually holding the handset is who should hear it.
+        self.assertEqual(self._reload_unset().EARCON_DEVICE, "handset")
+
+
 if __name__ == "__main__":
     unittest.main()
