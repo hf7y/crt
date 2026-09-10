@@ -233,21 +233,11 @@ def reap_dispatches():
     _dispatches[:] = still
 
 
-# Earcon feedback added 2026-07-23 live-tuning session, per Zach's direct
-# ask for beeps at three pipeline stages: audio-threshold (VAD detects an
-# utterance starting), the STT gate (wake word recognized or not), and
-# the "watchword" (single-word CONTROL keystroke) gate -- three distinct
-# code paths above, not one. Popen fire-and-forget like send_to_secretary
-# -- an earcon must NEVER add latency to (or risk blocking) the sole mic
-# reader's capture loop. Default device is the handset (--device handset,
-# see crt-earcon.sh's 2026-07-23 device-routing fix) since that's what
-# the person actually holding it hears.
-#
-# EARCON_ON_THRESHOLD defaults OFF: this fires on every utterance the mic
-# picks up, including all the room chatter that never has a wake word --
-# on by default this would be near-constant noise (see stt.log/thoughts.log
-# from tonight's session for just how much of that there is). Opt in only
-# if you actually want an audible "still capturing" tick per utterance.
+# Earcon feedback at three pipeline stages: audio-threshold, the STT gate,
+# and the CONTROL-keystroke gate. Defaults witnessed by
+# tests/test_stt_solo_helpers.py::EarconDefaultsTest -- threshold off (too
+# noisy), addressed/control on, device handset. Popen is fire-and-forget,
+# same as play_earcon() below.
 EARCON_ON_THRESHOLD = os.environ.get("CRT_EARCON_ON_THRESHOLD", "0") == "1"
 EARCON_ON_ADDRESSED = os.environ.get("CRT_EARCON_ON_ADDRESSED", "1") == "1"
 EARCON_ON_CONTROL = os.environ.get("CRT_EARCON_ON_CONTROL", "1") == "1"

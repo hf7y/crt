@@ -36,17 +36,14 @@ IDLE_SECS = crt_config.env_number("CRT_BOOK_IDLE_BAIT_SECS", 180.0)
 # rule; TestEnvNumber::test_a_positive_floor_rejects_zero witnesses it here.
 POLL_SECS = crt_config.env_number("CRT_BOOK_IDLE_BAIT_POLL", 10.0, minimum=0.1)
 ENTICE_RATE = crt_config.env_number("CRT_BOOK_ENTICE_RATE", 0.4)
-# THIRD register (2026-07-28, Zach-directed: "idlebait also show page92
-# excerpts via \\192.168.0.27\bibquotes") -- bg.pick_bibquotes_line()
-# reads a LOCAL cache of bibliothecaire's published quotes.txt (synced
-# separately by bin/crt-bibquotes-sync.sh; NEVER hits the network from
-# here, same NON-API-BY-DESIGN rule as pick_idle_quote() above). Fraction
-# of quote-shaped rounds (i.e. rounds that already passed the entice
-# check) that pull from bibquotes instead of a registered book's own
-# quote, when BOTH are available. When the registry is empty but
-# bibquotes has content, bibquotes fills the "quote" register on its
-# own -- an empty scan history no longer means only enticements ever
-# show.
+# THIRD register (2026-07-28, Zach-directed): bg.pick_bibquotes_line()
+# reads a LOCAL cache of bibliothecaire's quotes.txt, synced separately by
+# bin/crt-bibquotes-sync.sh -- see tests/test_bibquotes.py for the no-network
+# rule. Fraction of quote-shaped rounds that pull from bibquotes instead of
+# a registered book's own quote when BOTH are available; with an empty
+# registry, bibquotes fills the "quote" register on its own regardless of
+# this rate -- witnessed by
+# TestIdleBaitMixesInBibquotes::test_empty_registry_still_shows_bibquotes_regardless_of_mix_rate.
 BIBQUOTES_RATE = crt_config.env_number("CRT_BOOK_BIBQUOTES_RATE", 0.3)
 
 

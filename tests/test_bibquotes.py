@@ -119,6 +119,24 @@ class TestIdleBaitMixesInBibquotes(unittest.TestCase):
                 ib.bg.BIBQUOTES_LOCAL_PATH = old_path
             self.assertIn("Ross Ashby", line)
 
+    def test_empty_registry_still_shows_bibquotes_regardless_of_mix_rate(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "bibquotes.txt")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(EM_DASH_LINE + "\n")
+            conn = bg.get_db(os.path.join(d, "books.db"))  # empty registry: no scanned books
+            old_entice, old_biq = ib.ENTICE_RATE, ib.BIBQUOTES_RATE
+            old_path = ib.bg.BIBQUOTES_LOCAL_PATH
+            ib.ENTICE_RATE = 0.0
+            ib.BIBQUOTES_RATE = 0.0  # would normally favor a registry quote that can't exist here
+            ib.bg.BIBQUOTES_LOCAL_PATH = path
+            try:
+                line = ib.pick_and_format_line(conn, rng=random.Random(1))
+            finally:
+                ib.ENTICE_RATE, ib.BIBQUOTES_RATE = old_entice, old_biq
+                ib.bg.BIBQUOTES_LOCAL_PATH = old_path
+            self.assertIn("Ross Ashby", line)
+
     def test_no_bibquotes_file_falls_back_cleanly(self):
         with tempfile.TemporaryDirectory() as d:
             conn = bg.get_db(os.path.join(d, "books.db"))
