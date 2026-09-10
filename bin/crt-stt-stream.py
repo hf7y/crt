@@ -6,8 +6,8 @@
 # WHY: crt-stt-solo.py transcribes once, after VAD trail -- nothing shows
 # on screen until you stop talking. This re-decodes a growing buffer every
 # ~0.5s and commits a word once two consecutive decodes agree
-# (LocalAgreement-2, from whisper_streaming) to approximate streaming
-# without swapping the model.
+# (LocalAgreement-2, from whisper_streaming, see local_agreement_commit)
+# to approximate streaming without swapping the model.
 #
 # COST: re-decodes the WHOLE utterance-so-far every tick (~12x decodes for
 # a 6s utterance) -- may be too slow on a CPU-capped VM; point
@@ -140,19 +140,12 @@ def transcribe(frames):
 
 
 def local_agreement_commit(committed_words, prev_words, new_words, need_agree):
-    """Core of Approach F. `committed_words` is what's already been emitted
-    (frozen, never revised again). `prev_words`/`new_words` are the last two
-    decodes of the *whole* buffer-so-far (both start from the same audio
-    origin, so they're directly comparable word-for-word). Advance the commit
-    point past the longest prefix, beyond what's already committed, that the
-    last `need_agree` consecutive decodes agree on.
-
-    need_agree=2 (the default/baseline) means: agree with just the immediately
-    prior decode. This function is called every tick with a 2-decode window,
-    so 'agreement' here is literally prev==new on the shared prefix; higher
-    need_agree is left as a knob for a future version that keeps a longer
-    history instead of just one previous hypothesis -- not implemented in this
-    prototype (documented gap, not a silent shortcut)."""
+    """Core of Approach F: advance committed_words past the longest shared
+    prefix of prev_words/new_words (two decodes of the same buffer-so-far),
+    never revising what's already committed. need_agree>2 (a longer
+    hypothesis history than just the immediately prior decode) is an
+    unimplemented knob, not a silent shortcut. See
+    tests/test_stt_stream_helpers.py's LocalAgreementCommitTest."""
     start = len(committed_words)
     i = start
     while i < len(prev_words) and i < len(new_words) and prev_words[i] == new_words[i]:
