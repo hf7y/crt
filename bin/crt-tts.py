@@ -127,27 +127,15 @@ def ducks_capture(device):
     """Should this playback suppress crt-stt-solo.py's VAD?
 
     Keyed on the HARDWARE the audio comes out of, not on the caller
-    happening to use the word "handset" (2026-07-25). The original check was
-    a literal `device == "handset"`, and this project's whole audio history
-    is devices identified by the wrong name: three real callers never name a
-    device at all and fell through to ALSA `default`, silently skipping the
-    duck --
-
-      bin/crt-stt-speakback.sh   `crt-tts.py "heard: ..."` (no --device)
-      bin/crt-secretary.py       play_earcon() (no --device)
-      bin/crt-idle-teaser.sh     chime() (no --device)
-
-    -- and `--device plughw:1,0`, naming the handset outright, skipped it too.
-
-    Unknown (`default`/empty) ducks. This reverses the previous intent, which
-    was "only the literal handset touches the CTL file": nothing anywhere
-    establishes what ALSA `default` resolves to on potato, and the two
-    outcomes are not symmetric. A duck that was not needed costs one earcon's
-    worth of suppressed VAD, self-healing at the end of playback and again at
-    CRT_CTL_MUTE_MAX_SECS. A duck that was needed and did not happen puts the
-    console's own voice into the mic, which is the failure this whole
-    mechanism exists to prevent. Naming the device explicitly always wins
-    over this guess.
+    happening to use the word "handset" (2026-07-25): the original literal
+    `device == "handset"` check let three real callers that pass no
+    --device at all (crt-stt-speakback.sh, crt-secretary.py's
+    play_earcon(), crt-idle-teaser.sh's chime()) fall through to ALSA
+    `default` and skip the duck, and skipped it for `--device plughw:1,0`
+    too. Unknown/default now ducks (a needless duck self-heals at
+    CRT_CTL_MUTE_MAX_SECS; a missed one puts the console's own voice in the
+    mic); naming the device explicitly always wins over the guess.
+    Witnessed by tests/test_tts_capture_duck.py's five cases.
     """
     if device == "handset":
         return True
