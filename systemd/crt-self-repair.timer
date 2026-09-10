@@ -2,8 +2,9 @@
 # script's shared default is acceptEdits, not potato's escalated
 # bypassPermissions (crt-vm, which used that shared default, is retired --
 # crt#162).
-# Offset from crt-vm-hardware-check's 06:30 slot and the mandark scheduler's
-# own windows so reports don't all land at once.
+# Offset was picked to avoid crt-vm-hardware-check's 06:30 slot, a job that
+# ran on crt-vm itself and is gone with it (retired, crt#162); kept at 04:15
+# regardless since it also stays clear of the mandark scheduler's own windows.
 [Unit]
 Description=Run crt's nightly self-repair pass on potato
 
