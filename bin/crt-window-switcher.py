@@ -141,14 +141,11 @@ def main():
             continue
         ok, detail = switch_to_book_window()
         if ok:
-            # Only now is this exchange spent. Marking it before the switch
-            # succeeded would turn one failed tmux call into a permanent
-            # stop, which is the failure this loop exists to avoid.
+            # Not marked spent on a failure below -- see
+            # test_a_failing_select_window_is_reported_once_and_keeps_trying.
             returned_from, reported = last_active, None
             continue
-        # Once per distinct cause, not once per poll: this loop wakes every
-        # two seconds, and window 1 fades the person's own words out from
-        # the top.
+        # Reported once per distinct cause, not once per poll -- same test.
         if detail != reported:
             reported = detail
             line = switch_failure_report("%s:%s" % (SESSION, RETURN_WINDOW), detail)
