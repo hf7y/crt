@@ -27,19 +27,16 @@ def capture_pane(session):
 def send_to_claude(session, text):
     """Type text + Enter into the session. Returns (ok, detail).
 
-    ok is True only if tmux accepted BOTH keystrokes (2026-07-25). It used
-    to ignore both return codes and the handler replied "OK" regardless, so
-    a session that had died, been renamed, or never started looked
-    identical, over the socket, to one that took the message -- and
-    potato's side then sat through a full wait for a reply that could not
-    come. `tmux send-keys` to a missing target exits non-zero with a real
-    message on stderr; that message is what the caller gets back.
+    ok is True only if tmux accepted BOTH keystrokes -- a dead/missing
+    session reports ERR with tmux's own reason instead of a false OK.
+    Witnessed by tests/test_remote_claude_bridge.py's
+    test_send_to_a_dead_session_returns_err_not_ok,
+    test_send_to_a_dead_session_reports_tmux_own_reason and
+    test_send_to_a_live_session_reports_ok_with_no_detail.
 
-    The Enter is checked separately on purpose: -l delivers the literal
-    text and can succeed while the session dies before the newline, which
-    leaves a half-typed prompt sitting in Claude's input and no reply --
-    the most confusing of the failure modes, and silent under the old
-    code."""
+    The Enter is checked separately from -l: the session can die between
+    them, leaving a half-typed prompt with no reply -- the most confusing
+    failure mode, and silent if only the first keystroke were checked."""
     for keys in (["-l", text], ["Enter"]):
         r = subprocess.run(["tmux", "send-keys", "-t", session] + keys,
                             capture_output=True, text=True)
