@@ -81,10 +81,7 @@ def update(path, mutate):
                 f.write(dumps(result))
             os.replace(tmp_path, path)
         except OSError:
-            # A failed write must not leave a stray temp behind for the next
-            # `ls` to puzzle over, and must still reach the caller: for the
-            # merge loop that is a LoopGuard report on window 1, for the
-            # calibration game a visible error instead of a silent "Saved".
+            # See test_a_failed_write_leaves_no_stray_temp_and_still_raises.
             try:
                 os.unlink(tmp_path)
             except OSError:
