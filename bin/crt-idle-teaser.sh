@@ -103,14 +103,9 @@ chime() {
   return 0
 }
 
-# ANSI color-per-register (2026-07-20, EXPRESSIVE-TONE.md's color
-# dimension, named but not reached until now): each teaser kind gets a
-# color matching its register in that doc's table -- clipped/urgent
-# (blocker) reads bold magenta, a real question reads yellow (present, not
-# alarming), an ordinary find reads cyan -- CRT-safe per CLAUDE.md's banned
-# 31/32/34 codes (this file shipped with bold red until 2026-07-25, the one
-# register most worth reading drawn in the worst color the tube has;
-# enforced now by tests/test_crt_safe_colors.sh).
+# ANSI color-per-register (EXPRESSIVE-TONE.md's color dimension). See
+# tests/test_idle_teaser.sh's color_for_line cases and
+# tests/test_crt_safe_colors.sh.
 COLOR_URGENT=$'\033[1;35m'    # blocker (clipped register, CRT-safe)
 COLOR_QUESTION=$'\033[33m'    # a real judgment call
 COLOR_CURIOUS=$'\033[36m'     # ordinary find
