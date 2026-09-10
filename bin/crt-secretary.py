@@ -96,22 +96,14 @@ TEST_SUITE = os.environ.get("CRT_TEST_SUITE", os.path.join(REPO_DIR, "tests/run_
 CALIBRATE_BIN = os.environ.get(
     "CRT_CALIBRATE_BIN", os.path.join(BIN_DIR, "crt-calibrate-display.py"))
 
-# Lowered 3->1.5 2026-07-23 live tuning session (Zach on the mic, potato):
-# the fixed idle-stability wait was most of the ~6s felt round-trip
-# latency, independent of STT/whisper time. wait_for_claude_reply()'s
-# grace-check (below) is the safety net against this lower threshold
-# false-triggering mid-reply -- tune further by ear, this is a first
-# retuning, not a final number.
+# Tuned by ear (2026-07-23), not a final number -- see wait_for_claude_reply()'s
+# docstring for the grace-check that guards this idle threshold.
 CLAUDE_IDLE_SECS = float(os.environ.get("CRT_SECRETARY_IDLE_SECS", "1.5"))
 CLAUDE_MAX_WAIT = float(os.environ.get("CRT_SECRETARY_MAX_WAIT", "120"))
 CLAUDE_POLL = float(os.environ.get("CRT_SECRETARY_POLL", "1"))
 
-# How many consecutive unreadable captures wait_for_claude_reply() tolerates
-# before it stops waiting and says so. Not a guess that needs an ear: one or
-# two misses is a tunnel hiccup worth riding out, and once the pane has been
-# unreadable for CAPTURE_MISS_TOLERANCE * CLAUDE_POLL seconds there is
-# nothing left to wait for -- burning the remaining CLAUDE_MAX_WAIT (120s)
-# only delays the same answer.
+# Consecutive-miss tolerance before giving up on the wait -- rationale in
+# wait_for_claude_reply()'s docstring.
 CAPTURE_MISS_TOLERANCE = int(os.environ.get("CRT_SECRETARY_CAPTURE_MISSES", "3"))
 
 # Window-switch on Claude escalation (2026-07-21, Zach's direct call):
