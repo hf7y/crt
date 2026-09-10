@@ -192,11 +192,9 @@ def send_to_secretary(text):
             stderr=err if err is not None else subprocess.DEVNULL,
         )
     except OSError as e:
-        # Spawning can fail for reasons that have nothing to do with the words:
         # ENOMEM on a 905MB Pi already running whisper and ten tmux windows is
-        # the realistic one. This used to raise straight out of the capture
-        # loop, so a moment of memory pressure cost the console its hearing
-        # rather than one utterance.
+        # the realistic trigger. Witnessed by tests/test_dispatch_failure_visible.py's
+        # TestSpawnFailureDoesNotDeafenTheConsole.
         if err is not None:
             err.close()
         _report_dispatch_failure(text, "could not start it: %s" % e)
@@ -1255,10 +1253,9 @@ def transcribe(frames):
                 except OSError: pass
 
 
-# How often a continuing transcription outage repeats itself on the pane.
-# The first failure always prints; after that only every Nth, so a mandark
-# that is down for an hour leaves a readable trail instead of burying the
-# capture pane -- and never goes fully quiet either.
+# How often a continuing transcription outage repeats itself on the pane --
+# first-always / folded-in-between / periodic-Nth, witnessed by
+# tests/test_transcribe_failure.py's FailureReportTest.
 TRANSCRIBE_FAIL_REPEAT = int(os.environ.get("CRT_TRANSCRIBE_FAIL_REPEAT", "10"))
 
 
