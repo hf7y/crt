@@ -616,16 +616,14 @@ def _init_schema(conn, retries=5):
             existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(books)")}
             if "quote" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN quote TEXT")
-            # Added 2026-07-25. Deliberately NOT backfilled from
-            # first_scanned: every reader COALESCEs to first_scanned, so a
-            # NULL here means "never re-scanned since this column existed",
-            # which is exactly right for potato's existing books.db.
+            # Deliberately not backfilled from first_scanned -- see
+            # tests/test_book_rescan_pending.py::TestRescannedBookIsPending::
+            # test_a_row_predating_the_column_still_answers_for_its_first_scan.
             if "last_scanned" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN last_scanned TEXT")
-            # Added 2026-07-25 (thirteenth cycle). Same no-backfill
-            # reasoning as last_scanned: NULL means "never answered since
-            # this column existed", which readers treat exactly as the
-            # pre-column behaviour -- the round is still open.
+            # Same no-backfill reasoning as last_scanned -- see
+            # tests/test_book_answer_round_closes.py::TestExistingDatabasesMigrate's
+            # own docstring.
             if "last_answered" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN last_answered TEXT")
             # Added 2026-07-28: trivia-fact pipeline (crt-book-facts-batch.py).
@@ -733,11 +731,8 @@ def get_book(conn, isbn):
 # as bin/crt-pager.py -- see BOOK-GAME-STYLE.md's "Screen real estate".
 FALLBACK_WIDTH = 40
 FALLBACK_HEIGHT = 15
-# HARD RULE (2026-07-21, Zach): actual text content never spans more
-# than this many characters, even on a wider screen -- readability on
-# the real tube, confirmed live, not a stylistic choice. Screen LINES
-# still get padded to the full detected/fallback width for a consistent
-# layout; this only caps the text itself before centering.
+# HARD RULE (2026-07-21, Zach) -- render_question_screen()'s own
+# docstring below has the full "why 30, why lines still pad to width" reasoning.
 MAX_CONTENT_WIDTH = 30
 
 
