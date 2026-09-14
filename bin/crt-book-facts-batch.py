@@ -17,10 +17,9 @@ _bg_spec = importlib.util.spec_from_file_location("crt_book_game", os.path.join(
 bg = importlib.util.module_from_spec(_bg_spec)
 _bg_spec.loader.exec_module(bg)
 
-# 2026-07-28, live, Zach-directed ("smaller batch size"): a real 10-book
-# batch (30 generated questions) timed out even after the timeout itself
-# was widened (see bg.GEMINI_BATCH_TIMEOUT_SECS) -- fewer books per call
-# is the other half of that fix, not a substitute for it.
+# Paired with bg.GEMINI_BATCH_TIMEOUT_SECS against a real 10-book batch
+# timing out (2026-07-28) -- splitting witnessed by
+# TestRunDistillStage.test_batches_respect_batch_size.
 BATCH_SIZE = int(os.environ.get("CRT_BOOK_FACTS_BATCH_SIZE", "4"))
 
 
@@ -48,12 +47,9 @@ def run_scrape_stage(conn, fetcher=None, log=print):
     return processed
 
 
-# Marks a book's questions_json as already upgraded by the AI distill
-# stage (2026-07-28 redesign) -- reuses the existing question_source
-# column instead of a new one: 'template' (generate_template_question),
-# 'gemini'/'claude' (the pre-existing per-scan batch path), or this.
-# Never re-upgrades a book that already has it, same cache-once
-# philosophy as everything else in this pipeline.
+# Reuses question_source ('template', 'gemini'/'claude', or this) rather
+# than a new column. Skip-if-already-set witnessed by
+# TestRunDistillStage.test_already_enriched_book_is_skipped.
 ENRICHED_SOURCE = "ai-enriched"
 
 
