@@ -11,9 +11,7 @@
 # top of its stdout. No LLM involved, on purpose -- the "90% offline
 # supervisor" (SUPERVISOR.md) applied to the morning report specifically.
 #
-# STATUS: parsing is covered by tests/test_present_morning_report.py
-# against a synthetic sample. Never run against the real scheduler script
-# end-to-end (no VM; see SESSION-STATE.md).
+# STATUS: coverage scope is tests/test_present_morning_report.py's own header.
 import os
 import re
 import subprocess
