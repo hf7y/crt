@@ -55,7 +55,8 @@ have_session() { tmux has-session -t "$SESSION" 2>/dev/null; }
 
 # A pane that paints is not a brain that answers. Name the states where
 # Claude is sitting on a modal waiting for a human who does not exist --
-# each one presents as a healthy, beautifully-rendered pane.
+# each one presents as a healthy, beautifully-rendered pane. Witnessed by
+# tests/test_brain_session_bypass.sh, cases 3-4 and 10.
 parked_reason() {
   case "$1" in
     *"trust the files"*|*"1. Yes, I trust"*)
@@ -72,9 +73,8 @@ parked_reason() {
 case "${1:-ensure}" in
   status)
     # The installed copy sshd actually runs vs. the repo copy that gets
-    # reviewed. These are two files, so they can disagree, and the failure
-    # is silent by construction: the console keeps working, just on code
-    # nobody read. Report drift here rather than trusting they match.
+    # reviewed can silently disagree. Report drift rather than trusting
+    # they match. Witnessed by tests/test_brain_session_bypass.sh, cases 7-9.
     installed="${CRT_BRAIN_INSTALLED:-$HOME/.local/bin/crt-brain-shell}"
     if [ -e "$installed" ]; then
       if ! cmp -s "$installed" "$HERE/crt-brain-shell.py"; then

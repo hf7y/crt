@@ -122,4 +122,52 @@ else
   fail=1
 fi
 
+# --- 7. An installed copy matching the repo reports no drift -----------
+INSTALLED_MATCH="$TMP/installed_match"
+cp "$DIR/../bin/crt-brain-shell.py" "$INSTALLED_MATCH"
+printf '❯ ready\n' > "$PANE"
+out="$(run TMUX_HAS_SESSION=0 CRT_BRAIN_INSTALLED="$INSTALLED_MATCH" status 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && ! printf '%s' "$out" | grep -q "DRIFT"; then
+  echo "PASS: status reports no drift when the installed copy matches the repo"
+else
+  echo "FAIL: matching installed copy reported drift -- rc=$rc out='$out'"
+  fail=1
+fi
+
+# --- 8. An installed copy diverging from the repo is DRIFT, not silence
+INSTALLED_DIFF="$TMP/installed_diff"
+printf '#!/usr/bin/env python3\n# not the repo copy\n' > "$INSTALLED_DIFF"
+printf '❯ ready\n' > "$PANE"
+out="$(run TMUX_HAS_SESSION=0 CRT_BRAIN_INSTALLED="$INSTALLED_DIFF" status 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q "DRIFT"; then
+  echo "PASS: status reports DRIFT (and a nonzero exit) when installed differs from the repo"
+else
+  echo "FAIL: diverged installed copy not reported -- rc=$rc out='$out'"
+  fail=1
+fi
+
+# --- 9. A missing installed copy is a different failure than DRIFT -----
+printf '❯ ready\n' > "$PANE"
+out="$(run TMUX_HAS_SESSION=0 CRT_BRAIN_INSTALLED="$TMP/does-not-exist" status 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q "MISSING"; then
+  echo "PASS: status reports MISSING when the installed copy does not exist"
+else
+  echo "FAIL: missing installed copy not reported -- rc=$rc out='$out'"
+  fail=1
+fi
+
+# --- 10. The bypass-confirmation screen is a parked state too ----------
+cat > "$PANE" <<'EOF'
+ Bypass Permissions mode
+ This will bypass all permission checks. Only use in a sandboxed environment.
+ ❯ 2. Yes, I accept the risk
+EOF
+out="$(run TMUX_HAS_SESSION=0 status 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q "bypass-permissions confirmation"; then
+  echo "PASS: the bypass-permissions confirmation screen is caught as parked"
+else
+  echo "FAIL: bypass-confirmation park not detected -- rc=$rc out='$out'"
+  fail=1
+fi
+
 exit "$fail"
