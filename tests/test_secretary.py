@@ -945,6 +945,8 @@ class TestPlayEarconDevice(unittest.TestCase):
     def setUp(self):
         self.sec = load_secretary()
         self.calls = []
+        real_popen = self.sec.subprocess.Popen
+        self.addCleanup(setattr, self.sec.subprocess, "Popen", real_popen)
         self.sec.subprocess.Popen = lambda cmd, **kw: self.calls.append(cmd)
 
     def test_passes_earcon_device_flag(self):
