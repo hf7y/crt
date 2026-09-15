@@ -877,6 +877,20 @@ class TestUnobservedReply(unittest.TestCase):
         self.assertEqual(self.spoken, ["there is a casserole in the oven"])
         self.assertEqual(self.earcons, ["thinking"])
 
+    def test_grace_check_catches_growth_during_the_idle_window(self):
+        """wait_for_claude_reply()'s docstring: growth caught on the extra
+        grace poll re-arms the stability timer instead of finalizing on a
+        reply that got cut off mid-thought. CLAUDE_IDLE_SECS set far below
+        CLAUDE_POLL guarantees the idle check fires on the very first regular
+        poll, so the pane growth below can only be observed by the grace-check
+        confirm poll itself -- without it, this would finalize one capture
+        early and speak nothing new."""
+        self.sec.CLAUDE_IDLE_SECS = 0.0001
+        answer = self.PANE + "\nthere is a casserole in the oven"
+        self._bridge([self.PANE, self.PANE, self.PANE, answer])
+        self.sec.handle("what did I leave in the oven")
+        self.assertEqual(self.spoken, ["there is a casserole in the oven"])
+
     # -- capture_pane's own contract: None (unreadable) vs "" (read, empty) --
 
     def test_remote_empty_capture_is_unreadable_not_empty(self):
