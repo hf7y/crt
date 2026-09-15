@@ -530,6 +530,21 @@ class TestConfidenceRouting(unittest.TestCase):
         self.assertEqual(state[key]["confirmed_hits"], 0)
         self.assertEqual(state[key]["claude_hits"], 1)
 
+    def test_confirm_in_background_no_state_change_when_send_fails(self):
+        self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
+        self.sec.capture_pane = lambda: "before"
+        self.sec.send_to_claude = lambda text: False
+        self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
+        self.assertEqual(self.sec.stt_confidence.load_state(), {})
+
+    def test_confirm_in_background_no_state_change_when_reply_undelivered(self):
+        self.sec.stt_confidence.should_call_claude = lambda text, state, rng: True
+        self.sec.capture_pane = lambda: "before"
+        self.sec.send_to_claude = lambda text: True
+        self.sec.wait_for_claude_reply = lambda before, on_partial=None: ("", "timeout")
+        self.sec._confirm_in_background("what time is it", "It's 3:15 PM.")
+        self.assertEqual(self.sec.stt_confidence.load_state(), {})
+
 
 class TestUndeliveredUtterance(unittest.TestCase):
     """A dropped reverse tunnel used to be indistinguishable from a Claude
