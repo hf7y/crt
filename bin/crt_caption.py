@@ -160,9 +160,8 @@ def center_text(text, width):
     pane, which wraps and pushes the screen's own bottom row off the tube."""
     w = display_width(text)
     if w >= width:
-        # Still padded after the cut: dropping a straddling wide character
-        # can leave the line one column short, and every caller relies on
-        # these being exactly `width` columns.
+        # Still padded after the cut -- witnessed by tests/test_idle_caption_fits.py::
+        # ColumnWidthTest::test_center_text_repads_a_cut_that_lands_one_column_short.
         text = cut_to_width(text, width)
         return text + " " * (width - display_width(text))
     pad = width - w
