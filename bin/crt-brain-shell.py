@@ -9,10 +9,9 @@ import os
 import subprocess
 import sys
 
-# The one place the session name is written down. The start script asks for
-# it via --print-session and authorized_keys does not pass --session at all,
-# so this default is the single source rather than a string repeated in
-# three files (BUILD-DISCIPLINE: config read from one source).
+# The one place the session name is written down; crt-brain-session.sh asks
+# for it via --print-session rather than retyping it. Witnessed by
+# tests/test_brain_ssh.py::test_print_session_is_the_single_source.
 DEFAULT_SESSION = os.environ.get("CRT_BRAIN_SESSION", "potato-claude")
 
 # A capture that takes longer than this means tmux itself is wedged. The
