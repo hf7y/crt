@@ -116,11 +116,7 @@ def get_pending_question(conn, window_secs, now=None):
     if scanned_at is None or now - scanned_at > window_secs:
         return None
     answered_at = _parse_iso_utc(last_answered)
-    # >= not >: _now_iso() has one-second resolution, so an answer graded in
-    # the same second as the scan that opened it is indistinguishable from
-    # one graded just before it. Treating equal as closed errs toward
-    # silence for a sub-second re-scan; treating it as open would reopen
-    # this whole bug for anyone who answers quickly.
+    # >= not >: see test_a_same_second_answer_still_closes_the_round.
     if answered_at is not None and answered_at >= scanned_at:
         return None
     questions = json.loads(questions_json or "[]")

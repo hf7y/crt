@@ -111,6 +111,17 @@ class TestOneScanIsOneRound(RoundClosesTestCase):
         self.assertIsNone(al.get_pending_question(self.conn, 20,
                                                   now=self.at("2026-07-21T12:00:06")))
 
+    def test_a_same_second_answer_still_closes_the_round(self):
+        """_now_iso() has one-second resolution, so grading in the same
+        second as the scan itself must still close the round -- the >= in
+        get_pending_question's answered check, not a > that would leave a
+        same-second answer looking open."""
+        self.register(timestamp="2026-07-21T12:00:00")
+        now = self.at("2026-07-21T12:00:00")
+        grade = al.grade_pending_answer(self.conn, "fiction", window_secs=20, now=now)
+        self.assertIsNotNone(grade)
+        self.assertIsNone(al.get_pending_question(self.conn, 20, now=now))
+
     def test_a_command_does_not_close_a_round_it_was_never_graded_against(self):
         """find_playbook() utterances return None WITHOUT grading, so they
         must leave the round open for the answer that follows -- otherwise
