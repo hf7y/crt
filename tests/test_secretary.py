@@ -941,6 +941,22 @@ class TestUnobservedReply(unittest.TestCase):
         self.assertEqual(recorded, [])
 
 
+class TestPlayEarconDevice(unittest.TestCase):
+    def setUp(self):
+        self.sec = load_secretary()
+        self.calls = []
+        real_popen = self.sec.subprocess.Popen
+        self.addCleanup(setattr, self.sec.subprocess, "Popen", real_popen)
+        self.sec.subprocess.Popen = lambda cmd, **kw: self.calls.append(cmd)
+
+    def test_passes_earcon_device_flag(self):
+        self.sec.EARCON_DEVICE = "handsfree"
+        self.sec.play_earcon("oops")
+        self.assertIn("--device", self.calls[0])
+        self.assertEqual(self.calls[0][self.calls[0].index("--device") + 1],
+                          "handsfree")
+
+
 class _Completed(object):
     def __init__(self, returncode, stderr=""):
         self.returncode, self.stderr, self.stdout = returncode, stderr, ""
