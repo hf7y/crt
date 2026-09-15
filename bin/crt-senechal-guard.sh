@@ -47,8 +47,11 @@ printf '%s' "$cmd" | grep -qE 'systemctl[^|;&]*(enable|disable|mask|unmask)' && 
 printf '%s' "$cmd" | grep -qE '/etc/systemd/system' && add 'a unit file in /etc/systemd/system'
 printf '%s' "$cmd" | grep -qE 'crontab[[:space:]]+(-e|-r|[^-])' && add 'crontab'
 printf '%s' "$cmd" | grep -qE '(\.config/)?autostart' && add 'autostart entry'
-printf '%s' "$cmd" | grep -qE '\.local/bin' && add 'a script in ~/.local/bin'
-printf '%s' "$cmd" | grep -qE '\.local/share' && add 'a marker file under ~/.local/share'
+WRITE_VERB='(install|cp[[:space:]]|mv[[:space:]]|ln[[:space:]]|touch[[:space:]]|mkdir|chmod|tee|>)'
+printf '%s' "$cmd" | grep -qE '\.local/bin' \
+  && printf '%s' "$cmd" | grep -qE "$WRITE_VERB" && add 'a script in ~/.local/bin'
+printf '%s' "$cmd" | grep -qE '\.local/share' \
+  && printf '%s' "$cmd" | grep -qE "$WRITE_VERB" && add 'a marker file under ~/.local/share'
 printf '%s' "$cmd" | grep -qE '\.claude/settings' && add '~/.claude settings/hooks'
 
 [ -z "$MATCH" ] && exit 0
