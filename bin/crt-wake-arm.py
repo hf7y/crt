@@ -18,10 +18,9 @@ JUDGE_BIN = os.path.join(BIN_DIR, "crt-wake-judge.py")
 ARM_STATE_FILE = os.path.expanduser(
     os.environ.get("CRT_WAKE_ARM_STATE", "~/.crt/wake-arm.state"))
 
-# A budget for SILENCE, not for round-trips: measured from the end of the
-# wake utterance's audio to the start of the follow-up's, so neither
-# utterance's length nor whisper's latency spends any of it. Check what it
-# measures before re-tuning it by ear.
+# A budget for SILENCE, not for round-trips -- measured from the end of the
+# wake utterance's audio to the start of the follow-up's. Witnessed by
+# tests/test_wake_arm_clock_domain.py::TestTwoClocks.
 ARM_SECS = float(os.environ.get("CRT_WAKE_ARM_SECS", "12"))
 # Hard ceiling on one sticky conversation (2026-07-25): caps
 # consume_arm_with_followup()'s slide so it can't become an always-on
@@ -134,9 +133,8 @@ def publish_arm_window(state, path=None, reader_lag=0.0):
     the test-hermeticity class this project has already paid for once."""
     # `is None` means "use the module default", NOT `or` -- an explicit ""
     # has to be able to mean "publish nowhere" (CRT_WAKE_ARM_STATE= turns
-    # this off), and `path or ARM_STATE_FILE` would quietly redirect that to
-    # the real ~/.crt/wake-arm.state instead. Caught by a test of this file
-    # writing into the suite runner's own home directory.
+    # this off). Witnessed by tests/test_book_answer_arm_window.py::
+    # TestPublishedArmWindow::test_an_explicit_empty_path_never_falls_back_to_the_module_default.
     path = ARM_STATE_FILE if path is None else path
     if not path:
         return

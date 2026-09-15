@@ -85,6 +85,15 @@ class ColumnWidthTest(unittest.TestCase):
         self.assertEqual(bg.display_width(bg.cut_to_width("(・∀・)", 5)), 4)
         self.assertEqual(bg.cut_to_width("(・∀・)", 6), "(・∀・")   # exactly 6
 
+    def test_center_text_repads_a_cut_that_lands_one_column_short(self):
+        # Same one-short cut as the test above ('(・∀' is 4 columns, not 5),
+        # but through center_text/place_text's own cut-then-pad branch this
+        # time: the missing column must come back as a trailing space, not
+        # be left short of the requested width.
+        out = bg.center_text("(・∀・)", 5)
+        self.assertEqual(bg.display_width(out), 5)
+        self.assertEqual(out, "(・∀ ")
+
     def test_a_fullwidth_title_is_padded_to_the_pane_not_past_it(self):
         # An ordinary scan of a Japanese book. Padded by character count this
         # is 40 characters and 66 columns.

@@ -213,6 +213,18 @@ class TestPublishedArmWindow(unittest.TestCase):
         self.assertIsNone(wake_arm.read_arm_deadline(""))
         self.assertFalse(wake_arm.arm_window_open(path=""))
 
+    def test_an_explicit_empty_path_never_falls_back_to_the_module_default(self):
+        """`path=""` must mean "publish nowhere", not "use ARM_STATE_FILE" --
+        `path or ARM_STATE_FILE` would treat the two the same (both falsy)
+        and silently redirect an opt-out onto the module default instead.
+        Patches ARM_STATE_FILE to a canary file that a regression back to
+        `or` would write to; a bare `path=""` must leave it untouched."""
+        canary = os.path.join(self._tmp.name, "canary-wake-arm.state")
+        self.addCleanup(setattr, wake_arm, "ARM_STATE_FILE", wake_arm.ARM_STATE_FILE)
+        wake_arm.ARM_STATE_FILE = canary
+        wake_arm.publish_arm_window(self.armed(), "")
+        self.assertFalse(os.path.exists(canary))
+
 
 class TestTheEnginePublishes(unittest.TestCase):
     """crt-stt-solo.py's own publish_arm_window() -- the half that makes the
