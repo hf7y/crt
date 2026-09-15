@@ -20,10 +20,9 @@ sync_once() {
   mkdir -p "$(dirname "$LOCAL_PATH")"
   local tmp
   tmp="$(mktemp)"
-  # Fetch into a temp file first, atomic rename on success -- a failed
-  # mid-transfer fetch (share down, network hiccup) must never leave a
-  # truncated/partial quotes.txt as the "current" cache; idle-bait keeps
-  # serving the last good copy instead.
+  # Fetch into a temp file first, atomic rename on success -- see
+  # tests/test_bibquotes_sync.sh for the failure-leaves-last-good-copy
+  # cases this guards against.
   if smbclient "$SHARE" -N -c "get $REMOTE_FILE $tmp" >/tmp/crt-bibquotes-smbclient.out 2>&1; then
     mv "$tmp" "$LOCAL_PATH"
     log "synced $(wc -l < "$LOCAL_PATH") line(s) from $SHARE/$REMOTE_FILE"
