@@ -731,12 +731,11 @@ def wait_for_claude_reply(before_snapshot, on_partial=None):
 
     Grace-check (added 2026-07-23 alongside lowering CLAUDE_IDLE_SECS 3->1.5):
     right before finalizing on an apparent idle break, one extra poll
-    confirms the pane really has gone quiet. If it grew during that grace
-    window, the stability timer resets and waiting resumes instead of
-    returning a reply that got cut off mid-thought -- a lower idle
-    threshold means "looks done" fires more eagerly, so this is the cheap
-    insurance against acting on a false one, without needing to re-open
-    an already-returned/spoken reply and append to it after the fact.
+    confirms the pane really has gone quiet -- a lower idle threshold means
+    "looks done" fires more eagerly, so growth caught here re-arms the
+    stability timer instead of returning a reply cut off mid-thought.
+    Witnessed by
+    TestUnobservedReply.test_grace_check_catches_growth_during_the_idle_window.
 
     on_partial (optional): called (best-effort, exceptions swallowed) the
     first time the pane is observed to grow after send_to_claude -- a
