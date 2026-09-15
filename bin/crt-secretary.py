@@ -993,12 +993,7 @@ def confidence_route(text, action):
     return local_answer
 
 
-# Same toggle crt-stt-solo.py already exposes (CRT_EARCON_DEVICE), read
-# here too (2026-07-28) -- this file's play_earcon() previously never
-# passed --device at all, so it silently fell through crt-earcon.sh's
-# `${DEVICE:-default}` case to the system default ALSA device regardless
-# of what the console's other earcons were routed to. One knob, both call
-# sites now honor it.
+# Same toggle crt-stt-solo.py exposes -- see test_passes_earcon_device_flag.
 EARCON_DEVICE = os.environ.get("CRT_EARCON_DEVICE", "handset")
 
 
