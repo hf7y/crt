@@ -273,12 +273,9 @@ def scan_title(row, width):
     if not lcc:
         return bg.elide(title, budget)
     suffix = " (%s)" % lcc
-    # Columns, not characters (2026-07-25): a CJK title is half as many
-    # characters as it is columns, so len() said it fit, the composed line
-    # went to center_text over-wide, and got cut -- reproducing the dangling
-    # 'Nineteen Eighty-Four (PR6029' fragment this function exists to prevent,
-    # for exactly the books whose titles this console cannot re-read at a
-    # glance. Open Library returns them for perfectly ordinary scans.
+    # Columns, not characters: witnessed by
+    # tests/test_idle_caption_fits.py::TheQuestionScreenIsMeasuredTheSameWayTest
+    # (a CJK title Open Library returns for an ordinary scan).
     room = budget - bg.display_width(suffix)
     if room >= bg.display_width(title):
         return title + suffix

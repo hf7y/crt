@@ -616,16 +616,13 @@ def _init_schema(conn, retries=5):
             existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(books)")}
             if "quote" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN quote TEXT")
-            # Added 2026-07-25. Deliberately NOT backfilled from
-            # first_scanned: every reader COALESCEs to first_scanned, so a
-            # NULL here means "never re-scanned since this column existed",
-            # which is exactly right for potato's existing books.db.
+            # Deliberately NOT backfilled from first_scanned -- COALESCE, not
+            # a migration. Witnessed by
+            # tests/test_book_rescan_pending.py::test_a_row_predating_the_column_still_answers_for_its_first_scan.
             if "last_scanned" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN last_scanned TEXT")
-            # Added 2026-07-25 (thirteenth cycle). Same no-backfill
-            # reasoning as last_scanned: NULL means "never answered since
-            # this column existed", which readers treat exactly as the
-            # pre-column behaviour -- the round is still open.
+            # Same no-backfill reasoning as last_scanned. Witnessed by
+            # tests/test_book_answer_round_closes.py::TestExistingDatabasesMigrate::test_a_db_without_the_column_gains_it_and_stays_pending.
             if "last_answered" not in existing_cols:
                 conn.execute("ALTER TABLE books ADD COLUMN last_answered TEXT")
             # Added 2026-07-28: trivia-fact pipeline (crt-book-facts-batch.py).
@@ -827,13 +824,9 @@ def render_question_screen(book_title, question, width=None, height=None):
     lines = [" " * width for _ in range(height)]
 
     title_line = center_text(elide(book_title, title_budget(width)), width)
-    # wrap_to_width, not textwrap.wrap (2026-07-25): textwrap measures in
-    # characters, and this screen is sold in columns. Everything else here
-    # moved to column arithmetic in the same pass; leaving the question --
-    # the one piece of text the whole funnel exists to show someone -- on the
-    # character count would be exactly the half-wired state this project keeps
-    # paying for. Also elides an over-long single token instead of breaking
-    # it mid-word, which on a 40-column tube reads as a fault.
+    # wrap_to_width, not textwrap.wrap: this screen is sold in columns, not
+    # characters. Witnessed by tests/test_idle_caption_fits.py's
+    # TheQuestionScreenIsMeasuredTheSameWayTest.
     q_lines = wrap_to_width(question["text"], content_width - 2)
     # elide, not a bare cut: options that do not fit used to simply stop, so
     # 'before / after' truncated to 'before / af' looked like a render fault
