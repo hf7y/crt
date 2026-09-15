@@ -35,6 +35,32 @@ is_whisper_noise_hallucination() {
   [ "${#key}" -lt 2 ]
 }
 
+# Normalizes a single-word utterance to the tmux keystroke it maps to
+# (Enter, Escape, Up, Down, C-u), or fails with nothing printed if it isn't
+# one -- same lowercase/letters-only normalization as
+# is_whisper_noise_hallucination, kept a real parameter rather than a bare
+# $key read from the caller's scope (that used to read an unset variable
+# and crash the whole loop under `set -u` the first time anyone said a
+# bare "yes"; witnessed by test_stt_feed_voice_control.sh).
+voice_control_keystroke() {
+  local key
+  key=$(printf '%s' "$1" | tr 'A-Z' 'a-z' | tr -cd 'a-z')
+  case "$key" in
+    enter|submit|send|return|go|proceed|yes|yeah|yep|confirm|accept|okay|ok)
+      echo "Enter" ;;
+    no|nope|cancel|escape|abort|dismiss|nevermind)
+      echo "Escape" ;;
+    up|previous|back)
+      echo "Up" ;;
+    down|next)
+      echo "Down" ;;
+    clear|scratch|backspace)
+      echo "C-u" ;;
+    *)
+      return 1 ;;
+  esac
+}
+
 addressed_to_console() {
   BIN_DIR="$BIN_DIR" python3 -c '
 import importlib.util, os, sys
@@ -147,23 +173,11 @@ while true; do
   # through and are typed as normal text. (MIDI pads will duplicate these once
   # the controller is passed through -- unambiguous physical buttons.)
   if ! printf '%s' "$text" | grep -q ' '; then
-    case "$key" in
-      enter|submit|send|return|go|proceed|yes|yeah|yep|confirm|accept|okay|ok)
-        echo "[stt-feed] (key) Enter"
-        tmux send-keys -t "${SESSION}:${PANE}" Enter; continue ;;
-      no|nope|cancel|escape|abort|dismiss|nevermind)
-        echo "[stt-feed] (key) Escape"
-        tmux send-keys -t "${SESSION}:${PANE}" Escape; continue ;;
-      up|previous|back)
-        echo "[stt-feed] (key) Up"
-        tmux send-keys -t "${SESSION}:${PANE}" Up; continue ;;
-      down|next)
-        echo "[stt-feed] (key) Down"
-        tmux send-keys -t "${SESSION}:${PANE}" Down; continue ;;
-      clear|scratch|backspace)
-        echo "[stt-feed] (key) clear line"
-        tmux send-keys -t "${SESSION}:${PANE}" C-u; continue ;;
-    esac
+    if keystroke=$(voice_control_keystroke "$text"); then
+      label="$keystroke"; [ "$keystroke" = "C-u" ] && label="clear line"
+      echo "[stt-feed] (key) $label"
+      tmux send-keys -t "${SESSION}:${PANE}" "$keystroke"; continue
+    fi
   fi
 
   if [ "$USE_GATE" != "0" ] && ! addressed_to_console "$text"; then

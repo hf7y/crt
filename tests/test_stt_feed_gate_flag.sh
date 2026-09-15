@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Offline test for stt-feed.sh's CRT_STT_GATE opt-in gate (FOCUS.md "STT
-# gate", 2026-07-20). Can't source the real script (it does unconditional
-# mixer/tmux-wait side effects at the top, same reason
-# test_stt_feed_secretary_flag.sh doesn't either) -- exercises the real
-# addressed_to_console() and is_whisper_noise_hallucination() bash functions
-# by extracting them verbatim from the script, and confirms the default-off
-# guard line and gate call site are still present, so a refactor that
-# silently drops the opt-in default or the gate check gets caught here.
+# gate", 2026-07-20) and its voice_control_keystroke() single-word mapping.
+# Can't source the real script (it does unconditional mixer/tmux-wait side
+# effects at the top, same reason test_stt_feed_secretary_flag.sh doesn't
+# either) -- exercises the real addressed_to_console(),
+# is_whisper_noise_hallucination(), and voice_control_keystroke() bash
+# functions by extracting them verbatim from the script, and confirms the
+# default-off guard line and gate call site are still present, so a refactor
+# that silently drops the opt-in default or the gate check gets caught here.
 set -uo pipefail
 fail=0
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" && pwd)"
@@ -88,5 +89,43 @@ check "empty text is dropped" "dropped" "$(drops "")"
 check "a single letter is dropped by the length guard" "dropped" "$(drops "a")"
 check "real speech addressed to the console is kept" "kept" "$(drops "claude what time is it")"
 check "a short but real two-letter word is kept" "kept" "$(drops "ok")"
+
+# voice_control_keystroke() -- single-word "yes"/"no"/"up"/"down"/"clear" ->
+# tmux keystroke mapping, extracted verbatim same as the two functions above.
+# This one used to read a bare $key that nothing in its scope set (a `local
+# key` inside is_whisper_noise_hallucination, out of scope by the time this
+# code ran) -- harmless under normal bash, but fatal under stt-feed.sh's own
+# `set -u`: the first single-word utterance ("yes", "no", ...) threw "unbound
+# variable" and killed the whole capture loop. Run under `set -u` here too,
+# not just checked for the right match, so a regression back to a free
+# variable fails this test the same way it used to fail the live script.
+eval "$(sed -n '/^voice_control_keystroke() {/,/^}/p' "$BIN_DIR/stt-feed.sh")"
+
+keystroke_for() {
+  set -u
+  voice_control_keystroke "$1" 2>/dev/null || echo "(no match)"
+}
+
+check "'yes' maps to Enter" "Enter" "$(keystroke_for "yes")"
+check "'Yes!' (mixed case, punctuation) still maps to Enter" "Enter" "$(keystroke_for "Yes!")"
+check "'no' maps to Escape" "Escape" "$(keystroke_for "no")"
+check "'up' maps to Up" "Up" "$(keystroke_for "up")"
+check "'down' maps to Down" "Down" "$(keystroke_for "down")"
+check "'clear' maps to C-u" "C-u" "$(keystroke_for "clear")"
+check "an unrecognized single word matches nothing" "(no match)" "$(keystroke_for "banana")"
+
+if (set -u; voice_control_keystroke "yes" >/dev/null); then
+  echo "ok - voice_control_keystroke runs clean under set -u (was: unbound variable)"
+else
+  echo "FAIL - voice_control_keystroke still errors under set -u"
+  fail=1
+fi
+
+if grep -q 'voice_control_keystroke "\$text"' "$BIN_DIR/stt-feed.sh"; then
+  echo "ok - stt-feed.sh's main loop calls voice_control_keystroke with \$text"
+else
+  echo "FAIL - stt-feed.sh's main loop no longer calls voice_control_keystroke"
+  fail=1
+fi
 
 exit "$fail"
