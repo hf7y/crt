@@ -53,7 +53,7 @@ run() {
   done
 }
 
-if [ $# -gt 0 ]; then run < <(printf '%s\0' "$@"); else run < <(collect); fi   # process substitution, not a pipe: a pipe makes run a subshell and drops every count
+if [ $# -gt 0 ]; then run < <(printf '%s\0' "$@"); else run < <(collect); fi   # process substitution, not a pipe -- a pipe subshells run(), dropping every count; witnessed by test_stt_inbox.sh's summary-message check
 
 [ "$done_n" = 0 ] && [ "$fail_n" = 0 ] && exit 0
 

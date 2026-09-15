@@ -43,6 +43,8 @@ check "a non-audio file is left alone" \
 check "nothing is written beside the audio" \
   "$(ls "$T/inbox" | wc -l)" "4"
 check "a clean run exits 0" "$rc" "0"
+check "the summary counts every file, not just the last (process substitution keeps run()'s counters out of a subshell)" \
+  "$(printf '%s\n' "$out" | grep -o '^crt-stt-inbox: [0-9]* transcribed')" "crt-stt-inbox: 3 transcribed"
 
 out="$("$SCRIPT" 2>&1)"
 check "a second run re-transcribes nothing" "$out" ""
