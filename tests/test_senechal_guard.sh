@@ -49,12 +49,18 @@ fires "~/.claude settings"          'jq . ~/.claude/settings.json > /tmp/s && mv
 # on another box, so nothing local looks different afterwards.
 fires "a remote unit install over ssh" \
   'ssh vkv@192.168.0.45 "sudo install -m644 /tmp/crt-self-repair.service /etc/systemd/system/"'
+fires "a marker file written under ~/.local/share" \
+  'touch ~/.local/share/some-app/installed.marker'
 
 quiet "systemctl status"            'systemctl status crt-self-repair.timer --no-pager'
 quiet "systemctl list-timers"       'systemctl list-timers --no-pager'
 quiet "crontab -l"                  'crontab -l'
 quiet "listing ~/.local/bin"        'ls ~/.local/bin'
 quiet "an unrelated command"        'git status --porcelain'
+quiet "reading a file inside a ~/.local/share checkout" \
+  'sed -n "1,5p" ~/.local/share/crt-nightly-batch/repo/README.md'
+quiet "a multi-stage read pipeline inside a ~/.local/share checkout" \
+  'awk "/x/" ~/.local/share/crt-nightly-batch/repo/bin/crt-secretary.py | wc -l'
 # Filing the note IS the discharge of the debt; reminding afterwards would
 # make the hook cry wolf on the one command that proves it worked.
 quiet "a notify-senechal call itself" "notify-senechal 'installed a unit on potato'"
