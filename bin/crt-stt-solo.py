@@ -1541,17 +1541,13 @@ def main():
         while subprocess.run(["tmux", "has-session", "-t", SESSION],
                              stderr=subprocess.DEVNULL).returncode != 0:
             time.sleep(1)
-    # arecord's stderr goes to a temp file rather than /dev/null: it is the
-    # ONLY explanation of why capture died (see capture_death_report), and
-    # this process cannot afford to lose it. A pipe would risk blocking on a
-    # full buffer nobody is draining.
+    # stderr to a temp file, not /dev/null or a pipe: capture_death_report
+    # needs it and a pipe risks blocking on a full buffer nobody drains.
+    # See tests/test_capture_device.py::TestCaptureDeathReport.
     err_f = tempfile.NamedTemporaryFile(prefix="crt-stt-arecord-", suffix=".err")
-    # bufsize=0: the kernel pipe must be the ONLY place queued audio lives.
-    # A BufferedReader in front of it would hold bytes that FIONREAD cannot
-    # see and drain_capture_backlog() cannot discard, so the backlog
-    # measurement would quietly be wrong by up to its buffer size.
-    # read_exact() already loops over short reads, which is the only
-    # difference an unbuffered fd makes here.
+    # bufsize=0: FIONREAD/drain_capture_backlog() must see every queued byte,
+    # which a BufferedReader would hide. See
+    # tests/test_capture_backpressure.py::ReadExactUnbufferedTest.
     proc = subprocess.Popen(
         ["arecord", "-D", DEV, "-f", "S16_LE", "-c", "1", "-r", str(RATE), "-t", "raw"],
         stdout=subprocess.PIPE, stderr=err_f, bufsize=0)

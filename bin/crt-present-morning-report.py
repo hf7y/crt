@@ -65,14 +65,9 @@ FETCH_TIMEOUT = float(os.environ.get("CRT_MORNING_REPORT_TIMEOUT", "20"))
 
 
 def fetch_raw(script=SCRIPT):
-    # 2026-07-20: morning-report.sh was independently observed to hang
-    # (unrelated to this file -- confirmed by running it standalone) on
-    # this same evaluation, plausibly a slow/unreachable per-project
-    # DEPLOY_FRESH_CMD probe (e.g. a network check against an
-    # unreachable host, per home-assistant's own report elsewhere in this
-    # project archive). A hang in a shared script this presenter depends
-    # on must never hang the CRT console -- timeout defensively here
-    # rather than trying to fix the shared script from this repo.
+    # A hang in this shared script must never hang the CRT console -- timeout
+    # defensively rather than fixing the shared script from this repo. See
+    # tests/test_present_morning_report.py::test_hanging_script_returns_empty_not_hang.
     try:
         r = subprocess.run(["bash", script], capture_output=True, text=True,
                             timeout=FETCH_TIMEOUT)

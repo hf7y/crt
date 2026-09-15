@@ -409,13 +409,12 @@ class ScanLookupFailed(Exception):
 # literal pair in this small a project.
 ENRICHED_SOURCE = "ai-enriched"
 
-# How many books must still be un-enriched (question_source != ENRICHED_
-# SOURCE) before a batch distill run fires (2026-07-28, Zach-directed:
-# "make sure claude isn't summoned on most book scans, just every 5 or
-# so that have no trivia stored, so it generates the json like a
-# batch"). Checked cheaply on every scan (one COUNT query); the AI call
-# itself only ever happens inside crt-book-facts-batch.py's own batched
-# call, never per-scan.
+# How many un-enriched books (question_source != ENRICHED_SOURCE) before a
+# batch distill run fires. Checked cheaply on every scan (one COUNT query);
+# the AI call itself only happens inside crt-book-facts-batch.py's own
+# batched call, never per-scan. See tests/test_book_facts.py's
+# test_does_not_fire_below_threshold / test_fires_once_at_or_above_threshold /
+# test_books_already_enriched_do_not_count_toward_threshold.
 FACTS_BATCH_TRIGGER = int(os.environ.get("CRT_BOOK_FACTS_BATCH_TRIGGER", "5"))
 
 
