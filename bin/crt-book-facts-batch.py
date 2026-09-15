@@ -52,8 +52,9 @@ def run_scrape_stage(conn, fetcher=None, log=print):
 # stage (2026-07-28 redesign) -- reuses the existing question_source
 # column instead of a new one: 'template' (generate_template_question),
 # 'gemini'/'claude' (the pre-existing per-scan batch path), or this.
-# Never re-upgrades a book that already has it, same cache-once
-# philosophy as everything else in this pipeline.
+# Never re-upgrades a book that already has it (cache-once, same as the
+# rest of this pipeline) -- witnessed by
+# test_book_facts.py::TestRunDistillStage::test_already_enriched_book_is_skipped.
 ENRICHED_SOURCE = "ai-enriched"
 
 

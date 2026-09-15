@@ -72,7 +72,8 @@ def fetch_raw(script=SCRIPT):
     # unreachable host, per home-assistant's own report elsewhere in this
     # project archive). A hang in a shared script this presenter depends
     # on must never hang the CRT console -- timeout defensively here
-    # rather than trying to fix the shared script from this repo.
+    # rather than trying to fix the shared script from this repo. Witnessed
+    # by TestFetchTimeout::test_hanging_script_returns_empty_not_hang.
     try:
         r = subprocess.run(["bash", script], capture_output=True, text=True,
                             timeout=FETCH_TIMEOUT)

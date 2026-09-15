@@ -79,6 +79,8 @@ def pick_backend():
 # to touch unconditionally -- writing/removing this flag file is inert
 # unless bin/crt-sideband.sh happens to be running and reading it (it's
 # not auto-started anywhere), so this needs no opt-in flag of its own.
+# Witnessed by test_sideband_wiring.py::TestTtsSidebandDuck (present during
+# playback, removed after -- even if playback raises).
 SIDEBAND_MUTE_FILE = os.path.expanduser(
     os.environ.get("CRT_SIDEBAND_MUTE_FILE", "~/.crt/sideband.mute"))
 

@@ -74,11 +74,9 @@ can_chime() {
 chime() {
   # $1 = bait|question -- shares crt-announce.sh's lockfile so a chime and
   # a TV announcement can never stack (IDLE-BAIT.md's single-rate-limit rule).
-  #
-  # 2026-07-25: this was `crt-earcon.sh "$1" >/dev/null 2>&1 || true` with
-  # the stamp spent whether or not anything played -- same class as
-  # cdf05cc's silent earcon and f187a45's discarded exit status. Stamp
-  # first (blocks a concurrent chime), roll back only if nothing played.
+  # Stamp first (blocks a concurrent chime), roll back only if nothing played
+  # -- witnessed by tests/test_idle_teaser.sh's "a chime that does not play
+  # must not spend the shared window" block.
   local prev had_lock=0 err status=0
   can_chime || return 0
   if [ -f "$ANNOUNCE_LOCK" ]; then
