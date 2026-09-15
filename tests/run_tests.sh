@@ -104,6 +104,10 @@ echo "== stt-feed.sh CRT_STT_GATE opt-in gate =="
 bash "$DIR/test_stt_feed_gate_flag.sh" || fail=1
 echo
 
+echo "== stt-feed.sh voice-control keystroke mapping (yes/no/up/down/clear) =="
+bash "$DIR/test_stt_feed_voice_control.sh" || fail=1
+echo
+
 echo "== crt-audio-doctor.sh LIVE/DEAD verdicts =="
 bash "$DIR/test_audio_doctor.sh" || fail=1
 echo
