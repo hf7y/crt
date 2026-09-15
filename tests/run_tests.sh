@@ -104,6 +104,10 @@ echo "== stt-feed.sh CRT_STT_GATE opt-in gate =="
 bash "$DIR/test_stt_feed_gate_flag.sh" || fail=1
 echo
 
+echo "== stt-feed.sh capture pipe survives arecord's SIGPIPE (crt#48) =="
+bash "$DIR/test_stt_feed_capture_pipe_sigpipe.sh" || fail=1
+echo
+
 echo "== crt-audio-doctor.sh LIVE/DEAD verdicts =="
 bash "$DIR/test_audio_doctor.sh" || fail=1
 echo
