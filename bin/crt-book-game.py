@@ -827,13 +827,9 @@ def render_question_screen(book_title, question, width=None, height=None):
     lines = [" " * width for _ in range(height)]
 
     title_line = center_text(elide(book_title, title_budget(width)), width)
-    # wrap_to_width, not textwrap.wrap (2026-07-25): textwrap measures in
-    # characters, and this screen is sold in columns. Everything else here
-    # moved to column arithmetic in the same pass; leaving the question --
-    # the one piece of text the whole funnel exists to show someone -- on the
-    # character count would be exactly the half-wired state this project keeps
-    # paying for. Also elides an over-long single token instead of breaking
-    # it mid-word, which on a 40-column tube reads as a fault.
+    # wrap_to_width, not textwrap.wrap: this screen is sold in columns, not
+    # characters -- see test_idle_caption_fits.py's
+    # test_the_whole_question_screen_fits_the_pane (CJK question text).
     q_lines = wrap_to_width(question["text"], content_width - 2)
     # elide, not a bare cut: options that do not fit used to simply stop, so
     # 'before / after' truncated to 'before / af' looked like a render fault

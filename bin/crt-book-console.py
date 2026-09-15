@@ -273,12 +273,9 @@ def scan_title(row, width):
     if not lcc:
         return bg.elide(title, budget)
     suffix = " (%s)" % lcc
-    # Columns, not characters (2026-07-25): a CJK title is half as many
-    # characters as it is columns, so len() said it fit, the composed line
-    # went to center_text over-wide, and got cut -- reproducing the dangling
-    # 'Nineteen Eighty-Four (PR6029' fragment this function exists to prevent,
-    # for exactly the books whose titles this console cannot re-read at a
-    # glance. Open Library returns them for perfectly ordinary scans.
+    # Columns, not characters -- see test_idle_caption_fits.py's
+    # TheQuestionScreenIsMeasuredTheSameWayTest for the CJK-title case
+    # this protects (len() would say it fits; it doesn't).
     room = budget - bg.display_width(suffix)
     if room >= bg.display_width(title):
         return title + suffix
@@ -465,10 +462,8 @@ def maybe_trigger_facts_batch(conn, spawner=None, runner=None):
         if spawner is not None:
             spawner(["python3", os.path.join(BIN_DIR, "crt-book-facts-batch.py")])
         else:
-            # Real log, not DEVNULL (2026-07-28, live): a real Gemini batch
-            # timeout on potato went unseen the first time this fired --
-            # a fire-and-forget subprocess with discarded streams looks
-            # identical to one that quietly succeeded. Appended, not
+            # Real log, not DEVNULL -- see test_book_facts.py's
+            # test_real_spawn_logs_instead_of_devnull. Appended, not
             # truncated: this can fire many times in a session.
             log_path = os.path.expanduser(
                 os.environ.get("CRT_BOOK_FACTS_BATCH_LOG", "~/.crt/facts-batch.log"))
