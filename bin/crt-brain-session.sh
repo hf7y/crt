@@ -11,11 +11,10 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# The session name is NOT retyped here. crt-brain-shell.py holds the single
-# definition and this asks it, so the authorized_keys forced command and
-# this script can never drift onto two different sessions -- which would
-# fail in the worst way available: a healthy-looking brain nobody is
-# talking to.
+# The session name is NOT retyped here -- asked of crt-brain-shell.py, the
+# single definition, so the authorized_keys forced command and this script
+# can never drift onto two different sessions. Witnessed by
+# tests/test_brain_ssh.py::test_print_session_is_the_single_source.
 SESSION="$("$HERE/crt-brain-shell.py" --print-session)"
 if [ -z "$SESSION" ]; then
   echo "crt-brain-session: crt-brain-shell.py --print-session returned nothing" >&2
