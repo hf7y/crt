@@ -202,10 +202,6 @@ echo "== bibliothecaire bibquotes idle-bait integration (2026-07-28) =="
 python3 -m unittest discover -s "$DIR" -p "test_bibquotes.py" -v 2>&1 | tail -5 || fail=1
 echo
 
-echo "== crt-bibquotes-sync.sh fetch/failure behavior =="
-bash "$DIR/test_bibquotes_sync.sh" || fail=1
-echo
-
 echo "== crt-book-console.py =="
 python3 -m unittest discover -s "$DIR" -p "test_book_console.py" -v 2>&1 | tail -5 || fail=1
 echo

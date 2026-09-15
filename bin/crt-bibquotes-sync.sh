@@ -18,19 +18,26 @@ log() { printf '%s  %s\n' "$(date +%H:%M:%S)" "$*" | tee -a "$LOG" >&2; }
 
 sync_once() {
   mkdir -p "$(dirname "$LOCAL_PATH")"
-  local tmp
+  local tmp smbclient_log
   tmp="$(mktemp)"
   # Fetch into a temp file first, atomic rename on success -- see
-  # tests/test_bibquotes_sync.sh for the failure-leaves-last-good-copy
-  # cases this guards against.
-  if smbclient "$SHARE" -N -c "get $REMOTE_FILE $tmp" >/tmp/crt-bibquotes-smbclient.out 2>&1; then
+  # tests/test_bibquotes.py::TestBibquotesSyncScript for the
+  # failure-leaves-last-good-copy cases this guards against.
+  #
+  # Both temp files come from mktemp, not a fixed /tmp/... name: a shared
+  # host can have another tenant's process already own a fixed path, which
+  # turns a transient smbclient hiccup into a permission-denied crash here
+  # instead (scheduler#576).
+  smbclient_log="$(mktemp)"
+  if smbclient "$SHARE" -N -c "get $REMOTE_FILE $tmp" >"$smbclient_log" 2>&1; then
     mv "$tmp" "$LOCAL_PATH"
     log "synced $(wc -l < "$LOCAL_PATH") line(s) from $SHARE/$REMOTE_FILE"
   else
     rm -f "$tmp"
     log "FAILED to sync from $SHARE/$REMOTE_FILE -- keeping last good cache. smbclient said:"
-    tail -5 /tmp/crt-bibquotes-smbclient.out | while IFS= read -r line; do log "  $line"; done
+    tail -5 "$smbclient_log" | while IFS= read -r line; do log "  $line"; done
   fi
+  rm -f "$smbclient_log"
 }
 
 if [ "${1:-}" = "--daemon" ]; then

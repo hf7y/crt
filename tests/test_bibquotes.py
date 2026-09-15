@@ -9,10 +9,12 @@
 import importlib.util
 import os
 import random
+import subprocess
 import tempfile
 import unittest
 
 BIN_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
+SYNC_SCRIPT = os.path.join(BIN_DIR, "crt-bibquotes-sync.sh")
 
 _bg_spec = importlib.util.spec_from_file_location("crt_book_game_bibquotes", os.path.join(BIN_DIR, "crt-book-game.py"))
 bg = importlib.util.module_from_spec(_bg_spec)
@@ -151,6 +153,69 @@ class TestIdleBaitMixesInBibquotes(unittest.TestCase):
                 ib.ENTICE_RATE, ib.BIBQUOTES_RATE = old_entice, old_biq
                 ib.bg.BIBQUOTES_LOCAL_PATH = old_path
             self.assertIsNotNone(line)  # never crashes, never returns nothing
+
+
+# Offline coverage for crt-bibquotes-sync.sh's sync_once(): a fake
+# `smbclient` on PATH stands in for the real Samba fetch, so this runs the
+# REAL script (not a hand-mirrored copy) with zero network dependency. See
+# the script's own comment above its temp-file/atomic-rename logic.
+FAKE_SMBCLIENT = """#!/usr/bin/env bash
+# $4 is the -c command string passed to real smbclient; the tmp path is its last word.
+tmp_path="${4##* }"
+echo "$tmp_path" > "$FAKE_SMBCLIENT_TMP_RECORD"
+if [ "${FAKE_SMBCLIENT_EXIT:-0}" = "0" ]; then
+  printf '%s' "$FAKE_SMBCLIENT_CONTENT" > "$tmp_path"
+fi
+exit "${FAKE_SMBCLIENT_EXIT:-0}"
+"""
+
+
+class TestBibquotesSyncScript(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmpdir.cleanup)
+        stub_dir = os.path.join(self.tmpdir.name, "stub")
+        os.makedirs(stub_dir)
+        stub_path = os.path.join(stub_dir, "smbclient")
+        with open(stub_path, "w", encoding="utf-8") as f:
+            f.write(FAKE_SMBCLIENT)
+        os.chmod(stub_path, 0o755)
+        self.stub_dir = stub_dir
+        self.tmp_record = os.path.join(self.tmpdir.name, "tmp_record")
+
+    def run_sync(self, local_path, exit_code, content=""):
+        env = dict(os.environ)
+        env["PATH"] = self.stub_dir + os.pathsep + env["PATH"]
+        env["CRT_BIBQUOTES_SHARE"] = "//fake/share"
+        env["CRT_BIBQUOTES_REMOTE_FILE"] = "quotes.txt"
+        env["CRT_BIBQUOTES_PATH"] = local_path
+        env["FAKE_SMBCLIENT_EXIT"] = str(exit_code)
+        env["FAKE_SMBCLIENT_CONTENT"] = content
+        env["FAKE_SMBCLIENT_TMP_RECORD"] = self.tmp_record
+        subprocess.run(["bash", SYNC_SCRIPT], env=env, capture_output=True)
+
+    def test_a_successful_fetch_becomes_the_current_cache(self):
+        local_path = os.path.join(self.tmpdir.name, "case-a", "quotes.txt")
+        self.run_sync(local_path, 0, content="fresh quote")
+        with open(local_path, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "fresh quote")
+
+    def test_a_failed_fetch_with_no_prior_cache_creates_no_file(self):
+        local_path = os.path.join(self.tmpdir.name, "case-b", "quotes.txt")
+        self.run_sync(local_path, 1)
+        self.assertFalse(os.path.exists(local_path))
+        with open(self.tmp_record, encoding="utf-8") as f:
+            tmp_from_failure = f.read().strip()
+        self.assertFalse(os.path.exists(tmp_from_failure))  # temp file cleaned up, not left behind
+
+    def test_a_failed_fetch_does_not_disturb_the_last_good_cache(self):
+        local_path = os.path.join(self.tmpdir.name, "case-c", "quotes.txt")
+        os.makedirs(os.path.dirname(local_path))
+        with open(local_path, "w", encoding="utf-8") as f:
+            f.write("last good quote")
+        self.run_sync(local_path, 1)
+        with open(local_path, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "last good quote")
 
 
 if __name__ == "__main__":
