@@ -649,12 +649,8 @@ def send_to_claude(text):
     return True
 
 
-# Claude Code's own TUI chrome that a raw pane-line diff cannot tell apart
-# from real reply content (2026-07-28, live-confirmed on potato the first
-# time a real remote reply was captured end-to-end): the echoed prompt
-# ("> what you just said"), the bottom status bar ("-- INSERT --", "auto
-# mode on..."), bare box-drawing border lines, and the spinner line
-# ("* Baked for 2s"). None of these are ever the actual answer.
+# Claude Code's own TUI chrome a raw pane-diff can't tell apart from a real
+# reply -- see tests/test_clean_claude_pane_reply.py's header comment.
 _PANE_SPINNER_CHARS = "*+~"
 _PANE_BORDER_RE = re.compile(r"^[\s\-_=]*$")
 _PANE_STATUS_RE = re.compile(

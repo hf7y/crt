@@ -300,10 +300,8 @@ def _frame_rows(art, width, height, caption, color, dim, slot=None, gradient_off
     if caption:
         row, align = slot or (len(rows) - 1, "center")
         row = min(max(0, row), len(rows) - 1)
-        # Columns, not characters (bin/crt_caption.py): a caption cut and
-        # centered by len() is drawn wider than the tube the moment it holds
-        # anything East Asian Wide, and wraps. CRT_SCREENSAVER_CAPTION is a
-        # free-text env var -- nothing stops one.
+        # Columns, not characters (bin/crt_caption.py) -- see
+        # tests/test_screensaver_caption_moves.py's module docstring.
         cap = caption_lib.cut_to_width(caption, width)
         pad = width - caption_lib.display_width(cap)
         left = 0 if align == "left" else pad if align == "right" else pad // 2

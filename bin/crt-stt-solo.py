@@ -192,11 +192,9 @@ def send_to_secretary(text):
             stderr=err if err is not None else subprocess.DEVNULL,
         )
     except OSError as e:
-        # Spawning can fail for reasons that have nothing to do with the words:
-        # ENOMEM on a 905MB Pi already running whisper and ten tmux windows is
-        # the realistic one. This used to raise straight out of the capture
-        # loop, so a moment of memory pressure cost the console its hearing
-        # rather than one utterance.
+        # Spawn failure (e.g. ENOMEM) must not raise -- see
+        # tests/test_dispatch_failure_visible.py's
+        # TestSpawnFailureDoesNotDeafenTheConsole.
         if err is not None:
             err.close()
         _report_dispatch_failure(text, "could not start it: %s" % e)
@@ -590,10 +588,7 @@ def set_sideband_state(state):
     except Exception:
         pass
 
-# Off by default: raw STT should only flash briefly, never linger, to mask
-# recognition errors -- the merged, cleaned-up text from claude is what
-# should persist on screen instead. Log-always-print-only-if-debug split
-# witnessed by tests/test_stt_secretary_sink.py's
+# Log-always-print-only-if-debug split -- see tests/test_stt_secretary_sink.py's
 # TestSttLogAlwaysWritesDebugPersistOnlyGatesPrint.
 STT_LOG = os.environ.get("CRT_STT_LOG", os.path.expanduser("~/.crt/stt.log"))
 STT_DEBUG_PERSIST = os.environ.get("CRT_STT_DEBUG_PERSIST", "0") != "0"
@@ -609,11 +604,8 @@ HALLU = set("you thankyou thanks thankyouforwatching bye music musicplaying "
 # tests/test_stt_secretary_sink.py's TestSecretarySinkRouting.
 GATE       = os.environ.get("CRT_STT_GATE", "0") != "0"
 WAKE_WORD  = wake_gate.wake_word()   # one source: bin/crt_wake_gate.py
-# Must stay a file genuinely separate from THOUGHT_LOG's default (2026-07-28
-# fix, Zach: "clean up claude output to mono ... junk on screen" -- it used
-# to share thoughts.log, so a gated utterance landed on window 1
-# indistinguishable from an actual reply) -- see
-# tests/test_stt_gate.py's TestGateLogDefaultIsSeparateFromThoughtsLog.
+# Must stay separate from THOUGHT_LOG's default -- see tests/test_stt_gate.py's
+# TestGateLogDefaultIsSeparateFromThoughtsLog.
 GATE_LOG   = os.environ.get("CRT_STT_GATE_LOG", os.path.expanduser("~/.crt/gate.log"))
 # Resolved through bin/crt_config.py rather than read here, so this gate
 # and the two scripts that WRITE stt-fixups.json can no longer be pointed
@@ -1546,12 +1538,9 @@ def main():
     # this process cannot afford to lose it. A pipe would risk blocking on a
     # full buffer nobody is draining.
     err_f = tempfile.NamedTemporaryFile(prefix="crt-stt-arecord-", suffix=".err")
-    # bufsize=0: the kernel pipe must be the ONLY place queued audio lives.
-    # A BufferedReader in front of it would hold bytes that FIONREAD cannot
-    # see and drain_capture_backlog() cannot discard, so the backlog
-    # measurement would quietly be wrong by up to its buffer size.
-    # read_exact() already loops over short reads, which is the only
-    # difference an unbuffered fd makes here.
+    # bufsize=0: a BufferedReader would hold bytes drain_capture_backlog()
+    # can't see -- see tests/test_capture_backpressure.py's
+    # ReadExactUnbufferedTest.
     proc = subprocess.Popen(
         ["arecord", "-D", DEV, "-f", "S16_LE", "-c", "1", "-r", str(RATE), "-t", "raw"],
         stdout=subprocess.PIPE, stderr=err_f, bufsize=0)

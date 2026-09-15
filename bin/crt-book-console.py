@@ -216,10 +216,8 @@ def _render_idle_frame(book_count, width, height, rng):
     available_rows = [r for r in range(1, height) if r not in art_rows]
     caption = (bg.pick_entice_line(rng=rng) if rng.random() < 0.5
                else f"{book_count} book(s) registered -- scan one!")
-    # HARD RULE (2026-07-21, Zach): never more than MAX_CONTENT_WIDTH (30)
-    # columns of actual text -- wrapped, not cut, so all six enticement
-    # lines keep their close ("scan one", "try it?"). See BOOK-GAME-STYLE.md's
-    # "Screen real estate: content capped at 30 characters" for the full rule.
+    # HARD RULE (2026-07-21, Zach) -- see tests/test_idle_caption_fits.py's
+    # module docstring.
     def wrapped(rows):
         return bg.wrap_to_width(caption, bg.MAX_CONTENT_WIDTH, max_lines=rows)
 
