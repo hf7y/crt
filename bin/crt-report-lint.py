@@ -3,16 +3,13 @@
 #
 # WHY THIS EXISTS. Zach replies to these reports inline, and the reply
 # arrives at the next cycle anchored by section heading plus a quoted
-# line (see tests/test_report_lint.py for the exact anchor shape). That
-# anchor breaks once a heading repeats -- which started happening when a
-# day's report carried earlier cycles verbatim: by the fifth cycle,
-# LATEST.md held five "# crt nightly batch" headings, and three cycles in
-# a row re-answered a bug already fixed two cycles earlier because the
-# stale text was still quotable. Fix: one heading text per report file;
-# earlier cycles get their own file and a link. Reports live in
-# ~/reports/crt/, outside the repo; committed fallback copies stopped
-# being re-linted 2026-08-17 (a three-week-old archive proves nothing
-# about tonight).
+# line -- a repeated heading breaks that anchor. The real shape this
+# caught is witnessed by
+# tests/test_report_lint.py::TestDuplicates::test_the_real_nested_cycle_shape_is_caught.
+# Fix: one heading text per report file; earlier cycles get their own
+# file and a link. Reports live in ~/reports/crt/, outside the repo;
+# committed fallback copies stopped being re-linted 2026-08-17 (a
+# three-week-old archive proves nothing about tonight).
 #
 # Usage: crt-report-lint.py FILE [FILE...]
 # Exit: 0 clean, 1 duplicate headings, 2 unreadable file.

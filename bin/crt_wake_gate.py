@@ -21,9 +21,8 @@ def _load(name, filename):
     return mod
 
 
-# Loaded by path, not by plain `import`: every caller of this module is
-# itself loaded by spec_from_file_location, which does not put bin/ on
-# sys.path. Same idiom crt-stt-training-merge.py already uses.
+# Loaded by path -- same sys.path idiom as crt-book-game.py's
+# _load_sibling() comment.
 _config = _load("crt_config_for_wake_gate", "crt_config.py")
 _fixups_store = _load("crt_fixups_store_for_wake_gate", "crt_fixups_store.py")
 
