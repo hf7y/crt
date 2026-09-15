@@ -44,10 +44,8 @@ if tmux list-windows -t "$SESSION" -F '#{window_name}' | grep -qx "$WINDOW_NAME"
   exit 1
 fi
 
-# Explicit target index (2026-07-21, found live): `tmux new-window`
-# without one can fail with "index 0 in use" on this tmux even when
-# indices 0-8 are all legitimately occupied -- doesn't reliably fall
-# through to the true next-free slot on its own. Compute it ourselves.
+# Explicit target index -- see tests/test_attach_ssh_bridge.sh's
+# next_window_index cases for why a bare `tmux new-window` isn't enough.
 NEXT_INDEX=$(( $(tmux list-windows -t "$SESSION" -F '#{window_index}' | sort -n | tail -1) + 1 ))
 
 tmux new-window -d -t "$SESSION:$NEXT_INDEX" -n "$WINDOW_NAME" -c "$BIN_DIR" \

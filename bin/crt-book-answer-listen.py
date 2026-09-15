@@ -226,9 +226,8 @@ def grade_pending_answer(conn, spoken_text, window_secs=ANSWER_WINDOW_SECS, now=
     if pending is None:
         return None
     q = pending["question"]
-    # options= matters as much as the other two (2026-07-25): without it
-    # correct_stt collapses into correct_content and an honest wrong answer
-    # gets logged as a mishear. See bg.grade_answer's own docstring.
+    # options= matters as much as the other two -- see bg.grade_answer's
+    # own docstring for why.
     grade = bg.grade_answer(expected=q.get("correct"), heard=spoken_text,
                             correct_option=q.get("correct"), options=q.get("options"))
     # Close the round BEFORE logging it. If this UPDATE fails, the round
