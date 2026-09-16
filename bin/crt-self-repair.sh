@@ -3,9 +3,8 @@
 # see SELF-REPAIR.md for the full scoping and what's deliberately NOT
 # built yet (off-box surfacing, push access, actual VAD tuning numbers).
 #
-# Load-bearing: the pre/post-run `git commit` calls below are unconditional
-# regardless of what claude -p does -- "be able to revert any major change"
-# (Zach) only holds if a commit exists even when claude crashes mid-edit.
+# Load-bearing: no `set -e`, so the post-run commit still runs even if
+# claude -p crashes mid-edit -- witnessed by tests/test_self_repair.sh.
 set -uo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
