@@ -99,7 +99,7 @@ def fetch_inbox(conn=None, limit: int = 50, for_agent=None, include_claimed: boo
         if for_agent is None:
             rows = conn.execute(
                 "SELECT id, message, reply_to_id, received_at, via, for_agent, "
-                "claimed_by, claimed_at FROM inbox "
+                "claimed_by, claimed_at, filed_issue FROM inbox "
                 "ORDER BY received_at DESC, rowid DESC LIMIT ?",
                 (limit,),
             ).fetchall()
@@ -111,7 +111,7 @@ def fetch_inbox(conn=None, limit: int = 50, for_agent=None, include_claimed: boo
                 params += [for_agent, _claim_expiry_threshold()]
             rows = conn.execute(
                 "SELECT id, message, reply_to_id, received_at, via, for_agent, "
-                f"claimed_by, claimed_at FROM inbox WHERE {where} "
+                f"claimed_by, claimed_at, filed_issue FROM inbox WHERE {where} "
                 "ORDER BY received_at DESC, rowid DESC LIMIT ?",
                 (*params, limit),
             ).fetchall()
@@ -128,6 +128,7 @@ def fetch_inbox(conn=None, limit: int = 50, for_agent=None, include_claimed: boo
             "for_agent": r[5],
             "claimed_by": r[6],
             "claimed_at": r[7],
+            "filed_issue": r[8],
         }
         for r in rows
     ]

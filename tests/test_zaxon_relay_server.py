@@ -267,6 +267,12 @@ class TestFetchInbox(unittest.TestCase):
         entries = server.fetch_inbox(for_agent="crt")["entries"]
         self.assertEqual(len(entries), 1)
 
+    def test_filed_issue_is_null_until_marked(self):
+        entry_id = inbox.record_unclassified("water the plants", None, "text", for_agent="crt")
+        self.assertIsNone(server.fetch_inbox()["entries"][0]["filed_issue"])
+        server.mark_filed(entry_id, "hf7y/crt#42")
+        self.assertEqual(server.fetch_inbox()["entries"][0]["filed_issue"], "hf7y/crt#42")
+
 
 class TestClaimInboxEntry(unittest.TestCase):
     def setUp(self):
