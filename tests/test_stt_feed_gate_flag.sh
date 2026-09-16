@@ -140,7 +140,15 @@ trap 'rm -rf "$CAPTURE_FAKE_BIN" "$CAPTURE_WORK"' EXIT
 
 cat > "$CAPTURE_FAKE_BIN/arecord" <<'EOF'
 #!/usr/bin/env bash
-while true; do printf '%01000d' 0; done
+# Bounded, not `while true`: SIGPIPE delivery on a closed pipe is prompt on
+# a bare Linux box but was observed NOT to be prompt on a GitHub-hosted
+# runner (crt#48, PR #300 hung ~7min waiting on this loop, orphaned bash
+# left running past job cancellation). 20000 iterations is 20MB, far more
+# than sox's 1000-byte read needs, so the real SIGPIPE-death path is still
+# exercised wherever it fires promptly -- but the loop now also ends on its
+# own if it never does, instead of hanging the harness (and CI) forever.
+i=0
+while [ "$i" -lt 20000 ]; do printf '%01000d' 0; i=$((i + 1)); done
 EOF
 chmod +x "$CAPTURE_FAKE_BIN/arecord"
 
@@ -173,11 +181,14 @@ $capture_snippet
 echo "REACHED_AFTER sox_rc=\$sox_rc"
 EOF
 
-  capture_out="$(PATH="$CAPTURE_FAKE_BIN:$PATH" bash "$CAPTURE_WORK/harness.sh" 2>"$CAPTURE_WORK/err")"
+  capture_out="$(PATH="$CAPTURE_FAKE_BIN:$PATH" timeout 10 bash "$CAPTURE_WORK/harness.sh" 2>"$CAPTURE_WORK/err")"
   capture_rc=$?
 
   if [ "$capture_rc" -eq 0 ] && printf '%s\n' "$capture_out" | grep -q '^REACHED_AFTER'; then
     echo "ok - set -e does not abort on arecord's SIGPIPE death (if-wrapped pipeline)"
+  elif [ "$capture_rc" -eq 124 ]; then
+    echo "FAIL - harness timed out after 10s (fake arecord never terminated -- see its own bounded-loop comment)"
+    fail=1
   else
     echo "FAIL - harness aborted before sox_rc was even read (rc=$capture_rc)"
     sed 's/^/       /' "$CAPTURE_WORK/err"
