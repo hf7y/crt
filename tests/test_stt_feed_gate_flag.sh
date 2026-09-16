@@ -128,4 +128,112 @@ else
   fail=1
 fi
 
+# Capture-pipe SIGPIPE handling (found 2026-07-20, crt#48): arecord piped into
+# sox died of SIGPIPE once sox's VAD closed stdin, and pipefail failed the
+# whole pipeline even though sox had already written a valid file --
+# silently dropped utterances until this was caught. Extracts the real
+# capture/sox_rc construct verbatim, same technique as the functions above,
+# and runs it under a stubbed arecord/sox pair.
+CAPTURE_FAKE_BIN="$(mktemp -d)"
+CAPTURE_WORK="$(mktemp -d)"
+trap 'rm -rf "$CAPTURE_FAKE_BIN" "$CAPTURE_WORK"' EXIT
+
+cat > "$CAPTURE_FAKE_BIN/arecord" <<'EOF'
+#!/usr/bin/env bash
+# Bounded, not `while true`: SIGPIPE delivery on a closed pipe is prompt on
+# a bare Linux box but was observed NOT to be prompt on a GitHub-hosted
+# runner (crt#48, PR #300 hung ~7min waiting on this loop, orphaned bash
+# left running past job cancellation). 20000 iterations is 20MB, far more
+# than sox's 1000-byte read needs, so the real SIGPIPE-death path is still
+# exercised wherever it fires promptly -- but the loop now also ends on its
+# own if it never does, instead of hanging the harness (and CI) forever.
+i=0
+while [ "$i" -lt 20000 ]; do printf '%01000d' 0; i=$((i + 1)); done
+EOF
+chmod +x "$CAPTURE_FAKE_BIN/arecord"
+
+cat > "$CAPTURE_FAKE_BIN/sox" <<'EOF'
+#!/usr/bin/env bash
+out=""
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "-" ]; then out="$a"; fi
+  prev="$a"
+done
+read -r -N 1000 _ || true
+echo fake-wav-data > "$out"
+exit 0
+EOF
+chmod +x "$CAPTURE_FAKE_BIN/sox"
+
+capture_snippet="$(sed -n '/^  # Capture with `arecord`/,/^    && sox_rc=\${PIPESTATUS\[1\]} || sox_rc=\${PIPESTATUS\[1\]}/p' "$BIN_DIR/stt-feed.sh")"
+
+if [ -z "$capture_snippet" ]; then
+  echo "FAIL - could not extract the capture/sox_rc construct from stt-feed.sh (markers may have drifted)"
+  fail=1
+else
+  cat > "$CAPTURE_WORK/harness.sh" <<EOF
+set -euo pipefail
+AUDIODEV=irrelevant
+VAD_THRESHOLD=3%
+wav="$CAPTURE_WORK/utt.wav"
+$capture_snippet
+echo "REACHED_AFTER sox_rc=\$sox_rc"
+EOF
+
+  capture_out="$(PATH="$CAPTURE_FAKE_BIN:$PATH" timeout 10 bash "$CAPTURE_WORK/harness.sh" 2>"$CAPTURE_WORK/err")"
+  capture_rc=$?
+
+  if [ "$capture_rc" -eq 0 ] && printf '%s\n' "$capture_out" | grep -q '^REACHED_AFTER'; then
+    echo "ok - set -e does not abort on arecord's SIGPIPE death"
+  elif [ "$capture_rc" -eq 124 ]; then
+    echo "FAIL - harness timed out after 10s (fake arecord never terminated -- see its own bounded-loop comment)"
+    fail=1
+  else
+    echo "FAIL - harness aborted before sox_rc was even read (rc=$capture_rc)"
+    sed 's/^/       /' "$CAPTURE_WORK/err"
+    fail=1
+  fi
+
+  check "sox_rc reflects sox's own exit (0), not arecord's SIGPIPE death" \
+    "0" "$(printf '%s\n' "$capture_out" | sed -n 's/^REACHED_AFTER sox_rc=//p')"
+
+  if [ -s "$CAPTURE_WORK/utt.wav" ]; then
+    echo "ok - sox's output file survives even though arecord died mid-write"
+  else
+    echo "FAIL - no output file written; sox's success didn't produce a usable file"
+    fail=1
+  fi
+
+  # Regression case for the bug the SIGPIPE-hang chase above turned up: a
+  # fake arecord that traps SIGPIPE and exits 0 on its own once its bounded
+  # loop ends, so the pipeline succeeds OUTRIGHT instead of failing. The old
+  # `if pipeline; then :; fi` form ran `:` as a simple command in that
+  # branch, which clobbers PIPESTATUS down to one element -- crashing
+  # `sox_rc=${PIPESTATUS[1]}` as an unbound variable under `set -u`. That's
+  # exactly what PR #300 hit live in CI (a runner where SIGPIPE wasn't
+  # delivered promptly), not a timing fluke of the test harness.
+  cat > "$CAPTURE_FAKE_BIN/arecord" <<'EOF'
+#!/usr/bin/env bash
+trap '' PIPE
+i=0
+while [ "$i" -lt 20000 ]; do printf '%01000d' 0; i=$((i + 1)); done
+EOF
+  chmod +x "$CAPTURE_FAKE_BIN/arecord"
+
+  clean_out="$(PATH="$CAPTURE_FAKE_BIN:$PATH" timeout 10 bash "$CAPTURE_WORK/harness.sh" 2>"$CAPTURE_WORK/err2")"
+  clean_rc=$?
+
+  if [ "$clean_rc" -eq 0 ] && printf '%s\n' "$clean_out" | grep -q '^REACHED_AFTER'; then
+    echo "ok - sox_rc is still readable when the pipeline succeeds outright (arecord exits 0, not SIGPIPE)"
+  else
+    echo "FAIL - PIPESTATUS[1] unbound (or harness aborted) when arecord exits cleanly (rc=$clean_rc)"
+    sed 's/^/       /' "$CAPTURE_WORK/err2"
+    fail=1
+  fi
+
+  check "sox_rc is 0 when both arecord and sox succeed outright" \
+    "0" "$(printf '%s\n' "$clean_out" | sed -n 's/^REACHED_AFTER sox_rc=//p')"
+fi
+
 exit "$fail"

@@ -123,16 +123,24 @@ while true; do
   # Capture with `arecord` piped into `sox`, rather than sox opening ALSA itself.
   # Why: the shared `dsnoop` device (so the level meter can read the mic at the
   # same time) is only reliably shared between `arecord` clients -- sox's own
-  # ALSA open (whether via `rec` or `-t alsa`) does not coexist with the meter's
-  #   arecord on dsnoop. sox's VAD cutoff closes stdin while arecord still
-  #   writes, so arecord dies of SIGPIPE and pipefail fails the pipeline even
-  #   though sox wrote a valid file -- silently dropped utterances until
-  #   found 2026-07-20. Check sox's own exit via PIPESTATUS, not the pipeline's.
-  if arecord -D "$AUDIODEV" -f S16_LE -c 1 -r 16000 -t raw 2>/dev/null \
+  # ALSA open (whether via `rec` or `-t alsa`) does not coexist with the
+  # meter's arecord on dsnoop. Check sox's own exit via PIPESTATUS, not the
+  # pipeline's -- see tests/test_stt_feed_gate_flag.sh's SIGPIPE cases.
+  #
+  # `&& sox_rc=... || sox_rc=...`, not `if pipeline; then :; fi` -- the `:`
+  # in the old then-branch was itself a simple command, and running ANY
+  # command between the pipe and reading PIPESTATUS clobbers it back down
+  # to a single element. That only showed up when the pipeline succeeded
+  # outright (arecord exiting 0 instead of dying to SIGPIPE, e.g. under a
+  # CI runner where the pipe stayed open longer than expected in crt#48's
+  # PR #300) -- `PIPESTATUS[1]` was then unbound under `set -u`, killing
+  # the whole capture loop. Reading PIPESTATUS as the first, only command
+  # on either side of `&&`/`||` can't be clobbered like that.
+  arecord -D "$AUDIODEV" -f S16_LE -c 1 -r 16000 -t raw 2>/dev/null \
     | sox -q -t raw -r 16000 -e signed -b 16 -c 1 - "$wav" \
         silence 1 0.3 "$VAD_THRESHOLD" 1 1.2 "$VAD_THRESHOLD" trim 0 20 \
-        2>/dev/null; then :; fi
-  sox_rc=${PIPESTATUS[1]}
+        2>/dev/null \
+    && sox_rc=${PIPESTATUS[1]} || sox_rc=${PIPESTATUS[1]}
   if [ "$sox_rc" -ne 0 ]; then sleep 0.2; continue; fi
 
   # Skip near-empty clips (mic noise / handset pickup with nothing said).
