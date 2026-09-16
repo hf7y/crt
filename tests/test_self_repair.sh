@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Offline test for bin/crt-self-repair.sh's load-bearing claim: the pre/post
-# -run `git commit` calls happen regardless of what `claude -p` does, so a
-# revert point exists even if it crashes mid-edit. No real `claude` or
-# network involved -- a stub in a throwaway repo stands in for it.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fail=0
@@ -28,25 +24,22 @@ mkdir -p "$FAKEBIN"
 HOMEDIR="$TMP/home"
 mkdir -p "$HOMEDIR"
 
-# $1 = fake claude's exit code, $2 = 1 if it should edit a tracked file first
-run_self_repair() {
+run_self_repair_with_fake_claude() {
+  claude_exit_code="$1"
+  claude_should_edit_a_tracked_file="$2"
   cat > "$FAKEBIN/claude" <<EOF
 #!/usr/bin/env bash
-if [ "$2" = "1" ]; then
+if [ "$claude_should_edit_a_tracked_file" = "1" ]; then
   echo "edited" >> "$REPO/edited-by-claude.txt"
 fi
-exit $1
+exit $claude_exit_code
 EOF
   chmod +x "$FAKEBIN/claude"
   ( cd "$REPO" && HOME="$HOMEDIR" PATH="$FAKEBIN:$PATH" bash bin/crt-self-repair.sh )
 }
 
-# --- claude "crashes" (nonzero exit) after editing a file: the post-run
-# commit must still run and must capture that edit. If the script had
-# stopped at the crash instead of continuing past it, the edit would sit
-# untracked forever with no revert point.
 before_head="$(cd "$REPO" && git rev-parse HEAD)"
-run_self_repair 1 1 >/dev/null 2>&1
+run_self_repair_with_fake_claude 1 1 >/dev/null 2>&1
 after_head="$(cd "$REPO" && git rev-parse HEAD)"
 if [ "$after_head" != "$before_head" ] \
   && (cd "$REPO" && git log -1 --format=%s) | grep -q "post-run snapshot"; then
@@ -62,23 +55,20 @@ else
   fail=1
 fi
 
-# --- a dirty tree left over from a previous incomplete run gets its own
-# pre-run snapshot before claude is even invoked, and a claude run that
-# changes nothing afterward is logged, not silently dropped.
 ( cd "$REPO" && echo "stray" > stray.txt )
 STAMP_LOG_DIR="$HOMEDIR/reports/crt-self-repair"
 rm -rf "$STAMP_LOG_DIR"
 before_head="$(cd "$REPO" && git rev-parse HEAD)"
 rc=0
-run_self_repair 0 0 >/dev/null 2>&1 || rc=$?
+run_self_repair_with_fake_claude 0 0 >/dev/null 2>&1 || rc=$?
 if [ "$rc" -eq 0 ]; then
   echo "PASS: a claude run with nothing to do still exits 0"
 else
   echo "FAIL: exited $rc"
   fail=1
 fi
-pre_commit="$(cd "$REPO" && git log --format=%s "$before_head"..HEAD | tail -1)"
-if printf '%s' "$pre_commit" | grep -q "pre-run snapshot" \
+pre_run_commit_subject="$(cd "$REPO" && git log --format=%s "$before_head"..HEAD | tail -1)"
+if printf '%s' "$pre_run_commit_subject" | grep -q "pre-run snapshot" \
   && (cd "$REPO" && git show --stat "$before_head..HEAD" | grep -q "stray.txt"); then
   echo "PASS: the stray uncommitted file got its own pre-run snapshot"
 else
