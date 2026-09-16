@@ -61,6 +61,21 @@ def assign(for_agent: str, entry_id=None, conn=None):   # -> the id tagged, or N
             conn.close()
 
 
+def mark_filed(entry_id: str, issue_ref: str, conn=None) -> bool:  # True if the entry exists; stops zaxon_relay_filer.py's own file_pending() retrying it (crt#309, hf7y/secretaire#40)
+    owns_conn = conn is None
+    conn = conn or get_conn()
+    try:
+        cur = conn.execute(
+            "UPDATE inbox SET filed_issue=? WHERE id=?",
+            (issue_ref, entry_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        if owns_conn:
+            conn.close()
+
+
 def claim(entry_id: str, agent: str, conn=None) -> bool:  # True if `agent` won, atomically
     owns_conn = conn is None
     conn = conn or get_conn()

@@ -19,6 +19,7 @@ from mcp.server.mcpserver import MCPServer
 from zaxon_relay_db import get_conn
 from zaxon_relay_inbox import claim as _claim_inbox_entry
 from zaxon_relay_inbox import fetch_inbox as _fetch_inbox
+from zaxon_relay_inbox import mark_filed as _mark_filed
 from zaxon_relay_queue import (
     MAX_QUESTION_CHARS,
     admission_error,
@@ -84,7 +85,10 @@ mcp = MCPServer(
         "an untagged note, call claim_inbox_entry(entry_id, for_agent) -- it "
         "is atomic, so if two agents read the same note only one wins, and "
         "it hides the note from fetch_inbox for everyone else so you don't "
-        "act on it twice. send_zach sends one; no reply, no ticket, no slot."
+        "act on it twice. After filing an issue for a note, call "
+        "mark_filed(entry_id, issue_ref) with the 'owner/repo#N' you filed -- "
+        "it stops the relay's own filer retrying that entry. send_zach sends "
+        "one; no reply, no ticket, no slot."
     ),
     middleware=[_require_shared_secret],
 )
@@ -243,6 +247,11 @@ def fetch_inbox(for_agent: str | None = None, limit: int = 50) -> dict:
 @mcp.tool()
 def claim_inbox_entry(entry_id: str, for_agent: str) -> dict:  # atomic; crt#129
     return {"claimed": _claim_inbox_entry(entry_id, for_agent)}
+
+
+@mcp.tool()
+def mark_filed(entry_id: str, issue_ref: str) -> dict:  # 'marked': False if entry_id doesn't exist; crt#309, hf7y/secretaire#40
+    return {"marked": _mark_filed(entry_id, issue_ref)}
 
 
 @mcp.tool()
