@@ -80,10 +80,20 @@ grep -qE '^\s*-\s*"?0\.0\.0\.0:' "$CMP" \
   && bad "compose binds 0.0.0.0 -- the MCP port has no auth, only a bind" \
   || ok "compose binds named addresses, never 0.0.0.0"
 
-grep -qE '^\s*-\s*"100\.107\.253\.56:8090:8090"' "$CMP" \
+WCMP="$DIR/../provision/dexter/whisper/compose.yaml"
+grep -qE '^\s*-\s*"?0\.0\.0\.0:' "$WCMP" \
+  && bad "whisper binds 0.0.0.0 -- the house LAN may not post audio" \
+  || ok "whisper binds named addresses, never 0.0.0.0"
+grep -qE '^\s*-\s*"100\.107\.253\.56:8090:8090"' "$WCMP" \
   && ok "whisper answers the tailnet" || bad "8090 has no tailnet twin (#133)"
-grep -qE '^\s*-\s*"127\.0\.0\.1:8090:8090"' "$CMP" \
+grep -qE '^\s*-\s*"127\.0\.0\.1:8090:8090"' "$WCMP" \
   && ok "whisper still answers loopback" || bad "8090 lost its loopback bind"
+# crt#319: a gateway recreate took the room's STT down while whisper lived here.
+grep -q 'whisper' <(grep -vE '^\s*#' "$CMP" | grep -v HERMES_LOCAL_STT_COMMAND) \
+  && bad "a whisper service is back in zaxon's compose (crt#319)" \
+  || ok "whisper is its own project, not in zaxon's network namespace"
+grep -q 'WHISPER_URL:-http://100\.107\.253\.56:8090' "$DIR/../provision/dexter/zaxon/relay/bin/whisper_stt.sh" \
+  && ok "whisper_stt.sh calls whisper where it lives" || bad "whisper_stt.sh still assumes loopback 8090"
 
 # The repo's whisper_stt.sh never ran while this lived in data/.env, which
 # .deploykeep shields from every deploy.
