@@ -43,25 +43,53 @@ fi
 MATCH=''
 add() { MATCH="${MATCH:+$MATCH; }$1"; }
 
-printf '%s' "$cmd" | grep -qE 'systemctl[^|;&]*(enable|disable|mask|unmask)' && add 'systemctl enable/disable/mask'
-printf '%s' "$cmd" | grep -qE '/etc/systemd/system' && add 'a unit file in /etc/systemd/system'
-printf '%s' "$cmd" | grep -qE 'crontab[[:space:]]+(-e|-r|[^-])' && add 'crontab'
-printf '%s' "$cmd" | grep -qE '(\.config/)?autostart' && add 'autostart entry'
+# A heredoc BODY (`<<'EOF' ... EOF`) is literal text landing wherever the
+# redirect before `<<` points -- not a command the shell reads. If that
+# body merely *mentions* ~/.local/share or ~/.local/bin in prose (e.g. this
+# guard writing an issue/PR body about itself to /tmp), every check below
+# scans the whole command string with no notion of WHERE a `>` actually
+# writes, so a heredoc body discussing the path and an unrelated `>`
+# elsewhere in the same command (even the heredoc's own redirect into
+# /tmp) combine into a false positive. Found live: a `cat > /tmp/x.md
+# <<'EOF' ... mentions ~/.local/share in prose ... EOF` false-positived as
+# "a marker file under ~/.local/share" though nothing under .local/share
+# was touched. Strip heredoc bodies (keeping the redirect line itself, so
+# a real `cat > ~/.local/share/x/y <<'EOF'` still matches) before scanning.
+cmd_scan="$(printf '%s' "$cmd" | awk '
+  in_here { body = $0; if (indent) sub(/^[ \t]+/, "", body)
+            if (body == delim) in_here = 0
+            next }
+  match($0, /<<-?[ \t]*["'"'"']?[A-Za-z_][A-Za-z0-9_]*["'"'"']?/) {
+    tok = substr($0, RSTART, RLENGTH)
+    indent = (tok ~ /^<<-/)
+    delim = tok; sub(/^<<-?[ \t]*/, "", delim); gsub(/["'"'"']/, "", delim)
+    in_here = 1
+  }
+  { print }
+')"
+
+printf '%s' "$cmd_scan" | grep -qE 'systemctl[^|;&]*(enable|disable|mask|unmask)' && add 'systemctl enable/disable/mask'
+printf '%s' "$cmd_scan" | grep -qE '/etc/systemd/system' && add 'a unit file in /etc/systemd/system'
+printf '%s' "$cmd_scan" | grep -qE 'crontab[[:space:]]+(-e|-r|[^-])' && add 'crontab'
+printf '%s' "$cmd_scan" | grep -qE '(\.config/)?autostart' && add 'autostart entry'
 # A literal "->" arrow (echoed text), a stderr-to-void redirect
-# (`2>/dev/null`, `&>/dev/null`), or an fd-duplicating redirect (`2>&1`,
-# `1>&2`) writes nothing anywhere -- strip all three before checking for a
-# write verb, or a read-only command that merely references ~/.local/bin or
-# ~/.local/share false-positives on the bare ">" in any of them. Found live:
-# a `cd ~/.local/share/crt-nightly-batch/repo` followed by a plain
+# (`2>/dev/null`, `&>/dev/null`), an fd-duplicating redirect (`2>&1`,
+# `1>&2`), or a ">=" comparison inside embedded script code (e.g. an awk
+# `count>=3`) writes nothing anywhere -- strip all four before checking for
+# a write verb, or a read-only command that merely references ~/.local/bin
+# or ~/.local/share false-positives on the bare ">" in any of them. Found
+# live: a `cd ~/.local/share/crt-nightly-batch/repo` followed by a plain
 # `cat foo 2>&1 | head` in the same command false-positived on the `>` in
-# `2>&1`.
-cmd_for_write_check="$(printf '%s' "$cmd" | sed -E 's/->//g; s/[0-9&]*>>?[[:space:]]*\/dev\/null//g; s/[0-9]*>&[0-9]+//g')"
+# `2>&1`; separately, an inline awk script comparing `count>=3` while
+# reading under a ~/.local/share checkout false-positived on the `>` in
+# `>=`.
+cmd_for_write_check="$(printf '%s' "$cmd_scan" | sed -E 's/->//g; s/[0-9&]*>>?[[:space:]]*\/dev\/null//g; s/[0-9]*>&[0-9]+//g; s/>=//g')"
 WRITE_VERB='(install|cp[[:space:]]|mv[[:space:]]|ln[[:space:]]|touch[[:space:]]|mkdir|chmod|tee|>)'
-printf '%s' "$cmd" | grep -qE '\.local/bin' \
+printf '%s' "$cmd_scan" | grep -qE '\.local/bin' \
   && printf '%s' "$cmd_for_write_check" | grep -qE "$WRITE_VERB" && add 'a script in ~/.local/bin'
-printf '%s' "$cmd" | grep -qE '\.local/share' \
+printf '%s' "$cmd_scan" | grep -qE '\.local/share' \
   && printf '%s' "$cmd_for_write_check" | grep -qE "$WRITE_VERB" && add 'a marker file under ~/.local/share'
-printf '%s' "$cmd" | grep -qE '\.claude/settings' && add '~/.claude settings/hooks'
+printf '%s' "$cmd_scan" | grep -qE '\.claude/settings' && add '~/.claude settings/hooks'
 
 [ -z "$MATCH" ] && exit 0
 
