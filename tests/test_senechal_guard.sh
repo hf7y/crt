@@ -85,6 +85,24 @@ cat README.md 2>&1 | head -5'
 quiet "an inline awk >= comparison while reading under ~/.local/share" \
   'cd ~/.local/share/crt-nightly-batch/repo
 awk "{ if (count>=3) print; count=0 }" README.md'
+# A heredoc BODY is literal text landing wherever its redirect points, not
+# a command -- if the body merely mentions ~/.local/share in prose while
+# the heredoc's own redirect writes somewhere unrelated (e.g. this guard
+# filing an issue/PR body about itself to /tmp), the path-mention and
+# write-verb checks combine into a false positive on text that was never
+# a write into .local/share. Found live: exactly this, drafting a PR body
+# in /tmp that described this very false-positive class.
+quiet "a heredoc body mentioning ~/.local/share in prose while writing elsewhere" \
+  "cat > /tmp/pr-body.md << 'EOF'
+this describes a fix touching ~/.local/share/crt-nightly-batch/repo
+EOF"
+# The redirect target itself (not the heredoc body) naming ~/.local/share
+# is a real write and must still fire -- heredoc-body stripping must not
+# blind the guard to the one case it exists to catch.
+fires "a real write into ~/.local/share via a heredoc" \
+  "cat > ~/.local/share/some-app/installed.marker << 'EOF'
+hello
+EOF"
 # Filing the note IS the discharge of the debt; reminding afterwards would
 # make the hook cry wolf on the one command that proves it worked.
 quiet "a notify-senechal call itself" "notify-senechal 'installed a unit on potato'"
