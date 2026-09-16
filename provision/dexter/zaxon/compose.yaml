@@ -15,10 +15,6 @@ services:
     ports:
       - "127.0.0.1:8643:8643"
       - "100.107.253.56:8643:8643"
-      # whisper's: a `network_mode: service:` container may not publish its own.
-      # Tailnet twin, Zach's call (#133) -- named addresses, as for 8643.
-      - "127.0.0.1:8090:8090"
-      - "100.107.253.56:8090:8090"
     environment:
       # NOT in data/.env, which .deploykeep shields from every deploy -- which is
       # why the repo's whisper_stt.sh never ran. But .env is loaded with
@@ -49,6 +45,8 @@ services:
       ZAXON_SHARED_SECRET: ${ZAXON_SHARED_SECRET:-}
     working_dir: /opt/zaxon-relay
     # `hermes send` reaches the Baileys bridge on localhost:3000, a gateway child.
+    # The bridge listens on 127.0.0.1 only and refuses a non-loopback Host header
+    # (hermes-agent's bridge.js), so this cannot move to a network of its own.
     network_mode: "service:gateway"
     # The IMAGE's python: hermes-agent's venv leads PATH and has no `mcp`.
     command: ["/usr/local/bin/python", "/opt/zaxon-relay/zaxon_relay_server.py"]
@@ -80,28 +78,3 @@ services:
     command: ["/usr/local/bin/python", "/opt/zaxon-relay/zaxon_relay_watcher.py"]
     depends_on:
       - relay
-
-  # STT, dead 2026-08-02 to 2026-08-25: it was a unit in the `hermes` distro,
-  # which stopped unsupervised, and no sensor named 8090. Built from ../whisper/.
-  whisper:
-    image: ghcr.io/hf7y/whisper:latest
-    container_name: zaxon-whisper
-    restart: always
-    # whisper_stt.sh curls 127.0.0.1:8090 from INSIDE the gateway, so sharing
-    # that namespace is what keeps the existing URL correct.
-    network_mode: "service:gateway"
-    depends_on:
-      - gateway
-    # 141 MiB of model, off the image and out of data/.
-    volumes:
-      - whisper-models:/models
-    healthcheck:
-      test: ["CMD", "curl", "-fs", "-m", "5", "http://127.0.0.1:8090/health"]
-      interval: 60s
-      timeout: 10s
-      # A cold volume downloads the model before the port opens.
-      start_period: 300s
-      retries: 3
-
-volumes:
-  whisper-models:

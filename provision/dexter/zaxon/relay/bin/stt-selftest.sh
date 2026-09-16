@@ -22,7 +22,7 @@ cmd="${cmd//\{language\}/en}"
 
 err="$(eval "$cmd" 2>&1 >/dev/null)"; rc=$?
 if [ "$rc" -ne 0 ]; then
-  # rc=7 is curl's CURLE_COULDNT_CONNECT: whisper is not listening on 8090.
+  # rc=7 is curl's CURLE_COULDNT_CONNECT: whisper (/srv/whisper) is not listening on 8090.
   echo "STT command failed (rc=$rc): ${err:-no stderr}"
   exit 4
 fi

@@ -1,0 +1,27 @@
+# whisper on dexter, at /srv/whisper/. Its own project, not zaxon's (crt#319):
+# inside zaxon's network namespace every gateway recreate took the room's STT down.
+services:
+  whisper:
+    # PULLED, NOT BUILT, as for zaxon.
+    image: ghcr.io/hf7y/whisper:latest
+    container_name: whisper
+    restart: always
+    # Named addresses, never 0.0.0.0: the house LAN may not post audio.
+    # Tailnet: potato and the zaxon gateway both call it there (#133).
+    ports:
+      - "127.0.0.1:8090:8090"
+      - "100.107.253.56:8090:8090"
+    # 141 MiB of model, off the image.
+    volumes:
+      - whisper-models:/models
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-m", "5", "http://127.0.0.1:8090/health"]
+      interval: 60s
+      timeout: 10s
+      # A cold volume downloads the model before the port opens.
+      start_period: 300s
+      retries: 3
+
+volumes:
+  whisper-models:
+    name: whisper-models

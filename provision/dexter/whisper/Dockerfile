@@ -1,6 +1,5 @@
 # whisper.cpp STT server -- the service whose absence made every voice note fail
-# for three weeks. It answers POST /inference on :8090, the endpoint that
-# ../zaxon/relay/bin/whisper_stt.sh has always called.
+# for three weeks. It answers POST /inference on :8090. Service block: compose.yaml.
 #
 # WHY THIS IS A BUILD AND NOT A LIFT. The dead original was /usr/bin/whisper-server
 # inside the Stopped `hermes` WSL distro, dynamically linked against
@@ -8,11 +7,6 @@
 # binary is rebuilt from a pinned upstream tag, and only the MODEL was worth
 # recovering -- and even that turned out to be stock, see the checksum below.
 #
-# THE SERVICE BLOCK IS IN ../zaxon/compose.yaml, not here. whisper_stt.sh curls
-# 127.0.0.1:8090 from INSIDE the gateway container, so whisper has to share the
-# gateway's network namespace; a second compose project could only reach it with
-# network_mode: "container:zaxon-gateway", which compose cannot order and which
-# breaks whenever the gateway is recreated.
 FROM debian:bookworm-slim AS build
 ARG WHISPER_VERSION=v1.9.3
 RUN apt-get update && apt-get install -y --no-install-recommends \
