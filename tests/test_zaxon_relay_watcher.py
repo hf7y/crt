@@ -269,6 +269,55 @@ class TestUnthreadedReply(unittest.TestCase):  # crt#244
         self.assertEqual(len(inbox.fetch_inbox()), 1)
 
 
+class TestDocumentPlaceholder(unittest.TestCase):  # crt#304
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmp.name) / "tickets.db"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _insert(self, tid, status, wa_message_id="wa1"):
+        db.get_conn().execute(
+            "INSERT INTO tickets (id, from_agent, question, status, created_at, "
+            "wa_message_id) VALUES (?, 'groc', 'Q', ?, '2026-09-15T00:00:00Z', ?)",
+            (tid, status, wa_message_id),
+        ).connection.commit()
+
+    def test_threaded_placeholder_does_not_answer_its_ticket(self):
+        self._insert("t1", "pending")
+        w._handle_message("wa1", "[document received]", "text")
+        self.assertEqual(
+            db.get_conn().execute("SELECT status FROM tickets WHERE id='t1'").fetchone(),
+            ("pending",),
+        )
+        self.assertEqual(len(inbox.fetch_inbox()), 1)
+
+    def test_unthreaded_placeholder_does_not_answer_the_lone_ticket(self):
+        # Exactly crt#304's report: no reply_to_id reached the log, and the
+        # unthreaded-reply rule (crt#244) took the placeholder as the answer.
+        self._insert("t1", "pending")
+        w._handle_message("None", "[document received]", "text")
+        self.assertEqual(
+            db.get_conn().execute("SELECT status FROM tickets WHERE id='t1'").fetchone(),
+            ("pending",),
+        )
+        self.assertEqual(len(inbox.fetch_inbox()), 1)
+
+    def test_placeholder_is_case_insensitive_and_stripped(self):
+        self.assertTrue(w.DOCUMENT_RECEIVED_RE.match("  [Document Received]  ".strip()))
+
+    def test_a_real_reply_that_merely_mentions_the_phrase_still_answers(self):
+        # Only an exact placeholder is special-cased -- a real reply that
+        # happens to quote it must still count as an answer.
+        self._insert("t1", "pending")
+        w._handle_message("wa1", "no, [document received] was the wrong one", "text")
+        self.assertEqual(
+            db.get_conn().execute("SELECT status FROM tickets WHERE id='t1'").fetchone(),
+            ("answered",),
+        )
+
+
 class TestForAgentTag(unittest.TestCase):  # crt#130
     def test_a_leading_repo_tag_is_split_out(self):
         for_agent, body = w._split_for_agent("realisateur: the vault notation needs a second example")

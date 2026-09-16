@@ -57,6 +57,13 @@ STT_FAILED_RE = re.compile(
 # precedes the voice note's own inbound line -- see _process_line.
 TRANSCRIBED_RE = re.compile(r"transcription", re.IGNORECASE)
 
+# What hermes logs for a document attachment -- the relay has no transcription
+# path for these yet (crt#304), so unlike a voice note there is no audio path
+# to retain. Must still never be read as the ticket's answer: crt#244's
+# unthreaded-reply rule took this literal text as one, closing a ticket while
+# the actual words survived only in the gateway's own cache, later swept.
+DOCUMENT_RECEIVED_RE = re.compile(r"^\[document received\]$", re.IGNORECASE)
+
 FOR_AGENT_TAG_RE = re.compile(r"^(?P<repo>[A-Za-z][A-Za-z0-9_-]*):\s+(?P<body>.+)$", re.DOTALL)  # crt#130: "repo: message" addresses a note
 
 
@@ -198,7 +205,8 @@ def _save_checkpoint(offset: int) -> None:
 
 def _handle_message(reply_id: str, msg: str, via: str) -> None:
     handled = False
-    if reply_id != "None":
+    placeholder = bool(DOCUMENT_RECEIVED_RE.match(msg.strip()))
+    if reply_id != "None" and not placeholder:
         failed = STT_FAILED_RE.search(msg)
         if failed:
             handled = retain_audio(reply_id, failed.group("path").strip())
@@ -207,7 +215,7 @@ def _handle_message(reply_id: str, msg: str, via: str) -> None:
     if not handled:
         handled = _retag(msg)
     for_agent, body = _split_for_agent(msg)
-    if not handled and reply_id == "None" and for_agent is None and not RETAG_RE.match(msg.strip()):
+    if not handled and reply_id == "None" and for_agent is None and not RETAG_RE.match(msg.strip()) and not placeholder:
         # A retag that named nothing to retag (bad repo, no untagged note)
         # must still land in the inbox, not get swallowed as a ticket's
         # answer just because it also happens to be the lone pending one.
