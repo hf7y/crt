@@ -47,11 +47,15 @@ printf '%s' "$cmd" | grep -qE 'systemctl[^|;&]*(enable|disable|mask|unmask)' && 
 printf '%s' "$cmd" | grep -qE '/etc/systemd/system' && add 'a unit file in /etc/systemd/system'
 printf '%s' "$cmd" | grep -qE 'crontab[[:space:]]+(-e|-r|[^-])' && add 'crontab'
 printf '%s' "$cmd" | grep -qE '(\.config/)?autostart' && add 'autostart entry'
-# A literal "->" arrow (echoed text) or a stderr-to-void redirect
-# (`2>/dev/null`, `&>/dev/null`) writes nothing anywhere -- strip both before
-# checking for a write verb, or a read-only command that merely references
-# ~/.local/bin or ~/.local/share false-positives on the bare ">" in either.
-cmd_for_write_check="$(printf '%s' "$cmd" | sed -E 's/->//g; s/[0-9&]*>>?[[:space:]]*\/dev\/null//g')"
+# A literal "->" arrow (echoed text), a stderr-to-void redirect
+# (`2>/dev/null`, `&>/dev/null`), or an fd-duplicating redirect (`2>&1`,
+# `1>&2`) writes nothing anywhere -- strip all three before checking for a
+# write verb, or a read-only command that merely references ~/.local/bin or
+# ~/.local/share false-positives on the bare ">" in any of them. Found live:
+# a `cd ~/.local/share/crt-nightly-batch/repo` followed by a plain
+# `cat foo 2>&1 | head` in the same command false-positived on the `>` in
+# `2>&1`.
+cmd_for_write_check="$(printf '%s' "$cmd" | sed -E 's/->//g; s/[0-9&]*>>?[[:space:]]*\/dev\/null//g; s/[0-9]*>&[0-9]+//g')"
 WRITE_VERB='(install|cp[[:space:]]|mv[[:space:]]|ln[[:space:]]|touch[[:space:]]|mkdir|chmod|tee|>)'
 printf '%s' "$cmd" | grep -qE '\.local/bin' \
   && printf '%s' "$cmd_for_write_check" | grep -qE "$WRITE_VERB" && add 'a script in ~/.local/bin'

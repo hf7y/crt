@@ -69,6 +69,15 @@ quiet "a stderr-to-null redirect while reading under ~/.local/share" \
   'ls ~/.local/share/crt-nightly-batch/repo/tests/test_x.py 2>/dev/null'
 quiet "a literal arrow in echoed text referencing ~/.local/share" \
   'echo "crt-stt-confidence.py -> $(ls ~/.local/share/crt-nightly-batch/repo/tests)"'
+# An fd-duplicating redirect (2>&1, 1>&2) contains the ">" WRITE_VERB checks
+# for but writes nothing into .local/share -- found live when a `cd` into a
+# ~/.local/share checkout followed by a plain `cat foo 2>&1 | head` in the
+# same command false-positived.
+quiet "an fd-duplicating redirect while reading under ~/.local/share" \
+  'cat ~/.local/share/crt-nightly-batch/repo/tests/test_x.py 2>&1 | head -5'
+quiet "a cd into ~/.local/share followed by a 2>&1 read on another line" \
+  'cd ~/.local/share/crt-nightly-batch/repo
+cat README.md 2>&1 | head -5'
 # Filing the note IS the discharge of the debt; reminding afterwards would
 # make the hook cry wolf on the one command that proves it worked.
 quiet "a notify-senechal call itself" "notify-senechal 'installed a unit on potato'"
