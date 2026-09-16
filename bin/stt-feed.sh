@@ -123,11 +123,9 @@ while true; do
   # Capture with `arecord` piped into `sox`, rather than sox opening ALSA itself.
   # Why: the shared `dsnoop` device (so the level meter can read the mic at the
   # same time) is only reliably shared between `arecord` clients -- sox's own
-  # ALSA open (whether via `rec` or `-t alsa`) does not coexist with the meter's
-  #   arecord on dsnoop. sox's VAD cutoff closes stdin while arecord still
-  #   writes, so arecord dies of SIGPIPE and pipefail fails the pipeline even
-  #   though sox wrote a valid file -- silently dropped utterances until
-  #   found 2026-07-20. Check sox's own exit via PIPESTATUS, not the pipeline's.
+  # ALSA open (whether via `rec` or `-t alsa`) does not coexist with the
+  # meter's arecord on dsnoop. Check sox's own exit via PIPESTATUS, not the
+  # pipeline's -- see tests/test_stt_feed_gate_flag.sh's SIGPIPE cases.
   if arecord -D "$AUDIODEV" -f S16_LE -c 1 -r 16000 -t raw 2>/dev/null \
     | sox -q -t raw -r 16000 -e signed -b 16 -c 1 - "$wav" \
         silence 1 0.3 "$VAD_THRESHOLD" 1 1.2 "$VAD_THRESHOLD" trim 0 20 \
