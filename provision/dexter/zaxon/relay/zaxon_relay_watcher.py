@@ -13,6 +13,16 @@ still 'pending'.
 A voice note that failed to transcribe is NOT resolved as a reply: its
 audio is retained instead and the ticket stays pending (retain_audio).
 
+A document-attached audio (crt#304) gets no transcription line at all from
+the gateway -- it logs a bare '[document received]' placeholder instead.
+That placeholder is NEVER resolved as a ticket's answer either: it is
+transcribed here, from whatever the gateway most recently cached, and
+lands as an inbox memo (via=voice) instead.
+
+A plain follow-up naming a repo ("that's for apms", crt#305) retags the
+newest untagged note the same as "tag apms" -- Zach cannot tag a note as
+he speaks it, only after.
+
 An untagged reply that quotes nothing is matched against the one pending
 ticket, if exactly one exists, falling back to a lone stale one if none is
 pending (resolve_unthreaded_reply, crt#244) -- the only way a reply can
@@ -26,6 +36,7 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 import time
 from pathlib import Path
 
@@ -35,10 +46,14 @@ from zaxon_relay_inbox import assign, record_unclassified
 
 logger = logging.getLogger("zaxon_relay_watcher")
 from zaxon_relay_queue import sweep_and_promote
+from zaxon_relay_queue import GATEWAY_CACHE_AUDIO_DIR as DOCUMENT_CACHE_DIR
+from zaxon_relay_queue import _transcribe
 
 LOG_PATH = Path.home() / ".hermes" / "logs" / "agent.log"
 OFFSET_PATH = Path.home() / ".hermes" / "zaxon_relay" / "watcher.offset"
 AUDIO_DIR = Path.home() / ".hermes" / "zaxon_relay" / "audio"
+
+DOCUMENT_TRANSCRIBE_WINDOW_SECS = 120  # margin for the gateway to finish writing its cache file before this placeholder's log line lands
 
 STALE_SWEEP_EVERY_TICKS = 60  # ~30s at the 0.5s idle sleep below
 
@@ -53,6 +68,10 @@ STT_FAILED_RE = re.compile(
     r"the audio is available at: (?P<path>[^\]]+)\]"
 )
 
+# What the gateway logs for a document-attached audio (crt#304): no
+# transcription attempt at all, unlike a voice note, and no path either.
+DOCUMENT_PLACEHOLDER_RE = re.compile(r"^\[document received\]$")
+
 # The gateway transcribes immediately before dispatching, so this line always
 # precedes the voice note's own inbound line -- see _process_line.
 TRANSCRIBED_RE = re.compile(r"transcription", re.IGNORECASE)
@@ -62,6 +81,11 @@ FOR_AGENT_TAG_RE = re.compile(r"^(?P<repo>[A-Za-z][A-Za-z0-9_-]*):\s+(?P<body>.+
 
 RETAG_RE = re.compile(   # crt#154: "tag realisateur" readdresses the last untagged note. Checked BEFORE FOR_AGENT_TAG_RE, which would otherwise read "tag: realisateur" as repo "tag"
     r"^tag:?\s+(?:(?P<entry>[0-9a-f]{8})\s+)?(?P<repo>[A-Za-z][A-Za-z0-9_-]*)\s*$",
+    re.IGNORECASE,
+)
+
+FOLLOWUP_TAG_RE = re.compile(   # crt#305: "that's for apms" -- Zach can't tag a voice note as he speaks it, so a plain follow-up naming a repo retags the newest untagged one, same as "tag apms" but without the trigger word
+    r"\bfor\s+(?P<repo>[A-Za-z][A-Za-z0-9_-]*)[.!]?\s*$",
     re.IGNORECASE,
 )
 
@@ -84,6 +108,18 @@ def _retag(msg: str) -> bool:   # True when msg WAS a retag and landed; a retag 
         return False
     logger.warning("retagged inbox entry %s for %s", tagged, m.group("repo"))
     _file_safely(tagged)   # a corrected tag gets its own pointer issue, and moves it off a stale one
+    return True
+
+
+def _followup_tag(msg: str) -> bool:   # True when msg WAS a follow-up tag and landed; same fall-through-if-nothing-to-tag contract as _retag
+    m = FOLLOWUP_TAG_RE.search(msg.strip())
+    if not m:
+        return False
+    tagged = assign(m.group("repo"))
+    if tagged is None:
+        return False
+    logger.warning("follow-up tagged inbox entry %s for %s", tagged, m.group("repo"))
+    _file_safely(tagged)
     return True
 
 
@@ -196,7 +232,34 @@ def _save_checkpoint(offset: int) -> None:
     OFFSET_PATH.write_text(str(offset))
 
 
+def _transcribe_untranscribed_document() -> str:
+    """Best-effort transcription of whatever the gateway most recently
+    cached, for a '[document received]' placeholder (crt#304). Never
+    raises and returns '' on any failure -- a lost transcription must
+    still land as an inbox entry, just with the placeholder text instead."""
+    try:
+        if not DOCUMENT_CACHE_DIR.is_dir():
+            return ""
+        threshold = time.time() - DOCUMENT_TRANSCRIBE_WINDOW_SECS
+        candidates = sorted(
+            (p for p in DOCUMENT_CACHE_DIR.iterdir() if p.is_file() and p.stat().st_mtime > threshold),
+            key=lambda p: p.stat().st_mtime,
+        )
+        if not candidates:
+            return ""
+        return _transcribe(str(candidates[-1])) or ""
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return ""
+
+
 def _handle_message(reply_id: str, msg: str, via: str) -> None:
+    if DOCUMENT_PLACEHOLDER_RE.match(msg.strip()):
+        # crt#304: never resolve a ticket with this placeholder -- transcribe
+        # it ourselves and land it as a memo instead, exactly like any other
+        # untagged voice note.
+        text = _transcribe_untranscribed_document() or msg
+        record_unclassified(text, None if reply_id == "None" else reply_id, "voice")
+        return
     handled = False
     if reply_id != "None":
         failed = STT_FAILED_RE.search(msg)
@@ -206,11 +269,20 @@ def _handle_message(reply_id: str, msg: str, via: str) -> None:
             handled = resolve_reply(reply_id, msg, via)
     if not handled:
         handled = _retag(msg)
+    if not handled:
+        handled = _followup_tag(msg)
     for_agent, body = _split_for_agent(msg)
-    if not handled and reply_id == "None" and for_agent is None and not RETAG_RE.match(msg.strip()):
-        # A retag that named nothing to retag (bad repo, no untagged note)
-        # must still land in the inbox, not get swallowed as a ticket's
-        # answer just because it also happens to be the lone pending one.
+    if (
+        not handled
+        and reply_id == "None"
+        and for_agent is None
+        and not RETAG_RE.match(msg.strip())
+        and not FOLLOWUP_TAG_RE.search(msg.strip())
+    ):
+        # A retag/follow-up tag that named nothing to retag (bad repo, no
+        # untagged note) must still land in the inbox, not get swallowed as
+        # a ticket's answer just because it also happens to be the lone
+        # pending one.
         handled = resolve_unthreaded_reply(msg, via)
     if not handled:
         entry_id = record_unclassified(

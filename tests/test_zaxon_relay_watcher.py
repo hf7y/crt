@@ -3,8 +3,10 @@
 must not be mistaken for an answer, and its audio must outlive the sweep
 that emptied cache/audio on 2026-08-17 and 2026-08-19."""
 import os
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -86,6 +88,77 @@ class TestRetainAudio(unittest.TestCase):
 
     def test_a_reply_to_nothing_is_left_alone(self):
         self.assertFalse(w.retain_audio("wa-unknown", str(self.audio)))
+
+
+class TestDocumentPlaceholder(unittest.TestCase):  # crt#304
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmp.name)
+        db.DB_PATH = tmp / "tickets.db"
+        w.DOCUMENT_CACHE_DIR = tmp / "cache"
+        self.conn = db.get_conn()
+        self.conn.execute(
+            "INSERT INTO tickets (id, from_agent, question, status, created_at, "
+            "wa_message_id) VALUES ('t1', 'musc', 'Q', 'pending', '2026-08-25T00:00:00Z', 'wa1')"
+        )
+        self.conn.commit()
+        self._orig_transcribe = w._transcribe
+        w._transcribe = lambda path: self.fail("should not be called without a cached file")
+
+    def tearDown(self):
+        w._transcribe = self._orig_transcribe
+        self.conn.close()
+        self._tmp.cleanup()
+
+    def _status(self, tid="t1"):
+        return db.get_conn().execute(
+            "SELECT status, answer FROM tickets WHERE id=?", (tid,)
+        ).fetchone()
+
+    def _drop_cached_file(self, name="note.ogg"):
+        w.DOCUMENT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        f = w.DOCUMENT_CACHE_DIR / name
+        f.write_bytes(b"not really audio")
+        return f
+
+    def test_the_placeholder_is_never_a_ticket_answer(self):
+        w._handle_message("wa1", "[document received]", "text")
+        self.assertEqual(self._status(), ("pending", None))
+
+    def test_the_placeholder_is_never_the_unthreaded_answer_either(self):
+        w._handle_message("None", "[document received]", "text")
+        self.assertEqual(self._status(), ("pending", None))
+
+    def test_it_lands_as_an_inbox_memo(self):
+        w._handle_message("wa1", "[document received]", "text")
+        entries = inbox.fetch_inbox()
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["via"], "voice")
+
+    def test_a_cached_file_is_transcribed_and_used_as_the_memo_text(self):
+        self._drop_cached_file()
+        w._transcribe = lambda path: "buy more coffee"
+        w._handle_message("None", "[document received]", "text")
+        self.assertEqual(inbox.fetch_inbox()[0]["message"], "buy more coffee")
+
+    def test_no_cached_file_falls_back_to_the_placeholder_text(self):
+        w._handle_message("None", "[document received]", "text")
+        self.assertEqual(inbox.fetch_inbox()[0]["message"], "[document received]")
+
+    def test_a_stale_cached_file_outside_the_window_is_not_used(self):
+        f = self._drop_cached_file()
+        old = time.time() - w.DOCUMENT_TRANSCRIBE_WINDOW_SECS - 60
+        os.utime(f, (old, old))
+        w._handle_message("None", "[document received]", "text")
+        self.assertEqual(inbox.fetch_inbox()[0]["message"], "[document received]")
+
+    def test_a_failing_transcription_falls_back_to_the_placeholder_text(self):
+        self._drop_cached_file()
+        def _raise(path):
+            raise subprocess.CalledProcessError(1, "whisper")
+        w._transcribe = _raise
+        w._handle_message("None", "[document received]", "text")
+        self.assertEqual(inbox.fetch_inbox()[0]["message"], "[document received]")
 
 
 class TestVia(unittest.TestCase):
@@ -425,6 +498,77 @@ class TestRetag(unittest.TestCase):
     def test_a_claimed_note_is_not_readdressed_under_the_agent_working_it(self):
         self._note("being worked", claimed_by="musc")
         self.assertFalse(w._retag("tag realisateur"))
+
+
+class TestFollowupTag(unittest.TestCase):  # crt#305
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmp.name) / "tickets.db"
+        self.conn = db.get_conn()
+
+    def tearDown(self):
+        self.conn.close()
+        self._tmp.cleanup()
+
+    def _note(self, msg, for_agent=None, claimed_by=None):
+        eid = inbox.record_unclassified(msg, None, "voice", for_agent=for_agent)
+        if claimed_by:
+            inbox.claim(eid, claimed_by)
+        return eid
+
+    def test_a_plain_followup_tags_the_newest_untagged_note(self):
+        old = self._note("first")
+        new = self._note("second")
+        self.assertTrue(w._followup_tag("that's for realisateur"))
+        rows = {r["id"]: r["for_agent"] for r in inbox.fetch_inbox()}
+        self.assertEqual(rows[new], "realisateur")
+        self.assertIsNone(rows[old])
+
+    def test_bare_for_repo_also_tags(self):
+        eid = self._note("a voice note")
+        self.assertTrue(w._followup_tag("for realisateur"))
+        self.assertEqual(inbox.fetch_inbox()[0]["for_agent"], "realisateur")
+        self.assertEqual(inbox.fetch_inbox()[0]["id"], eid)
+
+    def test_trailing_punctuation_does_not_block_the_match(self):
+        self._note("a voice note")
+        self.assertTrue(w._followup_tag("that's for realisateur."))
+
+    def test_an_unrelated_message_is_not_a_followup_tag(self):
+        self.assertFalse(w._followup_tag("remember to water the plants"))
+
+    def test_nothing_to_tag_falls_through_and_is_recorded(self):
+        self.assertFalse(w._followup_tag("that's for realisateur"))
+
+    def test_a_claimed_note_is_not_readdressed_under_the_agent_working_it(self):
+        self._note("being worked", claimed_by="musc")
+        self.assertFalse(w._followup_tag("that's for realisateur"))
+
+    def test_handle_message_routes_a_followup_through_to_the_newest_note(self):
+        self._note("first")
+        new = self._note("second")
+        w._handle_message("None", "that's for realisateur", "text")
+        self.assertEqual(
+            {r["id"]: r["for_agent"] for r in inbox.fetch_inbox()}[new], "realisateur"
+        )
+
+    def test_a_followup_with_nothing_to_tag_still_lands_in_the_inbox(self):
+        w._handle_message("None", "that's for realisateur", "text")
+        entries = inbox.fetch_inbox()
+        self.assertEqual(len(entries), 1)
+        self.assertIsNone(entries[0]["for_agent"])
+
+    def test_a_followup_does_not_answer_the_lone_pending_ticket(self):
+        db.get_conn().execute(
+            "INSERT INTO tickets (id, from_agent, question, status, created_at, "
+            "wa_message_id) VALUES ('t1', 'musc', 'Q', 'pending', "
+            "'2026-09-16T00:00:00Z', 'wa1')"
+        ).connection.commit()
+        w._handle_message("None", "that's for realisateur", "text")
+        self.assertEqual(
+            db.get_conn().execute("SELECT status FROM tickets WHERE id='t1'").fetchone(),
+            ("pending",),
+        )
 
 
 class TestProcessLine(unittest.TestCase):
