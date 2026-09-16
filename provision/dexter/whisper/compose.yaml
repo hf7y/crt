@@ -1,5 +1,11 @@
-# whisper on dexter, at /srv/whisper/. Its own project, not zaxon's (crt#319):
-# inside zaxon's network namespace every gateway recreate took the room's STT down.
+# whisper on dexter, at /srv/whisper/: crt's STT, POST /inference on :8090.
+# Its own project, not zaxon's (crt#319): inside zaxon's network namespace every
+# gateway recreate took the room's STT down. Callers use the tailnet address --
+# potato (CRT_WHISPER_SERVER) and zaxon's whisper_stt.sh (WHISPER_URL).
+#
+# NOT on zaxon-autoupdate.timer, which watches /srv/zaxon only. After an image
+# change: sudo docker compose pull && sudo docker compose up -d, then prove a real
+# transcript: docker exec zaxon-gateway /opt/zaxon-relay/bin/stt-selftest.sh
 services:
   whisper:
     # PULLED, NOT BUILT, as for zaxon.
