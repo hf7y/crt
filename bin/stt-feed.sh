@@ -126,11 +126,21 @@ while true; do
   # ALSA open (whether via `rec` or `-t alsa`) does not coexist with the
   # meter's arecord on dsnoop. Check sox's own exit via PIPESTATUS, not the
   # pipeline's -- see tests/test_stt_feed_gate_flag.sh's SIGPIPE cases.
-  if arecord -D "$AUDIODEV" -f S16_LE -c 1 -r 16000 -t raw 2>/dev/null \
+  #
+  # `&& sox_rc=... || sox_rc=...`, not `if pipeline; then :; fi` -- the `:`
+  # in the old then-branch was itself a simple command, and running ANY
+  # command between the pipe and reading PIPESTATUS clobbers it back down
+  # to a single element. That only showed up when the pipeline succeeded
+  # outright (arecord exiting 0 instead of dying to SIGPIPE, e.g. under a
+  # CI runner where the pipe stayed open longer than expected in crt#48's
+  # PR #300) -- `PIPESTATUS[1]` was then unbound under `set -u`, killing
+  # the whole capture loop. Reading PIPESTATUS as the first, only command
+  # on either side of `&&`/`||` can't be clobbered like that.
+  arecord -D "$AUDIODEV" -f S16_LE -c 1 -r 16000 -t raw 2>/dev/null \
     | sox -q -t raw -r 16000 -e signed -b 16 -c 1 - "$wav" \
         silence 1 0.3 "$VAD_THRESHOLD" 1 1.2 "$VAD_THRESHOLD" trim 0 20 \
-        2>/dev/null; then :; fi
-  sox_rc=${PIPESTATUS[1]}
+        2>/dev/null \
+    && sox_rc=${PIPESTATUS[1]} || sox_rc=${PIPESTATUS[1]}
   if [ "$sox_rc" -ne 0 ]; then sleep 0.2; continue; fi
 
   # Skip near-empty clips (mic noise / handset pickup with nothing said).

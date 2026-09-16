@@ -166,7 +166,7 @@ exit 0
 EOF
 chmod +x "$CAPTURE_FAKE_BIN/sox"
 
-capture_snippet="$(sed -n '/^  # Capture with `arecord`/,/^  sox_rc=\${PIPESTATUS\[1\]}/p' "$BIN_DIR/stt-feed.sh")"
+capture_snippet="$(sed -n '/^  # Capture with `arecord`/,/^    && sox_rc=\${PIPESTATUS\[1\]} || sox_rc=\${PIPESTATUS\[1\]}/p' "$BIN_DIR/stt-feed.sh")"
 
 if [ -z "$capture_snippet" ]; then
   echo "FAIL - could not extract the capture/sox_rc construct from stt-feed.sh (markers may have drifted)"
@@ -185,7 +185,7 @@ EOF
   capture_rc=$?
 
   if [ "$capture_rc" -eq 0 ] && printf '%s\n' "$capture_out" | grep -q '^REACHED_AFTER'; then
-    echo "ok - set -e does not abort on arecord's SIGPIPE death (if-wrapped pipeline)"
+    echo "ok - set -e does not abort on arecord's SIGPIPE death"
   elif [ "$capture_rc" -eq 124 ]; then
     echo "FAIL - harness timed out after 10s (fake arecord never terminated -- see its own bounded-loop comment)"
     fail=1
@@ -204,6 +204,36 @@ EOF
     echo "FAIL - no output file written; sox's success didn't produce a usable file"
     fail=1
   fi
+
+  # Regression case for the bug the SIGPIPE-hang chase above turned up: a
+  # fake arecord that traps SIGPIPE and exits 0 on its own once its bounded
+  # loop ends, so the pipeline succeeds OUTRIGHT instead of failing. The old
+  # `if pipeline; then :; fi` form ran `:` as a simple command in that
+  # branch, which clobbers PIPESTATUS down to one element -- crashing
+  # `sox_rc=${PIPESTATUS[1]}` as an unbound variable under `set -u`. That's
+  # exactly what PR #300 hit live in CI (a runner where SIGPIPE wasn't
+  # delivered promptly), not a timing fluke of the test harness.
+  cat > "$CAPTURE_FAKE_BIN/arecord" <<'EOF'
+#!/usr/bin/env bash
+trap '' PIPE
+i=0
+while [ "$i" -lt 20000 ]; do printf '%01000d' 0; i=$((i + 1)); done
+EOF
+  chmod +x "$CAPTURE_FAKE_BIN/arecord"
+
+  clean_out="$(PATH="$CAPTURE_FAKE_BIN:$PATH" timeout 10 bash "$CAPTURE_WORK/harness.sh" 2>"$CAPTURE_WORK/err2")"
+  clean_rc=$?
+
+  if [ "$clean_rc" -eq 0 ] && printf '%s\n' "$clean_out" | grep -q '^REACHED_AFTER'; then
+    echo "ok - sox_rc is still readable when the pipeline succeeds outright (arecord exits 0, not SIGPIPE)"
+  else
+    echo "FAIL - PIPESTATUS[1] unbound (or harness aborted) when arecord exits cleanly (rc=$clean_rc)"
+    sed 's/^/       /' "$CAPTURE_WORK/err2"
+    fail=1
+  fi
+
+  check "sox_rc is 0 when both arecord and sox succeed outright" \
+    "0" "$(printf '%s\n' "$clean_out" | sed -n 's/^REACHED_AFTER sox_rc=//p')"
 fi
 
 exit "$fail"
