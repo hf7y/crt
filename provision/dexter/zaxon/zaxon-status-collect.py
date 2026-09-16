@@ -37,6 +37,15 @@ def collect():
     except sqlite3.Error:
         inbox_rows = None
 
+    try:  # crt#154's filed_issue/for_agent columns are newer still (crt#306: a
+        # filing that keeps failing -- e.g. `defere` missing from the container --
+        # was only a repeating log warning, invisible here until this query.
+        unfiled_rows = conn.execute(
+            "SELECT id, received_at FROM inbox WHERE for_agent IS NOT NULL AND filed_issue IS NULL"
+        ).fetchall()
+    except sqlite3.Error:
+        unfiled_rows = None
+
     now = time.time()
     cut = now - WINDOW_H * 3600
     tickets = [
@@ -69,6 +78,15 @@ def collect():
     answered.sort(key=lambda t: t["answered_at"])
     recent = sorted(tickets, key=lambda t: t["_t"], reverse=True)[:12]
 
+    if unfiled_rows is None:
+        unfiled = None
+    else:
+        unfiled_ages = [_epoch(r[1]) for r in unfiled_rows]
+        unfiled = {
+            "count": len(unfiled_rows),
+            "oldest_age_hours": round((now - min(unfiled_ages)) / 3600, 1) if unfiled_ages else None,
+        }
+
     if inbox_rows is None:
         inbox = None
     else:
@@ -77,6 +95,7 @@ def collect():
             "count": len(inbox_rows),
             "window_count": sum(1 for a in ages if a >= cut),
             "oldest_age_hours": round((now - min(ages)) / 3600, 1) if ages else None,
+            "unfiled": unfiled,
         }
 
     return {
@@ -126,6 +145,13 @@ def verdict(ledger, relay):
         return "WEDGED", (f"{len(stuck)} slots are past their TTL ({names}); "
                           f"the oldest is {worst['id']} at {worst['age_hours']}h, "
                           "and the sweep has not freed it")
+    unfiled = (ledger.get("inbox") or {}).get("unfiled")
+    if unfiled and unfiled["count"] and (unfiled["oldest_age_hours"] or 0) > ledger["ttl_hours"]:
+        plural = "y is" if unfiled["count"] == 1 else "ies are"
+        return "FILING-STUCK", (
+            f"{unfiled['count']} inbox entr{plural} tagged for a repo but never filed as a "
+            f"pointer issue, oldest {unfiled['oldest_age_hours']}h -- the sweep keeps retrying "
+            "and keeps failing silently (crt#306)")
     if sent and not w.get("answered"):
         return "UNANSWERED", (
             f"{sent} question(s) sent in {ledger['window_hours']}h, none answered; "

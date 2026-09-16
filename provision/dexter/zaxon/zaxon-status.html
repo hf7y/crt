@@ -61,7 +61,7 @@ const H=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;
 const ago=t=>{if(!t)return"never";const h=(Date.now()-new Date(t))/36e5;
   return h<1?`${Math.round(h*60)} min ago`:h<48?`${Math.round(h)} h ago`:`${Math.round(h/24)} days ago`;};
 const past=t=>t&&Date.now()>new Date(t);
-const CLS={OK:"ok",QUIET:"mut",UNANSWERED:"warn",WEDGED:"bad",DOWN:"bad",BLIND:"blind"};
+const CLS={OK:"ok",QUIET:"mut",UNANSWERED:"warn","FILING-STUCK":"warn",WEDGED:"bad",DOWN:"bad",BLIND:"blind"};
 
 fetch("status.json?t="+Date.now()).then(r=>r.json()).then(d=>{
   const L=d.ledger||{}, R=d.relay||{}, C=d.containers||[];
@@ -107,6 +107,11 @@ fetch("status.json?t="+Date.now()).then(r=>r.json()).then(d=>{
   (L.slots||[]).filter(s=>s.age_hours > (L.ttl_hours||1)).forEach(s=>items.push(`<span class="bad">
     <code>${H(s.from)}</code>'s slot is past its TTL</span> — <code>${H(s.id)}</code> has held it
     ${s.age_hours} h and the sweep has not freed it.`));
+  const unfiled = (L.inbox||{}).unfiled;
+  if (unfiled && unfiled.count) items.push(`<span class="warn">${unfiled.count} inbox
+    ${unfiled.count===1?"entry is":"entries are"} tagged for a repo but never filed as a
+    pointer issue</span>, oldest ${unfiled.oldest_age_hours} h — the sweep keeps retrying
+    and keeps failing silently (crt#306).`);
   (d.hazards||[]).forEach(h=>items.push(`<span class="warn">a second holder for the
     WhatsApp session</span> — the WSL distro <code>${H(h.distro)}</code> is registered, and
     ${H(h.why)}. Booting it logs the link out and costs a QR scan.`));
