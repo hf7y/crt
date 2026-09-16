@@ -162,7 +162,8 @@ class InboxLedger(unittest.TestCase):  # crt#87's inbox has no consumed_by yet: 
                           "reply_to_id TEXT, received_at TEXT NOT NULL, via TEXT)")
         self.conn.commit()
         inbox = zsc.collect()["inbox"]
-        self.assertEqual(inbox, {"count": 0, "window_count": 0, "oldest_age_hours": None})
+        self.assertEqual(inbox, {"count": 0, "window_count": 0, "oldest_age_hours": None,
+                                 "unfiled": None})
 
     def test_counts_and_windows_and_oldest_age(self):
         self.conn.execute("CREATE TABLE inbox (id TEXT PRIMARY KEY, message TEXT NOT NULL, "
@@ -175,6 +176,63 @@ class InboxLedger(unittest.TestCase):  # crt#87's inbox has no consumed_by yet: 
         self.assertEqual(inbox["count"], 3)
         self.assertEqual(inbox["window_count"], 2)
         self.assertEqual(inbox["oldest_age_hours"], 48.0)
+
+
+class FilingBacklog(unittest.TestCase):  # crt#306: a filing that keeps failing (e.g.
+    # `defere` missing from the container) was only a repeating log warning --
+    # this is the ledger surfacing it instead of swallowing it as OK.
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        zsc.DB = os.path.join(self.tmp.name, "tickets.db")
+        self.conn = sqlite3.connect(zsc.DB)
+        self.conn.execute("CREATE TABLE tickets (id TEXT PRIMARY KEY, from_agent TEXT, "
+                          "question TEXT, wa_message_id TEXT, status TEXT, answer TEXT, "
+                          "created_at TEXT, answered_at TEXT, options TEXT)")
+        self.conn.execute("CREATE TABLE inbox (id TEXT PRIMARY KEY, message TEXT NOT NULL, "
+                          "reply_to_id TEXT, received_at TEXT NOT NULL, via TEXT, "
+                          "for_agent TEXT, claimed_by TEXT, claimed_at TEXT, filed_issue TEXT)")
+        self.conn.commit()
+
+    def add_inbox(self, entry_id, hours_ago, for_agent=None, filed_issue=None):
+        self.conn.execute(
+            "INSERT INTO inbox (id, message, reply_to_id, received_at, via, for_agent, filed_issue) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (entry_id, "m", None, _ago(hours_ago), "text", for_agent, filed_issue))
+        self.conn.commit()
+
+    def test_tagged_and_filed_is_not_counted_unfiled(self):
+        self.add_inbox("a", 2.0, for_agent="crt", filed_issue="hf7y/crt#1")
+        self.assertEqual(zsc.collect()["inbox"]["unfiled"], {"count": 0, "oldest_age_hours": None})
+
+    def test_untagged_is_not_counted_unfiled(self):
+        self.add_inbox("a", 2.0, for_agent=None, filed_issue=None)
+        self.assertEqual(zsc.collect()["inbox"]["unfiled"], {"count": 0, "oldest_age_hours": None})
+
+    def test_tagged_but_unfiled_is_counted(self):
+        self.add_inbox("a", 0.5, for_agent="crt")
+        self.add_inbox("b", 2.0, for_agent="apms")
+        unfiled = zsc.collect()["inbox"]["unfiled"]
+        self.assertEqual(unfiled, {"count": 2, "oldest_age_hours": 2.0})
+
+    def test_fresh_backlog_is_not_FILING_STUCK(self):
+        self.add_inbox("a", 0.1, for_agent="crt")
+        self.assertNotEqual(zsc.verdict(zsc.collect(), UP)[0], "FILING-STUCK")
+
+    def test_backlog_past_ttl_is_FILING_STUCK(self):
+        self.add_inbox("a", 2.0, for_agent="crt")  # default ttl_hours is 1
+        v, why = zsc.verdict(zsc.collect(), UP)
+        self.assertEqual(v, "FILING-STUCK")
+        self.assertIn("crt#306", why)
+
+    def test_FILING_STUCK_outranks_OK_but_not_WEDGED(self):
+        self.add_inbox("a", 2.0, for_agent="crt")
+        self.conn.execute(
+            "INSERT INTO tickets (id, from_agent, question, status, created_at) "
+            "VALUES ('t1','x','q?','pending',?)", (_ago(5.0),))
+        self.conn.commit()
+        self.assertEqual(zsc.verdict(zsc.collect(), UP)[0], "WEDGED")
 
 
 if __name__ == "__main__":
