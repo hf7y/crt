@@ -78,6 +78,13 @@ quiet "an fd-duplicating redirect while reading under ~/.local/share" \
 quiet "a cd into ~/.local/share followed by a 2>&1 read on another line" \
   'cd ~/.local/share/crt-nightly-batch/repo
 cat README.md 2>&1 | head -5'
+# A ">=" comparison inside embedded script code contains the ">"
+# WRITE_VERB checks for but writes nothing into .local/share -- found live
+# when an inline awk script comparing `count>=3` while reading files under
+# a ~/.local/share checkout false-positived.
+quiet "an inline awk >= comparison while reading under ~/.local/share" \
+  'cd ~/.local/share/crt-nightly-batch/repo
+awk "{ if (count>=3) print; count=0 }" README.md'
 # Filing the note IS the discharge of the debt; reminding afterwards would
 # make the hook cry wolf on the one command that proves it worked.
 quiet "a notify-senechal call itself" "notify-senechal 'installed a unit on potato'"
