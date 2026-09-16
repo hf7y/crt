@@ -47,11 +47,16 @@ printf '%s' "$cmd" | grep -qE 'systemctl[^|;&]*(enable|disable|mask|unmask)' && 
 printf '%s' "$cmd" | grep -qE '/etc/systemd/system' && add 'a unit file in /etc/systemd/system'
 printf '%s' "$cmd" | grep -qE 'crontab[[:space:]]+(-e|-r|[^-])' && add 'crontab'
 printf '%s' "$cmd" | grep -qE '(\.config/)?autostart' && add 'autostart entry'
+# A literal "->" arrow (echoed text) or a stderr-to-void redirect
+# (`2>/dev/null`, `&>/dev/null`) writes nothing anywhere -- strip both before
+# checking for a write verb, or a read-only command that merely references
+# ~/.local/bin or ~/.local/share false-positives on the bare ">" in either.
+cmd_for_write_check="$(printf '%s' "$cmd" | sed -E 's/->//g; s/[0-9&]*>>?[[:space:]]*\/dev\/null//g')"
 WRITE_VERB='(install|cp[[:space:]]|mv[[:space:]]|ln[[:space:]]|touch[[:space:]]|mkdir|chmod|tee|>)'
 printf '%s' "$cmd" | grep -qE '\.local/bin' \
-  && printf '%s' "$cmd" | grep -qE "$WRITE_VERB" && add 'a script in ~/.local/bin'
+  && printf '%s' "$cmd_for_write_check" | grep -qE "$WRITE_VERB" && add 'a script in ~/.local/bin'
 printf '%s' "$cmd" | grep -qE '\.local/share' \
-  && printf '%s' "$cmd" | grep -qE "$WRITE_VERB" && add 'a marker file under ~/.local/share'
+  && printf '%s' "$cmd_for_write_check" | grep -qE "$WRITE_VERB" && add 'a marker file under ~/.local/share'
 printf '%s' "$cmd" | grep -qE '\.claude/settings' && add '~/.claude settings/hooks'
 
 [ -z "$MATCH" ] && exit 0

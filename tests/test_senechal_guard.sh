@@ -61,6 +61,14 @@ quiet "reading a file inside a ~/.local/share checkout" \
   'sed -n "1,5p" ~/.local/share/crt-nightly-batch/repo/README.md'
 quiet "a multi-stage read pipeline inside a ~/.local/share checkout" \
   'awk "/x/" ~/.local/share/crt-nightly-batch/repo/bin/crt-secretary.py | wc -l'
+# A stderr-to-void redirect and a literal "->" arrow both contain the ">"
+# WRITE_VERB checks for, but neither writes anything into .local/share --
+# found live when a read-only `ls ... 2>/dev/null` under a checkout there
+# false-positived.
+quiet "a stderr-to-null redirect while reading under ~/.local/share" \
+  'ls ~/.local/share/crt-nightly-batch/repo/tests/test_x.py 2>/dev/null'
+quiet "a literal arrow in echoed text referencing ~/.local/share" \
+  'echo "crt-stt-confidence.py -> $(ls ~/.local/share/crt-nightly-batch/repo/tests)"'
 # Filing the note IS the discharge of the debt; reminding afterwards would
 # make the hook cry wolf on the one command that proves it worked.
 quiet "a notify-senechal call itself" "notify-senechal 'installed a unit on potato'"
