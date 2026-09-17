@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# crt-pull.sh: ff-only pull + window restart, never over a dirty or
-# diverged tree (hf7y/crt#325).
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$DIR/../bin/crt-pull.sh"
@@ -44,7 +42,6 @@ run_pull() {
 
 printf 'crt-pull -- ff-only pull, never over a dirty or diverged tree\n\n'
 
-# --- 1. clean tree, nothing new upstream: no-op --------------------------
 mkdir -p "$TMP/home"
 out="$(run_pull)"
 if printf '%s' "$out" | grep -q 'already at origin/main'; then
@@ -53,7 +50,6 @@ else
   bad "up to date is a no-op" "$out"
 fi
 
-# --- 2. dirty tree: skip, no merge ----------------------------------------
 echo "scratch" > "$CLONE/scratch.txt"
 out="$(run_pull)"
 if printf '%s' "$out" | grep -q 'dirty' && [ -f "$CLONE/scratch.txt" ]; then
@@ -63,7 +59,6 @@ else
 fi
 rm -f "$CLONE/scratch.txt"
 
-# --- 3. clean fast-forward available: pulls, no tmux configured ----------
 (
   cd "$TMP/seed"
   echo "v2" > bin/crt-stt-solo.py
@@ -89,7 +84,6 @@ else
   bad "a stt-relevant change is named, even with no live tmux session" "$out"
 fi
 
-# --- 4. an unrelated file change: no restart mentioned --------------------
 (
   cd "$TMP/seed"
   echo "v2" > README.md
@@ -103,7 +97,6 @@ else
   bad "a docs-only change restarts nothing" "$out"
 fi
 
-# --- 5. diverged: local HEAD has a commit origin doesn't have -------------
 (
   cd "$CLONE"
   git config user.email t@example.com; git config user.name t
@@ -125,7 +118,6 @@ else
   bad "a diverged local HEAD is left alone, not force-merged" "$out"
 fi
 
-# --- 6. tmux present: respawn-window actually gets called -----------------
 (
   cd "$CLONE"
   git reset -q --hard HEAD~1
