@@ -6,9 +6,12 @@ streamable-http exposing `ask_zach`, `revise_zach_question` and
 rest. One question per ticket, enforced at the send (crt#190) -- see the
 `instructions=` string in `relay/zaxon_relay_server.py`.
 
-Deploys are automatic — `zaxon-autoupdate.timer` pulls hourly and verifies the
-relay answers. By hand: `sudo docker compose pull && sudo docker compose up -d`
-(`sudo` because `zach` is not in the `docker` group).
+Deploys are automatic — `srv-reconcile` (senechal-owned, dexter-wide, crt#322)
+pulls and verifies `/srv/zaxon` on its own timer, rolling back on failure.
+`zaxon-autoupdate.timer` did this job until crt#334 retired it, once
+srv-reconcile covered zaxon too and running both risked a race. By hand:
+`sudo docker compose pull && sudo docker compose up -d` (`sudo` because
+`zach` is not in the `docker` group).
 
 `data/` is service state, never overwritten from a repo; the relay's SOURCE ships in the image.
 

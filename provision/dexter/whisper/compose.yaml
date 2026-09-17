@@ -3,9 +3,10 @@
 # gateway recreate took the room's STT down. Callers use the tailnet address --
 # potato (CRT_WHISPER_SERVER) and zaxon's whisper_stt.sh (WHISPER_URL).
 #
-# NOT on zaxon-autoupdate.timer, which watches /srv/zaxon only. After an image
-# change: sudo docker compose pull && sudo docker compose up -d, then prove a real
-# transcript: docker exec zaxon-gateway /opt/zaxon-relay/bin/stt-selftest.sh
+# NOT on srv-reconcile's /srv/zaxon manifest (crt#322, crt#334), which watches
+# zaxon only. After an image change: sudo docker compose pull && sudo docker
+# compose up -d, then prove a real transcript: docker exec zaxon-gateway
+# /opt/zaxon-relay/bin/stt-selftest.sh
 services:
   whisper:
     # PULLED, NOT BUILT, as for zaxon.

@@ -529,10 +529,6 @@ echo "== zaxon-watch guards (the rules that used to be README prose) =="
 bash "$DIR/test_zaxon_watch_guards.sh" || fail=1
 echo
 
-echo "== zaxon-autoupdate rollback (crt#75) =="
-bash "$DIR/test_zaxon_autoupdate_rollback.sh" || fail=1
-echo
-
 echo "== dexter vendored-unit check: a vendored --install unit that was never installed (crt#105) =="
 bash "$DIR/test_dexter_vendored_units_check.sh" || fail=1
 echo
