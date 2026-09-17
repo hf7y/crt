@@ -8,6 +8,8 @@ import importlib.util
 import os
 import subprocess
 import sys
+import tempfile
+import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -101,6 +103,43 @@ class BrainShellProtocol(unittest.TestCase):
         self.assertTrue(r.stdout.startswith("ERR "), r.stdout)
         self.assertFalse(os.path.exists("/tmp/crt-brain-pwned"),
                          "command substitution in a SEND payload was executed")
+
+    def test_ssh_original_command_is_logged_not_executed(self):
+        """sshd's forced command already refused to run a real command from
+        the client -- but the old bridge could not even say an attempt was
+        made. This proves the attempt is recorded, and only recorded: never
+        actually run."""
+        marker = os.path.join(tempfile.mkdtemp(), "should-not-exist")
+        original = "touch %s" % marker
+        r = _run_brain_shell("CAPTURE\n", env={"SSH_ORIGINAL_COMMAND": original})
+        self.assertIn("refused SSH_ORIGINAL_COMMAND=%r" % original, r.stderr)
+        self.assertFalse(os.path.exists(marker),
+                         "SSH_ORIGINAL_COMMAND was executed, not just logged")
+
+    def test_tmux_timeout_reports_named_failure_not_hang(self):
+        """TMUX_TIMEOUT exists because the old bridge had none: a wedged
+        tmux held the connection open until potato's own SSH timeout gave
+        up. Proves the bound turns that into a fast, named failure rather
+        than a hang or an uncaught exception."""
+        mod = _load("brain_shell_under_test", "crt-brain-shell.py")
+        mod.TMUX_TIMEOUT = 0.3
+        fake_bin = tempfile.mkdtemp()
+        fake_tmux = os.path.join(fake_bin, "tmux")
+        with open(fake_tmux, "w") as f:
+            f.write("#!/bin/sh\nsleep 5\n")
+        os.chmod(fake_tmux, 0o755)
+        old_path = os.environ.get("PATH", "")
+        os.environ["PATH"] = fake_bin + os.pathsep + old_path
+        self.addCleanup(os.environ.__setitem__, "PATH", old_path)
+
+        start = time.time()
+        rc, out, detail = mod._tmux(["capture-pane", "-t", "x"])
+        elapsed = time.time() - start
+
+        self.assertEqual(rc, 1)
+        self.assertEqual(out, "")
+        self.assertIn("timed out", detail)
+        self.assertLess(elapsed, 4, "TMUX_TIMEOUT did not actually bound the wait")
 
 
 class SecretaryTransportSelection(unittest.TestCase):
