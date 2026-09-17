@@ -425,6 +425,10 @@ echo "== crt-mandark-serve.sh status/args (non-destructive) =="
 bash "$DIR/test_mandark_serve.sh" || fail=1
 echo
 
+echo "== crt-self-repair.sh commits survive a crashing claude -p (crt#48) =="
+bash "$DIR/test_self_repair.sh" || fail=1
+echo
+
 echo "== crt-wake-router.py brain decision =="
 python3 "$DIR/test_wake_router.py" || fail=1
 echo
