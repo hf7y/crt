@@ -53,7 +53,12 @@ services:
     depends_on:
       - gateway
     healthcheck:
-      test: ["CMD", "/usr/local/bin/python", "-c", "import socket,sys; s=socket.create_connection(('127.0.0.1',8643),5); s.close()"]
+      # crt#322: a gateway restart orphans this container in the OLD network
+      # namespace. Probing 8643 (this container's own published port) passed
+      # in that stale namespace too -- port 3000 is the WhatsApp bridge, a
+      # gateway child that only exists in the CURRENT namespace, so it's the
+      # one probe that actually distinguishes "healthy" from "orphaned".
+      test: ["CMD", "/usr/local/bin/python", "-c", "import socket,sys; s=socket.create_connection(('127.0.0.1',3000),5); s.close()"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -78,3 +83,13 @@ services:
     command: ["/usr/local/bin/python", "/opt/zaxon-relay/zaxon_relay_watcher.py"]
     depends_on:
       - relay
+    healthcheck:
+      # Same network_mode: "service:gateway" as relay, so the same orphaned-
+      # namespace failure applies even though the watcher never calls the
+      # bridge itself -- this is a namespace-liveness probe, not a dependency
+      # check on 3000 as such (crt#322).
+      test: ["CMD", "/usr/local/bin/python", "-c", "import socket,sys; s=socket.create_connection(('127.0.0.1',3000),5); s.close()"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
