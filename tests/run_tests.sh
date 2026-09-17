@@ -104,6 +104,10 @@ echo "== stt-feed.sh CRT_STT_GATE opt-in gate + voice-control keystroke mapping 
 bash "$DIR/test_stt_feed_gate_flag.sh" || fail=1
 echo
 
+echo "== crt-self-repair.sh survives claude crashing mid-run (crt#48) =="
+bash "$DIR/test_self_repair.sh" || fail=1
+echo
+
 echo "== crt-audio-doctor.sh LIVE/DEAD verdicts =="
 bash "$DIR/test_audio_doctor.sh" || fail=1
 echo
