@@ -5,6 +5,7 @@
 # server's CAPTURE/SEND protocol, same "test against the real mechanism,
 # not a mock of it" posture as this project's other tmux-touching tests.
 import importlib.util
+import inspect
 import os
 import socket
 import subprocess
@@ -21,6 +22,27 @@ _spec.loader.exec_module(bridge)
 
 TEST_SESSION = "crt-test-remote-bridge-session"
 TEST_PORT = 18993  # unlikely to collide with a real run's 8993
+
+
+class TestBindsToLoopbackOnly(unittest.TestCase):
+    """The threat model in this file's header (2026-07-23): mandark has
+    never run an SSH server, so this bridge must never become a network
+    path INTO mandark. That only holds if the bind host is a hardcoded
+    constant, not something --port/--session-style CLI flags or an env
+    var could widen to 0.0.0.0."""
+
+    def test_bind_host_constant_is_loopback(self):
+        self.assertEqual(bridge.BIND_HOST, "127.0.0.1")
+
+    def test_no_cli_flag_can_override_the_bind_host(self):
+        parser = bridge.build_arg_parser()
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["--host", "0.0.0.0"])
+
+    def test_main_constructs_server_with_the_constant_not_a_literal(self):
+        source = inspect.getsource(bridge.main)
+        self.assertIn("BIND_HOST", source)
+        self.assertNotIn('"0.0.0.0"', source)
 
 
 def tmux_running():
