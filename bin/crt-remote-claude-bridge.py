@@ -5,17 +5,20 @@
 # (a personal dev laptop) has never run an SSH server -- it has only
 # ever been the SSH CLIENT reaching out to potato. Giving potato a network
 # path INTO mandark (installing sshd, opening a port) was flagged by Zach
-# as a real vulnerability. This server instead: binds 127.0.0.1 ONLY
-# (never LAN-reachable); speaks a tiny two-command protocol (CAPTURE
-# returns the pane, SEND <text> types into ONE named tmux session) -- not
-# a shell, nothing else possible even if compromised upstream; and never
-# opens a connection TO potato itself -- potato reaches it only via a
-# reverse tunnel mandark's own outbound ssh establishes, so there is no
-# new inbound path to mandark at all.
+# as a real vulnerability. This server instead: binds BIND_HOST ONLY
+# (never LAN-reachable, and not configurable -- see
+# tests/test_remote_claude_bridge.py::TestBindsToLoopbackOnly); speaks a
+# tiny two-command protocol (CAPTURE returns the pane, SEND <text> types
+# into ONE named tmux session) -- not a shell, nothing else possible even
+# if compromised upstream; and never opens a connection TO potato itself --
+# potato reaches it only via a reverse tunnel mandark's own outbound ssh
+# establishes, so there is no new inbound path to mandark at all.
 import argparse
 import os
 import socketserver
 import subprocess
+
+BIND_HOST = "127.0.0.1"
 
 
 def capture_pane(session):
@@ -65,19 +68,23 @@ class Server(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
 
 
-def main():
+def build_arg_parser():
     p = argparse.ArgumentParser()
     p.add_argument("--port", type=int,
                     default=int(os.environ.get("CRT_REMOTE_BRIDGE_PORT", "8993")))
     p.add_argument("--session",
                     default=os.environ.get("CRT_REMOTE_BRIDGE_SESSION", "potato-claude"))
-    args = p.parse_args()
+    return p
 
-    server = Server(("127.0.0.1", args.port), Handler)
+
+def main():
+    args = build_arg_parser().parse_args()
+
+    server = Server((BIND_HOST, args.port), Handler)
     server.session = args.session
-    print("[crt-remote-claude-bridge] listening on 127.0.0.1:%d -> tmux session %r"
-          % (args.port, args.session))
-    print("[crt-remote-claude-bridge] 127.0.0.1-only, by design -- see this file's header")
+    print("[crt-remote-claude-bridge] listening on %s:%d -> tmux session %r"
+          % (BIND_HOST, args.port, args.session))
+    print("[crt-remote-claude-bridge] %s-only, by design -- see this file's header" % BIND_HOST)
     server.serve_forever()
 
 
