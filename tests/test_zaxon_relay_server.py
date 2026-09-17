@@ -267,6 +267,12 @@ class TestFetchInbox(unittest.TestCase):
         entries = server.fetch_inbox(for_agent="crt")["entries"]
         self.assertEqual(len(entries), 1)
 
+    def test_filed_issue_is_null_until_marked(self):
+        entry_id = inbox.record_unclassified("water the plants", None, "text", for_agent="crt")
+        self.assertIsNone(server.fetch_inbox()["entries"][0]["filed_issue"])
+        server.mark_filed(entry_id, "hf7y/crt#42")
+        self.assertEqual(server.fetch_inbox()["entries"][0]["filed_issue"], "hf7y/crt#42")
+
 
 class TestClaimInboxEntry(unittest.TestCase):
     def setUp(self):
@@ -286,6 +292,37 @@ class TestClaimInboxEntry(unittest.TestCase):
             server.claim_inbox_entry(self.entry_id, "realisateur"), {"claimed": False}
         )
         self.assertEqual(server.fetch_inbox(for_agent="realisateur")["entries"], [])
+
+
+class TestMarkFiled(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(self._tmpdir.name) / "tickets.db"
+        self.entry_id = inbox.record_unclassified(
+            "water the plants", None, "text", for_agent="crt"
+        )
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def test_marks_an_existing_entry(self):
+        self.assertEqual(server.mark_filed(self.entry_id, "hf7y/crt#42"), {"marked": True})
+
+    def test_reports_false_for_an_unknown_entry(self):
+        self.assertEqual(server.mark_filed("nope", "hf7y/crt#42"), {"marked": False})
+
+    def test_stops_the_relay_own_filer_retrying(self):
+        # zaxon_relay_filer.file_pending() retries anything matching this
+        # exact query every ~30s until filed_issue is no longer NULL.
+        server.mark_filed(self.entry_id, "hf7y/crt#42")
+        conn = db.get_conn()
+        try:
+            pending = conn.execute(
+                "SELECT id FROM inbox WHERE for_agent IS NOT NULL AND filed_issue IS NULL"
+            ).fetchall()
+        finally:
+            conn.close()
+        self.assertEqual(pending, [])
 
 
 class TestBindsToAllInterfaces(unittest.TestCase):

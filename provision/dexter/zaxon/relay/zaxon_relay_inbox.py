@@ -61,6 +61,21 @@ def assign(for_agent: str, entry_id=None, conn=None):   # -> the id tagged, or N
             conn.close()
 
 
+def mark_filed(entry_id: str, issue_ref: str, conn=None) -> bool:  # True if the entry exists; stops zaxon_relay_filer.py's own file_pending() retrying it (crt#309, hf7y/secretaire#40)
+    owns_conn = conn is None
+    conn = conn or get_conn()
+    try:
+        cur = conn.execute(
+            "UPDATE inbox SET filed_issue=? WHERE id=?",
+            (issue_ref, entry_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        if owns_conn:
+            conn.close()
+
+
 def claim(entry_id: str, agent: str, conn=None) -> bool:  # True if `agent` won, atomically
     owns_conn = conn is None
     conn = conn or get_conn()
@@ -84,7 +99,7 @@ def fetch_inbox(conn=None, limit: int = 50, for_agent=None, include_claimed: boo
         if for_agent is None:
             rows = conn.execute(
                 "SELECT id, message, reply_to_id, received_at, via, for_agent, "
-                "claimed_by, claimed_at FROM inbox "
+                "claimed_by, claimed_at, filed_issue FROM inbox "
                 "ORDER BY received_at DESC, rowid DESC LIMIT ?",
                 (limit,),
             ).fetchall()
@@ -96,7 +111,7 @@ def fetch_inbox(conn=None, limit: int = 50, for_agent=None, include_claimed: boo
                 params += [for_agent, _claim_expiry_threshold()]
             rows = conn.execute(
                 "SELECT id, message, reply_to_id, received_at, via, for_agent, "
-                f"claimed_by, claimed_at FROM inbox WHERE {where} "
+                f"claimed_by, claimed_at, filed_issue FROM inbox WHERE {where} "
                 "ORDER BY received_at DESC, rowid DESC LIMIT ?",
                 (*params, limit),
             ).fetchall()
@@ -113,6 +128,7 @@ def fetch_inbox(conn=None, limit: int = 50, for_agent=None, include_claimed: boo
             "for_agent": r[5],
             "claimed_by": r[6],
             "claimed_at": r[7],
+            "filed_issue": r[8],
         }
         for r in rows
     ]
