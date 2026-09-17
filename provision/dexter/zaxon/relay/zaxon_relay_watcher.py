@@ -48,6 +48,7 @@ logger = logging.getLogger("zaxon_relay_watcher")
 from zaxon_relay_queue import sweep_and_promote
 from zaxon_relay_queue import GATEWAY_CACHE_AUDIO_DIR as DOCUMENT_CACHE_DIR
 from zaxon_relay_queue import _transcribe
+from zaxon_relay_queue import start_netns_guard_thread
 
 LOG_PATH = Path.home() / ".hermes" / "logs" / "agent.log"
 OFFSET_PATH = Path.home() / ".hermes" / "zaxon_relay" / "watcher.offset"
@@ -309,6 +310,8 @@ def _process_line(line: str, voice_hint: bool) -> bool:
 
 
 def main() -> None:
+    start_netns_guard_thread()  # crt#322: exit if stranded in a dead namespace
+
     while not LOG_PATH.exists():
         time.sleep(2)
 

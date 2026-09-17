@@ -15,11 +15,14 @@ import calendar
 import json
 import os
 import re
+import socket
 import subprocess
 import tempfile
+import threading
 import time
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlparse
 
 MAX_QUESTION_CHARS = 140
 MAX_QUESTION_LINES = 3  # one question per ticket, crt#190
@@ -48,6 +51,56 @@ BRIDGE_URL = os.environ.get("ZAXON_BRIDGE_URL", "http://127.0.0.1:3000")
 # `hermes send --to whatsapp:Zach` resolves the name; the bridge's /edit
 # needs the JID itself, and the send payload may not carry it back.
 CHAT_ID = os.environ.get("ZAXON_CHAT_ID", "231099456315524@lid")
+
+# crt#322: after a `gateway` restart, relay/watcher (network_mode
+# service:gateway) are stranded in its OLD namespace until recreated -- their
+# own 127.0.0.1:8643 still answers there, so only the bridge's reachability
+# tells a live namespace from an orphaned one. restart:always only restarts a
+# process that exits, so run_guard() exits the process once BRIDGE_URL has
+# been unreachable this long straight, rather than on any single miss.
+MAX_BRIDGE_UNREACHABLE_SECS = int(os.environ.get("ZAXON_MAX_BRIDGE_UNREACHABLE_SECS", "180"))
+NETNS_GUARD_INTERVAL_SECS = int(os.environ.get("ZAXON_NETNS_GUARD_INTERVAL_SECS", "15"))
+
+
+def bridge_reachable(timeout=5) -> bool:
+    parsed = urlparse(BRIDGE_URL)
+    try:
+        socket.create_connection((parsed.hostname or "127.0.0.1", parsed.port or 3000), timeout).close()
+        return True
+    except OSError:
+        return False
+
+
+def should_exit_netns_guard(unreachable_since, now, max_unreachable_secs=MAX_BRIDGE_UNREACHABLE_SECS) -> bool:
+    return unreachable_since is not None and (now - unreachable_since) >= max_unreachable_secs
+
+
+def run_netns_guard(
+    check_fn=bridge_reachable,
+    exit_fn=lambda: os._exit(1),
+    sleep_fn=time.sleep,
+    time_fn=time.monotonic,
+    interval=NETNS_GUARD_INTERVAL_SECS,
+    max_unreachable_secs=MAX_BRIDGE_UNREACHABLE_SECS,
+    stop_event=None,
+):
+    unreachable_since = None
+    while stop_event is None or not stop_event.is_set():
+        now = time_fn()
+        if check_fn():
+            unreachable_since = None
+        elif unreachable_since is None:
+            unreachable_since = now
+        if should_exit_netns_guard(unreachable_since, now, max_unreachable_secs):
+            exit_fn()
+            return
+        sleep_fn(interval)
+
+
+def start_netns_guard_thread(**kwargs) -> threading.Thread:
+    t = threading.Thread(target=run_netns_guard, kwargs=kwargs, daemon=True, name="netns-guard")
+    t.start()
+    return t
 
 
 def validate_repo(repo: str) -> None:
