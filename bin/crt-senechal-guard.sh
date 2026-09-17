@@ -84,11 +84,24 @@ printf '%s' "$cmd_scan" | grep -qE '(\.config/)?autostart' && add 'autostart ent
 # reading under a ~/.local/share checkout false-positived on the `>` in
 # `>=`.
 cmd_for_write_check="$(printf '%s' "$cmd_scan" | sed -E 's/->//g; s/[0-9&]*>>?[[:space:]]*\/dev\/null//g; s/[0-9]*>&[0-9]+//g; s/>=//g')"
-WRITE_VERB='(install|cp[[:space:]]|mv[[:space:]]|ln[[:space:]]|touch[[:space:]]|mkdir|chmod|tee|>)'
-printf '%s' "$cmd_scan" | grep -qE '\.local/bin' \
-  && printf '%s' "$cmd_for_write_check" | grep -qE "$WRITE_VERB" && add 'a script in ~/.local/bin'
-printf '%s' "$cmd_scan" | grep -qE '\.local/share' \
-  && printf '%s' "$cmd_for_write_check" | grep -qE "$WRITE_VERB" && add 'a marker file under ~/.local/share'
+# The write must TARGET ~/.local/bin or ~/.local/share, not merely
+# co-occur with one somewhere else in the command -- checking "does a
+# write verb appear anywhere" and "does .local/share appear anywhere"
+# independently false-positives on a `cd` through a ~/.local/share
+# checkout followed by a real write to somewhere unrelated. Found live:
+# `cd ~/.local/share/crt-nightly-batch/repo && (pytest ... > /tmp/out.log
+# ...) &` -- the redirect's target was /tmp, not .local/share, but both
+# substrings appeared in the command so it fired anyway. Anchor a write-verb
+# command to its own argument list (flags allowed, but not past a `;`/`&`/
+# `|` boundary), and a `>`/`>>` redirect to its own immediate target.
+WRITE_VERB_CMD='(sudo[[:space:]]+)?(install|cp|mv|ln|touch|mkdir|chmod|tee)[[:space:]]'
+targets_path() { # <path fragment, e.g. local/bin> -> 0 if a write targets it
+  printf '%s' "$cmd_for_write_check" | grep -qE "${WRITE_VERB_CMD}[^;&|]*\\.$1" && return 0
+  printf '%s' "$cmd_for_write_check" | grep -qE "[0-9]*>>?[[:space:]]*[\"']?[^[:space:];&|]*\\.$1" && return 0
+  return 1
+}
+targets_path 'local/bin' && add 'a script in ~/.local/bin'
+targets_path 'local/share' && add 'a marker file under ~/.local/share'
 printf '%s' "$cmd_scan" | grep -qE '\.claude/settings' && add '~/.claude settings/hooks'
 
 [ -z "$MATCH" ] && exit 0
