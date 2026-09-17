@@ -6,7 +6,7 @@
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now crt-pull.timer
 [Unit]
-Description=crt-pull.sh -- fast-forward potato's crt checkout, restart what changed (crt#325)
+Description=crt potato hosts-pull tick: fast-forward + bounce + status snapshot (crt#325)
 After=network-online.target
 
 [Service]
@@ -14,5 +14,6 @@ Type=oneshot
 User=@USER@
 WorkingDirectory=@PROJECT_DIR@
 ExecStart=/usr/bin/env bash @PROJECT_DIR@/bin/crt-pull.sh
-# A stuck fetch (network flap) shouldn't wedge the next tick.
+ExecStart=/usr/bin/env bash @PROJECT_DIR@/bin/crt-potato-status.sh
+# A hung fetch or a hung selfcheck probe shouldn't block the next tick.
 TimeoutStartSec=120

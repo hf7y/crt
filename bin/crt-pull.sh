@@ -1,69 +1,71 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-PROJECT_DIR="${CRT_PULL_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-LOG="${CRT_PULL_LOG:-$HOME/.crt/crt-pull.log}"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BIN_DIR="$PROJECT_DIR/bin"
 SESSION="${CRT_TMUX_SESSION:-claude}"
-mkdir -p "$(dirname "$LOG")" 2>/dev/null
+GIT="${CRT_PULL_GIT:-git}"
+TMUX="${CRT_PULL_TMUX:-tmux}"
+LOG="${CRT_PULL_LOG:-$HOME/.crt/pull.log}"
 
-say() { printf '%s  %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" | tee -a "$LOG"; }
+mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
+log() { printf '%s  %s\n' "$(date +%H:%M:%S)" "$*" | tee -a "$LOG" >&2; }
 
-cd "$PROJECT_DIR" || { say "RED  cannot cd to $PROJECT_DIR"; exit 1; }
+cd "$PROJECT_DIR"
 
-if ! git fetch -q origin main 2>>"$LOG"; then
-  say "RED  git fetch origin main failed"
-  exit 1
-fi
-
-if [ -n "$(git status --porcelain)" ]; then
-  say "SKIP  working tree is dirty, not pulling"
+if [ -n "$("$GIT" status --porcelain)" ]; then
+  log "SKIP: working tree dirty, not pulling"
   exit 0
 fi
 
-local_head="$(git rev-parse HEAD)"
-remote_head="$(git rev-parse origin/main)"
-
-if [ "$local_head" = "$remote_head" ]; then
-  say "GREEN  already at origin/main ($(git rev-parse --short HEAD))"
+if ! "$GIT" fetch origin main --quiet; then
+  log "SKIP: fetch failed"
   exit 0
 fi
 
-base="$(git merge-base HEAD origin/main)"
-if [ "$base" != "$local_head" ]; then
-  say "SKIP  local HEAD has commits origin/main doesn't -- not a fast-forward, left for a human"
+OLD_HEAD="$("$GIT" rev-parse HEAD)"
+NEW_HEAD="$("$GIT" rev-parse origin/main)"
+
+if [ "$OLD_HEAD" = "$NEW_HEAD" ]; then
+  log "up to date at $OLD_HEAD"
   exit 0
 fi
 
-changed="$(git diff --name-only HEAD origin/main)"
-
-if ! git merge -q --ff-only origin/main 2>>"$LOG"; then
-  say "RED  ff-only merge failed even though it looked fast-forwardable"
-  exit 1
+if ! "$GIT" merge-base --is-ancestor "$OLD_HEAD" "$NEW_HEAD" 2>/dev/null; then
+  log "SKIP: origin/main is not a fast-forward from HEAD -- needs a human, not overwriting"
+  exit 0
 fi
 
-say "GREEN  pulled $(git rev-parse --short "$local_head")..$(git rev-parse --short "$remote_head")"
+if ! "$GIT" merge --ff-only origin/main --quiet; then
+  log "SKIP: fast-forward merge failed unexpectedly"
+  exit 0
+fi
 
-restart_piece() {
-  local window="$1"; shift
-  local pat
-  for pat in "$@"; do
-    if printf '%s\n' "$changed" | grep -q "^$pat"; then
-      if command -v tmux >/dev/null 2>&1 && tmux has-session -t "$SESSION" 2>/dev/null \
-         && tmux list-windows -t "$SESSION" -F '#{window_name}' 2>/dev/null | grep -qx "$window"; then
-        tmux respawn-window -k -t "$SESSION:$window"
-        say "GREEN  restarted window '$window' (changed: $pat)"
-      else
-        say "SKIP  would restart window '$window' (changed: $pat) -- no live '$SESSION' session"
-      fi
-      return
-    fi
-  done
+log "pulled $OLD_HEAD -> $NEW_HEAD"
+CHANGED="$("$GIT" diff --name-only "$OLD_HEAD" "$NEW_HEAD")"
+
+restart_window() {
+  local win="$1" cmd="$2"
+  if "$TMUX" has-session -t "$SESSION" 2>/dev/null \
+     && "$TMUX" list-windows -t "$SESSION" -F '#{window_name}' 2>/dev/null | grep -qx "$win"; then
+    log "restarting window '$win'"
+    "$TMUX" respawn-window -k -t "${SESSION}:${win}" -c "$BIN_DIR" "$cmd; exec bash" 2>/dev/null \
+      || log "respawn-window failed for '$win' (may be gone)"
+  fi
 }
 
-restart_piece stt \
-  bin/crt-stt-supervisor.sh bin/crt-stt-solo.py bin/crt-conf.sh \
-  bin/crt_wake_gate.py bin/crt-stt-confidence.py bin/crt_fixups_store.py \
-  stt-fixups.json
-restart_piece mono bin/crt-monologue.py
-restart_piece bridge bin/crt-claude-bridge.py
-restart_piece hook bin/hookswitch-listen.sh
+if printf '%s\n' "$CHANGED" | grep -qE '^bin/(crt-stt-supervisor\.sh|crt-stt-solo\.py|crt-conf\.sh|crt-secretary\.py)$'; then
+  restart_window stt "CRT_STT_SINK=secretary CRT_STT_GATE=1 CRT_TMUX_SESSION=$SESSION CRT_TMUX_PANE=0.0 ./crt-stt-supervisor.sh"
+fi
+if printf '%s\n' "$CHANGED" | grep -qE '^bin/crt-monologue\.py$'; then
+  restart_window mono "./crt-monologue.py"
+fi
+if printf '%s\n' "$CHANGED" | grep -qE '^bin/crt-claude-bridge\.py$'; then
+  restart_window bridge "./crt-claude-bridge.py"
+fi
+
+if printf '%s\n' "$CHANGED" | grep -qE '^bin/crt-console\.sh$'; then
+  log "NOTE: bin/crt-console.sh changed -- takes effect next full boot/reattach, not applied live"
+fi
+
+exit 0

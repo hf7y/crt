@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT="$DIR/../bin/crt-pull.sh"
 pass=0; fail=0
 ok()  { pass=$((pass+1)); printf '  ok - %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL - %s\n' "$1"; [ $# -gt 1 ] && printf '        %s\n' "$2"; }
@@ -10,145 +9,119 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 ORIGIN="$TMP/origin.git"
-CLONE="$TMP/clone"
-FAKEBIN="$TMP/fakebin"
-mkdir -p "$FAKEBIN"
-
 git init -q --bare "$ORIGIN"
 
-git init -q "$TMP/seed"
-(
-  cd "$TMP/seed"
-  git config user.email t@example.com; git config user.name t
-  mkdir -p bin
-  echo "v1" > bin/crt-stt-solo.py
-  echo "v1" > README.md
-  git add -A && git commit -q -m seed
-  git branch -M main
-  git remote add origin "$ORIGIN"
-  git push -q origin main
-)
-
-git clone -q -b main "$ORIGIN" "$CLONE"
-(
-  cd "$CLONE"
-  git config user.email t@example.com; git config user.name t
-  git branch -M main 2>/dev/null || true
-)
-
-run_pull() {
-  ( HOME="$TMP/home" PATH="$FAKEBIN:$PATH" CRT_PULL_PROJECT_DIR="$CLONE" bash "$SCRIPT" )
+seed_origin() {
+  local seed="$TMP/seed"
+  rm -rf "$seed"; mkdir -p "$seed/bin"
+  git -C "$seed" init -q
+  git -C "$seed" config user.email test@example.com
+  git -C "$seed" config user.name test
+  mkdir -p "$seed/bin"
+  cp "$DIR/../bin/crt-pull.sh" "$seed/bin/crt-pull.sh"
+  printf '#!/usr/bin/env bash\necho stub\n' > "$seed/bin/crt-stt-supervisor.sh"
+  printf 'seed\n' > "$seed/README.md"
+  git -C "$seed" add -A
+  git -C "$seed" commit -q -m seed
+  git -C "$seed" branch -M main
+  git -C "$seed" remote add origin "$ORIGIN"
+  git -C "$seed" push -q origin main
 }
+seed_origin
 
-printf 'crt-pull -- ff-only pull, never over a dirty or diverged tree\n\n'
+CLONE="$TMP/clone"
+git clone -q "$ORIGIN" "$CLONE"
+git -C "$CLONE" checkout -q main
+git -C "$CLONE" config user.email test@example.com
+git -C "$CLONE" config user.name test
 
-mkdir -p "$TMP/home"
-out="$(run_pull)"
-if printf '%s' "$out" | grep -q 'already at origin/main'; then
-  ok "up to date is a no-op"
-else
-  bad "up to date is a no-op" "$out"
-fi
-
-echo "scratch" > "$CLONE/scratch.txt"
-out="$(run_pull)"
-if printf '%s' "$out" | grep -q 'dirty' && [ -f "$CLONE/scratch.txt" ]; then
-  ok "dirty tree is skipped, not touched"
-else
-  bad "dirty tree is skipped, not touched" "$out"
-fi
-rm -f "$CLONE/scratch.txt"
-
-(
-  cd "$TMP/seed"
-  echo "v2" > bin/crt-stt-solo.py
-  git add -A && git commit -q -m "update stt"
-  git push -q origin main
-)
-before="$(cd "$CLONE" && git rev-parse HEAD)"
-out="$(run_pull)"
-after="$(cd "$CLONE" && git rev-parse HEAD)"
-if [ "$before" != "$after" ] && printf '%s' "$out" | grep -q 'pulled'; then
-  ok "a clean fast-forward pulls"
-else
-  bad "a clean fast-forward pulls" "$out"
-fi
-if [ "$(cat "$CLONE/bin/crt-stt-solo.py")" = "v2" ]; then
-  ok "the pulled content lands on disk"
-else
-  bad "the pulled content lands on disk"
-fi
-if printf '%s' "$out" | grep -q "would restart window 'stt'"; then
-  ok "a stt-relevant change is named, even with no live tmux session"
-else
-  bad "a stt-relevant change is named, even with no live tmux session" "$out"
-fi
-
-(
-  cd "$TMP/seed"
-  echo "v2" > README.md
-  git add -A && git commit -q -m "docs only"
-  git push -q origin main
-)
-out="$(run_pull)"
-if ! printf '%s' "$out" | grep -q "restart window"; then
-  ok "a docs-only change restarts nothing"
-else
-  bad "a docs-only change restarts nothing" "$out"
-fi
-
-(
-  cd "$CLONE"
-  git config user.email t@example.com; git config user.name t
-  echo "local-only" >> bin/crt-stt-solo.py
-  git add -A && git commit -q -m "local-only, self-repair-style"
-)
-(
-  cd "$TMP/seed"
-  echo "v3" > README.md
-  git add -A && git commit -q -m "another upstream change"
-  git push -q origin main
-)
-before="$(cd "$CLONE" && git rev-parse HEAD)"
-out="$(run_pull)"
-after="$(cd "$CLONE" && git rev-parse HEAD)"
-if [ "$before" = "$after" ] && printf '%s' "$out" | grep -qi 'not a fast-forward'; then
-  ok "a diverged local HEAD is left alone, not force-merged"
-else
-  bad "a diverged local HEAD is left alone, not force-merged" "$out"
-fi
-
-(
-  cd "$CLONE"
-  git reset -q --hard HEAD~1
-)
-RESPAWN_LOG="$TMP/respawn.log"
+FAKEBIN="$TMP/fakebin"
+mkdir -p "$FAKEBIN"
+TMUX_LOG="$TMP/tmux.log"
 cat > "$FAKEBIN/tmux" <<EOF
 #!/usr/bin/env bash
+echo "\$@" >> "$TMUX_LOG"
 case "\$1" in
   has-session) exit 0 ;;
-  list-windows) echo stt ;;
-  respawn-window) echo "\$*" >> "$RESPAWN_LOG" ;;
+  list-windows) printf '0\nmono\nbridge\nstt\n' ;;
+  respawn-window) exit 0 ;;
 esac
 EOF
 chmod +x "$FAKEBIN/tmux"
-(
-  cd "$TMP/seed"
-  echo "v3" > bin/crt-stt-solo.py
-  git add -A && git commit -q -m "another stt update"
-  git push -q origin main
-)
-run_pull >/dev/null
-if grep -q 'respawn-window' "$RESPAWN_LOG" 2>/dev/null; then
-  ok "a live tmux session gets its window respawned"
+
+HOMEDIR="$TMP/home"
+PULL_LOG="$TMP/pull.log"
+
+run_pull() {
+  rm -f "$TMUX_LOG" "$PULL_LOG"
+  ( cd "$CLONE" && HOME="$HOMEDIR" CRT_PULL_TMUX="$FAKEBIN/tmux" CRT_PULL_LOG="$PULL_LOG" \
+      bash bin/crt-pull.sh )
+}
+
+run_pull
+if grep -q "up to date" "$PULL_LOG"; then
+  ok "nothing new upstream is a no-op, logged as such"
 else
-  bad "a live tmux session gets its window respawned"
+  bad "expected an 'up to date' log line" "$(cat "$PULL_LOG")"
+fi
+[ -s "$TMUX_LOG" ] && bad "tmux touched on a no-op pull" "$(cat "$TMUX_LOG")" \
+  || ok "no tmux window touched on a no-op pull"
+
+echo dirty > "$CLONE/scratch.txt"
+before_head="$(git -C "$CLONE" rev-parse HEAD)"
+run_pull
+after_head="$(git -C "$CLONE" rev-parse HEAD)"
+if [ "$before_head" = "$after_head" ] && grep -q "dirty" "$PULL_LOG"; then
+  ok "a dirty tree is skipped, not overwritten"
+else
+  bad "dirty tree was not skipped as expected" "$(cat "$PULL_LOG")"
+fi
+rm -f "$CLONE/scratch.txt"
+
+printf 'unrelated change\n' >> "$TMP/seed/README.md"
+git -C "$TMP/seed" commit -qam "unrelated change"
+git -C "$TMP/seed" push -q origin main
+before_head="$(git -C "$CLONE" rev-parse HEAD)"
+run_pull
+after_head="$(git -C "$CLONE" rev-parse HEAD)"
+if [ "$after_head" != "$before_head" ] && [ "$(cat "$CLONE/README.md" | tail -1)" = "unrelated change" ]; then
+  ok "fast-forwards past an unrelated upstream commit"
+else
+  bad "did not fast-forward on an unrelated change" "$(cat "$PULL_LOG")"
+fi
+if grep -q "respawn-window" "$TMUX_LOG" 2>/dev/null; then
+  bad "restarted a window for a change that touched no watched file" "$(cat "$TMUX_LOG")"
+else
+  ok "no window restarted for an unrelated file change"
 fi
 
-printf '\n'
-if [ "$fail" -eq 0 ]; then
-  echo "ALL GREEN ($pass ok)"
+printf 'echo stub2\n' >> "$TMP/seed/bin/crt-stt-supervisor.sh"
+git -C "$TMP/seed" commit -qam "touch stt supervisor"
+git -C "$TMP/seed" push -q origin main
+run_pull
+if grep -q "respawn-window -k -t claude:stt" "$TMUX_LOG"; then
+  ok "restarts the stt window when crt-stt-supervisor.sh changes"
 else
-  echo "SOMETHING FAILED ($fail failed, $pass ok)"
+  bad "did not restart the stt window" "$(cat "$TMUX_LOG")"
 fi
-exit "$fail"
+if grep -qE "respawn-window -k -t claude:(mono|bridge)" "$TMUX_LOG"; then
+  bad "restarted an unrelated window too" "$(cat "$TMUX_LOG")"
+else
+  ok "left mono/bridge alone for an stt-only change"
+fi
+
+git -C "$CLONE" commit -q --allow-empty -m "local-only work"
+printf 'origin moves on again\n' >> "$TMP/seed/README.md"
+git -C "$TMP/seed" commit -qam "origin moves on again"
+git -C "$TMP/seed" push -q origin main
+before_head="$(git -C "$CLONE" rev-parse HEAD)"
+run_pull
+after_head="$(git -C "$CLONE" rev-parse HEAD)"
+if [ "$before_head" = "$after_head" ] && grep -qi "not a fast-forward" "$PULL_LOG"; then
+  ok "a diverged history is left alone, not force-merged"
+else
+  bad "diverged history was not handled safely" "$(cat "$PULL_LOG")"
+fi
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" = 0 ]
