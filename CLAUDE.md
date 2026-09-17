@@ -163,7 +163,10 @@ superseded by issue comments.
 ### What an unattended run may do on real hardware
 
 This project is a physical voice console. `potato` (a Raspberry Pi) is the live
-console as of 2026-07-23; `dexter` is legacy, its VM is gone (crt#162) — `HANDOFF.md`'s
+console as of 2026-07-23. `dexter`'s crt-vm is gone (crt#162), but dexter runs this
+repo's production containers: `/srv/zaxon` and `/srv/whisper` (crt#319), which
+potato's STT calls at `100.107.253.56:8090`. Only mandark reaches dexter or
+potato; monkey, where this run dispatches from, reaches neither (hf7y/senechal#886) — `HANDOFF.md`'s
 "Current topology" section has the summary, `vault:crt/.claude/SESSION-STATE-20260829.md`
 the full history. `ssh potato` needs a `Host potato`
 alias, present on mandark and confirmed ABSENT on monkey as of 2026-08-29, so it
