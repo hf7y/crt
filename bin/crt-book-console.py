@@ -879,11 +879,9 @@ def main():
 
     # Tracks scanner.log lines THIS process just wrote for a stdin-sourced
     # scan (see log_stdin_scan below) -- small bound since only ever a
-    # couple writes are in flight before tail_new_lines catches up. Without
-    # this, the write would come back around through tail_new_lines(
-    # SCANNER_LOG) next iteration and get processed a SECOND time as if it
-    # were an independent scan (double handle_scan() call, double
-    # quote-scrape/Gemini-question-generation cost, wrong idle timing).
+    # couple writes are in flight before tail_new_lines catches up. Witnessed
+    # by tests/test_scan_reaches_the_tube.py::TestScanBringsTheBookWindowToTheTube::
+    # test_a_stdin_scan_is_not_double_counted_via_its_own_scanner_log_echo.
     self_written_lines = collections.deque(maxlen=8)
 
     def log_stdin_scan(isbn):
