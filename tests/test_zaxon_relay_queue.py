@@ -793,3 +793,88 @@ class TestSendNow(unittest.TestCase):
             editor=lambda *a: {"success": False},
         )
         self.assertEqual(result, {"success": True, "message_id": "wa2"})
+
+
+class _Clock:
+    def __init__(self, start=0):
+        self.now = start
+
+    def time_fn(self):
+        return self.now
+
+    def sleep_fn(self, secs):
+        self.now += secs
+
+
+class _StopAfterNTicks:
+    def __init__(self, n):
+        self._remaining = n
+
+    def tick(self):
+        self._remaining -= 1
+
+    def is_set(self):
+        return self._remaining <= 0
+
+
+class TestShouldExitNetnsGuard(unittest.TestCase):
+    def test_never_exits_while_the_bridge_has_not_gone_down(self):
+        self.assertFalse(q.should_exit_netns_guard(None, now=1000, max_unreachable_secs=180))
+
+    def test_does_not_exit_before_the_threshold(self):
+        self.assertFalse(q.should_exit_netns_guard(0, now=179, max_unreachable_secs=180))
+
+    def test_exits_once_the_threshold_is_reached(self):
+        self.assertTrue(q.should_exit_netns_guard(0, now=180, max_unreachable_secs=180))
+
+
+class TestRunNetnsGuard(unittest.TestCase):
+    """crt#322: relay/watcher share the gateway's netns and its OWN 8643 stays
+    reachable even stranded in an orphaned one -- run_netns_guard is what
+    actually exits the process once the bridge (the check that matters) has
+    been unreachable long enough for restart:always to have a shot at it."""
+
+    def test_exits_after_the_bridge_stays_down_past_the_threshold(self):
+        clock = _Clock()
+        checks = iter([False] * 20)
+        exits = []
+        q.run_netns_guard(
+            check_fn=lambda: next(checks),
+            exit_fn=lambda: exits.append(clock.now),
+            sleep_fn=clock.sleep_fn,
+            time_fn=clock.time_fn,
+            interval=10,
+            max_unreachable_secs=30,
+        )
+        self.assertEqual(exits, [30])
+
+    def test_never_exits_while_the_bridge_stays_reachable(self):
+        clock = _Clock()
+        exits = []
+        stop = _StopAfterNTicks(5)
+        q.run_netns_guard(
+            check_fn=lambda: True,
+            exit_fn=lambda: exits.append(clock.now),
+            sleep_fn=lambda secs: (clock.sleep_fn(secs), stop.tick()),
+            time_fn=clock.time_fn,
+            interval=10,
+            max_unreachable_secs=30,
+            stop_event=stop,
+        )
+        self.assertEqual(exits, [])
+
+    def test_a_transient_blip_does_not_trip_it(self):
+        clock = _Clock()
+        checks = iter([False, True] * 20)
+        exits = []
+        stop = _StopAfterNTicks(10)
+        q.run_netns_guard(
+            check_fn=lambda: next(checks),
+            exit_fn=lambda: exits.append(clock.now),
+            sleep_fn=lambda secs: (clock.sleep_fn(secs), stop.tick()),
+            time_fn=clock.time_fn,
+            interval=10,
+            max_unreachable_secs=30,
+            stop_event=stop,
+        )
+        self.assertEqual(exits, [])

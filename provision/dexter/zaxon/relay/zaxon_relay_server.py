@@ -25,6 +25,7 @@ from zaxon_relay_queue import (
     edit_delivered,
     send_now,
     slot_report,
+    start_netns_guard_thread,
     sweep_and_promote,
     validate_message,
 )
@@ -267,6 +268,7 @@ BIND_PORT = 8643
 MCP_PATH = "/mcp"
 
 if __name__ == "__main__":
+    start_netns_guard_thread()  # crt#322: exit if stranded in a dead namespace
     mcp.run(
         transport="streamable-http",
         host=BIND_HOST,
