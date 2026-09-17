@@ -32,6 +32,8 @@ seed_origin
 CLONE="$TMP/clone"
 git clone -q "$ORIGIN" "$CLONE"
 git -C "$CLONE" checkout -q main
+git -C "$CLONE" config user.email test@example.com
+git -C "$CLONE" config user.name test
 
 FAKEBIN="$TMP/fakebin"
 mkdir -p "$FAKEBIN"
