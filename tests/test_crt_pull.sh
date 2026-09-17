@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Offline test for bin/crt-pull.sh (crt#325): fast-forward-only pull, plus
-# restarting only the tmux window whose backing file actually changed.
-# Real git repos as fixtures (test_self_repair.sh's pattern), a fake tmux
-# logging its own invocations (test_zaxon_autoupdate_rollback.sh's pattern).
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 pass=0; fail=0
@@ -22,9 +18,6 @@ seed_origin() {
   git -C "$seed" config user.email test@example.com
   git -C "$seed" config user.name test
   mkdir -p "$seed/bin"
-  # crt-pull.sh itself ships IN the seeded history (like every other bin/
-  # script would on a real clone) -- copying it in afterward, uncommitted,
-  # would leave the clone permanently "dirty" and never actually pull.
   cp "$DIR/../bin/crt-pull.sh" "$seed/bin/crt-pull.sh"
   printf '#!/usr/bin/env bash\necho stub\n' > "$seed/bin/crt-stt-supervisor.sh"
   printf 'seed\n' > "$seed/README.md"
@@ -63,7 +56,6 @@ run_pull() {
       bash bin/crt-pull.sh )
 }
 
-# --- nothing new upstream: no-op -------------------------------------------
 run_pull
 if grep -q "up to date" "$PULL_LOG"; then
   ok "nothing new upstream is a no-op, logged as such"
@@ -73,7 +65,6 @@ fi
 [ -s "$TMUX_LOG" ] && bad "tmux touched on a no-op pull" "$(cat "$TMUX_LOG")" \
   || ok "no tmux window touched on a no-op pull"
 
-# --- dirty tree: skip, never pulls ------------------------------------------
 echo dirty > "$CLONE/scratch.txt"
 before_head="$(git -C "$CLONE" rev-parse HEAD)"
 run_pull
@@ -85,7 +76,6 @@ else
 fi
 rm -f "$CLONE/scratch.txt"
 
-# --- clean pull, unrelated file: fast-forwards, no window restarted --------
 printf 'unrelated change\n' >> "$TMP/seed/README.md"
 git -C "$TMP/seed" commit -qam "unrelated change"
 git -C "$TMP/seed" push -q origin main
@@ -103,7 +93,6 @@ else
   ok "no window restarted for an unrelated file change"
 fi
 
-# --- clean pull, stt-supervisor changed: restarts ONLY the stt window ------
 printf 'echo stub2\n' >> "$TMP/seed/bin/crt-stt-supervisor.sh"
 git -C "$TMP/seed" commit -qam "touch stt supervisor"
 git -C "$TMP/seed" push -q origin main
@@ -119,7 +108,6 @@ else
   ok "left mono/bridge alone for an stt-only change"
 fi
 
-# --- diverged history: local has a commit origin doesn't share -------------
 git -C "$CLONE" commit -q --allow-empty -m "local-only work"
 printf 'origin moves on again\n' >> "$TMP/seed/README.md"
 git -C "$TMP/seed" commit -qam "origin moves on again"
