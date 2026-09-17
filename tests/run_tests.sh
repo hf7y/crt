@@ -429,8 +429,12 @@ echo "== crt-self-repair.sh commits survive a crashing claude -p (crt#48) =="
 bash "$DIR/test_self_repair.sh" || fail=1
 echo
 
-echo "== crt-pull.sh ff-only pull + window restart (crt#325) =="
+echo "== crt-pull.sh fast-forward-only pull + targeted window restart (crt#325) =="
 bash "$DIR/test_crt_pull.sh" || fail=1
+echo
+
+echo "== crt-potato-status.sh status snapshot (crt#325) =="
+bash "$DIR/test_potato_status.sh" || fail=1
 echo
 
 echo "== crt-wake-router.py brain decision =="

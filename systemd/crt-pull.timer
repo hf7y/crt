@@ -1,16 +1,15 @@
-# potato-only (hf7y/crt#325, "hosts pull" ruling on hf7y/senechal#886).
-# NOT installed by install.sh -- see that file's own crt-self-repair.timer
-# note on why potato units are hand-installed, not shared-default.
-#
-# Every 5 minutes, not nightly: the point is that a merge to main becomes
-# a live deploy within minutes, the same bar senechal's srv-reconcile sets
-# for dexter's containers.
+# potato-only (crt#325). NOT installed by install.sh -- manual, same
+# posture as crt-self-repair.timer.
+# Five minutes: short enough that "a merge lands within one timer period"
+# (crt#325's own done-when bar) is true in practice, long enough not to spam
+# `git fetch` against GitHub from a box that's otherwise idle most of the day.
 [Unit]
-Description=Fast-forward potato's crt checkout to origin/main and restart what changed
+Description=Pull crt on potato and bounce whatever changed
 
 [Timer]
 OnBootSec=2min
 OnUnitActiveSec=5min
+Persistent=false
 
 [Install]
 WantedBy=timers.target
