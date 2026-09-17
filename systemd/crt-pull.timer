@@ -1,0 +1,15 @@
+# potato-only (crt#325). NOT installed by install.sh -- manual, same
+# posture as crt-self-repair.timer.
+# Five minutes: short enough that "a merge lands within one timer period"
+# (crt#325's own done-when bar) is true in practice, long enough not to spam
+# `git fetch` against GitHub from a box that's otherwise idle most of the day.
+[Unit]
+Description=Pull crt on potato and bounce whatever changed
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=false
+
+[Install]
+WantedBy=timers.target
