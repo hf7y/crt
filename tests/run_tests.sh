@@ -429,6 +429,14 @@ echo "== crt-self-repair.sh commits survive a crashing claude -p (crt#48) =="
 bash "$DIR/test_self_repair.sh" || fail=1
 echo
 
+echo "== crt-pull.sh fast-forwards, refuses when dirty/diverged (crt#325) =="
+bash "$DIR/test_crt_pull.sh" || fail=1
+echo
+
+echo "== crt_console_windows.py: the restart map matches crt-console.sh (crt#325) =="
+python3 -m unittest discover -s "$DIR" -p "test_crt_console_windows.py" -v 2>&1 | tail -15 || fail=1
+echo
+
 echo "== crt-wake-router.py brain decision =="
 python3 "$DIR/test_wake_router.py" || fail=1
 echo

@@ -1,0 +1,13 @@
+# potato-only (crt#325 -- "hosts pull": potato fast-forwards itself to
+# origin/main instead of a human scp'ing files in, the same pull-not-push
+# shape hf7y/senechal#886 set for dexter's containers). Every 5 minutes:
+# frequent enough that a merged PR reaches potato within one timer period.
+[Unit]
+Description=Fast-forward crt on potato to origin/main, restart what changed
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
