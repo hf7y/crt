@@ -1,0 +1,18 @@
+# potato-only. Manual install (on potato):
+#   sed "s/@USER@/$USER/g; s#@PROJECT_DIR@#$HOME/crt#g" \
+#     systemd/crt-pull.service | sudo tee \
+#     /etc/systemd/system/crt-pull.service
+#   sudo cp systemd/crt-pull.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now crt-pull.timer
+[Unit]
+Description=crt-pull.sh -- fast-forward potato's crt checkout, restart what changed (crt#325)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=@USER@
+WorkingDirectory=@PROJECT_DIR@
+ExecStart=/usr/bin/env bash @PROJECT_DIR@/bin/crt-pull.sh
+# A stuck fetch (network flap) shouldn't wedge the next tick.
+TimeoutStartSec=120
