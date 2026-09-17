@@ -14,11 +14,10 @@ import sys
 # tests/test_brain_ssh.py::test_print_session_is_the_single_source.
 DEFAULT_SESSION = os.environ.get("CRT_BRAIN_SESSION", "potato-claude")
 
-# A capture that takes longer than this means tmux itself is wedged. The
-# bridge had no timeout at all: it inherited socketserver's blocking reads,
-# and a hung tmux would hold the connection open until potato's own
-# SSH_CONNECT_TIMEOUT gave up. Bounding it here makes the failure ours to
-# report instead of a silence potato has to infer from.
+# A capture that takes longer than this means tmux itself is wedged --
+# bounded so the failure is ours to report, not a silence potato has to
+# infer from. Witnessed by
+# tests/test_brain_ssh.py::test_tmux_timeout_reports_named_failure_not_hang.
 TMUX_TIMEOUT = 10
 
 
@@ -94,10 +93,9 @@ def main():
         print(args.session)
         return 0
 
-    # A client that tried to run a real command got refused by sshd's forced
-    # command, but the attempt is worth recording -- under the old bridge
-    # this could not even be expressed, so seeing it here at all is new
-    # information about potato (or about whoever holds its key).
+    # Refused by sshd's forced command already; worth recording anyway --
+    # the old bridge could not even express this. Witnessed by
+    # tests/test_brain_ssh.py::test_ssh_original_command_is_logged_not_executed.
     original = os.environ.get("SSH_ORIGINAL_COMMAND", "")
     if original:
         _log("refused SSH_ORIGINAL_COMMAND=%r (forced command; ignoring)"
