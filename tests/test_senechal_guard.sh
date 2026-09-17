@@ -96,6 +96,12 @@ quiet "a heredoc body mentioning ~/.local/share in prose while writing elsewhere
   "cat > /tmp/pr-body.md << 'EOF'
 this describes a fix touching ~/.local/share/crt-nightly-batch/repo
 EOF"
+# A `cd` into a ~/.local/share checkout and an unrelated `>` write further
+# along the SAME command line both contain their respective substrings, but
+# the write's own target is /tmp -- nothing under .local/share is touched.
+# Found live running this repo's own test suite in the background.
+quiet "a cd into ~/.local/share followed by a real write to an unrelated path" \
+  'cd ~/.local/share/crt-nightly-batch/repo && (python3 -m pytest tests/ -q > /tmp/out.log 2>&1; echo DONE >> /tmp/out.log) &'
 # The redirect target itself (not the heredoc body) naming ~/.local/share
 # is a real write and must still fire -- heredoc-body stripping must not
 # blind the guard to the one case it exists to catch.
