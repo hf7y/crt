@@ -69,6 +69,18 @@ quiet "a stderr-to-null redirect while reading under ~/.local/share" \
   'ls ~/.local/share/crt-nightly-batch/repo/tests/test_x.py 2>/dev/null'
 quiet "a literal arrow in echoed text referencing ~/.local/share" \
   'echo "crt-stt-confidence.py -> $(ls ~/.local/share/crt-nightly-batch/repo/tests)"'
+# Found live 2026-09-16: a `cd` into a ~/.local/share checkout on one line,
+# an unrelated write to /tmp on a later line -- neither line alone touches
+# machine-scoped config, but the old whole-command check paired them anyway.
+quiet "a cd into a ~/.local/share checkout followed by an unrelated write elsewhere" \
+  'cd ~/.local/share/crt-nightly-batch/repo
+cat <<EOF > /tmp/notes.md
+hello
+EOF'
+# Same-line chaining must still pair correctly -- only newline-separated
+# statements are exempted, not && on one line.
+fires "a relative write into ~/.local/share chained on the same line as cd" \
+  'cd ~/.local/share/some-app && touch installed.marker'
 # Filing the note IS the discharge of the debt; reminding afterwards would
 # make the hook cry wolf on the one command that proves it worked.
 quiet "a notify-senechal call itself" "notify-senechal 'installed a unit on potato'"

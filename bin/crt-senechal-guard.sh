@@ -51,12 +51,22 @@ printf '%s' "$cmd" | grep -qE '(\.config/)?autostart' && add 'autostart entry'
 # (`2>/dev/null`, `&>/dev/null`) writes nothing anywhere -- strip both before
 # checking for a write verb, or a read-only command that merely references
 # ~/.local/bin or ~/.local/share false-positives on the bare ">" in either.
-cmd_for_write_check="$(printf '%s' "$cmd" | sed -E 's/->//g; s/[0-9&]*>>?[[:space:]]*\/dev\/null//g')"
 WRITE_VERB='(install|cp[[:space:]]|mv[[:space:]]|ln[[:space:]]|touch[[:space:]]|mkdir|chmod|tee|>)'
-printf '%s' "$cmd" | grep -qE '\.local/bin' \
-  && printf '%s' "$cmd_for_write_check" | grep -qE "$WRITE_VERB" && add 'a script in ~/.local/bin'
-printf '%s' "$cmd" | grep -qE '\.local/share' \
-  && printf '%s' "$cmd_for_write_check" | grep -qE "$WRITE_VERB" && add 'a marker file under ~/.local/share'
+# Per LINE, not per whole command -- otherwise a `cd ~/.local/share/checkout`
+# header line pairs with an unrelated `> /tmp/x` on a later line and
+# false-positives (found live 2026-09-16 in a multi-line agent command).
+# same-line chaining (`cd ... && touch ...`) still pairs correctly.
+touches_local_write() {
+  local subdir="$1" line line_for_write
+  while IFS= read -r line; do
+    line_for_write="$(printf '%s' "$line" | sed -E 's/->//g; s/[0-9&]*>>?[[:space:]]*\/dev\/null//g')"
+    printf '%s' "$line" | grep -qE "\\.local/$subdir" \
+      && printf '%s' "$line_for_write" | grep -qE "$WRITE_VERB" && return 0
+  done <<< "$cmd"
+  return 1
+}
+touches_local_write bin   && add 'a script in ~/.local/bin'
+touches_local_write share && add 'a marker file under ~/.local/share'
 printf '%s' "$cmd" | grep -qE '\.claude/settings' && add '~/.claude settings/hooks'
 
 [ -z "$MATCH" ] && exit 0
