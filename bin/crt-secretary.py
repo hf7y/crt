@@ -659,6 +659,13 @@ _PANE_SPINNER_CHARS = "*+~"
 _PANE_BORDER_RE = re.compile(r"^[\s\-_=]*$")
 _PANE_STATUS_RE = re.compile(
     r"^(--\s*INSERT\s*--|auto mode on\b|.*for agents\s*)", re.IGNORECASE)
+# The spinner's text after its marker is stripped. It was matched as the
+# literal "Baked for 2s", the one verb seen in 2026-07-28's capture; this
+# Claude renders "Worked for 0s" and the whimsical verb rotates, so the
+# literal let "Worked for 0s" through to be SPOKEN as if it were an answer.
+# Matched on the shape instead -- one word, "for", a seconds count -- which
+# real reply text effectively never takes on a line of its own.
+_PANE_SPINNER_TEXT_RE = re.compile(r"^[A-Za-z]+ for \d+(\.\d+)?s\b", re.IGNORECASE)
 
 
 def clean_claude_pane_reply(lines):
@@ -689,7 +696,7 @@ def clean_claude_pane_reply(lines):
             s = s.lstrip("●✦✴✻✶✺" + _PANE_SPINNER_CHARS).strip()
             if s.startswith("»"):  # "● » " marker seen live 2026-07-28
                 s = s[1:].strip()
-            if not s or re.match(r"^Baked for \d", s, re.IGNORECASE):
+            if not s or _PANE_SPINNER_TEXT_RE.match(s):
                 continue
         out.append(s)
     return "\n".join(out).strip()
@@ -874,6 +881,37 @@ REPLY_UNOBSERVED_LINE = os.environ.get(
     "I sent that to Claude, but I lost my view of the answer partway through.")
 
 
+# Fourth outcome, and the one that cost a night (2026-09-18): the brain is
+# RUNNING and SIGNED OUT. Every layer reads healthy -- the session exists,
+# the pane paints, send_to_claude succeeds, a reply is even observed -- and
+# the reply is Claude saying it cannot work. Without this the login error
+# gets cleaned like any other pane text and SPOKEN as though it were the
+# answer to what was asked, which is the confidently-wrong report this file
+# already has three other guards against.
+#
+# The line names the host and the fix because nobody in the room can infer
+# either, and it is spoken aloud: "slash login", not "/login".
+BRAIN_SIGNED_OUT_LINE = os.environ.get(
+    "CRT_BRAIN_SIGNED_OUT_LINE",
+    "My brain is signed out, so it can't answer. Someone needs to run "
+    "slash login on the brain host.")
+
+_SIGNED_OUT_RE = re.compile(
+    r"(login expired|please run /login|invalid api key|"
+    r"credit balance is too low|authentication_error)", re.IGNORECASE)
+
+
+def brain_signed_out(reply):
+    """Is this 'reply' actually Claude refusing to work at all?
+
+    Pure, so the phrasings can be tested without a pane. Deliberately a
+    small closed set rather than a general 'looks like an error' heuristic:
+    a false positive here tells the room the brain is signed out when it is
+    merely quoting an error back, which is its own confidently-wrong
+    report."""
+    return bool(reply and _SIGNED_OUT_RE.search(reply))
+
+
 def log_brain_unreachable(text, detail, verdict="NOT DELIVERED"):
     """Every utterance the brain didn't answer, with why, so a tunnel drop
     leaves evidence instead of just feeling like a quiet night. Same
@@ -917,6 +955,16 @@ def _report_bad_news(line):
 def report_brain_unreachable():
     """The utterance never left the building."""
     _report_bad_news(BRAIN_UNREACHABLE_LINE)
+
+
+def report_brain_signed_out(text):
+    """Delivered, observed, and answered with a refusal. DELIVERED because
+    it was -- see log_brain_unreachable's note on why the verdict is not
+    decoration."""
+    log_brain_unreachable(
+        text, "the brain answered that it is signed out -- run /login there",
+        verdict="DELIVERED, BRAIN SIGNED OUT")
+    _report_bad_news(BRAIN_SIGNED_OUT_LINE)
 
 
 def report_reply_unobserved(text):
@@ -1068,6 +1116,9 @@ def handle(text):
     touch_claude_active()  # the reply itself also counts as recent activity
     if status != "ok":
         report_reply_unobserved(text)
+        return
+    if brain_signed_out(reply):
+        report_brain_signed_out(text)
         return
     route_claude_reply(reply)
 
