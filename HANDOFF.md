@@ -33,5 +33,29 @@ manual deploy hop, the tmux window layout that ran on `crt-vm`) is archived
 byte-for-byte at `vault:crt/HANDOFF-20260829.md` for anyone digging into
 that era's history — none of it describes what's running today.
 
+### potato's SSH host keys (recorded 2026-09-18)
+
+    ED25519  SHA256:mrixOpBAg+5Dw9RDosa2Y/5TRwrlCuS3i6GB0NB3JLs
+    ECDSA    SHA256:w+XhU6NJJsHQsUQXw613GDUtECBnzzFn30ctj6GWLVI
+    RSA      SHA256:gJ19h5hZm63NsgvRhKTawGF1OfqNsXvEsDxKiUgPqqM
+
+Here because they were **nowhere in this tree**, and that is what stalled
+crt#342: monkey's `ssh potato` now resolves and connects over tailscale, and
+stops at host-key verification with nothing to check the fingerprint against.
+A first connection with no recorded fingerprint is trust-on-first-use against
+whoever answers, which is not a thing to do blind on a box that holds a
+deploy key.
+
+Read off `/etc/ssh/ssh_host_*_key.pub` on potato itself over an already
+authenticated session — not scanned from the network, which would prove
+nothing a spoofer could not also arrange. The ED25519 line independently
+matches mandark's own `known_hosts` entry from an earlier verified
+connection, and matches the fingerprint crt#342 saw from monkey.
+
+Reaching potato at all: prefer `ssh -i ~/.ssh/vkv_deploy_key
+vkv@100.81.177.122` over the `Host potato` alias, which on mandark still
+points at the pre-move LAN address and gets `No route to host` (see
+`CLAUDE.md`, and crt#323 for the move itself).
+
 Current state, blockers, and access gaps live in
 `gh issue list -R hf7y/crt`, not in this file.
