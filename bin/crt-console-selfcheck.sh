@@ -10,10 +10,23 @@
 # probing, and the say-it-once-per-transition cases.
 set -uo pipefail
 
-STATE="${CRT_SELFCHECK_STATE:-$HOME/.crt/selfcheck.state}"
 DOOR="${CRT_SELFCHECK_DOOR:-http://100.107.253.56:8643/mcp}"
 AGENT="${CRT_SELFCHECK_AGENT:-crt}"
 SERVER=""; CHECK_ONLY=0
+# The brain leg (crt#353). Its host is the same knob the console itself uses --
+# ~/.crt/brain.conf's CRT_CLAUDE_SSH_HOST -- read from the environment the
+# caller already sources, so this file cannot disagree with what a wake
+# actually dials. Empty = no brain configured, which is a SKIP, not a RED.
+BRAIN_HOST="${CRT_CLAUDE_SSH_HOST:-}"
+# Per-leg predicate lines. NOT a state file: Zach, 2026-09-18, on being shown
+# the two-legs-two-files design -- "I'm really skeptical about a 'state file'
+# at all ... Can this just be a predicate reported somewhere? or a log?" The
+# log IS the state. A transition is "this line differs from the previous one
+# in field X", read when needed rather than remembered somewhere that can go
+# stale. No latch, so a second leg failing while the first is already RED is
+# still news; a third leg is a field, not a file; and "when did the brain go
+# down" becomes grep, which the old shape could not answer at all.
+LEGLOG="${CRT_SELFCHECK_LEGLOG:-$HOME/.crt/selfcheck-legs.log}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -64,6 +77,29 @@ verdict() {
   fi
 }
 
+# The brain leg. Same two-verb protocol a wake uses (POTATO.md), so this
+# probes the path that actually carries speech rather than a proxy for it.
+#
+# The sign-out case is why this is not just "did it answer": on 2026-09-18 the
+# brain ran for hours replying "Login expired" to every utterance while the
+# session existed, the pane painted and CAPTURE returned a full healthy body.
+# Every layer above reported fine. Phrasings kept deliberately in step with
+# crt-secretary.py's brain_signed_out() (crt#352) so the sensor and the room
+# agree on what "signed out" means.
+brain_verdict() {
+  local pane
+  [ -z "$BRAIN_HOST" ] && { printf 'SKIP\tno brain host configured'; return; }
+  pane="$(echo CAPTURE | timeout "${CRT_BRAIN_PROBE_TIMEOUT:-20}" \
+          ssh -o BatchMode=yes -o ConnectTimeout=10 "$BRAIN_HOST" 2>/dev/null)"
+  if [ -z "$pane" ]; then
+    printf 'RED\t%s did not answer CAPTURE' "$BRAIN_HOST"
+  elif printf '%s' "$pane" | grep -qiE 'login expired|please run /login|invalid api key|credit balance is too low|authentication_error'; then
+    printf 'RED\tthe brain is signed out -- run /login on %s' "$BRAIN_HOST"
+  else
+    printf 'GREEN\t%s answers CAPTURE' "$BRAIN_HOST"
+  fi
+}
+
 # --- saying it --------------------------------------------------------------
 # Three POSTs; zaxon-watch.sh does the first of them. initialize mints the
 # session id every later call carries.
@@ -87,24 +123,49 @@ send_zach() {
 
 now="$(verdict)"
 state="${now%%$'\t'*}"; why="${now#*$'\t'}"
+brain_now="$(brain_verdict)"
+brain_state="${brain_now%%$'\t'*}"; brain_why="${brain_now#*$'\t'}"
+
+# stdout keeps its shape on purpose: crt-potato-status.sh parses this exact
+# line (its own header says so) and the transcription verdict is still the
+# headline. A RED brain does not make the console unable to transcribe.
 printf '%s  %s\n' "$state" "$why"
+printf 'brain %s  %s\n' "$brain_state" "$brain_why"
 [ "$CHECK_ONLY" = 1 ] && exit 0
 
-was="UNKNOWN"
-[ -r "$STATE" ] && was="$(head -1 "$STATE")"
-mkdir -p "$(dirname "$STATE")" 2>/dev/null
-printf '%s\n' "$state" > "$STATE"
-[ "$state" = "$was" ] && exit 0
+# One line, every predicate, appended. Read back for the PREVIOUS values
+# before writing this tick's, so each leg's transition is its own.
+prev_stt="UNKNOWN"; prev_brain="UNKNOWN"
+if [ -r "$LEGLOG" ]; then
+  prev_line="$(tail -n 1 "$LEGLOG")"
+  for field in $prev_line; do
+    case "$field" in
+      stt=*)   prev_stt="${field#stt=}" ;;
+      brain=*) prev_brain="${field#brain=}" ;;
+    esac
+  done
+fi
+mkdir -p "$(dirname "$LEGLOG")" 2>/dev/null
+printf '%s  stt=%s brain=%s\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$state" "$brain_state" >> "$LEGLOG"
+
 # A first tick has nothing to have changed FROM: being installed is not news.
-[ "$was" = UNKNOWN ] && [ "$state" = GREEN ] && exit 0
+announce() {  # leg, was, is, why, red-words, green-words
+  [ "$3" = "$2" ] && return 0
+  [ "$3" = SKIP ] && return 0
+  [ "$2" = UNKNOWN ] && [ "$3" = GREEN ] && return 0
+  if [ "$3" = RED ]; then
+    send_zach "$5: $(say "$4")" || printf 'crt-console-selfcheck: %s RED and could not say so\n' "$1" >&2
+  else
+    send_zach "$6: $(say "$4")"
+  fi
+}
 
 # send_zach REFUSES over 140 chars, tag included (crt#83): an alarm the relay
 # drops is the silence this file exists to break. So the clamp is here.
 say() { printf '%s' "$1" | cut -c1-85; }
 
-if [ "$state" = RED ]; then
-  send_zach "console cannot transcribe: $(say "$why")" \
-    || printf 'crt-console-selfcheck: RED and could not say so\n' >&2
-else
-  send_zach "console transcribing again: $(say "$why")"
-fi
+announce stt   "$prev_stt"   "$state"       "$why" \
+  "console cannot transcribe" "console transcribing again"
+announce brain "$prev_brain" "$brain_state" "$brain_why" \
+  "console cannot reach its brain" "console reaching its brain again"
