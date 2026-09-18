@@ -443,6 +443,10 @@ echo "== crt-potato-status.sh status snapshot (crt#325) =="
 bash "$DIR/test_potato_status.sh" || fail=1
 echo
 
+echo "== crt_console_windows.py: window map derived from crt-console.sh itself (crt#325) =="
+python3 -m unittest discover -s "$DIR" -p "test_crt_console_windows.py" -v 2>&1 | tail -10 || fail=1
+echo
+
 echo "== crt-wake-router.py brain decision =="
 python3 "$DIR/test_wake_router.py" || fail=1
 echo
