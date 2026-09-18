@@ -81,6 +81,20 @@ parked_reason() {
 (CRT_BRAIN_CLAUDE_ARGS should carry --permission-mode bypassPermissions)" ;;
     *"Bypass Permissions mode"*|*"accept the risk"*|*"WARNING: Claude Code running in Bypass"*)
       echo "parked on the bypass-permissions confirmation screen" ;;
+    *"Login expired"*|*"Please run /login"*|*"Invalid API key"*)
+      # Not a modal, which is why it slipped past all of the above: the pane
+      # is a normal, idle, ready-looking prompt and CAPTURE returns a healthy
+      # body. The error scrolls by in the transcript like any other output.
+      # Found live 2026-09-18 -- the brain had been restarted and reported UP
+      # for an hour, a SEND returned OK because tmux send-keys genuinely
+      # succeeded, and the only thing wrong was that Claude answered every
+      # utterance with "Login expired". Zach spoke to the console at 06:53
+      # and got silence from a component every layer above called healthy.
+      # Needs a human on dexter; nothing on potato's end can fix it, which
+      # is exactly why status has to say so instead of saying UP.
+      echo "signed out -- run /login in the $SESSION tmux session on this \
+host. tmux send-keys still succeeds and the pane still paints, so potato \
+cannot tell this apart from a working brain" ;;
     *) return 1 ;;
   esac
 }
