@@ -172,6 +172,15 @@ the full history. `ssh potato` needs a `Host potato`
 alias, present on mandark and confirmed ABSENT on monkey as of 2026-08-29, so it
 is box-specific: check `ssh -o BatchMode=yes potato true` before relying on it.
 
+**Present is not working.** As of 2026-09-18 mandark's alias resolves to
+`192.168.0.45` and gets `No route to host`: the room's LAN moved to
+`192.168.1.x` and the alias was never updated. The same stale-subnet break hit
+potato's own `Host dexter` and took the brain down for a night (crt#140). The
+tailscale addresses survived it, because they are not LAN addresses — reach
+potato with `ssh -i ~/.ssh/vkv_deploy_key vkv@100.81.177.122` and prefer that
+over the alias until someone repairs it. Same shape for dexter: `100.107.253.56`,
+port 2223 for the WSL2 instance that holds the brain.
+
 **When it resolves, real STT-pipeline and audio work on potato IS in scope for
 an unattended run** — being a remote physical box does not by itself make it
 "needs hands on hardware". In scope over SSH: reading and running `~/.crt/*.log`
