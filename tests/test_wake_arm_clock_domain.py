@@ -390,6 +390,39 @@ class TestLatencyLog(unittest.TestCase):
                       utt_start=time.time() - 2.0, utt_end=time.time() - 1.0)
         self.assertFalse(os.path.exists(self.stt.LATENCY_LOG))
 
+    def test_the_line_names_which_recogniser_served_it(self):
+        # The field exists so a night of log can be split by path. Without it
+        # a 10s line and a 0.8s line are the same kind of event on paper.
+        self.stt.set_transcribe_path("remote")
+        end = time.time() - self.WHISPER_SECS
+        self.stt.emit("potato hello", 1.0, utt_start=end - 1.0, utt_end=end)
+        self.assertEqual(self.fields()["path"], "remote")
+
+    def test_a_rescued_remote_failure_is_recorded_as_fallback(self):
+        # The case this field was added for. Before it, a remote failure that
+        # local whisper.cpp then rescued produced a correct transcript, ~10s
+        # of deafness, and no line anywhere saying the fallback had run --
+        # transcribe_failure_report() only fires when the FINAL result is None.
+        self.stt.NORM = False               # no sox pass; the effects are not under test
+        self.stt.WHISPER_SERVER = "http://example.invalid/inference"
+        self.stt.WHISPER_LOCAL_FALLBACK = True
+        self.stt.transcribe_remote = lambda wav: None
+        self.stt.local_whisper_available = lambda: True
+        self.stt.transcribe_local = lambda wav: "rescued by the local model"
+
+        self.assertEqual(self.stt.transcribe(b"\0" * 32000),
+                         "rescued by the local model")
+        self.assertEqual(self.stt.TRANSCRIBE_PATH, "fallback")
+
+    def test_a_server_that_answers_is_not_recorded_as_fallback(self):
+        self.stt.NORM = False
+        self.stt.WHISPER_SERVER = "http://example.invalid/inference"
+        self.stt.transcribe_remote = lambda wav: "the server answered"
+        self.stt.transcribe_local = lambda wav: self.fail("local ran anyway")
+
+        self.assertEqual(self.stt.transcribe(b"\0" * 32000), "the server answered")
+        self.assertEqual(self.stt.TRANSCRIBE_PATH, "remote")
+
     def test_a_broken_log_never_blocks_the_dispatch(self):
         # Same contract as predictive_flash()/set_sideband_state(): the
         # measurement is best-effort and the utterance is not.
