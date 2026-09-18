@@ -1298,6 +1298,29 @@ def report_line(line):
         pass
 
 
+# Its own file, not stt.log: stt.log is the transcript, read by humans and
+# by the fixups tooling, and interleaving timings into it would make both
+# jobs worse. Append-only, one line per utterance, no rotation -- a line is
+# ~50 bytes and the console speaks a few thousand times a day.
+LATENCY_LOG = os.environ.get(
+    "CRT_LATENCY_LOG", os.path.expanduser("~/.crt/latency.log"))
+
+
+def log_latency(reader_lag, nchars):
+    """Best-effort, like predictive_flash() and set_sideband_state(): a
+    broken log must never delay the dispatch it is measuring."""
+    try:
+        os.makedirs(os.path.dirname(LATENCY_LOG), exist_ok=True)
+        with open(LATENCY_LOG, "a") as f:
+            # trail is the VAD's fixed cost, carried on every line so a
+            # reader does not have to know what TRAIL was set to that night.
+            f.write("%s  trail=%.2f whisper=%.2f blind=%.2f chars=%d\n" % (
+                datetime.datetime.now().strftime("%H:%M:%S"),
+                TRAIL, reader_lag, TRAIL + reader_lag, nchars))
+    except OSError:
+        pass
+
+
 def emit(text, peak=1.0, utt_start=None, utt_end=None):
     """`utt_start`/`utt_end` are the wall-clock instants this utterance's
     AUDIO began and ended, captured in the capture loop before transcribe()
@@ -1338,6 +1361,17 @@ def emit(text, peak=1.0, utt_start=None, utt_end=None):
         # (publish_arm_window). max(0.0) is for a test's synthetic utt_end.
         reader_lag = (max(0.0, time.time() - utt_end)
                       if utt_end is not None else 0.0)
+
+        # The same number, written down. reader_lag has been measured here
+        # since the arm-window work but was only ever spent on the clock
+        # domain and then dropped, so "the console feels laggy" had no
+        # evidence either way -- a report about a delay nobody had timed.
+        # This is the delay the SPEAKER experiences: TRAIL seconds of
+        # silence before the VAD will admit they stopped, then the whisper
+        # round-trip, and only then does anything downstream know there is
+        # an utterance at all. Logged per utterance so a night of real
+        # speech answers the question that guessing cannot.
+        log_latency(reader_lag, len(text))
 
         # Arm-window follow-up check (opt-in, WAKE_ARM_ENABLED) -- MUST run
         # before the normal gate below, so a follow-up gets through without
