@@ -17,6 +17,20 @@ SERVER=""; CHECK_ONLY=0
 # ~/.crt/brain.conf's CRT_CLAUDE_SSH_HOST -- read from the environment the
 # caller already sources, so this file cannot disagree with what a wake
 # actually dials. Empty = no brain configured, which is a SKIP, not a RED.
+# ...and read it from brain.conf when the caller did not export it, because
+# the caller is CRON: potato's crontab runs this file directly, with no shell
+# profile and no `. ~/.crt/brain.conf`. Measured 2026-09-18 on potato -- with
+# the env sourced the leg reported `brain GREEN dexter answers CAPTURE`, and
+# under `env -i` it reported `brain SKIP no brain host configured`. A leg that
+# only runs when a human runs it by hand is the built-not-wired shape this
+# whole issue is about, arriving inside its own fix.
+BRAIN_CONF="${CRT_BRAIN_CONF:-$HOME/.crt/brain.conf}"
+if [ -z "${CRT_CLAUDE_SSH_HOST:-}" ] && [ -r "$BRAIN_CONF" ]; then
+  # Same file crt-console.sh sources at boot. Only this one name is taken
+  # from it; sourcing is scoped to a subshell so nothing else it sets can
+  # reach the probes.
+  CRT_CLAUDE_SSH_HOST="$(. "$BRAIN_CONF" >/dev/null 2>&1; printf '%s' "${CRT_CLAUDE_SSH_HOST:-}")"
+fi
 BRAIN_HOST="${CRT_CLAUDE_SSH_HOST:-}"
 # Per-leg predicate lines. NOT a state file: Zach, 2026-09-18, on being shown
 # the two-legs-two-files design -- "I'm really skeptical about a 'state file'

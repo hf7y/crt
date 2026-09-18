@@ -167,12 +167,28 @@ grep -q "cannot reach its brain" "$D/door.log" \
   && ok "a brain failing UNDER an already-RED console is still announced" \
   || bad "the second leg was latched out by the first" "$(cat "$D/door.log")"
 
+# CRT_BRAIN_CONF pinned at a path that does not exist: without it this case
+# passes or fails on whether the DEV box happens to have a ~/.crt/brain.conf,
+# which is not what is under test.
 rm -f "$D/legs.log" "$D/door.log"
-out="$(CRT_CLAUDE_SSH_HOST="" "$SELF" --server "http://127.0.0.1:8794/inference" 2>&1)"
+out="$(CRT_CLAUDE_SSH_HOST="" CRT_BRAIN_CONF="$D/no-such.conf" \
+  "$SELF" --server "http://127.0.0.1:8794/inference" 2>&1)"
 printf '%s' "$out" | grep -q "brain SKIP" \
   && ok "no brain configured is SKIP, not RED" || bad "unconfigured brain not SKIP" "$out"
 [ ! -s "$D/door.log" ] && ok "and SKIP says nothing to Zach" \
   || bad "SKIP announced itself: $(cat "$D/door.log")"
+
+# The one the live deploy caught: cron runs this file with no profile and no
+# `. ~/.crt/brain.conf`, so a leg that waits to be handed the host never runs
+# in production. Measured on potato -- sourced by hand it said `brain GREEN`,
+# under `env -i` it said `brain SKIP`.
+rm -f "$D/legs.log" "$D/door.log"
+printf 'CRT_CLAUDE_SSH_HOST=dexter\nexport CRT_CLAUDE_SSH_HOST\n' > "$D/brain.conf"
+out="$(env -u CRT_CLAUDE_SSH_HOST BRAIN_PANE='❯ ready' CRT_BRAIN_CONF="$D/brain.conf" \
+  "$SELF" --server "http://127.0.0.1:8794/inference" 2>&1)"
+printf '%s' "$out" | grep -q "brain GREEN" \
+  && ok "the host is read from brain.conf when the caller (cron) exports nothing" \
+  || bad "brain.conf not read; the leg would SKIP under cron" "$out"
 kill "$WPIDB" 2>/dev/null
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
