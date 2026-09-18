@@ -142,8 +142,9 @@ def wrap_to_width(text, limit, max_lines=None):
         return [""]
     if max_lines is not None and len(lines) > max_lines:
         kept = lines[:max_lines]
-        # Rejoined and elided rather than dropped: the remainder guarantees
-        # the line overflows, so '..' is always what the reader sees.
+        # Rejoined and elided rather than dropped -- witnessed by
+        # tests/test_idle_caption_fits.py::TheCaptionStillAsksTest::
+        # test_a_caption_that_still_does_not_fit_says_so.
         kept[-1] = elide(" ".join([kept[-1]] + lines[max_lines:]), limit)
         lines = kept
     return lines
