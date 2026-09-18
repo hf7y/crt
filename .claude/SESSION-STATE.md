@@ -155,6 +155,27 @@ issue, with the suggestion that the puller refuse a jump this size.
 
 Consequence: crt#346 and crt#347 are merged but **not running on potato**.
 
+### The wake word is fine. Do not build a fixups dictionary.
+
+`bin/stt-fixups.json` does not exist, in the repo or on potato, so the gate
+runs on exact-word matching alone. That looks like the obvious accuracy gap
+and it is not one — measured on crt#350:
+
+- 2298 gate-dropped utterances scanned for anything near `potato`. Three
+  plausible mishears total (`pateto` x2, `proto` x1). Everything scoring
+  higher is real English Zach said — photos, important, bottom, "got to" —
+  and every one of those would be a **false wake** if seeded into the file.
+- 106 stt.log lines contain `potato`; **0** gate-dropped lines did. The
+  gate has never lost an utterance carrying the wake word.
+
+The garbling is in general content, not the wake word — "Zero-T-Res
+required", "watercorrhizin pictures", "three shams". Recogniser quality,
+not a dictionary.
+
+Related: potato's fallback is `ggml-tiny.en.bin`; dexter's `/srv/whisper`
+serves `ggml-base.en.bin`. A fallback therefore costs ~9s **and** a worse
+transcript than the path it replaced.
+
 ### Next
 
 1. crt#347 records `path=` per utterance. Once potato is current,
