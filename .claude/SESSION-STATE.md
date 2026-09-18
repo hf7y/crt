@@ -176,6 +176,39 @@ Related: potato's fallback is `ggml-tiny.en.bin`; dexter's `/srv/whisper`
 serves `ggml-base.en.bin`. A fallback therefore costs ~9s **and** a worse
 transcript than the path it replaced.
 
+### Landed overnight (all merged, all revertable with `git revert <sha>`)
+
+| PR | sha | what |
+|---|---|---|
+| crt#343 | `569828c` | `crt-brain-session.sh` finds claude when ssh's PATH lacks `~/.local/bin` |
+| crt#346 | `f5bbc23` | `~/.crt/latency.log`, one line per utterance |
+| crt#347 | `f29fe36` | that line names which recogniser served it (`path=`) |
+| crt#348 | `b3f3507` | a signed-out brain is not reported UP |
+| crt#352 | `04a27ea` | the room says "my brain is signed out" instead of reciting the error; spinner filter matched by shape, not one verb |
+
+Filed: crt#344 (DECISION: what paints during the gap), crt#345 (shorten it),
+crt#350 (the wake word measures clean), crt#353 (DECISION: the selfcheck
+has no brain leg).
+
+### What is blocked on Zach, in order
+
+1. **`/login` on dexter.** `tmux attach -t potato-claude`. Until then the
+   console cannot answer anything. Everything else is downstream of this.
+2. **Authorize potato's catch-up** (crt#325). 140 commits; nothing landed
+   above runs in the room until it happens.
+3. **crt#344** — what paints in the gap. Not guessed at from here.
+4. **crt#353** — whether the brain leg gets its own GREEN/RED state.
+
+### What was deliberately NOT done, and why
+
+- **No deploy to potato.** 140 commits onto a live console, unattended, at
+  night, with nobody in the room to hear the result.
+- **No fixups dictionary.** The data says it would cost precision (crt#350).
+- **No `TRAIL` change.** 0.8s against a ~10s fallback; wrong target.
+- **No selfcheck brain leg.** It is the mechanism that pages Zach, the
+  change is to its alerting shape, and it cannot be exercised against the
+  real hosts from here. Specified on crt#353 instead.
+
 ### Next
 
 1. crt#347 records `path=` per utterance. Once potato is current,
