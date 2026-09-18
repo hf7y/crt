@@ -4,9 +4,9 @@
 # crt-stt-solo.py routes on a wake-word match, crt-book-answer-listen.py
 # grades anything in an open answer window as trivia. Scanning a book then
 # saying "claude, what's this about?" used to get graded as the answer.
-# See addressed_to_console()'s docstring for the match rules. Known gap
-# (BATCH-NOTES.md): an arm-window follow-up (crt-wake-arm.py) has no wake
-# word by design, so it still reads as an answer from here.
+# See addressed_to_console()'s docstring for the match rules, and
+# crt-book-answer-listen.py's grade_spoken_answer() docstring ("THE THIRD
+# DOOR") for the still-open arm-window-follow-up gap this gate has.
 import importlib.util
 import os
 import re
@@ -21,9 +21,8 @@ def _load(name, filename):
     return mod
 
 
-# Loaded by path, not by plain `import`: every caller of this module is
-# itself loaded by spec_from_file_location, which does not put bin/ on
-# sys.path. Same idiom crt-stt-training-merge.py already uses.
+# Loaded by path -- same sys.path idiom as crt-book-game.py's
+# _load_sibling() comment.
 _config = _load("crt_config_for_wake_gate", "crt_config.py")
 _fixups_store = _load("crt_fixups_store_for_wake_gate", "crt_fixups_store.py")
 
