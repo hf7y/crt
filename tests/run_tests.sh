@@ -39,6 +39,12 @@ export CRT_ANNOUNCE_LOCK="$CRT_TEST_STATE_DIR/announce.lastrun"
 export CRT_IDLE_SEEN="$CRT_TEST_STATE_DIR/idle-bait.seen"
 # A seventh (crt#34): crt-media-player.py's persisted playback state.
 export CRT_MEDIA_STATE_FILE="$CRT_TEST_STATE_DIR/media-state"
+# An eighth (2026-09-18): crt-stt-solo.py's per-utterance latency log. Every
+# test that drives the real emit() writes one line, so adding the log added
+# eight files' worth of writes to the live ~/.crt at once -- caught by the
+# guard below on the same commit that introduced it, which is the third time
+# that guard has paid for itself.
+export CRT_LATENCY_LOG="$CRT_TEST_STATE_DIR/latency.log"
 trap 'rm -rf "$CRT_TEST_STATE_DIR"' EXIT
 
 # ...and a guard, because pinning only covers the vars known TODAY and this
