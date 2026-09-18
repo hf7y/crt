@@ -97,11 +97,53 @@ Behind the dead alias, crt#140's report was still true: dexter had no
 
 Four synthetic clips. `latency.log` exists to replace them with real ones.
 
+### The latency answer, measured (supersedes the table above)
+
+Two of my own earlier readings on crt#345 were wrong and are corrected
+there. What actually holds, measured from potato 2026-09-18:
+
+| path | 3s clip | 10s | 20s |
+|---|---|---|---|
+| remote `/srv/whisper` on dexter | 0.74s | 0.79s | 0.87 / 1.41s |
+| local `whisper-cli` on the Pi | **9.84s** | — | **9.94s** |
+
+30-request burst against the remote: **0 failures, p50 0.82s, p90 0.86s.**
+It does not scale with clip length and it is not slow.
+
+The local fallback is flat at ~10s for a 3s clip and a 20s clip alike —
+process start and model load paid per utterance, not decoding.
+`CRT_WHISPER_SERVER_TIMEOUT` is 8s on top, for a server that hangs rather
+than refusing.
+
+`transcribe()` runs inside the capture loop, so nobody reads `arecord` for
+either. The pipe holds 8.2s; a ~10s stall saturates it and only the newest
+3s survives — a ~5s drop. potato's pane holds **606 such drops, median
+5.0s, 47 minutes of audio discarded**, piled AT the cap rather than spread
+out. So the drops are the fallback firing, not slow transcription.
+
+They carry no timestamps, so they are historical — from a window that ended
+when the console went quiet at 22:33 on 2026-09-17. Not a claim about now.
+
+### Do not deploy to potato without Zach
+
+`~/crt` there is **140 commits behind main** (205 files; `crt-stt-solo.py`
+alone +74/-139), and the running process is 15 days old. Fast-forwarding
+that onto a live console unattended is not a safe action, and crt#325's
+pull timer would do the same thing on its first tick — measured onto that
+issue, with the suggestion that the puller refuse a jump this size.
+
+Consequence: crt#346 and crt#347 are merged but **not running on potato**.
+
 ### Next
 
-1. Merge crt#346, then deploy to potato and restart the `stt` window so the
-   log starts filling. Nothing is deployed to potato yet.
-2. Read a night of `latency.log` before touching `TRAIL` (crt#345).
-3. crt#344 is Zach's call; do not guess a widget into the tube.
-4. `potato-claude` has no persistence — a dexter reboot loses it and
+1. crt#347 records `path=` per utterance. Once potato is current,
+   `latency.log` answers how often the fallback fires — the one number
+   still missing.
+2. Do not touch `TRAIL`. It is 0.8s against a ~10s fallback; it is not
+   where the time goes.
+3. The real candidate for crt#345 is making the fallback cheap (a resident
+   whisper.cpp instead of a per-utterance model load), or deciding that 10s
+   of deafness is worse than dropping the utterance. Both are Zach's call.
+4. crt#344 is Zach's call; do not guess a widget into the tube.
+5. `potato-claude` has no persistence — a dexter reboot loses it and
    nothing restarts it. Noted on crt#343's DEFERRED.
