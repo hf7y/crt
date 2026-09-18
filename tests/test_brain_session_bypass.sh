@@ -199,19 +199,32 @@ fi
 # satisfy command -v and pass the test for the wrong reason.
 BARE="$TMP/bare"; mkdir -p "$BARE"
 cp "$FAKEBIN/tmux" "$BARE/tmux"
-# /usr/bin:/bin, not the caller's PATH: the script needs coreutils, but
-# inheriting the whole PATH would let a developer's own ~/.local/bin/claude
-# satisfy command -v and pass these two for the wrong reason. claude installs
-# per-user, so the system dirs give us the utilities without the binary.
-BARE_PATH="$BARE:/usr/bin:/bin"
+# Mirror /usr/bin and /bin into $BARE via symlinks, EXCLUDING any `claude`
+# found there, rather than trusting the two dirs are claude-free outright.
+# A seat with Claude Code installed system-wide (e.g. /usr/bin/claude, a
+# symlink into the npm global tree -- true on this box) would otherwise
+# make `command -v claude` succeed against those dirs and pass this test
+# for the wrong reason -- the same failure mode this comment already knew
+# to avoid for a per-user ~/.local/bin/claude.
+for d in /usr/bin /bin; do
+  [ -d "$d" ] || continue
+  for f in "$d"/*; do
+    name="$(basename "$f")"
+    [ "$name" = "claude" ] && continue
+    [ -e "$BARE/$name" ] && continue
+    ln -s "$f" "$BARE/$name" 2>/dev/null
+  done
+done
+BARE_PATH="$BARE"
 mkdir -p "$TMP/home/.local/bin"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/home/.local/bin/claude"
 chmod +x "$TMP/home/.local/bin/claude"
 
+BASH_BIN="$(command -v bash)"
 run_bare() {
   local envs=()
   while [ "$#" -gt 0 ] && [ "${1#*=}" != "$1" ]; do envs+=("$1"); shift; done
-  env PATH="$BARE_PATH" HOME="$TMP/home" "${envs[@]}" bash "$SCRIPT" "$@"
+  env PATH="$BARE_PATH" HOME="$TMP/home" "${envs[@]}" "$BASH_BIN" "$SCRIPT" "$@"
 }
 
 # --- 11. ...falls back to ~/.local/bin/claude rather than refusing ------
