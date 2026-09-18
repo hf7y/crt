@@ -170,6 +170,27 @@ else
   fail=1
 fi
 
+# --- 13. Signed out: healthy-looking pane, cannot answer a thing -----------
+# The one that got through. Not a modal -- an ordinary ready prompt with an
+# error in the scrollback -- so cases 3, 4 and 10 all pass it. Live on
+# 2026-09-18: status said UP for an hour, SEND returned OK because tmux
+# send-keys really did succeed, and every utterance was answered with
+# "Login expired".
+cat > "$PANE" <<'EOF'
+❯ Reply with exactly: BRAIN OK
+● Login expired · Please run /login
+✻ Worked for 0s
+❯
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+EOF
+out="$(run TMUX_HAS_SESSION=0 status 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q "signed out"; then
+  echo "PASS: an expired login is reported, not called UP"
+else
+  echo "FAIL: signed-out brain reported healthy -- rc=$rc out='$out'"
+  fail=1
+fi
+
 # --- 11-12. claude off PATH, as a non-interactive ssh actually sees it ---
 # `ssh dexter '.../crt-brain-session.sh ensure'` gets a PATH without
 # ~/.local/bin, so the 2026-09-18 restart failed with "claude not on PATH"
