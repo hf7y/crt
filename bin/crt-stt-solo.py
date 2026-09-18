@@ -1233,8 +1233,18 @@ def transcribe(frames):
         if WHISPER_SERVER:
             text = transcribe_remote(feed)
             if text is None and WHISPER_LOCAL_FALLBACK and local_whisper_available():
+                # The expensive branch, and until now a silent one: measured
+                # on potato 2026-09-18, whisper-cli costs ~9.9s for a 3s clip
+                # and ~9.9s for a 20s one -- it is process start and model
+                # load, paid per utterance, not decoding. The remote it is
+                # rescuing answers in 0.8s. Nobody is reading the mic for
+                # either, so a fallback deafens the console for ten seconds
+                # and the old code said nothing at all about having taken it.
+                set_transcribe_path("fallback")
                 return transcribe_local(feed)  # crt#132
+            set_transcribe_path("remote" if text is not None else "failed")
             return text
+        set_transcribe_path("local")
         return transcribe_local(feed)
     except Exception:
         return None
@@ -1306,6 +1316,29 @@ LATENCY_LOG = os.environ.get(
     "CRT_LATENCY_LOG", os.path.expanduser("~/.crt/latency.log"))
 
 
+# Which recogniser actually served the last utterance. A global rather than a
+# return value because transcribe() has three callers' worth of contract
+# already ("" vs None is load-bearing) and emit(), which does the logging,
+# is a whisper round-trip downstream of it.
+#
+#   remote    the server answered
+#   fallback  it did not, and local whisper.cpp rescued the utterance -- the
+#             ~10s branch, and the one that was invisible before
+#   local     no server configured; local is the only path
+#   failed    nothing transcribed it
+#
+# "fallback" is the whole point of recording this. transcribe_failure_report()
+# only ever fired when the FINAL result was None, so a remote failure that
+# local then rescued produced a correct transcript, ten seconds of deafness,
+# and not one line anywhere saying why.
+TRANSCRIBE_PATH = "none"
+
+
+def set_transcribe_path(path):
+    global TRANSCRIBE_PATH
+    TRANSCRIBE_PATH = path
+
+
 def log_latency(reader_lag, nchars):
     """Best-effort, like predictive_flash() and set_sideband_state(): a
     broken log must never delay the dispatch it is measuring."""
@@ -1314,9 +1347,9 @@ def log_latency(reader_lag, nchars):
         with open(LATENCY_LOG, "a") as f:
             # trail is the VAD's fixed cost, carried on every line so a
             # reader does not have to know what TRAIL was set to that night.
-            f.write("%s  trail=%.2f whisper=%.2f blind=%.2f chars=%d\n" % (
+            f.write("%s  trail=%.2f whisper=%.2f blind=%.2f path=%s chars=%d\n" % (
                 datetime.datetime.now().strftime("%H:%M:%S"),
-                TRAIL, reader_lag, TRAIL + reader_lag, nchars))
+                TRAIL, reader_lag, TRAIL + reader_lag, TRANSCRIBE_PATH, nchars))
     except OSError:
         pass
 
