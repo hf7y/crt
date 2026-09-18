@@ -170,4 +170,53 @@ else
   fail=1
 fi
 
+# --- 11-12. claude off PATH, as a non-interactive ssh actually sees it ---
+# `ssh dexter '.../crt-brain-session.sh ensure'` gets a PATH without
+# ~/.local/bin, so the 2026-09-18 restart failed with "claude not on PATH"
+# on a box where an interactive shell found it. PATH here is the shim dir
+# ALONE -- inheriting the real one would let a developer's own claude
+# satisfy command -v and pass the test for the wrong reason.
+BARE="$TMP/bare"; mkdir -p "$BARE"
+cp "$FAKEBIN/tmux" "$BARE/tmux"
+# /usr/bin:/bin, not the caller's PATH: the script needs coreutils, but
+# inheriting the whole PATH would let a developer's own ~/.local/bin/claude
+# satisfy command -v and pass these two for the wrong reason. claude installs
+# per-user, so the system dirs give us the utilities without the binary.
+BARE_PATH="$BARE:/usr/bin:/bin"
+mkdir -p "$TMP/home/.local/bin"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/home/.local/bin/claude"
+chmod +x "$TMP/home/.local/bin/claude"
+
+run_bare() {
+  local envs=()
+  while [ "$#" -gt 0 ] && [ "${1#*=}" != "$1" ]; do envs+=("$1"); shift; done
+  env PATH="$BARE_PATH" HOME="$TMP/home" "${envs[@]}" bash "$SCRIPT" "$@"
+}
+
+# --- 11. ...falls back to ~/.local/bin/claude rather than refusing ------
+: > "$LOG"
+printf '❯ ready\n' > "$PANE"
+# Asserted on the new-session line, not the exit code: the tmux shim reports
+# has-session false on every call, so the post-start liveness check always
+# says the session died. What is under test is WHICH binary got launched.
+out="$(run_bare TMUX_HAS_SESSION=1 ensure 2>&1)"; rc=$?
+if grep -q "$TMP/home/.local/bin/claude" "$LOG"; then
+  echo "PASS: claude off PATH falls back to ~/.local/bin/claude"
+else
+  echo "FAIL: no fallback when claude is off PATH -- rc=$rc out='$out' log='$(cat "$LOG")'"
+  fail=1
+fi
+
+# --- 12. ...but an explicitly named binary that is missing still fails --
+# Starting a DIFFERENT claude than the one asked for is worse than not
+# starting, so the fallback is scoped to the unset case only.
+: > "$LOG"
+out="$(run_bare TMUX_HAS_SESSION=1 CRT_BRAIN_CLAUDE="$TMP/no-such-claude" ensure 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q "not on PATH"; then
+  echo "PASS: an explicit CRT_BRAIN_CLAUDE that is missing stays a hard error"
+else
+  echo "FAIL: explicit missing CRT_BRAIN_CLAUDE was silently replaced -- rc=$rc out='$out' log='$(cat "$LOG")'"
+  fail=1
+fi
+
 exit "$fail"

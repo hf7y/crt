@@ -39,6 +39,22 @@ fi
 CRT_BRAIN_CWD="${CRT_BRAIN_CWD:-$(cd "$HERE/.." && pwd)}"
 CLAUDE_BIN="${CRT_BRAIN_CLAUDE:-claude}"
 
+# A non-interactive `ssh dexter '.../crt-brain-session.sh ensure'` -- which is
+# how this script is actually reached when the brain needs restarting -- gets
+# a PATH without ~/.local/bin, where claude's version symlink lives. On
+# 2026-09-18 that made the brain unstartable over ssh ("claude not on PATH")
+# while an interactive shell on the same box found it fine, and the failure
+# names PATH rather than the login shell that shaped it. Fall back to the
+# known install path instead of making every remote caller remember to export
+# CRT_BRAIN_CLAUDE. Only when the caller did not name a binary: an explicit
+# CRT_BRAIN_CLAUDE that is missing stays a hard error, because silently
+# starting a different claude than the one asked for is worse than not
+# starting. Witnessed by tests/test_brain_session_bypass.sh, case 7.
+if [ -z "${CRT_BRAIN_CLAUDE:-}" ] && ! command -v "$CLAUDE_BIN" >/dev/null 2>&1 \
+   && [ -x "$HOME/.local/bin/claude" ]; then
+  CLAUDE_BIN="$HOME/.local/bin/claude"
+fi
+
 # Zero permission prompts -- a correctness requirement, not a convenience
 # (Zach, 2026-07-29, after a read-only `ls` stalled the dexter brain live):
 # its only input is `tmux send-keys` from a landline, so nobody is there
