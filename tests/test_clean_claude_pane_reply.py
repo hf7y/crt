@@ -87,6 +87,58 @@ class TestCleanClaudePaneReply(unittest.TestCase):
             ["● first line", "second line", "third line"])
         self.assertEqual(cleaned, "first line\nsecond line\nthird line")
 
+    def test_the_spinner_is_matched_by_shape_not_by_one_verb(self):
+        # "Baked for 2s" was the verb in 2026-07-28's capture and the filter
+        # took it literally. The live pane on 2026-09-18 said "Worked for 0s",
+        # which sailed through to be spoken as if it were Claude's answer.
+        for verb in ("Baked", "Worked", "Pondering", "Noodling"):
+            self.assertEqual(
+                self.sec.clean_claude_pane_reply(["✻ %s for 3s" % verb]), "",
+                "%s slipped the spinner filter" % verb)
+
+    def test_a_real_sentence_shaped_like_the_spinner_survives(self):
+        # The shape rule needs the seconds unit, so ordinary prose that
+        # happens to start "<word> for <number>" is not eaten.
+        self.assertEqual(
+            self.sec.clean_claude_pane_reply(["● Waited for 3 days, then left"]),
+            "Waited for 3 days, then left")
+
+
+class BrainSignedOutTest(unittest.TestCase):
+    """2026-09-18: the brain ran for hours answering every utterance with
+    "Login expired", and every layer above it reported healthy. Cleaned like
+    any other pane text, that error is SPOKEN as though it were the answer."""
+
+    def setUp(self):
+        self.sec = load_secretary()
+
+    def test_the_live_pane_is_recognised(self):
+        cleaned = self.sec.clean_claude_pane_reply(
+            ["● Login expired · Please run /login", "✻ Worked for 0s"])
+        self.assertTrue(self.sec.brain_signed_out(cleaned))
+
+    def test_other_refusals_to_work_count_too(self):
+        for phrasing in ("Invalid API key · Please run /login",
+                         "Your credit balance is too low",
+                         "API Error: authentication_error"):
+            self.assertTrue(self.sec.brain_signed_out(phrasing), phrasing)
+
+    def test_an_ordinary_answer_is_not_a_sign_out(self):
+        # A false positive tells the room the brain is signed out when it is
+        # merely talking about logging in -- its own confidently-wrong report.
+        for phrasing in ("", "The kettle is on.",
+                         "You log in with your GitHub account.",
+                         "I checked the balance and it is fine."):
+            self.assertFalse(self.sec.brain_signed_out(phrasing), phrasing)
+
+    def test_the_spoken_line_says_where_and_what_to_do(self):
+        # It is spoken aloud, so it must name the fix in words a voice can
+        # say -- and nobody in the room can infer the host.
+        line = self.sec.BRAIN_SIGNED_OUT_LINE
+        self.assertIn("signed out", line.lower())
+        self.assertIn("slash login", line.lower())
+        self.assertNotIn("/login", line)
+
 
 if __name__ == "__main__":
     unittest.main()
