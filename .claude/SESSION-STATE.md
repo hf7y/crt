@@ -124,6 +124,27 @@ out. So the drops are the fallback firing, not slow transcription.
 They carry no timestamps, so they are historical — from a window that ended
 when the console went quiet at 22:33 on 2026-09-17. Not a claim about now.
 
+### A resident local whisper does NOT fix the fallback
+
+Tested on potato 2026-09-18, and it closes off the obvious design:
+
+| | 3s clip | 20s clip |
+|---|---|---|
+| `whisper-cli`, cold every call | 9.84s | 9.94s |
+| `whisper-server`, model resident | 8.62–8.85s | 9.28–9.47s |
+
+Keeping the model warm saves **~1.2s of ~10s**. The rest is the Pi
+decoding. whisper works in fixed 30s windows, so clip length is irrelevant
+on both paths — which is what made it look like pure model-load cost, and
+that inference was wrong (corrected on crt#345 and in crt#347's message).
+
+So the fallback is inherently ~9s here. What is left: lower
+`CRT_WHISPER_SERVER_TIMEOUT` (8s, against a remote whose measured p90 is
+0.86s), or decide ~9s of deafness is worse than failing fast. Both Zach's.
+
+Test server RSS was 109MB; it was stopped and memory confirmed back to
+647MB available, `crt-stt-solo.py` pid 20206 untouched.
+
 ### Do not deploy to potato without Zach
 
 `~/crt` there is **140 commits behind main** (205 files; `crt-stt-solo.py`
