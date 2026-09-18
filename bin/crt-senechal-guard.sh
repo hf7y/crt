@@ -43,18 +43,10 @@ fi
 MATCH=''
 add() { MATCH="${MATCH:+$MATCH; }$1"; }
 
-# A heredoc BODY (`<<'EOF' ... EOF`) is literal text landing wherever the
-# redirect before `<<` points -- not a command the shell reads. If that
-# body merely *mentions* ~/.local/share or ~/.local/bin in prose (e.g. this
-# guard writing an issue/PR body about itself to /tmp), every check below
-# scans the whole command string with no notion of WHERE a `>` actually
-# writes, so a heredoc body discussing the path and an unrelated `>`
-# elsewhere in the same command (even the heredoc's own redirect into
-# /tmp) combine into a false positive. Found live: a `cat > /tmp/x.md
-# <<'EOF' ... mentions ~/.local/share in prose ... EOF` false-positived as
-# "a marker file under ~/.local/share" though nothing under .local/share
-# was touched. Strip heredoc bodies (keeping the redirect line itself, so
-# a real `cat > ~/.local/share/x/y <<'EOF'` still matches) before scanning.
+# A heredoc BODY is literal text, not a command -- scanning it lets a body
+# that merely *mentions* a path false-positive as a write to it. Strip
+# heredoc bodies (keeping the redirect line itself) before scanning --
+# witnessed by tests/test_senechal_guard.sh's heredoc-body cases.
 cmd_scan="$(printf '%s' "$cmd" | awk '
   in_here { body = $0; if (indent) sub(/^[ \t]+/, "", body)
             if (body == delim) in_here = 0
@@ -72,28 +64,16 @@ printf '%s' "$cmd_scan" | grep -qE 'systemctl[^|;&]*(enable|disable|mask|unmask)
 printf '%s' "$cmd_scan" | grep -qE '/etc/systemd/system' && add 'a unit file in /etc/systemd/system'
 printf '%s' "$cmd_scan" | grep -qE 'crontab[[:space:]]+(-e|-r|[^-])' && add 'crontab'
 printf '%s' "$cmd_scan" | grep -qE '(\.config/)?autostart' && add 'autostart entry'
-# A literal "->" arrow (echoed text), a stderr-to-void redirect
-# (`2>/dev/null`, `&>/dev/null`), an fd-duplicating redirect (`2>&1`,
-# `1>&2`), or a ">=" comparison inside embedded script code (e.g. an awk
-# `count>=3`) writes nothing anywhere -- strip all four before checking for
-# a write verb, or a read-only command that merely references ~/.local/bin
-# or ~/.local/share false-positives on the bare ">" in any of them. Found
-# live: a `cd ~/.local/share/crt-nightly-batch/repo` followed by a plain
-# `cat foo 2>&1 | head` in the same command false-positived on the `>` in
-# `2>&1`; separately, an inline awk script comparing `count>=3` while
-# reading under a ~/.local/share checkout false-positived on the `>` in
-# `>=`.
+# A literal "->" arrow, a stderr-to-void redirect, an fd-duplicating
+# redirect (2>&1, 1>&2), or an embedded ">=" comparison all contain a bare
+# ">" but write nothing -- strip all four before checking for a write verb,
+# per tests/test_senechal_guard.sh's arrow/redirect/awk-comparison cases.
 cmd_for_write_check="$(printf '%s' "$cmd_scan" | sed -E 's/->//g; s/[0-9&]*>>?[[:space:]]*\/dev\/null//g; s/[0-9]*>&[0-9]+//g; s/>=//g')"
-# The write must TARGET ~/.local/bin or ~/.local/share, not merely
-# co-occur with one somewhere else in the command -- checking "does a
-# write verb appear anywhere" and "does .local/share appear anywhere"
-# independently false-positives on a `cd` through a ~/.local/share
-# checkout followed by a real write to somewhere unrelated. Found live:
-# `cd ~/.local/share/crt-nightly-batch/repo && (pytest ... > /tmp/out.log
-# ...) &` -- the redirect's target was /tmp, not .local/share, but both
-# substrings appeared in the command so it fired anyway. Anchor a write-verb
-# command to its own argument list (flags allowed, but not past a `;`/`&`/
-# `|` boundary), and a `>`/`>>` redirect to its own immediate target.
+# The write must TARGET ~/.local/bin or ~/.local/share, not merely co-occur
+# with one elsewhere in the command (e.g. a `cd` through the checkout then
+# an unrelated write) -- anchor a write-verb command to its own argument
+# list and a redirect to its own immediate target, per
+# tests/test_senechal_guard.sh's cd-then-unrelated-write case.
 WRITE_VERB_CMD='(sudo[[:space:]]+)?(install|cp|mv|ln|touch|mkdir|chmod|tee)[[:space:]]'
 targets_path() { # <path fragment, e.g. local/bin> -> 0 if a write targets it
   printf '%s' "$cmd_for_write_check" | grep -qE "${WRITE_VERB_CMD}[^;&|]*\\.$1" && return 0
