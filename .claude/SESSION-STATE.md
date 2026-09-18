@@ -21,6 +21,27 @@ actually true today.
 **Read the issues first, as above.** This section is the running state of
 one night, not a second backlog.
 
+### READ THIS FIRST: the brain on dexter is signed out
+
+    ● Login expired · Please run /login
+
+**Needs Zach, on dexter.** `tmux attach -t potato-claude`, run `/login`,
+detach. Nothing on potato or in this repo can do it.
+
+Everything *around* it is genuinely fixed — the ssh path, the forced
+command, the tmux session, the voice worktree — and `SEND` returns `OK`
+because `tmux send-keys` succeeds. **No utterance has been answered.** I
+reported the brain alive on crt#140 before noticing; corrected there.
+
+It was visible in the room and missed: `~/.crt/gate.log`, 06:53 today —
+"Potato, can you reach your brain?" — asked of a console I had just called
+working.
+
+crt#348 teaches `crt-brain-session.sh status` to report it. It had slipped
+every check because it is **not a modal**: a signed-out Claude renders an
+ordinary idle prompt with the error in the scrollback, so `parked_reason()`
+passes it and `CAPTURE` returns a healthy body.
+
 ### What was wrong, and what fixed it
 
 The room's LAN moved from `192.168.0.x` to `192.168.1.x` (potato is now
