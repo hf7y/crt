@@ -165,6 +165,17 @@ class TranscribeRemoteTest(unittest.TestCase):
         self.assertIsNone(self._against("hang"))
 
 
+class WhisperServerTimeoutDefaultTest(unittest.TestCase):
+    """crt#345: 8s let a hung remote cost 8s *and then* the ~9s local
+    fallback. Remote p90 is 0.86s, max 1.40s (30-request burst) -- 3s bounds
+    that without needing CRT_WHISPER_SERVER_TIMEOUT set."""
+
+    def test_default_is_3_seconds_not_8(self):
+        if "CRT_WHISPER_SERVER_TIMEOUT" in os.environ:
+            self.skipTest("CRT_WHISPER_SERVER_TIMEOUT overridden in this environment")
+        self.assertEqual(stt.WHISPER_SERVER_TIMEOUT, 3.0)
+
+
 class TranscribePropagationTest(unittest.TestCase):
     """transcribe() must not launder None back into "" on the way up."""
 
