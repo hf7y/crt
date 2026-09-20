@@ -127,6 +127,7 @@ class TestRewakeThroughEmit(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
         self.stt.STT_LOG = os.path.join(self.tmpdir, "stt.log")
         self.stt.GATE_LOG = os.path.join(self.tmpdir, "thoughts.log")
+        self.stt.LATENCY_LOG = os.path.join(self.tmpdir, "latency.log")
         # emit() publishes the arm window for crt-book-answer-listen.py to
         # read (2026-07-25, twentieth cycle). This class drives the REAL
         # emit(), so without this redirect the suite writes an open window
