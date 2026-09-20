@@ -571,6 +571,37 @@ def predictive_flash():
     if out:
         hud_msg, hud_until = ("~ " + out)[:WIDTH + 20], time.time() + 10.0
 
+# Persistent status cell (crt#344, on by default): tmux's own status-line,
+# not set_hud()'s pane-local flash -- it is the one display surface that
+# survives crt-secretary.py switching windows mid-request, since it belongs
+# to the session, not to whichever pane is showing. Pushed imperatively
+# (not polled) so onset paints with no interval delay: sole writer of
+# "listening"/"transcribing"/the transcript text, call sites witnessed by
+# tests/test_console_status.py's TestConsoleStatusCallSites.
+CONSOLE_STATUS = os.environ.get("CRT_STATUS_CELL", "1") != "0"
+CONSOLE_STATUS_IDLE = os.environ.get("CRT_STATUS_CELL_IDLE", "")
+CONSOLE_STATUS_TIMEOUT = float(os.environ.get("CRT_STATUS_CELL_SET_TIMEOUT", "0.5"))
+console_status_text = None    # what's currently pushed -- de-dupes redundant tmux calls
+console_status_until = 0.0    # >0: revert to idle once main()'s tick passes this
+
+
+def set_console_status(text, secs=None):
+    """Best-effort, like set_sideband_state() -- a slow/broken tmux call
+    must never delay real transcription. `secs` schedules a revert to
+    CONSOLE_STATUS_IDLE (main()'s display tick does the reverting, since
+    this function has no timer of its own); omit it for a state that only
+    ends when the next call replaces it (onset, thinking)."""
+    global console_status_text, console_status_until
+    if not CONSOLE_STATUS or text == console_status_text:
+        return
+    console_status_text = text
+    console_status_until = time.time() + secs if secs else 0.0
+    try:
+        subprocess.run(["tmux", "set-option", "-t", SESSION, "status-right", text[:WIDTH + 20]],
+                        capture_output=True, timeout=CONSOLE_STATUS_TIMEOUT)
+    except Exception:
+        pass
+
 # Sideband ambient-presence state (2026-07-20, opt-in, off by default --
 # SIDEBAND.md): sole writer of "listening"/"thinking"; call sites witnessed
 # by tests/test_sideband_wiring.py's TestSidebandCallSites.
@@ -1380,6 +1411,7 @@ def emit(text, peak=1.0, utt_start=None, utt_end=None):
     n_show = max(1, round(len(words) * loud_frac))
     shown = " ".join(words[:n_show]) + (" .." if n_show < len(words) else "")
     hud_msg, hud_until = shown[:WIDTH + 20], time.time() + FLASH_SECS
+    set_console_status(shown, secs=FLASH_SECS)
     ts = datetime.datetime.now().strftime("%H:%M:%S")
     sys.stdout.write('\r' + ' ' * (WIDTH + 20) + '\r')   # clear meter line
     try:
@@ -1645,7 +1677,7 @@ def main():
     mute_hold = 0.0       # seconds an open utterance has been frozen by a duck
     transcribe_fails = 0  # consecutive utterances heard but not transcribed
     last_meter = 0.0
-    global hud_msg, hud_until
+    global hud_msg, hud_until, console_status_until
     ctl_pos = 0
     ctl_replay = True     # first CTL read is the file's history, not live input
     ring_state = None     # None | "tone" | "gap"
@@ -1761,6 +1793,10 @@ def main():
                             print(RING_TIMEOUT_MSG)
                 continue   # ringing suppresses normal VAD/utterance handling
 
+            if console_status_until and now >= console_status_until:
+                set_console_status(CONSOLE_STATUS_IDLE)
+                console_status_until = 0.0
+
             if not in_utt and now - last_meter > 0.1:
                 if now < hud_until:
                     sys.stdout.write('\r%-40s' % hud_msg[:40]); sys.stdout.flush()
@@ -1800,6 +1836,7 @@ def main():
                         sil = 0.0
                         mute_hold = 0.0
                         utt_peak = peak
+                        set_console_status("listening")
                         if EARCON_ON_THRESHOLD:
                             play_earcon("heard")
                 else:
@@ -1820,6 +1857,7 @@ def main():
                         if PREDICT_FLASH:
                             predictive_flash()
                         set_sideband_state("thinking")
+                        set_console_status("transcribing")
                         text = transcribe(bytes(buf))
                         if text is None:
                             # Heard, captured, and then lost between here and
@@ -1830,6 +1868,7 @@ def main():
                             hud, line = transcribe_failure_report(
                                 transcribe_fails, WHISPER_SERVER)
                             hud_msg, hud_until = hud, time.time() + FLASH_SECS
+                            set_console_status(hud, secs=FLASH_SECS)
                             if line:
                                 report_line(line)
                         else:

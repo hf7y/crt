@@ -374,6 +374,10 @@ echo "== sideband wiring (stt-solo state + tts duck) =="
 python3 "$DIR/test_sideband_wiring.py" || fail=1
 echo
 
+echo "== persistent status cell (crt#344) =="
+python3 "$DIR/test_console_status.py" || fail=1
+echo
+
 echo "== earcon sideband duck =="
 bash "$DIR/test_earcon_sideband_duck.sh" || fail=1
 echo

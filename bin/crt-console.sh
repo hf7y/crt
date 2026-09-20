@@ -180,13 +180,27 @@ tmux new-window -d -t "$SESSION" -n windowswitch -c "$BIN_DIR" "python3 ./crt-wi
 # reviewed entry -- see crt-stt-training-merge.py's header.
 tmux new-window -d -t "$SESSION" -n stttrain -c "$BIN_DIR" "python3 ./crt-stt-training-merge.py --loop; exec bash"
 
-# NOT YET BUILT (flagged explicitly so it doesn't get assumed-done next time):
-# a visual signal of the USER's speech (not claude's replies) in the monologue
-# window -- e.g. the raw/interim STT text, or just a level indicator. Right now
-# window 1 only shows claude's side of the conversation.
-
-# Reclaim the bottom row: no tmux status bar on such a small screen.
-tmux set-option -t "$SESSION" status off
+# Persistent status cell (crt#344, Zach 2026-09-18: "it should start right
+# away. 2 seconds is too long for UX"). tmux's own status-line is the one
+# thing on this screen that survives crt-secretary.py switching windows
+# mid-request -- every renderer (crt-monologue.py, crt-book-console.py,
+# crt-screensaver.py) draws to its OWN pane only, and none of them is what's
+# on screen at rest. crt-stt-solo.py owns the content (set_console_status():
+# onset -> "listening", utterance close -> "transcribing", transcript back),
+# pushed imperatively via `tmux set-option status-right` rather than a
+# polled command, so the first paint is the onset itself with no interval
+# delay. This reverses the "reclaim the row" call below on a 40x15 screen;
+# CRT_STATUS_CELL=0 restores the old status-off behavior.
+if [ "${CRT_STATUS_CELL:-1}" != "0" ]; then
+  tmux set-option -t "$SESSION" status on
+  tmux set-option -t "$SESSION" status-interval 0
+  tmux set-option -t "$SESSION" status-left ""
+  tmux set-option -t "$SESSION" status-right ""
+  tmux set-option -t "$SESSION" status-justify left
+else
+  # Reclaim the bottom row: no tmux status bar on such a small screen.
+  tmux set-option -t "$SESSION" status off
+fi
 
 # `book` is the default selected window on boot, NOT window 0 (`claude`)
 # -- confirmed live 2026-07-21 (hands-on agent, pre-retirement VM) that a physical
