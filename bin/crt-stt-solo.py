@@ -590,6 +590,33 @@ def set_sideband_state(state):
     except Exception:
         pass
 
+# Status cell (crt#344, opt-in, off by default): a persistent tmux
+# status-right label keyed to the same VAD moments as sideband above, but
+# visual rather than audio -- Zach's ruling there was the audio-nuisance
+# objection ("beeps on every scrap of room chatter") doesn't transfer to a
+# quiet cell changing state. tmux's status line is the one thing on this
+# console that survives crt-secretary.py's mid-utterance window switches
+# without every renderer (book/screensaver/monologue) cooperating, since
+# none of them share a compositing layer -- crt-console.sh only turns the
+# status line on when this is enabled, matching the row it otherwise
+# reclaims. Call sites witnessed by tests/test_status_cell_wiring.py.
+STATUS_CELL = os.environ.get("CRT_STATUS_CELL", "0") != "0"
+STATUS_CELL_TIMEOUT = float(os.environ.get("CRT_STATUS_CELL_SET_TIMEOUT", "0.5"))
+
+
+def set_status_cell(label):
+    """Best-effort, like set_sideband_state() -- a slow/broken tmux call
+    must never delay real transcription."""
+    if not STATUS_CELL:
+        return
+    try:
+        subprocess.run(
+            ["tmux", "set-option", "-t", SESSION, "status-right",
+             ("#[fg=cyan]%s#[default]" % label) if label else ""],
+            capture_output=True, timeout=STATUS_CELL_TIMEOUT)
+    except Exception:
+        pass
+
 # Off by default: raw STT should only flash briefly, never linger, to mask
 # recognition errors -- the merged, cleaned-up text from claude is what
 # should persist on screen instead. Log-always-print-only-if-debug split
@@ -1802,6 +1829,7 @@ def main():
                         utt_peak = peak
                         if EARCON_ON_THRESHOLD:
                             play_earcon("heard")
+                        set_status_cell("hearing")
                 else:
                     above = 0
             else:
@@ -1820,6 +1848,7 @@ def main():
                         if PREDICT_FLASH:
                             predictive_flash()
                         set_sideband_state("thinking")
+                        set_status_cell("thinking")
                         text = transcribe(bytes(buf))
                         if text is None:
                             # Heard, captured, and then lost between here and
@@ -1840,6 +1869,7 @@ def main():
                             emit(text, utt_peak,
                                  utt_start=utt_span[0], utt_end=utt_span[1])
                         set_sideband_state("listening")
+                        set_status_cell("")
                         # Nobody read the mic for as long as that took. Keep
                         # the newest few seconds of what queued up (a
                         # follow-up utterance lands exactly there) and throw
@@ -1848,6 +1878,11 @@ def main():
                             proc.stdout, int(BACKLOG_MAX_SECS * RATE * 2))
                         if dropped:
                             report_line(backlog_drop_report(dropped))
+                    else:
+                        # Too short to transcribe -- the "hearing" cell set
+                        # at onset above must still clear, or a blip leaves
+                        # it stuck until the next real utterance.
+                        set_status_cell("")
                     buf = bytearray()
     except KeyboardInterrupt:
         capture_died = False       # deliberate stop, not a failure

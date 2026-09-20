@@ -372,6 +372,9 @@ echo
 
 echo "== sideband wiring (stt-solo state + tts duck) =="
 python3 "$DIR/test_sideband_wiring.py" || fail=1
+
+echo "== status cell wiring (stt-solo tmux status-right, crt#344) =="
+python3 "$DIR/test_status_cell_wiring.py" || fail=1
 echo
 
 echo "== earcon sideband duck =="

@@ -185,8 +185,20 @@ tmux new-window -d -t "$SESSION" -n stttrain -c "$BIN_DIR" "python3 ./crt-stt-tr
 # window -- e.g. the raw/interim STT text, or just a level indicator. Right now
 # window 1 only shows claude's side of the conversation.
 
-# Reclaim the bottom row: no tmux status bar on such a small screen.
-tmux set-option -t "$SESSION" status off
+# Reclaim the bottom row: no tmux status bar on such a small screen -- unless
+# crt#344's status cell is on, in which case tmux's own status line is the
+# only thing that survives crt-secretary.py's mid-utterance window switches
+# without every renderer (book/screensaver/monologue) cooperating, so the
+# row it would otherwise reclaim is the price of that cell existing at all.
+# fg=cyan only -- see CLAUDE.md's CRT color rule (no 31/32/34/91/92/94).
+if [ "${CRT_STATUS_CELL:-0}" = "1" ]; then
+  tmux set-option -t "$SESSION" status on
+  tmux set-option -t "$SESSION" status-left ""
+  tmux set-option -t "$SESSION" status-style "fg=cyan,bg=default"
+  tmux set-option -t "$SESSION" status-right ""
+else
+  tmux set-option -t "$SESSION" status off
+fi
 
 # `book` is the default selected window on boot, NOT window 0 (`claude`)
 # -- confirmed live 2026-07-21 (hands-on agent, pre-retirement VM) that a physical
