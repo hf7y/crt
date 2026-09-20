@@ -526,7 +526,7 @@ def ring_unplayable_report(detail):
             "nobody declined to answer it. This is a fault here, not a "
             "missed call." % detail)
 WHISPER_SERVER = os.environ.get("CRT_WHISPER_SERVER", "")   # e.g. http://100.107.253.56:8090/inference -- optional: POST the WAV to a whisper server instead of running whisper.cpp here; same pipeline either way, only inference moves (tests/test_transcribe_failure.py).
-WHISPER_SERVER_TIMEOUT = float(os.environ.get("CRT_WHISPER_SERVER_TIMEOUT", "8"))
+WHISPER_SERVER_TIMEOUT = float(os.environ.get("CRT_WHISPER_SERVER_TIMEOUT", "3"))  # crt#345: dexter's measured p90 is 0.86s, max 1.40s over a 30-request burst; 8s let a hung remote cost 8s *and then* the ~9s local fallback
 WHISPER_LOCAL_FALLBACK = os.environ.get("CRT_WHISPER_LOCAL_FALLBACK", "1") != "0"  # crt#132
 
 CHUNK_DUR = CHUNK / RATE
@@ -1235,11 +1235,14 @@ def transcribe(frames):
             if text is None and WHISPER_LOCAL_FALLBACK and local_whisper_available():
                 # The expensive branch, and until now a silent one: measured
                 # on potato 2026-09-18, whisper-cli costs ~9.9s for a 3s clip
-                # and ~9.9s for a 20s one -- it is process start and model
-                # load, paid per utterance, not decoding. The remote it is
-                # rescuing answers in 0.8s. Nobody is reading the mic for
-                # either, so a fallback deafens the console for ten seconds
-                # and the old code said nothing at all about having taken it.
+                # and ~9.9s for a 20s one. Whisper decodes fixed 30s windows
+                # regardless of clip length, which is why it's flat -- a
+                # resident whisper-server (model already loaded) only saved
+                # ~1.2s of that, so it is the Pi's CPU decoding, not process
+                # start/model load (crt#345). The remote it is rescuing
+                # answers in 0.8s. Nobody is reading the mic for either, so a
+                # fallback deafens the console for ten seconds and the old
+                # code said nothing at all about having taken it.
                 set_transcribe_path("fallback")
                 return transcribe_local(feed)  # crt#132
             set_transcribe_path("remote" if text is not None else "failed")
