@@ -33,6 +33,10 @@ done
 
 export CRT_SELFCHECK_DOOR="http://127.0.0.1:8801/mcp"
 export CRT_SELFCHECK_STATE="$D/selfcheck.state"
+# crt#363 added a third selfcheck state file (the "brain leg" log) that this
+# stub never pinned -- it fell through to the real ~/.crt/selfcheck-legs.log,
+# caught by run_tests.sh's own live-state guard.
+export CRT_SELFCHECK_LEGLOG="$D/selfcheck-legs.log"
 
 OUT="$D/potato-status.json"
 STT_LOG="$D/stt.log"; GATE_LOG="$D/gate.log"; SUP_LOG="$D/stt-supervisor.log"
