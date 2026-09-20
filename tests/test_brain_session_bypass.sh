@@ -18,20 +18,35 @@ FAKEBIN="$TMP/bin"; mkdir -p "$FAKEBIN"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$FAKEBIN/claude"
 chmod +x "$FAKEBIN/claude"
 
-# tmux shim. TMUX_HAS_SESSION decides whether a session "exists";
-# TMUX_PANE_FILE is what capture-pane replays; new-session args are
-# appended to TMUX_LOG.
+# tmux shim. TMUX_HAS_SESSION decides whether a session "exists"; setting
+# TMUX_SESSION_MARKER makes has-session instead report found only once
+# new-session has actually run, so a test can drive ensure's retry loop
+# through a session that comes alive mid-poll rather than one that either
+# always or never exists. TMUX_PANE_FILE is what capture-pane replays;
+# new-session args are appended to TMUX_LOG.
 cat > "$FAKEBIN/tmux" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
-  has-session)  exit "${TMUX_HAS_SESSION:-1}" ;;
-  new-session)  printf '%s\n' "$*" >> "$TMUX_LOG"; exit 0 ;;
+  has-session)
+    if [ -n "${TMUX_SESSION_MARKER:-}" ] && [ -e "$TMUX_SESSION_MARKER" ]; then
+      exit 0
+    fi
+    exit "${TMUX_HAS_SESSION:-1}" ;;
+  new-session)
+    printf '%s\n' "$*" >> "$TMUX_LOG"
+    [ -n "${TMUX_SESSION_MARKER:-}" ] && : > "$TMUX_SESSION_MARKER"
+    exit 0 ;;
   capture-pane) cat "$TMUX_PANE_FILE" 2>/dev/null; exit 0 ;;
   kill-session) exit 0 ;;
   *) exit 0 ;;
 esac
 EOF
 chmod +x "$FAKEBIN/tmux"
+
+# ensure's retry loop sleeps 1s between polls for a real tmux to catch up;
+# a no-op here keeps the retry-loop tests (14-16) from costing 10s each.
+printf '#!/usr/bin/env bash\nexit 0\n' > "$FAKEBIN/sleep"
+chmod +x "$FAKEBIN/sleep"
 
 PANE="$TMP/pane.txt"
 LOG="$TMP/tmux.log"
@@ -199,6 +214,7 @@ fi
 # satisfy command -v and pass the test for the wrong reason.
 BARE="$TMP/bare"; mkdir -p "$BARE"
 cp "$FAKEBIN/tmux" "$BARE/tmux"
+cp "$FAKEBIN/sleep" "$BARE/sleep"
 # Mirror /usr/bin and /bin into $BARE via symlinks, EXCLUDING any `claude`
 # found there, rather than trusting the two dirs are claude-free outright.
 # A seat with Claude Code installed system-wide (e.g. /usr/bin/claude, a
@@ -250,6 +266,52 @@ if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q "not on PATH"; then
   echo "PASS: an explicit CRT_BRAIN_CLAUDE that is missing stays a hard error"
 else
   echo "FAIL: explicit missing CRT_BRAIN_CLAUDE was silently replaced -- rc=$rc out='$out' log='$(cat "$LOG")'"
+  fail=1
+fi
+
+# --- 14. ensure does not call tmux forking a success -------------------
+# TMUX_HAS_SESSION=1 with no marker means has-session never reports found,
+# even after new-session runs -- the "claude exited immediately" case the
+# retry loop exists to catch instead of trusting tmux's own exit code.
+: > "$LOG"
+printf '' > "$PANE"
+out="$(run TMUX_HAS_SESSION=1 ensure 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q "died immediately"; then
+  echo "PASS: ensure reports died-immediately rather than claiming success"
+else
+  echo "FAIL: tmux forking was treated as a started brain -- rc=$rc out='$out'"
+  fail=1
+fi
+
+# --- 15. ...and a session that exists but never paints is a different
+# failure than one that never existed at all.
+: > "$LOG"
+MARKER15="$TMP/session-marker-15"; rm -f "$MARKER15"
+printf '' > "$PANE"
+out="$(run TMUX_HAS_SESSION=1 "TMUX_SESSION_MARKER=$MARKER15" ensure 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q "pane never painted"; then
+  echo "PASS: ensure distinguishes a blank pane from a session that never started"
+else
+  echo "FAIL: a blank pane was not reported as pane-never-painted -- rc=$rc out='$out'"
+  fail=1
+fi
+
+# --- 16. ...and a session that starts straight into a parked prompt is
+# caught by the retry loop itself, not just by a later `status` call.
+: > "$LOG"
+MARKER16="$TMP/session-marker-16"; rm -f "$MARKER16"
+cat > "$PANE" <<'EOF'
+ Bash command
+   ls ~/.local/bin/
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. No
+EOF
+out="$(run TMUX_HAS_SESSION=1 "TMUX_SESSION_MARKER=$MARKER16" ensure 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q "not a usable brain"; then
+  echo "PASS: ensure refuses to call a start that parked immediately healthy"
+else
+  echo "FAIL: a parked start was reported as a live brain -- rc=$rc out='$out'"
   fail=1
 fi
 
