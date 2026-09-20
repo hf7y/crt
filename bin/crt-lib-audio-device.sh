@@ -4,12 +4,11 @@
 # means something different on every box a script happens to run on: potato's
 # onboard vs. USB mic, or mandark's own HDA card -- the exact bug behind the
 # 2026-07-24 FOCUS.md note "batch run audio tests are outputting to mandark
-# card, not pi". A 2026-07-25 fix folded in below: a name miss used to fall
-# back to hardcoded plughw:0,0 even when no card 0 existed -- on potato
-# that's a playback-only card, so arecord on it exits instantly, and
-# crt-capture-watchdog.sh read that as a dead mic and looped recover()
-# forever. Source this file, then call crt_resolve_capture_device_by_name /
-# crt_resolve_capture_card_by_name / crt_detect_capture_device below.
+# card, not pi". The 2026-07-25 no-match fallback fix is witnessed by
+# tests/test_audio_device_lib.sh's "no matching card guesses a real capture
+# card, not the hardcoded index" check. Source this file, then call
+# crt_resolve_capture_device_by_name / crt_resolve_capture_card_by_name /
+# crt_detect_capture_device below.
 
 crt_resolve_capture_device_by_name() {
   local arecord_text="${1:-}"
