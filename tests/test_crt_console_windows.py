@@ -1,9 +1,3 @@
-"""crt_console_windows.py: the window map crt-pull.sh restarts from must
-come from crt-console.sh itself (crt#325) -- a hand-maintained copy is
-exactly the kind of prose that silently stops being true this repo keeps
-getting bitten by. Checks the parser against the REAL launch script, not
-a fixture, so a new/renamed window is caught here, not on potato.
-"""
 import os
 import sys
 import unittest
@@ -29,10 +23,6 @@ class TestParseWindows(unittest.TestCase):
         self.assertIn("crt-stt-supervisor.sh", self.by_name["stt"])
 
     def test_line_continuation_is_joined_before_matching(self):
-        # The `stt` window's tmux call wraps onto a second line with a
-        # trailing backslash -- if parse_windows didn't join it, the
-        # command capture above would have failed already, but assert
-        # the shape explicitly so a regression here is legible.
         with open(CONSOLE_SH) as fh:
             text = fh.read()
         self.assertIn("\\\n", text, "fixture assumption stale: no continued line left to test")

@@ -1,19 +1,9 @@
 #!/usr/bin/env python3
-# Which tmux windows crt-console.sh starts, and which of those a changed
-# file would affect -- read from the launch script itself (crt-pull.sh,
-# crt#325) so the map can never drift the way a hand-maintained copy of
-# crt-console.sh's window list would.
 import re
 import sys
 
 
 def parse_windows(script_text):
-    """[(window_name, launch_command), ...] from a crt-console.sh source.
-
-    The launch command is always the LAST quoted argument on a `tmux
-    new-window`/`new-session` line -- earlier ones are `-t`/`-c` targets
-    (e.g. "$SESSION", "$BIN_DIR"), not the command itself.
-    """
     joined = re.sub(r"\\\n[ \t]*", " ", script_text)
     windows = []
     for line in joined.splitlines():
