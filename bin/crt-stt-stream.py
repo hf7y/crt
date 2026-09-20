@@ -5,9 +5,10 @@
 #
 # WHY: crt-stt-solo.py transcribes once, after VAD trail -- nothing shows
 # on screen until you stop talking. This re-decodes a growing buffer every
-# ~0.5s and commits a word once two consecutive decodes agree
-# (LocalAgreement-2, from whisper_streaming, see local_agreement_commit)
-# to approximate streaming without swapping the model.
+# ~0.5s to approximate streaming without swapping the model -- see
+# local_agreement_commit and
+# tests/test_stt_stream_helpers.py::LocalAgreementCommitTest for the
+# LocalAgreement-2 commit rule (from whisper_streaming).
 #
 # COST: re-decodes the WHOLE utterance-so-far every tick (~12x decodes for
 # a 6s utterance) -- may be too slow on a CPU-capped VM; point
