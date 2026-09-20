@@ -26,6 +26,7 @@ class TestSecretarySinkRouting(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
         self.stt.STT_LOG = os.path.join(self.tmpdir, "stt.log")
         self.stt.GATE_LOG = os.path.join(self.tmpdir, "thoughts.log")
+        self.stt.LATENCY_LOG = os.path.join(self.tmpdir, "latency.log")
         self.stt.SINK = "secretary"
         self.stt.GATE = False
         self.claude_calls = []
@@ -106,6 +107,7 @@ class TestPersonaControlOverride(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
         self.stt.STT_LOG = os.path.join(self.tmpdir, "stt.log")
         self.stt.GATE_LOG = os.path.join(self.tmpdir, "thoughts.log")
+        self.stt.LATENCY_LOG = os.path.join(self.tmpdir, "latency.log")
         self.stt.SINK = "secretary"
         self.stt.GATE = False
         self.claude_calls = []
@@ -142,6 +144,7 @@ class TestSttLogAlwaysWritesDebugPersistOnlyGatesPrint(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
         self.stt.STT_LOG = os.path.join(self.tmpdir, "stt.log")
         self.stt.GATE_LOG = os.path.join(self.tmpdir, "thoughts.log")
+        self.stt.LATENCY_LOG = os.path.join(self.tmpdir, "latency.log")
         self.stt.SINK = "secretary"
         self.stt.GATE = False
         self.stt.send_to_claude = lambda text, key: None

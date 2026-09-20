@@ -8,7 +8,7 @@
 # -- one arecord stays open, and metering/VAD/whisper share that stream.
 # VAD is PEAK- not average-based (sox's `silence` never crossed threshold
 # at low input gain; speech peaks do). Ctrl-C to quit.
-import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, urllib.error, json, re, signal, fcntl, termios
+import sys, os, array, time, wave, tempfile, subprocess, datetime, urllib.request, urllib.error, json, re, signal, fcntl, termios, threading
 import importlib.util
 from collections import deque
 
@@ -966,6 +966,21 @@ PIPE_MAX_SIZE_PATH = "/proc/sys/fs/pipe-max-size"
 F_SETPIPE_SZ = getattr(fcntl, "F_SETPIPE_SZ", 1031)
 F_GETPIPE_SZ = getattr(fcntl, "F_GETPIPE_SZ", 1032)
 
+# crt#345 candidate 3: transcribe() on a background thread instead of inline,
+# so the sole reader above never actually stops reading arecord and none of
+# CAPTURE_PIPE_BYTES/BACKLOG_MAX_SECS's drop-and-report dance is needed for
+# the utterance that triggered it. Off by default -- untested against real
+# hardware/audio from this seat, and "start transcribing earlier" is exactly
+# the correctness trade STT-MECHANISM.md warns has to be answered, not
+# assumed. See finish_utterance()/drain_pending() in main() for the mechanism
+# and tests/test_overlap_transcribe.py for what is actually verified here.
+OVERLAP_TRANSCRIBE = os.environ.get("CRT_OVERLAP_TRANSCRIBE", "0") == "1"
+# Above this many in-flight background transcriptions, a new utterance falls
+# back to the old blocking call instead of spawning another thread -- a
+# backstop against unbounded thread growth if whisper (remote or the ~9s
+# local fallback, crt#345) is stuck answering a run of utterances.
+OVERLAP_MAX_INFLIGHT = int(os.environ.get("CRT_OVERLAP_MAX_INFLIGHT", "3"))
+
 
 def audio_seconds(nbytes):
     """Bytes of S16_LE mono at RATE -> seconds. The one place this ratio is
@@ -1259,10 +1274,23 @@ def transcribe_local(feed):  # same None/""/text contract as transcribe_remote()
         return None
 
 
-def transcribe(frames):
+def transcribe(frames, path_out=None):
     """Return the transcription of these frames, "" if the recogniser ran and
     heard nothing, or None if the recognition step itself failed (see
-    transcribe_remote). The caller must not treat None as silence."""
+    transcribe_remote). The caller must not treat None as silence.
+
+    `path_out`, if a list, gets the resolved TRANSCRIBE_PATH appended to it
+    -- for OVERLAP_TRANSCRIBE's background workers, which cannot read the
+    module-level global afterward and expect to get THIS call's value: by
+    the time such a worker's thread is scheduled again, a second worker
+    transcribing the next utterance concurrently may already have
+    overwritten it. The global write below still happens too, for every
+    caller that runs synchronously and reads it immediately after, same as
+    before this parameter existed."""
+    def mark_path(path):
+        set_transcribe_path(path)
+        if path_out is not None:
+            path_out.append(path)
     raw = norm = None
     try:
         fd, raw = tempfile.mkstemp(suffix=".wav"); os.close(fd)
@@ -1297,11 +1325,11 @@ def transcribe(frames):
                 # answers in 0.8s. Nobody is reading the mic for either, so a
                 # fallback deafens the console for ten seconds and the old
                 # code said nothing at all about having taken it.
-                set_transcribe_path("fallback")
+                mark_path("fallback")
                 return transcribe_local(feed)  # crt#132
-            set_transcribe_path("remote" if text is not None else "failed")
+            mark_path("remote" if text is not None else "failed")
             return text
-        set_transcribe_path("local")
+        mark_path("local")
         return transcribe_local(feed)
     except Exception:
         return None
@@ -1656,6 +1684,45 @@ def install_signal_handlers():
             pass
 
 
+def spawn_transcription(frames, peak, span, pending):
+    """crt#345 candidate 3. Start transcribing `frames` on a background
+    thread and append its holder to `pending` (oldest first) -- module-level
+    so tests can drive it with a stubbed transcribe() rather than real audio
+    hardware/network.
+
+    The worker touches nothing but its own locals and the holder dict it
+    owns -- no global, no hud, no emit() -- so it cannot race whatever later
+    calls drain_pending() on this same list from the main thread. Its
+    `path_out` (not the TRANSCRIBE_PATH global) is what makes that safe: two
+    workers transcribing concurrently both call transcribe(), which still
+    sets that shared global as a side effect either way, but each worker's
+    own path_out list is never touched by the other one."""
+    holder = {"done": threading.Event(), "text": None, "path": "failed",
+              "peak": peak, "span": span}
+
+    def worker():
+        path_out = []
+        holder["text"] = transcribe(frames, path_out=path_out)
+        holder["path"] = path_out[0] if path_out else "failed"
+        holder["done"].set()
+
+    threading.Thread(target=worker, daemon=True).start()
+    pending.append(holder)
+    return holder
+
+
+def drain_pending(pending, finish):
+    """Pop and hand every FRONT entry of `pending` that has finished to
+    `finish(text, path, peak, span)`, in the order utterances were SPOKEN --
+    not the order their transcriptions happened to complete. Two utterances
+    can be in flight at once (OVERLAP_TRANSCRIBE); if the second one's
+    network call wins the race, it must still wait behind the first, or a
+    reply could answer the wrong utterance."""
+    while pending and pending[0]["done"].is_set():
+        p = pending.pop(0)
+        finish(p["text"], p["path"], p["peak"], p["span"])
+
+
 def main():
     # claude/secretary sinks: don't start feeding keystrokes/utterances until
     # the target session is up (it may still be launching `claude`), else
@@ -1709,6 +1776,40 @@ def main():
     ring_proc = None
     started = time.time()
     capture_died = False
+    # OVERLAP_TRANSCRIBE's in-flight background transcriptions, oldest first.
+    # A plain list, not a queue.Queue: the only consumer is this same loop,
+    # so there is nothing to block on -- drain_pending() below just peeks at
+    # index 0 every tick.
+    pending = []
+
+    def finish_utterance(text, path, peak, span):
+        """The tail end of an utterance's life, shared by both the inline
+        call (transcribe() ran right here, blocking) and a background
+        worker's result once drain_pending() below sees it is done -- same
+        accounting either way, so a fallback to the blocking path (over
+        OVERLAP_MAX_INFLIGHT, or OVERLAP_TRANSCRIBE off) can't drift from
+        what a background one does."""
+        nonlocal transcribe_fails
+        global hud_msg, hud_until
+        set_transcribe_path(path)
+        if text is None:
+            # Heard, captured, and then lost between here and the
+            # recogniser. Anything that stays quiet here is claiming the
+            # room was silent (see transcribe_remote's None/"" split).
+            transcribe_fails += 1
+            hud, line = transcribe_failure_report(transcribe_fails, WHISPER_SERVER)
+            hud_msg, hud_until = hud, time.time() + FLASH_SECS
+            if line:
+                report_line(line)
+        else:
+            rec = transcribe_recovery_report(transcribe_fails)
+            if rec:
+                report_line(rec)
+            transcribe_fails = 0
+            emit(text, peak, utt_start=span[0], utt_end=span[1])
+        set_sideband_state("listening")
+        set_vad_indicator("armed")
+
     try:
         while True:
             data = read_exact(proc.stdout, NBYTES)
@@ -1719,6 +1820,12 @@ def main():
             peak = (max(abs(x) for x in a) / FULL) if a else 0.0
 
             now = time.time()
+
+            # A background transcription (OVERLAP_TRANSCRIBE) landing.
+            # Before the ring branch's `continue`, same reasoning as
+            # reap_dispatches() just below -- an utterance finishing while
+            # the phone happens to be ringing is not a reason to hold it.
+            drain_pending(pending, finish_utterance)
 
             # Anything handed to crt-secretary.py that has since exited badly.
             # Before the ring branch's `continue`, so a dispatch that died
@@ -1879,37 +1986,31 @@ def main():
                     if dur >= MINUTT:
                         if PREDICT_FLASH:
                             predictive_flash()
-                        set_sideband_state("thinking")
-                        set_vad_indicator("thinking")
-                        text = transcribe(bytes(buf))
-                        if text is None:
-                            # Heard, captured, and then lost between here and
-                            # the recogniser. Anything that stays quiet here
-                            # is claiming the room was silent (see
-                            # transcribe_remote's None/"" split).
-                            transcribe_fails += 1
-                            hud, line = transcribe_failure_report(
-                                transcribe_fails, WHISPER_SERVER)
-                            hud_msg, hud_until = hud, time.time() + FLASH_SECS
-                            if line:
-                                report_line(line)
+                        if OVERLAP_TRANSCRIBE and len(pending) < OVERLAP_MAX_INFLIGHT:
+                            # crt#345 candidate 3. The loop falls straight
+                            # through to read_exact() again below: the pipe
+                            # is never left undrained, so none of
+                            # BACKLOG_MAX_SECS's drop-and-report applies to
+                            # this utterance. drain_pending(), above, is what
+                            # eventually reaches finish_utterance() with the
+                            # result, in order.
+                            spawn_transcription(bytes(buf), utt_peak, utt_span, pending)
+                            set_sideband_state("listening")
+                            set_vad_indicator("armed")
                         else:
-                            rec = transcribe_recovery_report(transcribe_fails)
-                            if rec:
-                                report_line(rec)
-                            transcribe_fails = 0
-                            emit(text, utt_peak,
-                                 utt_start=utt_span[0], utt_end=utt_span[1])
-                        set_sideband_state("listening")
-                        set_vad_indicator("armed")
-                        # Nobody read the mic for as long as that took. Keep
-                        # the newest few seconds of what queued up (a
-                        # follow-up utterance lands exactly there) and throw
-                        # the rest away rather than answering it late.
-                        dropped = drain_capture_backlog(
-                            proc.stdout, int(BACKLOG_MAX_SECS * RATE * 2))
-                        if dropped:
-                            report_line(backlog_drop_report(dropped))
+                            set_sideband_state("thinking")
+                            set_vad_indicator("thinking")
+                            text = transcribe(bytes(buf))
+                            finish_utterance(text, TRANSCRIBE_PATH, utt_peak, utt_span)
+                            # Nobody read the mic for as long as that took.
+                            # Keep the newest few seconds of what queued up (a
+                            # follow-up utterance lands exactly there) and
+                            # throw the rest away rather than answering it
+                            # late.
+                            dropped = drain_capture_backlog(
+                                proc.stdout, int(BACKLOG_MAX_SECS * RATE * 2))
+                            if dropped:
+                                report_line(backlog_drop_report(dropped))
                     else:
                         # Crossed threshold (onset painted above) but never
                         # reached MINUTT -- a blip, not an utterance. Revert

@@ -325,6 +325,10 @@ echo "== a re-wake starts a fresh session, through the live emit() path (2026-07
 python3 -m unittest discover -s "$DIR" -p "test_wake_rearm_ceiling.py" -v 2>&1 | tail -5 || fail=1
 echo
 
+echo "== transcribe() on a background thread, ordering + path race (crt#345 candidate 3) =="
+python3 -m unittest discover -s "$DIR" -p "test_overlap_transcribe.py" -v 2>&1 | tail -5 || fail=1
+echo
+
 echo "== WAKE_ARM_ENABLED unset means every wake_arm/ARM_STATE reference is guarded =="
 python3 -m unittest discover -s "$DIR" -p "test_wake_arm_guarded_refs.py" -v 2>&1 | tail -5 || fail=1
 echo
