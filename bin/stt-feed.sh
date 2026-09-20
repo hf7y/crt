@@ -41,7 +41,7 @@ is_whisper_noise_hallucination() {
 # is_whisper_noise_hallucination, kept a real parameter rather than a bare
 # $key read from the caller's scope (that used to read an unset variable
 # and crash the whole loop under `set -u` the first time anyone said a
-# bare "yes"; witnessed by test_stt_feed_voice_control.sh).
+# bare "yes"; witnessed by tests/test_stt_feed_gate_flag.sh).
 voice_control_keystroke() {
   local key
   key=$(printf '%s' "$1" | tr 'A-Z' 'a-z' | tr -cd 'a-z')
@@ -127,15 +127,9 @@ while true; do
   # meter's arecord on dsnoop. Check sox's own exit via PIPESTATUS, not the
   # pipeline's -- see tests/test_stt_feed_gate_flag.sh's SIGPIPE cases.
   #
-  # `&& sox_rc=... || sox_rc=...`, not `if pipeline; then :; fi` -- the `:`
-  # in the old then-branch was itself a simple command, and running ANY
-  # command between the pipe and reading PIPESTATUS clobbers it back down
-  # to a single element. That only showed up when the pipeline succeeded
-  # outright (arecord exiting 0 instead of dying to SIGPIPE, e.g. under a
-  # CI runner where the pipe stayed open longer than expected in crt#48's
-  # PR #300) -- `PIPESTATUS[1]` was then unbound under `set -u`, killing
-  # the whole capture loop. Reading PIPESTATUS as the first, only command
-  # on either side of `&&`/`||` can't be clobbered like that.
+  # `&& sox_rc=... || sox_rc=...`, not `if pipeline; then :; fi` -- a bare
+  # `:` in the then-branch clobbers PIPESTATUS. Witnessed by
+  # tests/test_stt_feed_gate_flag.sh's PR #300 regression case.
   arecord -D "$AUDIODEV" -f S16_LE -c 1 -r 16000 -t raw 2>/dev/null \
     | sox -q -t raw -r 16000 -e signed -b 16 -c 1 - "$wav" \
         silence 1 0.3 "$VAD_THRESHOLD" 1 1.2 "$VAD_THRESHOLD" trim 0 20 \

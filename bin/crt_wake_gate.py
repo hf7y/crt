@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # "Was this utterance addressed to the console?" -- one answer shared by
-# the two ~/.crt/stt.log readers with opposite rules (2026-07-25):
-# crt-stt-solo.py routes on a wake-word match, crt-book-answer-listen.py
-# grades anything in an open answer window as trivia. Scanning a book then
-# saying "claude, what's this about?" used to get graded as the answer.
+# the two ~/.crt/stt.log readers with opposite rules: crt-stt-solo.py routes
+# on a wake-word match, crt-book-answer-listen.py grades anything in an open
+# answer window as trivia. Witnessed by
+# tests/test_book_answer_wake_word.py::TestAQuestionForClaudeIsNotAnAnswer.
 # See addressed_to_console()'s docstring for the match rules, and
 # crt-book-answer-listen.py's grade_spoken_answer() docstring ("THE THIRD
 # DOOR") for the still-open arm-window-follow-up gap this gate has.

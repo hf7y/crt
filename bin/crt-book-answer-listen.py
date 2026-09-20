@@ -277,8 +277,8 @@ def announce(line):
 def main():
     conn = bg.get_db()
     # This is the LAST link of the Book Game funnel and a stability-bar
-    # item. Before 2026-07-25 one raising utterance ended it for the rest
-    # of the console's uptime -- see crt_loop_guard.py's LoopGuard docstring.
+    # item. Witnessed by
+    # tests/test_loop_guard.py::TestBookAnswerListenSurvives.
     guard = loop_guard.LoopGuard("bookanswer")
     for line in tail_new_lines(STT_LOG):
         if line is None:

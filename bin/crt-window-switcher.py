@@ -45,17 +45,11 @@ def should_return_to_book_game(active_window, last_active, now, idle_secs,
     so there's nothing to time out from -- don't switch.
 
     `returned_from` is the last_active value this process has ALREADY
-    returned to `book` from, and it closes a hole in "never yank focus
-    away from something someone chose by hand" (2026-07-25): that
-    protection only ever covered windows OTHER than mono. Window 1 is the
-    one background window CLAUDE.md says is meant to be looked at, and
-    every honest-failure line this project writes lands there. Reaching it
-    with prefix+1 an hour after the last exchange used to bounce straight
-    back to `book` within one poll -- last_active was ancient, so the idle
-    test was trivially true and stayed true forever. An exchange that has
-    already been returned from is spent; only a fresh touch of the state
-    file (a real new escalation, crt-secretary.py's touch_claude_active)
-    re-arms the auto-return."""
+    returned to `book` from -- an exchange that's already been returned
+    from is spent; only a fresh touch of the state file (a real new
+    escalation, crt-secretary.py's touch_claude_active) re-arms the
+    auto-return. Why this parameter exists at all: witnessed by
+    tests/test_window_switcher.py::TestAnExchangeIsReturnedFromOnlyOnce."""
     if active_window != claude_view_window:
         return False
     if last_active is None:

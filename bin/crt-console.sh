@@ -31,10 +31,8 @@ export CRT_CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
 # loader, so this boot path is not the only way to acquire it.
 #
 # It used to be: these were exports in ~/.bash_profile (which execs this
-# script), and the brain block was inline here. Both bit, in the same
-# way -- see bin/crt-conf.sh's header for the live 2026-07-29 failure.
-# Anything that restarts a window WITHOUT going through a login shell
-# came up with library defaults and looked healthy while doing it.
+# script), and the brain block was inline here. Both bit the same way --
+# witnessed by tests/test_console_conf.sh.
 # shellcheck disable=SC1090
 . "$BIN_DIR/crt-conf.sh"
 
