@@ -192,11 +192,9 @@ def send_to_secretary(text):
             stderr=err if err is not None else subprocess.DEVNULL,
         )
     except OSError as e:
-        # Spawning can fail for reasons that have nothing to do with the words:
-        # ENOMEM on a 905MB Pi already running whisper and ten tmux windows is
-        # the realistic one. This used to raise straight out of the capture
-        # loop, so a moment of memory pressure cost the console its hearing
-        # rather than one utterance.
+        # Spawning can fail for reasons that have nothing to do with the words
+        # (ENOMEM under memory pressure is the realistic one) -- see
+        # tests/test_dispatch_failure_visible.py's OSError-from-spawn case.
         if err is not None:
             err.close()
         _report_dispatch_failure(text, "could not start it: %s" % e)
