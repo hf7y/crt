@@ -73,10 +73,15 @@ class TestSttSoloSidebandGate(unittest.TestCase):
 
 class TestSidebandCallSites(unittest.TestCase):
     """Witnesses the header comment above set_sideband_state() in
-    bin/crt-stt-solo.py: it is the sole writer of "listening"/"thinking",
-    called only around main()'s capture loop in that order."""
+    bin/crt-stt-solo.py: it is the sole writer of "listening"/"thinking".
+    crt#345 candidate 3 (OVERLAP_TRANSCRIBE) added two more "listening"
+    sites: finish_utterance() consolidates the post-utterance "listening"
+    call for both the blocking and background-drain paths, and spawning a
+    background transcription returns to "listening" immediately rather than
+    "thinking" (capture never stops for it) -- see finish_utterance() and
+    the OVERLAP_TRANSCRIBE branch in main()."""
 
-    def test_call_sites_are_exactly_listening_thinking_listening(self):
+    def test_call_sites_are_exactly_listening_listening_listening_thinking(self):
         import ast
         path = os.path.join(BIN_DIR, "crt-stt-solo.py")
         with open(path) as f:
@@ -89,7 +94,7 @@ class TestSidebandCallSites(unittest.TestCase):
                 arg = node.args[0]
                 self.assertIsInstance(arg, ast.Constant)
                 states.append(arg.value)
-        self.assertEqual(states, ["listening", "thinking", "listening"])
+        self.assertEqual(states, ["listening", "listening", "listening", "thinking"])
 
 
 class TestVadIndicator(unittest.TestCase):
@@ -162,11 +167,19 @@ class TestVadIndicator(unittest.TestCase):
 class TestVadIndicatorCallSites(unittest.TestCase):
     """Witnesses set_vad_indicator()'s own header comment in
     bin/crt-stt-solo.py: init paints armed once at startup, then onset at
-    the threshold crossing, thinking right before transcribe(), armed once
-    the pipeline is done with the utterance either way (transcribed, or
-    too short to count)."""
+    the threshold crossing, thinking right before a blocking transcribe(),
+    armed once the pipeline is done with the utterance either way
+    (transcribed, or too short to count). crt#345 candidate 3
+    (OVERLAP_TRANSCRIBE) added a second "armed" site: finish_utterance()'s
+    terminal call, shared by the blocking path and the background-drain
+    path, plus the immediate "armed" a spawned background transcription
+    sets rather than waiting in "thinking" -- see finish_utterance() and
+    the OVERLAP_TRANSCRIBE branch in main(). finish_utterance() is defined
+    before the capture loop starts, so its "armed" call sorts ahead of the
+    loop's own onset/thinking sites below (this list is source order, not
+    call order)."""
 
-    def test_call_sites_are_exactly_armed_onset_thinking_armed_armed(self):
+    def test_call_sites_are_exactly_armed_armed_onset_armed_armed_thinking(self):
         import ast
         path = os.path.join(BIN_DIR, "crt-stt-solo.py")
         with open(path) as f:
@@ -179,7 +192,8 @@ class TestVadIndicatorCallSites(unittest.TestCase):
                 arg = node.args[0]
                 self.assertIsInstance(arg, ast.Constant)
                 states.append(arg.value)
-        self.assertEqual(states, ["armed", "onset", "thinking", "armed", "armed"])
+        self.assertEqual(states,
+                         ["armed", "armed", "onset", "armed", "armed", "thinking"])
 
 
 class _FakeProc:
