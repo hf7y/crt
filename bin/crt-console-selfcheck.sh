@@ -16,14 +16,9 @@ SERVER=""; CHECK_ONLY=0
 # The brain leg (crt#353). Its host is the same knob the console itself uses --
 # ~/.crt/brain.conf's CRT_CLAUDE_SSH_HOST -- read from the environment the
 # caller already sources, so this file cannot disagree with what a wake
-# actually dials. Empty = no brain configured, which is a SKIP, not a RED.
-# ...and read it from brain.conf when the caller did not export it, because
-# the caller is CRON: potato's crontab runs this file directly, with no shell
-# profile and no `. ~/.crt/brain.conf`. Measured 2026-09-18 on potato -- with
-# the env sourced the leg reported `brain GREEN dexter answers CAPTURE`, and
-# under `env -i` it reported `brain SKIP no brain host configured`. A leg that
-# only runs when a human runs it by hand is the built-not-wired shape this
-# whole issue is about, arriving inside its own fix.
+# actually dials, and falls back to reading brain.conf directly when the
+# caller (cron) exported nothing. Witnessed by tests/test_console_selfcheck.sh's
+# brain.conf-fallback and unconfigured-is-SKIP cases.
 BRAIN_CONF="${CRT_BRAIN_CONF:-$HOME/.crt/brain.conf}"
 if [ -z "${CRT_CLAUDE_SSH_HOST:-}" ] && [ -r "$BRAIN_CONF" ]; then
   # Same file crt-console.sh sources at boot. Only this one name is taken

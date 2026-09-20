@@ -20,14 +20,10 @@ set -uo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Read the console's config HERE rather than trusting whatever env this
-# window happened to be launched with (2026-07-29). This script is the
-# restart point for capture -- when the ears need to come back, this is
-# what gets rerun, and it is routinely rerun by hand from an ssh shell
-# that never sourced ~/.bash_profile. That is exactly how a console came
-# up beeping into the handset and answering to "claude" instead of
-# "potato", with nothing in any log to say so. crt-conf.sh's files use
-# the ${VAR:-default} form, so an env var crt-console.sh (or a human
-# testing something) passed in still wins.
+# window happened to be launched with -- this is the restart point for
+# capture, routinely rerun by hand from an ssh shell that never sourced
+# ~/.bash_profile. Witnessed by tests/test_console_conf.sh (see
+# crt-conf.sh's own header for the 2026-07-29 incident this guards against).
 # shellcheck disable=SC1090
 . "$BIN_DIR/crt-conf.sh"
 
