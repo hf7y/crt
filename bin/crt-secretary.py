@@ -881,16 +881,9 @@ REPLY_UNOBSERVED_LINE = os.environ.get(
     "I sent that to Claude, but I lost my view of the answer partway through.")
 
 
-# Fourth outcome, and the one that cost a night (2026-09-18): the brain is
-# RUNNING and SIGNED OUT. Every layer reads healthy -- the session exists,
-# the pane paints, send_to_claude succeeds, a reply is even observed -- and
-# the reply is Claude saying it cannot work. Without this the login error
-# gets cleaned like any other pane text and SPOKEN as though it were the
-# answer to what was asked, which is the confidently-wrong report this file
-# already has three other guards against.
-#
-# The line names the host and the fix because nobody in the room can infer
-# either, and it is spoken aloud: "slash login", not "/login".
+# Fourth outcome (2026-09-18): the brain is RUNNING and SIGNED OUT, which
+# every layer above this reads as healthy. Witnessed by
+# tests/test_clean_claude_pane_reply.py::BrainSignedOutTest.
 BRAIN_SIGNED_OUT_LINE = os.environ.get(
     "CRT_BRAIN_SIGNED_OUT_LINE",
     "My brain is signed out, so it can't answer. Someone needs to run "
