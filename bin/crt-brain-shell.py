@@ -43,10 +43,8 @@ def _tmux(args):
 def capture_pane(session):
     """The pane text, or None if it could not be read.
 
-    None vs "" matters and is potato's whole failure signal: its
-    capture_pane() treats an empty body as unreadable, because a live Claude
-    Code pane is never legitimately blank. Returning "" for a dead session
-    would look, on the wire, exactly like a healthy but empty brain.
+    None vs "" matters -- witnessed by
+    tests/test_brain_ssh.py::test_capture_of_dead_session_returns_no_body.
     """
     rc, out, detail = _tmux(["capture-pane", "-t", session, "-p", "-S", "-200"])
     if rc != 0:
