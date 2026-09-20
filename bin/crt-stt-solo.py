@@ -661,11 +661,8 @@ HALLU = set("you thankyou thanks thankyouforwatching bye music musicplaying "
 # tests/test_stt_secretary_sink.py's TestSecretarySinkRouting.
 GATE       = os.environ.get("CRT_STT_GATE", "0") != "0"
 WAKE_WORD  = wake_gate.wake_word()   # one source: bin/crt_wake_gate.py
-# Must stay a file genuinely separate from THOUGHT_LOG's default (2026-07-28
-# fix, Zach: "clean up claude output to mono ... junk on screen" -- it used
-# to share thoughts.log, so a gated utterance landed on window 1
-# indistinguishable from an actual reply) -- see
-# tests/test_stt_gate.py's TestGateLogDefaultIsSeparateFromThoughtsLog.
+# Must stay a file genuinely separate from THOUGHT_LOG's default -- witnessed by
+# tests/test_stt_gate.py::TestGateLogDefaultIsSeparateFromThoughtsLog::test_default_is_gate_log_not_thoughts_log.
 GATE_LOG   = os.environ.get("CRT_STT_GATE_LOG", os.path.expanduser("~/.crt/gate.log"))
 # Resolved through bin/crt_config.py rather than read here, so this gate
 # and the two scripts that WRITE stt-fixups.json can no longer be pointed
@@ -1410,10 +1407,8 @@ LATENCY_LOG = os.environ.get(
 #   local     no server configured; local is the only path
 #   failed    nothing transcribed it
 #
-# "fallback" is the whole point of recording this. transcribe_failure_report()
-# only ever fired when the FINAL result was None, so a remote failure that
-# local then rescued produced a correct transcript, ten seconds of deafness,
-# and not one line anywhere saying why.
+# "fallback" is the whole point of recording this -- witnessed by
+# tests/test_wake_arm_clock_domain.py::TestLatencyLog::test_a_rescued_remote_failure_is_recorded_as_fallback.
 TRANSCRIBE_PATH = "none"
 
 

@@ -376,8 +376,9 @@ def pad_frame_rows(rows, margins, width):
     return top + padded + bottom
 
 
-# Same hard floor as crt-book-console.py's MIN_VERTICAL_PAD (2026-07-28):
-# at least one blank line top and bottom even with zero calibration.
+# Same hard floor as crt-book-console.py's MIN_VERTICAL_PAD -- at least one
+# blank line top and bottom even with zero calibration, witnessed by
+# tests/test_screensaver_safe_margins.py::TestLoadSafeMargins::test_missing_display_conf_still_floors_vertical_padding.
 MIN_VERTICAL_PAD = int(os.environ.get("CRT_SCREENSAVER_MIN_VERTICAL_PAD", "1"))
 
 
