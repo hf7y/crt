@@ -187,6 +187,27 @@ class TestScanBringsTheBookWindowToTheTube(unittest.TestCase):
         self.assertIsNotNone(bg.get_book(conn, ISBN)["last_scanned"])
         conn.close()
 
+    def test_a_stdin_scan_is_not_double_counted_via_its_own_scanner_log_echo(self):
+        # A stdin-sourced scan is logged to scanner.log for the audit trail
+        # (log_stdin_scan) AND handled directly (show_scan) in the same
+        # tick. Without main()'s self_written_lines guard, that same write
+        # comes back around through tail_new_lines(SCANNER_LOG) the very
+        # next tick and looks like an independent second scan -- a single
+        # physical scan would take the tube (and run handle_scan) twice.
+        self.proc.stdin.write(ISBN + "\n")
+        self.proc.stdin.flush()
+        self.assertTrue(self._wait_for("select-window -t testsess:book"))
+        # CRT_BOOK_CONSOLE_POLL_SECS is 0.1s, so the scanner.log tail has
+        # long caught up well within this -- and well short of the 2s idle
+        # timeout, which would add its own (distinct) "testsess:0" select.
+        time.sleep(1.0)
+        with open(self.calls) as f:
+            calls = f.read()
+        self.assertEqual(
+            calls.count("select-window -t testsess:book"), 1,
+            "one physical scan selected the book window more than once -- "
+            "its own scanner.log echo was treated as a second, independent scan")
+
 
 class TestScanLineContractIsOneModule(unittest.TestCase):
     """crt-screensaver.py writes scanner.log now too. Both ends ask the same

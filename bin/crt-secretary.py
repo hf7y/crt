@@ -470,10 +470,8 @@ PLAYBOOKS = (
     ("calibrate", match_calibrate, handle_calibrate),
     ("what_time", match_what_time, handle_what_time),
     ("morning_report", match_morning_report, handle_morning_report),
-    # book_game_stats/book_catalog BEFORE return_to_book_game -- "book
-    # game" (return_to_book_game's own trigger) is a substring of "book
-    # game stats", so the more specific ones must get first shot or
-    # they'd never fire (first match wins, see find_playbook below).
+    # book_game_stats/book_catalog BEFORE return_to_book_game -- witnessed by
+    # tests/test_secretary.py::TestReturnToBookGamePlaybook::test_does_not_shadow_book_game_stats.
     ("book_game_stats", match_book_game_stats, handle_book_game_stats),
     ("book_catalog", match_book_catalog, handle_book_catalog),
     ("return_to_book_game", match_return_to_book_game, handle_return_to_book_game),
