@@ -165,12 +165,30 @@ superseded by issue comments.
 This project is a physical voice console. `potato` (a Raspberry Pi) is the live
 console as of 2026-07-23. `dexter`'s crt-vm is gone (crt#162), but dexter runs this
 repo's production containers: `/srv/zaxon` and `/srv/whisper` (crt#319), which
-potato's STT calls at `100.107.253.56:8090`. Only mandark reaches dexter or
-potato; monkey, where this run dispatches from, reaches neither (hf7y/senechal#886) — `HANDOFF.md`'s
+potato's STT calls at `100.107.253.56:8090`. mandark reaches dexter and potato;
+monkey, where this run dispatches from, does not (hf7y/senechal#886) — `HANDOFF.md`'s
 "Current topology" section has the summary, `vault:crt/.claude/SESSION-STATE-20260829.md`
 the full history. `ssh potato` needs a `Host potato`
 alias, present on mandark and confirmed ABSENT on monkey as of 2026-08-29, so it
 is box-specific: check `ssh -o BatchMode=yes potato true` before relying on it.
+
+**Network vs. auth, for monkey specifically (crt#342, settled 2026-09-20 —
+don't re-derive this, it costs a full SSH round-trip every time and has been
+re-run at least five times since 2026-09-18):** monkey's "reaches neither" is
+about auth, not network. `Host potato` now resolves over Tailscale MagicDNS
+and TCP connects; potato's host key (crt#357's recorded fingerprints) is
+verified, not TOFU-blind. It stops at `Permission denied (publickey,password)`
+— monkey holds deploy keys for other hf7y projects but none scoped to
+crt/potato. Same auth wall against mandark (`Permission denied
+(publickey,password)`, host key already trusted). `dexter` on port 22 gets
+`Connection refused` (no sshd); its tailscale address
+`100.107.253.56:2223` gets `Host key verification failed` with no recorded
+fingerprint in this repo to check it against — genuinely TOFU-blind, unlike
+potato. Don't re-probe any of this without a reason to think it changed;
+`ssh -o BatchMode=yes potato true` still fails the same way as of
+2026-09-20T12:38Z. The one open question — whether monkey should be issued
+a potato-scoped deploy key — is Zach's call (asked on crt#342, unanswered as
+of 2026-09-20), not a retry target.
 
 **Present is not working.** As of 2026-09-18 mandark's alias resolves to
 `192.168.0.45` and gets `No route to host`: the room's LAN moved to
