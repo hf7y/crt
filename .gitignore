@@ -5,6 +5,11 @@ __pycache__/
 .scheduler-autocommit.log
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+# Per-agent isolated worktree checkouts the harness creates under this repo
+# for parallel batch runs (each a full copy of the tree, not source of its
+# own) -- concurrent jobs are actively writing here; committing or deleting
+# them would clobber another job's in-flight work.
+.claude/worktrees/
 # Session transcripts carry the Anthropic OAuth token verbatim -- one was found
 # in /home/crt/.claude/projects/ on monkey. This repo tracks other .claude/
 # files, so without these two lines an autocommit publishes a live credential.
