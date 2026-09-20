@@ -515,11 +515,8 @@ def handle_scan(conn, isbn, fetcher=None, quote_fetcher=None, training_log_path=
     the earlier ~/.crt/thoughts.log pollution fix."""
     existing = bg.get_book(conn, isbn)
     if existing is not None:
-        # The row is cached; the SCAN is not. Without this, re-scanning a
-        # book already on the shelf still put its question on the tube but
-        # left no trace anywhere that a scan had just happened, so
-        # crt-book-answer-listen.py -- which derives "a question is pending"
-        # from a timestamp -- never graded the answer someone then spoke.
+        # The row is cached; the SCAN is not -- see bg.touch_scan()'s own
+        # docstring for why that distinction matters here.
         result = bg.touch_scan(conn, isbn) or existing
         maybe_trigger_facts_batch(conn)
         return result

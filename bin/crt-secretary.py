@@ -650,21 +650,15 @@ def send_to_claude(text):
 
 
 # Claude Code's own TUI chrome that a raw pane-line diff cannot tell apart
-# from real reply content (2026-07-28, live-confirmed on potato the first
-# time a real remote reply was captured end-to-end): the echoed prompt
-# ("> what you just said"), the bottom status bar ("-- INSERT --", "auto
-# mode on..."), bare box-drawing border lines, and the spinner line
-# ("* Baked for 2s"). None of these are ever the actual answer.
+# from real reply content -- see tests/test_clean_claude_pane_reply.py's
+# module docstring for the 2026-07-28 incident this fixture is built from.
 _PANE_SPINNER_CHARS = "*+~"
 _PANE_BORDER_RE = re.compile(r"^[\s\-_=]*$")
 _PANE_STATUS_RE = re.compile(
     r"^(--\s*INSERT\s*--|auto mode on\b|.*for agents\s*)", re.IGNORECASE)
-# The spinner's text after its marker is stripped. It was matched as the
-# literal "Baked for 2s", the one verb seen in 2026-07-28's capture; this
-# Claude renders "Worked for 0s" and the whimsical verb rotates, so the
-# literal let "Worked for 0s" through to be SPOKEN as if it were an answer.
-# Matched on the shape instead -- one word, "for", a seconds count -- which
-# real reply text effectively never takes on a line of its own.
+# Matched on shape ("<word> for <n>s"), not the literal verb -- see
+# tests/test_clean_claude_pane_reply.py::test_the_spinner_is_matched_by_shape_not_by_one_verb
+# for why.
 _PANE_SPINNER_TEXT_RE = re.compile(r"^[A-Za-z]+ for \d+(\.\d+)?s\b", re.IGNORECASE)
 
 
