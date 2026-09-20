@@ -376,12 +376,8 @@ echo "== crt-tts.py prosody =="
 python3 "$DIR/test_tts_prosody.py" || fail=1
 echo
 
-echo "== sideband wiring (stt-solo state + tts duck) =="
+echo "== sideband + visual VAD indicator wiring (stt-solo state + tts duck, crt#344) =="
 python3 "$DIR/test_sideband_wiring.py" || fail=1
-echo
-
-echo "== visual VAD indicator wiring (crt#344) =="
-python3 "$DIR/test_vad_indicator.py" || fail=1
 echo
 
 echo "== earcon sideband duck =="
