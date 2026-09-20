@@ -80,10 +80,8 @@ IDLE_ROTATE_SECS = _env_secs("CRT_BOOK_IDLE_ROTATE_SECS", 8.0)
 IDLE_FACE_WINDOW = os.environ.get("CRT_IDLE_FACE_WINDOW", "").strip()
 
 
-# Overscan safe margin (2026-07-28, Zach, live on potato's real bezel:
-# "overscan is a major problem" -- row 0 was getting eaten). This window
-# used to draw straight to the full grid; load_safe_margins() below now
-# reuses crt-pager.py's calibrated margin the way crt-monologue.py already did.
+# Overscan safe margin (2026-07-28 incident) is witnessed end to end by
+# tests/test_book_console_safe_margins.py, which carries the same story.
 MIN_VERTICAL_PAD = int(os.environ.get("CRT_BOOK_MIN_VERTICAL_PAD", "1"))
 
 
