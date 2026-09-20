@@ -71,7 +71,7 @@ have_session() { tmux has-session -t "$SESSION" 2>/dev/null; }
 # A pane that paints is not a brain that answers. Name the states where
 # Claude is sitting on a modal waiting for a human who does not exist --
 # each one presents as a healthy, beautifully-rendered pane. Witnessed by
-# tests/test_brain_session_bypass.sh, cases 3-4 and 10.
+# tests/test_brain_session_bypass.sh, cases 3-4, 10 and 13.
 parked_reason() {
   case "$1" in
     *"trust the files"*|*"1. Yes, I trust"*)
@@ -84,14 +84,8 @@ parked_reason() {
     *"Login expired"*|*"Please run /login"*|*"Invalid API key"*)
       # Not a modal, which is why it slipped past all of the above: the pane
       # is a normal, idle, ready-looking prompt and CAPTURE returns a healthy
-      # body. The error scrolls by in the transcript like any other output.
-      # Found live 2026-09-18 -- the brain had been restarted and reported UP
-      # for an hour, a SEND returned OK because tmux send-keys genuinely
-      # succeeded, and the only thing wrong was that Claude answered every
-      # utterance with "Login expired". Zach spoke to the console at 06:53
-      # and got silence from a component every layer above called healthy.
-      # Needs a human on dexter; nothing on potato's end can fix it, which
-      # is exactly why status has to say so instead of saying UP.
+      # body. The 2026-09-18 incident this guards against is on case 13's
+      # own comment, above.
       echo "signed out -- run /login in the $SESSION tmux session on this \
 host. tmux send-keys still succeeds and the pane still paints, so potato \
 cannot tell this apart from a working brain" ;;
@@ -120,12 +114,9 @@ potato will fail" >&2
     fi
 
     if have_session; then
-      # UP is not the same as ANSWERING. A brain parked on a modal is the
-      # worse outcome of the two, because every layer above it reports
-      # healthy: the session exists, the pane paints, CAPTURE returns
-      # text. It just happens to be the text of a dialog box. Check for
-      # it here so `status` can be trusted as the one question worth
-      # asking of this session.
+      # UP is not the same as ANSWERING -- a parked pane reports healthy at
+      # every layer above this check. Witnessed both ways by
+      # tests/test_brain_session_bypass.sh, cases 3 (parked) and 5 (ready).
       pane="$(tmux capture-pane -t "$SESSION" -p -S -50 2>/dev/null || true)"
       if reason="$(parked_reason "$pane")"; then
         echo "crt-brain-session: $SESSION is UP BUT NOT ANSWERING -- $reason. \
@@ -164,19 +155,16 @@ Clear it with: tmux attach -t $SESSION, or restart: $0 restart" >&2
     tmux new-session -d -s "$SESSION" -c "$CRT_BRAIN_CWD" \
       "$CLAUDE_BIN $CRT_BRAIN_CLAUDE_ARGS"
 
-    # Do not report success just because tmux forked. `claude` can exit
-    # immediately (not logged in, bad flag) and tmux would still have
-    # returned 0 -- the exact exit-0 no-op this project's build discipline
-    # names. Re-probe, and give the TUI a moment to actually paint.
+    # Do not report success just because tmux forked -- `claude` can exit
+    # immediately and tmux would still have returned 0. Re-probe instead.
+    # The three outcomes below (parked, blank, gone) are witnessed by
+    # tests/test_brain_session_bypass.sh, cases 16, 15 and 14.
     for _ in 1 2 3 4 5 6 7 8 9 10; do
       sleep 1
       have_session || continue
       pane="$(tmux capture-pane -t "$SESSION" -p -S -50 2>/dev/null || true)"
       [ -n "${pane//[[:space:]]/}" ] || continue
 
-      # A painted pane is NOT a ready brain -- see parked_reason() above
-      # for the states that render beautifully while waiting on a human
-      # who does not exist.
       if reason="$(parked_reason "$pane")"; then
         echo "crt-brain-session: $SESSION is $reason -- not a usable brain. \
 Clear it with: tmux attach -t $SESSION" >&2
