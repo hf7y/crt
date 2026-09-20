@@ -15,9 +15,8 @@ import os
 import time
 import traceback
 
-# For env_flag alone. Loaded the spec way rather than imported, because this
-# module is itself loaded that way by every one of its callers, which does not
-# put bin/ on sys.path. crt_config.py is stdlib-only (os).
+# For env_flag alone (crt_config.py is stdlib-only, os). Loaded by path --
+# same sys.path idiom as crt-book-game.py's _load_sibling() comment.
 _cfg_spec = importlib.util.spec_from_file_location(
     "crt_config_for_loop_guard",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "crt_config.py"))

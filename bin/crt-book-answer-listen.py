@@ -21,9 +21,8 @@ _secretary_spec = importlib.util.spec_from_file_location(
 secretary = importlib.util.module_from_spec(_secretary_spec)
 _secretary_spec.loader.exec_module(secretary)
 
-# Loaded the same way as the two above rather than by plain `import`: this
-# file is itself loaded by spec_from_file_location from tests, which does
-# not put BIN_DIR on sys.path.
+# Loaded the same way as the two above -- same sys.path idiom as
+# crt-book-game.py's _load_sibling() comment.
 _guard_spec = importlib.util.spec_from_file_location(
     "crt_loop_guard_for_book_answer", os.path.join(BIN_DIR, "crt_loop_guard.py"))
 loop_guard = importlib.util.module_from_spec(_guard_spec)

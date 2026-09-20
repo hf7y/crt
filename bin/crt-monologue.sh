@@ -6,11 +6,8 @@
 set -uo pipefail
 LOG="${CRT_THOUGHT_LOG:-$HOME/.crt/thoughts.log}"
 DISPLAY_CONF="${CRT_DISPLAY_CONF:-$HOME/.crt/display.conf}"
-# CRT_PAGER_WIDTH wins if set; otherwise the real terminal width (same
-# auto-detect reasoning as crt-pager.py, 2026-07-19 -- a hardcoded 40 here
-# silently misrenders on a resized VM window or a different machine's
-# terminal); 40 only as a last-resort fallback if tput itself fails
-# (e.g. no tty).
+# CRT_PAGER_WIDTH / tput / 40-fallback order -- witnessed by
+# tests/test_monologue_width.sh.
 RAW_WIDTH="${CRT_PAGER_WIDTH:-$(tput cols 2>/dev/null || echo 40)}"
 
 # Overscan safe margin (2026-07-20, DISPLAY-CALIBRATION.md): shrink by the
