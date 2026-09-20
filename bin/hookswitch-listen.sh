@@ -17,11 +17,10 @@ GPIO_PIN="${CRT_HOOK_GPIO_PIN:-}"
 GPIO_ACTIVE_LOW="${CRT_HOOK_GPIO_ACTIVE_LOW:-1}"   # 1: pull-up, switch-to-GND on-hook (HOOKSWITCH.md's wiring)
 GPIO_KEY="GPIO_HOOK"
 
-# Stale default, left as-is on purpose: crt-console.sh has run
-# crt-stt-solo.py, not stt-feed.sh, since 2026-07-20, so this pkill target
-# currently matches nothing. What on-hook SHOULD signal instead is Zach's
-# call (HOOKSWITCH.md), tracked by crt#37 -- this env var exists so that
-# call costs a line of config, not an edit.
+# Stale default, left as-is on purpose -- see tests/test_hookswitch_debounce.sh's
+# "what it says about STT, which it never used to check" case. What on-hook
+# SHOULD signal instead is Zach's call (HOOKSWITCH.md), tracked by crt#37 --
+# this env var exists so that call costs a line of config, not an edit.
 STT_PROCESS="${CRT_HOOK_STT_PROCESS:-stt-feed.sh}"
 
 apply_state() {

@@ -271,12 +271,9 @@ def scan_title(row, width):
     if not lcc:
         return bg.elide(title, budget)
     suffix = " (%s)" % lcc
-    # Columns, not characters (2026-07-25): a CJK title is half as many
-    # characters as it is columns, so len() said it fit, the composed line
-    # went to center_text over-wide, and got cut -- reproducing the dangling
-    # 'Nineteen Eighty-Four (PR6029' fragment this function exists to prevent,
-    # for exactly the books whose titles this console cannot re-read at a
-    # glance. Open Library returns them for perfectly ordinary scans.
+    # Columns, not characters -- see tests/test_idle_caption_fits.py's
+    # fullwidth-title case and tests/test_book_console.py's dangling-paren
+    # case, for CJK titles Open Library returns on perfectly ordinary scans.
     room = budget - bg.display_width(suffix)
     if room >= bg.display_width(title):
         return title + suffix
@@ -706,12 +703,10 @@ def stdin_reader(q):
 
 def main():
     conn = bg.get_db()
-    # Re-measured every tick below, not once here. crt-console.sh starts this
-    # window detached (`tmux new-window -d`, attaching only once every window
-    # exists), and a detached session sizes 80x24 regardless of the tube --
-    # sizing once at startup would cache that and never recover. Third window
-    # to have had this bug: crt-screensaver.py and crt-monologue.py both
-    # re-measure every frame now too.
+    # Re-measured every tick below, not once here -- a detached tmux window
+    # sizes 80x24 regardless of the tube, same bug as crt-screensaver.py and
+    # crt-monologue.py both had; see tests/test_monologue_viewport.py's
+    # size-follows-the-pane case.
     margins = load_safe_margins()
     width, height = safe_screen_size(margins)
     # How to draw the screen currently on the tube, again, at whatever size

@@ -29,12 +29,7 @@ export CRT_CTL_FILE="${CRT_CTL_FILE:-$HOME/.crt/ctl}"
 # The console's config -- wake word, earcon sink, mic, whisper server,
 # and where the Claude brain runs. All of it read from ~/.crt/ by one
 # loader, so this boot path is not the only way to acquire it.
-#
-# It used to be: these were exports in ~/.bash_profile (which execs this
-# script), and the brain block was inline here. Both bit, in the same
-# way -- see bin/crt-conf.sh's header for the live 2026-07-29 failure.
-# Anything that restarts a window WITHOUT going through a login shell
-# came up with library defaults and looked healthy while doing it.
+# Non-login-shell restart losing it silently -- see tests/test_console_conf.sh.
 # shellcheck disable=SC1090
 . "$BIN_DIR/crt-conf.sh"
 
@@ -83,8 +78,8 @@ if [ "${CRT_NO_IDLE_CLAUDE:-0}" = "1" ]; then
   # Which window is the idle face, written ONCE: the same value selects it
   # at boot (bottom of this file) and tells crt-book-console.py where to
   # hand the tube back after a question times out. Exported before any
-  # window is created, so every window inherits it (the CRT_CTL_FILE bug of
-  # 2026-07-24 was exactly this, forgotten).
+  # window is created, so every window inherits it -- see
+  # tests/test_console_ctl_env_export.sh for what forgetting that costs.
   export CRT_IDLE_FACE_WINDOW="${CRT_IDLE_FACE_WINDOW:-0}"
   # CRT_COLS/ROWS pinned to the tube's real geometry so the screensaver
   # centers correctly even before the tmux client attaches (a detached

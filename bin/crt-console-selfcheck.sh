@@ -17,13 +17,8 @@ SERVER=""; CHECK_ONLY=0
 # ~/.crt/brain.conf's CRT_CLAUDE_SSH_HOST -- read from the environment the
 # caller already sources, so this file cannot disagree with what a wake
 # actually dials. Empty = no brain configured, which is a SKIP, not a RED.
-# ...and read it from brain.conf when the caller did not export it, because
-# the caller is CRON: potato's crontab runs this file directly, with no shell
-# profile and no `. ~/.crt/brain.conf`. Measured 2026-09-18 on potato -- with
-# the env sourced the leg reported `brain GREEN dexter answers CAPTURE`, and
-# under `env -i` it reported `brain SKIP no brain host configured`. A leg that
-# only runs when a human runs it by hand is the built-not-wired shape this
-# whole issue is about, arriving inside its own fix.
+# Falls back to reading brain.conf itself when the caller (cron) exported
+# nothing -- see tests/test_console_selfcheck.sh's cron case.
 BRAIN_CONF="${CRT_BRAIN_CONF:-$HOME/.crt/brain.conf}"
 if [ -z "${CRT_CLAUDE_SSH_HOST:-}" ] && [ -r "$BRAIN_CONF" ]; then
   # Same file crt-console.sh sources at boot. Only this one name is taken
@@ -93,13 +88,10 @@ verdict() {
 
 # The brain leg. Same two-verb protocol a wake uses (POTATO.md), so this
 # probes the path that actually carries speech rather than a proxy for it.
-#
-# The sign-out case is why this is not just "did it answer": on 2026-09-18 the
-# brain ran for hours replying "Login expired" to every utterance while the
-# session existed, the pane painted and CAPTURE returned a full healthy body.
-# Every layer above reported fine. Phrasings kept deliberately in step with
-# crt-secretary.py's brain_signed_out() (crt#352) so the sensor and the room
-# agree on what "signed out" means.
+# Not just "did it answer" -- a signed-out session still paints and answers
+# CAPTURE, see tests/test_console_selfcheck.sh's signed-out case. Phrasings
+# kept deliberately in step with crt-secretary.py's brain_signed_out()
+# (crt#352) so the sensor and the room agree on what "signed out" means.
 brain_verdict() {
   local pane
   [ -z "$BRAIN_HOST" ] && { printf 'SKIP\tno brain host configured'; return; }
