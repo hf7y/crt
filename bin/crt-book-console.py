@@ -56,12 +56,12 @@ _env_secs = crt_config.env_number
 
 SCANNER_LOG = os.path.expanduser(os.environ.get("CRT_SCANNER_LOG", "~/.crt/scanner.log"))
 # 20.0 -> 35.0 (2026-07-28, Zach-directed: "need more of a delay between
-# question and answer") -- the AI-enriched questions (crt-book-facts-
-# batch.py's real, fact-grounded trivia, live as of this same session)
-# take real thought, unlike the two-word fiction/nonfiction guess this
-# timing was originally tuned for. Kept in step with crt-book-answer-
-# listen.py's ANSWER_WINDOW_SECS below -- no point holding the question
-# on screen longer than a spoken answer would still be graded.
+# question and answer" for the AI-enriched, thought-requiring questions)
+# -- witnessed by tests/test_config_fixups_path.py::
+# TestATypoDoesNotTakeAWindowDown::test_the_book_window_still_loads_at_its_defaults.
+# Kept in step with crt-book-answer-listen.py's ANSWER_WINDOW_SECS below --
+# no point holding the question on screen longer than a spoken answer
+# would still be graded.
 IDLE_SECS = _env_secs("CRT_BOOK_CONSOLE_IDLE_SECS", 35.0)
 POLL_SECS = _env_secs("CRT_BOOK_CONSOLE_POLL_SECS", 0.5)
 # 8.0 -> 15.0, same reasoning and same day as IDLE_SECS above -- the
@@ -254,9 +254,10 @@ def scan_title(row, width):
     when it doesn't, and the bare title when there isn't room for both.
 
     Composed against bg.title_budget() rather than handed over whole and
-    truncated downstream (2026-07-25). Truncating the composed string is
-    what produced 'Nineteen Eighty-Four (PR6029' on the tube -- a dangling
-    open paren, which reads as a broken render rather than a long title.
+    truncated downstream (2026-07-25) -- the dangling-paren regression it
+    produced on the tube ('Nineteen Eighty-Four (PR6029') is witnessed by
+    tests/test_book_console.py::TestRenderScanResult::
+    test_a_long_title_never_leaves_a_dangling_paren.
 
     The call number is what gets protected when something has to give: the
     person is holding the book, so its name is the part they already know,
@@ -463,10 +464,9 @@ def maybe_trigger_facts_batch(conn, spawner=None, runner=None):
         if spawner is not None:
             spawner(["python3", os.path.join(BIN_DIR, "crt-book-facts-batch.py")])
         else:
-            # Real log, not DEVNULL (2026-07-28, live): a real Gemini batch
-            # timeout on potato went unseen the first time this fired --
-            # a fire-and-forget subprocess with discarded streams looks
-            # identical to one that quietly succeeded. Appended, not
+            # Real log, not DEVNULL (2026-07-28, live) -- witnessed by
+            # tests/test_book_facts.py::TestMaybeTriggerFactsBatch::
+            # test_real_spawn_logs_instead_of_devnull. Appended, not
             # truncated: this can fire many times in a session.
             log_path = os.path.expanduser(
                 os.environ.get("CRT_BOOK_FACTS_BATCH_LOG", "~/.crt/facts-batch.log"))
@@ -784,10 +784,10 @@ def main():
         The funnel assumed this could never be needed: `book` was the
         boot-default window, so it always had focus (crt-console.sh's own
         2026-07-21 note). The idle-lean layout (CRT_NO_IDLE_CLAUDE=1, live
-        on potato) selects the screensaver instead, and nothing put the
-        tube back -- so a scan drew its question onto a window nobody was
-        looking at, and the tube kept showing a sleeping potato. Focus is
-        also one hand-switch away from `mono` in EITHER layout.
+        on potato) breaks that assumption, leaving the tube on the sleeping
+        screensaver -- witnessed end to end by
+        tests/test_scan_reaches_the_tube.py::TestScanBringsTheBookWindowToTheTube.
+        Focus is also one hand-switch away from `mono` in EITHER layout.
 
         Not a yank: a scan is a deliberate physical act by the person
         standing at the console, and showing them the question is the thing
