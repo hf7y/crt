@@ -1505,12 +1505,9 @@ def emit(text, peak=1.0, utt_start=None, utt_end=None):
             except OSError:
                 pass
             return
-        # ...and not when the keystroke has nowhere to land (2026-07-25). An
-        # earcon is this console's way of saying "done"; saying it for a key
-        # that reached a screensaver is the same confidently-wrong report
-        # send_to_claude() just stopped making, in the one channel the person
-        # is actually listening to. Silence here is not silence overall:
-        # send_to_claude() prints every one and puts the reason on window 1.
+        # ...and not when the keystroke has nowhere to land (2026-07-25).
+        # Witnessed by
+        # tests/test_idle_face_is_not_a_brain.py::test_the_control_earcon_is_suppressed_with_it.
         if EARCON_ON_CONTROL and is_control and not PANE_IS_IDLE_FACE:
             play_earcon("control")
         elif EARCON_ON_ADDRESSED and not is_control:

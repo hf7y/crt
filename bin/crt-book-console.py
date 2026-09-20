@@ -960,8 +960,8 @@ def main():
 
             # The tube's real geometry, asked again every tick (~POLL_SECS,
             # same detached-session reason main() re-measures at the top).
-            # Repainting on the change matters because there may not be a
-            # next draw -- `book`'s idle shelf can hold for a long time.
+            # Repaint-on-change is witnessed by
+            # tests/test_book_console_size.py::ResizeRepaintTest.
             size = safe_screen_size(margins)
             if size != (width, height):
                 width, height = size
