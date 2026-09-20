@@ -45,6 +45,12 @@ export CRT_MEDIA_STATE_FILE="$CRT_TEST_STATE_DIR/media-state"
 # guard below on the same commit that introduced it, which is the third time
 # that guard has paid for itself.
 export CRT_LATENCY_LOG="$CRT_TEST_STATE_DIR/latency.log"
+# A ninth (2026-09-20): crt-console-selfcheck.sh's own brain-leg log
+# (added #363/#364). test_potato_status.sh runs it unmodified via
+# crt-potato-status.sh and never pinned this one, so it wrote straight into
+# ~/.crt/selfcheck-legs.log -- caught by the guard below, same shape as the
+# eighth.
+export CRT_SELFCHECK_LEGLOG="$CRT_TEST_STATE_DIR/selfcheck-legs.log"
 trap 'rm -rf "$CRT_TEST_STATE_DIR"' EXIT
 
 # ...and a guard, because pinning only covers the vars known TODAY and this
@@ -370,7 +376,7 @@ echo "== crt-tts.py prosody =="
 python3 "$DIR/test_tts_prosody.py" || fail=1
 echo
 
-echo "== sideband wiring (stt-solo state + tts duck) =="
+echo "== sideband + visual VAD indicator wiring (stt-solo state + tts duck, crt#344) =="
 python3 "$DIR/test_sideband_wiring.py" || fail=1
 echo
 

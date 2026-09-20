@@ -590,6 +590,60 @@ def set_sideband_state(state):
     except Exception:
         pass
 
+# Visual VAD indicator (crt#344, opt-in, off by default). Zach, 2026-09-18:
+# "it should start right away" -- the ~2s of nothing between speech and any
+# feedback is the complaint, and onset is the one moment that's free (the
+# VAD already fires there; EARCON_ON_THRESHOLD above is the audio version).
+# The audio objection to that (beeps on every scrap of room chatter) "does
+# not transfer to a visual indicator" per his own ruling -- a quiet status
+# cell changing state is not an interruption the way a beep is.
+#
+# tmux's status-right is the one thing #344 left "open in implementation":
+# crt-secretary.py switches windows mid-request (claude/book/mono/
+# screensaver), so anything painted into a PANE is gone the moment the
+# window changes. status-right is session chrome, not pane content, so it
+# survives that switch. Costs the bottom row of this 15-row tube --
+# crt-console.sh's own "reclaim the bottom row" comment is why this stays
+# opt-in rather than on by default.
+VAD_INDICATOR = os.environ.get("CRT_VAD_INDICATOR", "0") != "0"
+VAD_INDICATOR_TIMEOUT = float(os.environ.get("CRT_VAD_INDICATOR_SET_TIMEOUT", "0.5"))
+VAD_INDICATOR_GLYPH = {"armed": " ", "onset": "o", "thinking": "*"}
+_vad_indicator_last = None
+
+
+def init_vad_indicator():
+    """Claim the bottom row and blank tmux's own status-left/right defaults
+    (hostname/date), which would otherwise overflow a 40-column screen --
+    called once at startup, only when CRT_VAD_INDICATOR is on. Best-effort,
+    same contract as set_vad_indicator()."""
+    if not VAD_INDICATOR:
+        return
+    for opt, val in (("status", "on"), ("status-left", ""),
+                      ("status-right-length", "1")):
+        try:
+            subprocess.run(["tmux", "set-option", "-t", SESSION, opt, val],
+                            capture_output=True, timeout=VAD_INDICATOR_TIMEOUT)
+        except Exception:
+            pass
+    set_vad_indicator("armed")
+
+
+def set_vad_indicator(state):
+    """Best-effort, like set_sideband_state() -- a slow/broken tmux must
+    never delay real transcription. Skips the subprocess call when the
+    state hasn't changed, since this runs in the same hot capture loop
+    read_exact()/transcribe() share."""
+    global _vad_indicator_last
+    if not VAD_INDICATOR or state == _vad_indicator_last:
+        return
+    _vad_indicator_last = state
+    try:
+        subprocess.run(["tmux", "set-option", "-t", SESSION, "status-right",
+                        VAD_INDICATOR_GLYPH.get(state, " ")],
+                        capture_output=True, timeout=VAD_INDICATOR_TIMEOUT)
+    except Exception:
+        pass
+
 # Off by default: raw STT should only flash briefly, never linger, to mask
 # recognition errors -- the merged, cleaned-up text from claude is what
 # should persist on screen instead. Log-always-print-only-if-debug split
@@ -1630,6 +1684,7 @@ def main():
     print(capture_pipe_report(widen_capture_pipe(proc.stdout.fileno())))
     print("-" * 40)
     set_sideband_state("listening")   # no-op unless CRT_SIDEBAND=1
+    init_vad_indicator()               # no-op unless CRT_VAD_INDICATOR=1
 
     pre = deque(maxlen=PREROLL)
     in_utt = False
@@ -1802,6 +1857,11 @@ def main():
                         utt_peak = peak
                         if EARCON_ON_THRESHOLD:
                             play_earcon("heard")
+                        # Unconditional, unlike the earcon above -- see
+                        # VAD_INDICATOR's header comment for why the "beeps
+                        # at every scrap of room chatter" objection is
+                        # audio-specific and doesn't transfer here.
+                        set_vad_indicator("onset")
                 else:
                     above = 0
             else:
@@ -1820,6 +1880,7 @@ def main():
                         if PREDICT_FLASH:
                             predictive_flash()
                         set_sideband_state("thinking")
+                        set_vad_indicator("thinking")
                         text = transcribe(bytes(buf))
                         if text is None:
                             # Heard, captured, and then lost between here and
@@ -1840,6 +1901,7 @@ def main():
                             emit(text, utt_peak,
                                  utt_start=utt_span[0], utt_end=utt_span[1])
                         set_sideband_state("listening")
+                        set_vad_indicator("armed")
                         # Nobody read the mic for as long as that took. Keep
                         # the newest few seconds of what queued up (a
                         # follow-up utterance lands exactly there) and throw
@@ -1848,6 +1910,12 @@ def main():
                             proc.stdout, int(BACKLOG_MAX_SECS * RATE * 2))
                         if dropped:
                             report_line(backlog_drop_report(dropped))
+                    else:
+                        # Crossed threshold (onset painted above) but never
+                        # reached MINUTT -- a blip, not an utterance. Revert
+                        # the indicator rather than leaving it stuck on
+                        # "onset" until the next real one.
+                        set_vad_indicator("armed")
                     buf = bytearray()
     except KeyboardInterrupt:
         capture_died = False       # deliberate stop, not a failure
