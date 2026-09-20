@@ -156,56 +156,26 @@ def grade_pending_answer(conn, spoken_text, window_secs=ANSWER_WINDOW_SECS, now=
     format_result_line() below) or None if nothing was pending (caller
     should leave the utterance alone -- it wasn't a trivia answer).
 
-    HAPPY-PATH BUG FIXED 2026-07-21: previously graded ANY utterance
-    inside the answer window as the trivia answer, with no check for
-    whether it was actually a voice COMMAND instead -- e.g. asking "book
-    game stats" or "back to the book game" within CRT_BOOK_ANSWER_WINDOW_SECS
-    of a scan (a completely ordinary thing to say right after scanning,
-    before answering) would get logged as a wrong/garbage training row
-    ("expected": "fiction", "heard": "book game stats") AND announced as
-    a misleading "nope, it was fiction" result for a question the user
-    never actually tried to answer. Now skips grading (returns None,
-    same as "nothing pending") for any utterance crt-secretary.py's own
-    playbook dispatcher would recognize as a command -- reuses
-    find_playbook() so this can never drift out of sync with what
-    actually counts as a command elsewhere in the project.
+    Three checks below, each closing a door where an utterance addressed
+    elsewhere got graded as the trivia answer instead of left alone --
+    each one's incident is told in full on its own test file, not
+    repeated here:
 
-    THE SAME SHAPE, THE OTHER HALF, FIXED 2026-07-25 (fourteenth cycle): an
-    utterance carrying the WAKE WORD is a request to Claude, and was being
-    graded as a trivia answer for exactly the same reason commands were.
-    "claude, what is this book about?" is an ordinary thing to say to a
-    console that has just put a question on the tube, and it is not a
-    command -- no playbook matches it, it falls through to Claude. So the
-    tube announced "nope, it was fiction", a row went into
-    book-game-training.jsonl whose `heard` was never an answer attempt, and
-    once the round started closing on the first graded utterance (2776f99)
-    the person's real answer a second later was silently not graded at all.
-    Asked through bin/crt_wake_gate.py, which is the gate's own rule
-    including its learned aliases -- the same anti-drift move find_playbook()
-    is above. Checked BEFORE the pending-question lookup: whether this was
-    addressed to the console has nothing to do with whether a book is open.
-
-    THE THIRD DOOR, CLOSED 2026-07-25 (twentieth cycle): an arm-window
-    follow-up. Once CRT_WAKE_ARM_ENABLED is on -- and the stability
-    milestone's first bar item is exactly that, live -- a wake opens a
-    sticky-conversation window, and the utterances inside it reach Claude
-    WITHOUT the wake word, by design (bin/crt-wake-arm.py; the live
-    2026-07-23 bug was four follow-ups in one breath all gate-dropped). So
-    the funnel's own scenario replays with the wake word one utterance
-    earlier and every check above passes:
-
-        scan -> tube shows "Fiction or nonfiction?"
-             -> "claude, are you there?"        (wake: skipped here, arms)
-             -> "what is this book about?"      (follow-up: routed to Claude)
-             -> tube: "nope, it was fiction"
-             -> a row whose `heard` was never an answer attempt
-             -> "fiction" -- NOT graded, the round closed on the row above
-
-    That is the fourteenth cycle's defect exactly, through a door that
-    opens when the milestone's OTHER bar item goes live. Asked of
-    crt-wake-arm.py, which is the window's own rule, the same anti-drift
-    move find_playbook() and the wake gate are above -- and a no-op
-    whenever arming is off, since nothing ever publishes a window then.
+    - A voice COMMAND ("book game stats", "back to the book game") is not
+      an answer attempt. Reuses crt-secretary.py's own find_playbook() so
+      this can never drift out of sync with what counts as a command
+      elsewhere in the project. See tests/test_book_answer_listen.py.
+    - A WAKE WORD ("claude, what is this book about?") is a request to
+      Claude, not an answer attempt -- asked through bin/crt_wake_gate.py,
+      the same anti-drift move as the command check above. Checked BEFORE
+      the pending-question lookup: whether this was addressed to the
+      console has nothing to do with whether a book is open. See
+      tests/test_book_answer_wake_word.py.
+    - An ARM-WINDOW follow-up (CRT_WAKE_ARM_ENABLED) reaches Claude
+      WITHOUT the wake word by design (bin/crt-wake-arm.py), so the wake
+      check above can't catch it -- same anti-drift move again, and a
+      no-op whenever arming is off since nothing ever publishes a window
+      then. See tests/test_book_answer_arm_window.py.
 
     What this does NOT decide: whether an arm-window follow-up SHOULD be
     able to answer the question on the tube instead of going to Claude.
