@@ -13,10 +13,12 @@ FALLBACK_HEIGHT = 15
 DISPLAY_CONF = os.path.expanduser(os.environ.get("CRT_DISPLAY_CONF", "~/.crt/display.conf"))
 MARGIN_EDGES = ("top", "bottom", "left", "right")
 
-# What an uncalibrated tube gets. Zero looks neutral and is not: every real
-# CRT here overscans, so zero runs text off the edge of any console that
-# never ran the calibration game. Not a guess -- the profile Zach confirmed
-# by eye on potato. An explicit display.conf still wins on any edge it names.
+# What an uncalibrated tube gets. Zero looks neutral and is not -- the
+# profile Zach confirmed by eye on potato, and an explicit display.conf
+# still wins on any edge it names. Witnessed by
+# tests/test_pager.py::TestDisplayMargins::test_the_default_profile_is_the_one_confirmed_on_the_tube,
+# ::test_no_conf_file_falls_back_to_the_safe_default, and
+# ::test_a_conf_that_names_only_one_edge_keeps_the_default_elsewhere.
 DEFAULT_MARGINS = {"top": 1, "bottom": 1, "left": 2, "right": 2}
 
 
@@ -59,10 +61,10 @@ def load_display_margins(path=DISPLAY_CONF):
 
 
 def apply_margins(width, height, margins):
-    """Shrinks the usable content area by the calibrated safe margin --
+    """Shrinks the usable content area by the calibrated safe margin,
     applied regardless of whether WIDTH/HEIGHT came from env override or
-    auto-detection, since the margin represents a physical overscan crop
-    that's true either way."""
+    auto-detection -- witnessed by
+    tests/test_pager.py::TestDisplayMargins::test_margins_applied_even_with_explicit_env_override."""
     w = max(1, width - margins.get("left", 0) - margins.get("right", 0))
     h = max(1, height - margins.get("top", 0) - margins.get("bottom", 0))
     return w, h
