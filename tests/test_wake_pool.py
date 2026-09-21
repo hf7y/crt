@@ -155,6 +155,12 @@ class TestFuzzyClusterMatch(unittest.TestCase):
         # that the default threshold would accept.
         self.assertFalse(wp.fuzzy_cluster_match("mnitr please", pool, close_ratio=0.99, cluster_min=1))
 
+    def test_repeated_single_word_does_not_meet_cluster_min(self):
+        # One distinct close word said twice (a stutter/retry, or whisper
+        # duplicating a word) must not count as two -- the docstring's
+        # contract is DISTINCT words, so this must not pass cluster_min=2.
+        self.assertFalse(wp.fuzzy_cluster_match("monitr monitr please", {"monitor"}))
+
 
 class TestPickSuggestion(unittest.TestCase):
     def test_deterministic_first_word_at_index_zero(self):
