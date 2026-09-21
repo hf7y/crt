@@ -40,10 +40,8 @@ def _load_margins():
     and kept; the CONF FILE is re-read on every call, so a calibration run
     takes effect without restarting the window.
 
-    Guarded, deliberately: a permanently dark window 1 is the worse failure
-    mode (CLAUDE.md says so about the bridge's marker fallback, and it is just
-    as true here), so anything wrong with crt-pager.py degrades to no margin
-    rather than taking this process down with it."""
+    Guarded, deliberately -- witnessed by
+    tests/test_monologue_viewport.py::TestWindowOneNeverGoesDark::test_a_missing_crt_pager_degrades_to_no_margin."""
     global _pager
     try:
         if _pager is None:
@@ -99,12 +97,12 @@ def viewport(margins=None):
 def pad_for_margins(lines, margins):
     """Physically pushes rendered `lines` away from the tube's edges.
 
-    viewport() only shrinks the content BOX, and render() still homes the
-    cursor at the true top-left, so shrinking without indenting buys nothing:
-    it pulls the right and bottom edges in twice as far as asked. What the
-    tube actually showed was left=2 in display.conf and the first characters
-    of every line still unreadable. Pure, so it is testable without a conf
-    on disk -- the same two-step crt-book-console.py already had."""
+    viewport() only shrinks the content box; without this, render() still
+    homes the cursor at the true top-left and the left edge stays unreadable
+    -- witnessed by
+    tests/test_monologue_viewport.py::TestTheMarginIsActuallyOnTheScreen::test_the_left_margin_indents_the_text.
+    Pure, so it is testable without a conf on disk -- the same two-step
+    crt-book-console.py already had."""
     left = " " * max(0, margins.get("left", 0))
     padded = [left + ln for ln in lines]
     top = [""] * max(0, margins.get("top", 0))

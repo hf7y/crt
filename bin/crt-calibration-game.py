@@ -80,21 +80,15 @@ def tail_new_lines(path, from_pos):
     """Returns (new_lines, new_pos). Missing file -> ([], from_pos),
     tolerant same as every other log reader in this project.
 
-    errors="replace", not strict. This races crt-stt-solo.py appending, so
-    it can land inside a multi-byte character a writer's buffer split across
-    two flushes -- and what it reads is TRANSCRIBED SPEECH, so accented
-    names and whisper's smart quotes are ordinary content here, not an edge
-    case. Strict decoding raises UnicodeDecodeError, a ValueError, NOT
-    caught by the `except OSError` below; raised in Tailer's thread it kills
-    the thread and nothing else, so the game goes on prompting while it has
-    stopped listening (measured: one torn byte, and every later word is
-    lost, "Nothing worth saving", round over). ae54ef4 fixed exactly this
-    for window 1 and swept four readers; this one reads the same stt.log the
-    same way and was missed.
+    errors="replace", not strict -- witnessed end to end by
+    tests/test_calibration_game.py::TheTailerKeepsListening (class
+    docstring), with test_a_torn_character_does_not_end_the_thread and
+    test_tail_new_lines_does_not_raise_on_bad_bytes as the regression tests.
 
     A file that SHRANK is a file that was replaced or truncated: seek back
     to the start rather than sit past the new end forever, the same one line
-    crt-monologue.py's loop has."""
+    crt-monologue.py's loop has -- witnessed by
+    tests/test_calibration_game.py::TheTailerKeepsListening::test_a_truncated_log_is_read_from_the_start."""
     try:
         if os.path.getsize(path) < from_pos:
             from_pos = 0
