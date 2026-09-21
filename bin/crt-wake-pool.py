@@ -110,7 +110,7 @@ def fuzzy_cluster_match(text, pool, close_ratio=None, cluster_min=None):
     cluster_min = cluster_min if cluster_min is not None else FUZZY_CLUSTER_MIN
     if not pool:
         return False
-    words = [w for w in re.findall(r"[a-z0-9']+", text.lower()) if len(w) >= 4]
+    words = {w for w in re.findall(r"[a-z0-9']+", text.lower()) if len(w) >= 4}
     close_count = 0
     for w in words:
         _, ratio = closest_pool_word(w, pool)
