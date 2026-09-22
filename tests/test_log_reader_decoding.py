@@ -99,6 +99,15 @@ class TestTailGeneratorsSurviveBadBytes(unittest.TestCase):
             line = next(gen)
         self.assertIsInstance(line, str)
 
+    def test_book_console_tail_creates_missing_parent_dir(self):
+        mod = _load("crt_book_console_mkdir", "crt-book-console.py")
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "fresh-host", ".crt", "scanner.log")
+            self.assertFalse(os.path.isdir(os.path.dirname(log)))
+            gen = mod.tail_new_lines(log)
+            self.assertIsNone(next(gen))             # no FileNotFoundError
+            self.assertTrue(os.path.isfile(log))
+
     def test_book_console_training_tail_does_not_raise(self):
         mod = _load("crt_book_console_decode2", "crt-book-console.py")
         with tempfile.TemporaryDirectory() as d:
