@@ -1727,12 +1727,8 @@ def main():
     # this process cannot afford to lose it. A pipe would risk blocking on a
     # full buffer nobody is draining.
     err_f = tempfile.NamedTemporaryFile(prefix="crt-stt-arecord-", suffix=".err")
-    # bufsize=0: the kernel pipe must be the ONLY place queued audio lives.
-    # A BufferedReader in front of it would hold bytes that FIONREAD cannot
-    # see and drain_capture_backlog() cannot discard, so the backlog
-    # measurement would quietly be wrong by up to its buffer size.
-    # read_exact() already loops over short reads, which is the only
-    # difference an unbuffered fd makes here.
+    # bufsize=0: a buffered fd would hide bytes from FIONREAD-based backlog
+    # accounting. See tests/test_capture_backpressure.py::ReadExactUnbufferedTest.
     proc = subprocess.Popen(
         ["arecord", "-D", DEV, "-f", "S16_LE", "-c", "1", "-r", str(RATE), "-t", "raw"],
         stdout=subprocess.PIPE, stderr=err_f, bufsize=0)
