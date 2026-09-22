@@ -28,7 +28,8 @@ def decide_brain(mandark_on, mandark_reachable, local_available):
     """
     if mandark_on and mandark_reachable:
         return REMOTE
-    # mandark off, or configured-on but currently down -> onsite fallback.
+    # mandark off, or on but down -> onsite fallback. See
+    # tests/test_wake_router.py::TestDecideCore's off/but-down cases.
     if local_available:
         return LOCAL
     return NONE

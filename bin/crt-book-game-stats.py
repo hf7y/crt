@@ -115,10 +115,9 @@ def render_full_report(book_stats, training_stats):
     ]
     if training_stats["total_rounds"]:
         acc = training_stats["stt_accuracy"]
-        # "matched what was expected" was the old, wrong wording: expected is
-        # the CORRECT option, so that phrasing described a trivia score
-        # wearing an STT label. What is actually measured is whether the
-        # transcription landed on one of the options the person was offered.
+        # Measures whether the transcription was one of the offered options,
+        # not whether it was the correct one. See
+        # tests/test_book_game_stt_axis.py::TestTheTwoAxesCanDisagree.
         lines.append(f"  STT accuracy (heard was one of the offered options): "
                       f"{training_stats['stt_correct']}/{training_stats['stt_known']}"
                       + (f" ({acc:.0%})" if acc is not None else " (n/a)"))
