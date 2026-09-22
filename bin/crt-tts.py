@@ -74,11 +74,9 @@ def pick_backend():
     return None
 
 
-# Sideband duck (SIDEBAND.md): mute the ambient tone for the duration of
-# actual TTS playback so the two never compete for the same device. Safe
-# to touch unconditionally -- writing/removing this flag file is inert
-# unless bin/crt-sideband.sh happens to be running and reading it (it's
-# not auto-started anywhere), so this needs no opt-in flag of its own.
+# Sideband duck (SIDEBAND.md): mute the ambient tone during TTS playback
+# so the two never compete for the same device. Witnessed by
+# tests/test_sideband_wiring.py::TestTtsSidebandDuck.
 SIDEBAND_MUTE_FILE = os.path.expanduser(
     os.environ.get("CRT_SIDEBAND_MUTE_FILE", "~/.crt/sideband.mute"))
 
