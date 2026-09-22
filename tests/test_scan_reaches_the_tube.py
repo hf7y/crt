@@ -23,6 +23,7 @@ bc = importlib.util.module_from_spec(_bc_spec)
 _bc_spec.loader.exec_module(bc)
 
 ISBN = "9780141439518"
+ISBN2 = "9780451524935"
 
 FAKE_TMUX = """#!/bin/sh
 # Records every tmux call, and answers the one query the console makes.
@@ -207,6 +208,47 @@ class TestScanBringsTheBookWindowToTheTube(unittest.TestCase):
             calls.count("select-window -t testsess:book"), 1,
             "one physical scan selected the book window more than once -- "
             "its own scanner.log echo was treated as a second, independent scan")
+
+    def test_a_stdin_scan_and_a_direct_scanner_log_scan_dont_starve_each_other(self):
+        # main()'s stdin-drain loop runs before scanner.log's own line is
+        # handled, each tick, on the stated theory that stdin is the
+        # primary path and scanner.log the fallback (crt-screensaver.py,
+        # or a scan typed into a window that isn't focused) -- "neither
+        # should starve the other". Queue one of each -- a stdin scan for
+        # this book, a direct scanner.log write for a second one -- back
+        # to back, and check both reach the registry rather than only the
+        # stdin one winning every tick.
+        conn = bg.get_db(self.db)
+        bg.register_book(conn, {"isbn": ISBN2, "title": "Animal Farm",
+                                "authors": ["George Orwell"], "year": 1945, "subjects": []},
+                         questions=[{"text": "Fiction or nonfiction?",
+                                     "options": ["fiction", "nonfiction"],
+                                     "correct": "fiction"}],
+                         question_source="template")
+        conn.close()
+
+        with open(os.path.join(self.dir, "scanner.log"), "a") as f:
+            f.write(bc.format_scan_log_line(ISBN2))
+        self.proc.stdin.write(ISBN + "\n")
+        self.proc.stdin.flush()
+
+        def both_scanned():
+            conn = bg.get_db(self.db)
+            try:
+                return (bg.get_book(conn, ISBN)["last_scanned"] is not None
+                        and bg.get_book(conn, ISBN2)["last_scanned"] is not None)
+            finally:
+                conn.close()
+
+        deadline = time.time() + 20.0
+        while time.time() < deadline and not both_scanned():
+            if self.proc.poll() is not None:
+                self.fail("book console exited early: %s" % self.proc.stderr.read())
+            time.sleep(0.1)
+        self.assertTrue(
+            both_scanned(),
+            "a stdin scan and a scanner.log scan queued together -- "
+            "one starved the other instead of both landing")
 
 
 class TestScanLineContractIsOneModule(unittest.TestCase):
