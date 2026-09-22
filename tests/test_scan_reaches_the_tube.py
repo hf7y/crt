@@ -22,7 +22,12 @@ _bc_spec = importlib.util.spec_from_file_location("crt_book_console", os.path.jo
 bc = importlib.util.module_from_spec(_bc_spec)
 _bc_spec.loader.exec_module(bc)
 
+_sl_spec = importlib.util.spec_from_file_location("crt_scan_line", os.path.join(BIN_DIR, "crt_scan_line.py"))
+sl = importlib.util.module_from_spec(_sl_spec)
+_sl_spec.loader.exec_module(sl)
+
 ISBN = "9780141439518"
+ISBN2 = "9780060850524"
 
 FAKE_TMUX = """#!/bin/sh
 # Records every tmux call, and answers the one query the console makes.
@@ -207,6 +212,69 @@ class TestScanBringsTheBookWindowToTheTube(unittest.TestCase):
             calls.count("select-window -t testsess:book"), 1,
             "one physical scan selected the book window more than once -- "
             "its own scanner.log echo was treated as a second, independent scan")
+
+    def test_a_stdin_scan_and_a_direct_scanner_log_scan_both_land(self):
+        # main()'s comment above the stdin-drain loop claims stdin and
+        # scanner.log "neither starve the other": every currently-queued
+        # stdin scan is drained before the single scanner.log line
+        # tail_new_lines yielded this tick is handled, so a scan arriving
+        # on either source the same tick still reaches show_scan, not just
+        # the one the loop happens to check first. Fire one scan on each
+        # source with no delay between them and check both actually landed.
+        conn = bg.get_db(self.db)
+        bg.register_book(conn, {"isbn": ISBN2, "title": "Brave New World",
+                                "authors": ["Aldous Huxley"], "year": 1932, "subjects": []},
+                         questions=[{"text": "Fiction or nonfiction?",
+                                     "options": ["fiction", "nonfiction"],
+                                     "correct": "fiction"}],
+                         question_source="template")
+        conn.close()
+
+        scanner_log = os.path.join(self.dir, "scanner.log")
+        # tail_new_lines() seeks to the CURRENT end of scanner.log the
+        # moment it first opens it (its own docstring: "like tail -f, not
+        # tail"). Writing ISBN2 before that seek happens would make our
+        # line look like pre-existing content and get silently skipped --
+        # wait for the console to have created the file first.
+        wait_deadline = time.time() + 20.0
+        while not os.path.exists(scanner_log):
+            if self.proc.poll() is not None:
+                self.fail("book console exited early: %s" % self.proc.stderr.read())
+            if time.time() > wait_deadline:
+                self.fail("console never opened scanner.log")
+            time.sleep(0.05)
+        time.sleep(0.2)  # the seek-to-end itself is synchronous right after
+
+        # ISBN2 arrives as if written directly by another process (the
+        # dexter-bridge/screensaver path); ISBN arrives on stdin. No sleep
+        # between them -- both should be waiting for the console the next
+        # time it polls.
+        with open(scanner_log, "a") as f:
+            f.write(sl.format_scan_log_line(ISBN2))
+        self.proc.stdin.write(ISBN + "\n")
+        self.proc.stdin.flush()
+
+        deadline = time.time() + 20.0
+        while time.time() < deadline:
+            if self.proc.poll() is not None:
+                self.fail("book console exited early: %s" % self.proc.stderr.read())
+            try:
+                with open(self.calls) as f:
+                    if f.read().count("select-window -t testsess:book") >= 2:
+                        break
+            except OSError:
+                pass
+            time.sleep(0.1)
+        else:
+            self.fail("only one of the two simultaneous scans took the tube -- "
+                      "one source starved the other")
+
+        conn = bg.get_db(self.db)
+        self.assertIsNotNone(bg.get_book(conn, ISBN)["last_scanned"],
+                             "the stdin-sourced scan never reached handle_scan")
+        self.assertIsNotNone(bg.get_book(conn, ISBN2)["last_scanned"],
+                             "the scanner.log-sourced scan never reached handle_scan")
+        conn.close()
 
 
 class TestScanLineContractIsOneModule(unittest.TestCase):
