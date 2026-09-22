@@ -170,10 +170,9 @@ if [ "${CRT_IDLE_TEASER_TEST_MODE:-0}" = "0" ]; then
   echo "[crt-idle-teaser] watching $REPORTS_DIR/LATEST.md + $QUESTIONS (poll ${POLL_SECS}s, idle timeout ${IDLE_TIMEOUT_SECS}s)" >&2
 
   while true; do
-    # Screensaver-style: while the room's been active recently, don't even
-    # look for new items to tease -- anything that shows up gets left
-    # unmarked (not "seen" yet) so it's picked up the moment is_idle()
-    # flips true, rather than being missed or requiring a separate queue.
+    # Screensaver gate: no scan while active -- witnessed by
+    # tests/test_idle_teaser.sh's "active room: no teaser fires while
+    # active" case.
     if is_idle; then
       process_new_lines "$REPORTS_DIR/LATEST.md" report
       process_new_lines "$QUESTIONS" question

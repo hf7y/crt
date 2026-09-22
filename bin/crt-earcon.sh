@@ -181,14 +181,9 @@ capture_mute() {
 # witnessed by test_earcon_capture_duck.sh's failing-aplay case.
 trap 'rm -rf "$TMP"; unduck; [ "$CAPTURE_MUTED" = 1 ] && capture_mute 0; true' EXIT
 
-# Resolve the device FIRST, then decide about the duck from what the audio
-# actually comes out of -- not from the caller having used the word
-# "handset". See ducks_capture() in crt-tts.py for the full reasoning; the
-# short version is that crt-idle-teaser.sh's chime() and crt-secretary.py's
-# play_earcon() both call this script with no --device, landing in the `*)`
-# branch below, so they used to play into the console's own mic unducked.
-# An unknown device (`default`) now ducks: an unneeded duck just costs one
-# chime's worth of suppressed VAD; a missing one feeds our own tone to whisper.
+# Ducks by resolved ALSA device, not the literal word "handset"; an
+# unnamed device also ducks -- witnessed by
+# tests/test_earcon_capture_duck.sh's "ducks" cases.
 case "$DEVICE" in
   tv)      ALSA_DEVICE="$TV_DEVICE" ;;
   handset) ALSA_DEVICE="$HANDSET_DEVICE" ;;

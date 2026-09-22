@@ -175,13 +175,9 @@ DETECT_RATIO = float(os.environ.get("CRT_LOOPBACK_DETECT_RATIO", "8.0"))
 
 
 def loopback_verdict(best, base_rms, play_error=None, capture_error=None):
-    """(status, detail) for one device. Pure -- the whole point is that the
-    three-way distinction is decidable and testable without a sound card.
-
-    Three outcomes, not two. "the mic did not hear it" is a claim about the
-    room and the hardware, and it may only be made when a tone was really
-    played and a recording was really captured. Otherwise the honest answer
-    is that this run measured nothing."""
+    """(status, detail) for one device. Three-way, not two: a play/capture
+    failure is never reported as a hardware finding -- witnessed by
+    tests/test_loopback_verdict.py::TestLoopbackVerdict."""
     if capture_error:
         return INCONCLUSIVE, "nothing was recorded -- %s" % capture_error
     if play_error:
@@ -249,9 +245,8 @@ EXIT_OK, EXIT_NOT_DETECTED, EXIT_INCONCLUSIVE = 0, 1, 3
 
 
 def summary_exit_code(results):
-    """Pure. An inconclusive run outranks a clean not-detected: if the tool
-    did not measure anything, the not-detected verdicts beside it are not
-    trustworthy either."""
+    """Pure -- inconclusive outranks not-detected, witnessed by
+    tests/test_loopback_verdict.py::TestSummaryExitCode::test_inconclusive_outranks_not_detected."""
     if not results:
         return EXIT_INCONCLUSIVE
     if any(v == INCONCLUSIVE for v in results.values()):

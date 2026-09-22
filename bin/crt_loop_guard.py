@@ -42,11 +42,8 @@ def describe(exc):
 
 
 def failure_report(name, exc):
-    """Pure string builder, so the wording is testable with no console.
-    Names the window, because the person reading window 1 needs to know
-    which of the eight is limping -- and says it kept going, because the
-    alternative reading ('it died') is the one this file exists to make
-    false."""
+    """Names the window and says it kept going -- witnessed by
+    tests/test_loop_guard.py::TestGuardReporting::test_same_cause_reported_once."""
     return "[!] %s skipped one -- %s (still running)" % (name, describe(exc))
 
 
@@ -65,9 +62,9 @@ def recovery_report(name, count):
 
 
 def announce(line, log_path=None):
-    """Best-effort append to the log crt-monologue.py renders on window 1.
-    Same convention as every other logging write here: a broken log write
-    must never be the thing that ends the loop we are protecting."""
+    """Best-effort append to the log crt-monologue.py renders on window 1;
+    a broken log write must never end the loop -- witnessed by
+    tests/test_loop_guard.py::TestGuardAnnounce::test_an_unwritable_log_does_not_end_the_loop."""
     log_path = log_path or THOUGHT_LOG
     try:
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
