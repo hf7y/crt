@@ -543,12 +543,12 @@ def tail_new_lines(path):
     sleeping silently) on every empty poll too, so a caller can use each
     tick to check its own idle timeout regardless of whether a line
     actually arrived."""
-    # Open (creating if absent) up front rather than polling exists()
-    # first -- polling has a real race, a fast writer can create the file
-    # with its first line already in it before this loop notices, and
-    # seeking to the END would skip that line silently. mkdir first too:
-    # a freshly-imaged host may not have ~/.crt/ yet, and open(path, "a")
-    # alone raises FileNotFoundError -- hit live 2026-07-21.
+    # Open (creating if absent) up front rather than polling exists() first
+    # -- a fast writer could otherwise create the file with its first line
+    # already in it before this loop notices, and seeking to the END would
+    # skip that line silently. mkdir first: a freshly-imaged host may not
+    # have ~/.crt/ yet, and open(path, "a") alone raises FileNotFoundError
+    # -- see tests/test_log_reader_decoding.py::test_book_console_tail_creates_missing_parent_dir.
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a"):
         pass  # ensure it exists, without truncating/duplicating scanner.log's own writes
