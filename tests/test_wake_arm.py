@@ -203,5 +203,27 @@ class TestSpawnJudgeDisabledByDefault(unittest.TestCase):
         self.assertFalse(wa.JUDGE_ENABLED)
 
 
+class TestSpawnJudgeIsFireAndForget(unittest.TestCase):
+    # spawn_judge()'s own docstring: Popen, never run() or an inline call --
+    # this must not block the sole mic reader's capture loop. Every other
+    # test in this file stubs spawn_judge itself, so this is the only place
+    # that exercises its real subprocess.Popen call.
+    def setUp(self):
+        self._orig_enabled = wa.JUDGE_ENABLED
+        self._orig_popen = wa.subprocess.Popen
+        wa.JUDGE_ENABLED = True
+        self.popen_calls = []
+        wa.subprocess.Popen = lambda cmd, **kw: self.popen_calls.append(cmd)
+
+    def tearDown(self):
+        wa.JUDGE_ENABLED = self._orig_enabled
+        wa.subprocess.Popen = self._orig_popen
+
+    def test_uses_popen_not_a_blocking_call(self):
+        wa.spawn_judge("timeout-empty", "potato", "exact")
+        self.assertEqual(len(self.popen_calls), 1)
+        self.assertEqual(self.popen_calls[0][0], wa.JUDGE_BIN)
+
+
 if __name__ == "__main__":
     unittest.main()

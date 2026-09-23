@@ -29,9 +29,8 @@ CTL = os.environ.get("CRT_CTL_FILE", os.path.expanduser("~/.crt/ctl"))
 
 def write_ctl(line):
     os.makedirs(os.path.dirname(CTL), exist_ok=True)
-    # Append; the engine reads each newly-appended line by byte offset. Knob
-    # streams append fast, so truncate when large (the engine detects the size
-    # drop and restarts its read offset at 0).
+    # Truncate, don't append, once large: crt-stt-solo.py's reader tracks a
+    # byte offset and restarts at 0 on a size drop. See TestWriteCtl.
     mode = "w" if (os.path.exists(CTL) and os.path.getsize(CTL) > 8192) else "a"
     with open(CTL, mode) as f:
         f.write(line + "\n")

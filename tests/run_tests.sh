@@ -245,6 +245,10 @@ echo "== crt-calibrate.py (auto safe-area + conf round-trip) =="
 python3 "$DIR/test_calibrate.py" || fail=1
 echo
 
+echo "== crt-midi-knobs.py (write_ctl append/truncate contract) =="
+python3 "$DIR/test_midi_knobs.py" || fail=1
+echo
+
 echo "== crt-book-answer-listen.py =="
 python3 -m unittest discover -s "$DIR" -p "test_book_answer_listen.py" -v 2>&1 | tail -5 || fail=1
 echo

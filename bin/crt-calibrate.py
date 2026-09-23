@@ -30,8 +30,7 @@ import subprocess
 TTY_DEVICE = "/dev/tty1"
 CONF_PATH = os.path.expanduser("~/.crt/calibrate.conf")
 
-# CRT-safe palette only -- see CLAUDE.md. tmux/ANSI colour indices, not
-# raw 30-37 codes, since we write raw ANSI SGR directly to /dev/tty1.
+# CRT-safe palette (CLAUDE.md) -- witnessed by TestSafeColors.
 SAFE_COLORS = [
     ("yellow", "33"),
     ("magenta", "35"),

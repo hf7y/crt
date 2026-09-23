@@ -43,6 +43,17 @@ class TestAutoSafeArea(unittest.TestCase):
         self.assertEqual(self.m.auto_safe_area(1, 1, margin=3), (1, 1))
 
 
+class TestSafeColors(unittest.TestCase):
+    def test_no_primary_rgb_codes(self):
+        # Same hard rule as test_book_game.py's test_no_primary_rgb_codes_in_palette
+        # (CLAUDE.md, 2026-07-21) -- 31/32/34/91/92/94 bleed on the real tube.
+        m = load_calibrate()
+        banned_codes = {31, 32, 34, 91, 92, 94}
+        codes = {int(code) for _name, code in m.SAFE_COLORS}
+        self.assertFalse(codes & banned_codes)
+        self.assertEqual(codes, {33, 35, 36, 37})
+
+
 class TestConf(unittest.TestCase):
     def test_load_conf_defaults_when_missing(self):
         m = load_calibrate()

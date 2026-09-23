@@ -141,10 +141,9 @@ def run_judge(outcome, trigger_text, match_kind, match_source=None,
               matched_word=None, followup_text=None):
     """Spawns `claude -p` with the built prompt, in PROJECT_DIR so it has
     the project's own CLAUDE.md context and can resolve the tuning file
-    paths naturally. Fire-and-forget from the CALLER's perspective (this
-    function itself blocks up to JUDGE_TIMEOUT_SECS, but callers should
-    invoke this whole script via Popen, not call run_judge() inline in
-    the capture loop)."""
+    paths naturally. Blocks up to JUDGE_TIMEOUT_SECS -- callers must run
+    this whole script via Popen (crt-wake-arm.py's spawn_judge(), see
+    TestSpawnJudgeIsFireAndForget), never call run_judge() inline."""
     prompt = build_prompt(outcome, trigger_text, match_kind, match_source,
                           matched_word, followup_text)
     try:
