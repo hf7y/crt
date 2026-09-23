@@ -38,6 +38,13 @@ class TestDecideCore(unittest.TestCase):
         for choice in (wr.REMOTE, wr.LOCAL, wr.NONE):
             self.assertTrue(wr.explain(choice))
 
+    def test_explain_names_the_actual_target_not_a_stale_hardcode(self):
+        # explain() used to hardcode "mandark" and kept printing it after
+        # the 2026-07-28 move to dexter -- a wrong host name beside a
+        # correct decision. It must report whatever `target` it's given.
+        self.assertIn("dexter", wr.explain(wr.REMOTE, target="dexter"))
+        self.assertNotIn("mandark", wr.explain(wr.REMOTE, target="dexter"))
+
 
 class TestConfigured(unittest.TestCase):
     def _on(self, val):

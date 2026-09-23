@@ -490,17 +490,10 @@ def handle_scan(conn, isbn, fetcher=None, quote_fetcher=None, training_log_path=
     tests inject each independently.
 
     Raises ScanLookupFailed (not whatever urllib raised) if the ISBN
-    lookup itself fails -- confirmed live that Open Library 404s on an
-    unrecognized ISBN (not a hypothetical: this is the EXPECTED outcome
-    for a huge fraction of real scans, since the whole point of this
-    feature is inviting someone to scan "any book nearby," and plenty of
-    real barcodes -- out-of-print books, non-ISBN products, magazines,
-    a network hiccup -- will never resolve. Previously uncaught here,
-    which would have crashed the whole `book` window (now the
-    boot-default tmux window) on the very first scan that didn't
-    perfectly match Open Library's catalog -- the same failure class as
-    the earlier missing-`random`-import crash, just guaranteed to
-    recur constantly instead of being a one-off bug.
+    lookup itself fails -- a common case, not a hypothetical, since
+    plenty of real barcodes never resolve. Witnessed by
+    TestHandleScan::test_unknown_isbn_raises_scan_lookup_failed_not_raw_error
+    and ::test_network_error_also_raises_scan_lookup_failed.
 
     `training_log_path` is injectable (default None -> bg.TRAINING_LOG,
     the real file) purely so tests can point the tier-decision read
