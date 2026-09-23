@@ -162,6 +162,20 @@ class TestScanBringsTheBookWindowToTheTube(unittest.TestCase):
             time.sleep(0.1)
         return False
 
+    def _wait_for_count(self, needle, count, timeout=20.0):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.proc.poll() is not None:
+                self.fail("book console exited early: %s" % self.proc.stderr.read())
+            try:
+                with open(self.calls) as f:
+                    if f.read().count(needle) >= count:
+                        return True
+            except OSError:
+                pass
+            time.sleep(0.1)
+        return False
+
     def test_a_scan_selects_the_book_window_and_then_gives_it_back(self):
         self.proc.stdin.write(ISBN + "\n")
         self.proc.stdin.flush()
@@ -207,6 +221,45 @@ class TestScanBringsTheBookWindowToTheTube(unittest.TestCase):
             calls.count("select-window -t testsess:book"), 1,
             "one physical scan selected the book window more than once -- "
             "its own scanner.log echo was treated as a second, independent scan")
+
+    def test_a_scanner_log_scan_is_not_starved_by_a_concurrent_stdin_scan(self):
+        # main()'s drain loop comment: stdin is drained first every tick
+        # since it's the primary path now, but scanner.log is still the
+        # fallback (crt-screensaver.py's own scans arrive that way), so
+        # "neither should starve the other." A second book, scanned via
+        # scanner.log directly (not through this process's own stdin path)
+        # landing in the very same tick as a stdin scan, must still reach
+        # the tube -- not get skipped because the stdin drain runs first.
+        isbn2 = "9780451524935"
+        conn = bg.get_db(self.db)
+        bg.register_book(conn, {"isbn": isbn2, "title": "Animal Farm",
+                                "authors": ["George Orwell"], "year": 1945, "subjects": []},
+                         questions=[{"text": "Fiction or nonfiction?",
+                                     "options": ["fiction", "nonfiction"],
+                                     "correct": "fiction"}],
+                         question_source="template")
+        conn.close()
+
+        # First scan, and wait for it, purely to know the subprocess's
+        # tail_new_lines() has already done its startup seek-to-end --
+        # otherwise a direct scanner.log write below could race that seek
+        # and get silently treated as pre-existing history, not a new scan.
+        self.proc.stdin.write(ISBN + "\n")
+        self.proc.stdin.flush()
+        self.assertTrue(self._wait_for_count("select-window -t testsess:book", 1))
+
+        # Now a second stdin scan and a direct scanner.log write, fired
+        # together so both a queued stdin item and a fresh scanner.log line
+        # are pending in the same poll tick.
+        self.proc.stdin.write(ISBN + "\n")
+        self.proc.stdin.flush()
+        with open(os.path.join(self.dir, "scanner.log"), "a") as f:
+            f.write(bc.format_scan_log_line(isbn2))
+
+        self.assertTrue(
+            self._wait_for_count("select-window -t testsess:book", 3),
+            "the scanner.log-sourced scan never reached the tube -- starved "
+            "by the same-tick stdin drain")
 
 
 class TestScanLineContractIsOneModule(unittest.TestCase):

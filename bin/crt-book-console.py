@@ -903,7 +903,9 @@ def main():
             maybe_show_waiting_hint()
             # Drain any stdin-sourced scans first, non-blocking -- stdin is
             # the primary path in practice now (see file header), scanner.log
-            # is the fallback, so neither should starve the other.
+            # is the fallback, so neither should starve the other. Witnessed
+            # by tests/test_scan_reaches_the_tube.py::TestScanBringsTheBookWindowToTheTube::
+            # test_a_scanner_log_scan_is_not_starved_by_a_concurrent_stdin_scan.
             while stdin_alive:
                 try:
                     stdin_line = stdin_q.get_nowait()
