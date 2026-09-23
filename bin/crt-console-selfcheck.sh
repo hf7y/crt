@@ -168,7 +168,8 @@ announce() {  # leg, was, is, why, red-words, green-words
 }
 
 # send_zach REFUSES over 140 chars, tag included (crt#83): an alarm the relay
-# drops is the silence this file exists to break. So the clamp is here.
+# drops is the silence this file exists to break. Witnessed by
+# tests/test_console_selfcheck.sh's "a 300-char refusal still fits the relay" case.
 say() { printf '%s' "$1" | cut -c1-85; }
 
 announce stt   "$prev_stt"   "$state"       "$why" \
