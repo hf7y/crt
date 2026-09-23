@@ -1841,11 +1841,7 @@ def main():
                             ctl_pos = fh.tell()
                         lines = chunk.splitlines()
                         if ctl_replay:
-                            # Catching up on the file's existing history, not
-                            # reacting live: restore levels, drop one-shots
-                            # (see MOMENTARY_CTL -- a stale "mute 1" here used
-                            # to deafen capture on every restart, a stale
-                            # "ring" re-rang the phone at boot).
+                            # Drop one-shots on replay: tests/test_stt_solo_helpers.py::MomentaryCtlTest
                             lines = [l for l in lines if not is_momentary_ctl(l)]
                         for ln in lines:               # apply every new line once
                             if ln.startswith("ring"):
