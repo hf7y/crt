@@ -36,13 +36,11 @@ def decide_brain(mandark_on, mandark_reachable, local_available):
 
 
 def explain(choice, target=None):
-    """Human-readable reason. `target` names the actual brain host.
-
-    It used to hardcode "mandark", which survived the 2026-07-28 move to
-    dexter and started printing a wrong host name beside a correct decision
-    -- the kind of stale string that gets believed precisely because
-    everything around it is right. Defaulted rather than required so
-    existing callers (and tests) keep working.
+    """Human-readable reason. `target` names the actual brain host --
+    must not hardcode one, witnessed by
+    TestDecideCore::test_explain_names_the_actual_target_not_a_stale_hardcode.
+    Defaulted rather than required so existing callers (and tests) keep
+    working.
     """
     where = target or "the remote host"
     return {

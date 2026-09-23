@@ -63,27 +63,13 @@ def fetch_book_metadata(isbn, fetcher=None):
     callable(url) -> dict, default does a real HTTP GET against Open
     Library. Raises on lookup failure; callers decide how to handle it.
 
-    Author extraction handles THREE real shapes confirmed live against
-    Open Library's actual ISBN/edition endpoint (2026-07-21 branch
-    investigation into "trivia always asks the year question, never the
-    author one, and author always shows as Unknown"):
-      1. `"author": ["Last, First[, dates].", ...]` -- the common real
-         shape this endpoint actually returns, previously NOT CHECKED AT
-         ALL (code only looked for "author_names"/"authors", neither of
-         which this endpoint uses for this shape) -- this was the
-         confirmed root cause of authors always coming back ["Unknown"],
-         which in turn meant generate_template_question()'s author-name
-         candidate could never fire (it requires authors[0] != "Unknown"),
-         starving most real scans down to only the year-based question.
-      2. `"authors": [{"key": "/authors/OL...A"}]` -- a bare reference
-         with NO embedded name, confirmed live too (needs a second API
-         call to `/authors/OL...A.json` to resolve a name). NOT resolved
-         here -- an extra network hop per scan is a real latency/
-         reliability tradeoff, deliberately not added in this pass; falls
-         back to "Unknown" same as before, so this shape is a known,
-         documented remaining limitation, not silently claimed as fixed.
-      3. No author field present at all -- genuinely absent upstream,
-         nothing to extract.
+    Author extraction handles three real shapes from Open Library's
+    ISBN/edition endpoint -- witnessed by
+    TestMetadataLookup::test_fetch_parses_real_edition_endpoint_author_shape
+    (the "author": ["Last, First, dates."] shape) and
+    ::test_fetch_handles_authors_dict_shape_with_no_name (the bare
+    {"key": "/authors/OL...A"} reference shape, which falls back to
+    "Unknown" rather than resolving a second API call).
     "Last, First[, dates]." entries are reformatted to "First Last" via
     _clean_author_name() so both display and the author-first-name
     template question read naturally instead of showing "Orwell," (a
