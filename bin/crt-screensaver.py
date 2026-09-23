@@ -247,9 +247,9 @@ def art_layout(art, width, height, reserve_caption=True):
     caption text this frame pass False and get the full height back."""
     reserve = 2 if reserve_caption else 0
     art = art[: max(1, height - reserve)]
-    # Never let a rendered line exceed the width, or it wraps on the tube
-    # (the bug that made the potato look broken): if the art is wider than
-    # the screen, drop leading cells rather than pad it off the edge.
+    # Never let a rendered line exceed the width, or it wraps on the tube.
+    # cut_to_width keeps the leading cells and drops whatever falls past
+    # the edge, rather than padding it off screen.
     art = [caption_lib.cut_to_width(line, width) for line in art]
     return art, max(0, (height - len(art) - 1) // 2)
 
