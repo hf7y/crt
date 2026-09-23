@@ -78,15 +78,15 @@ def _chunks(seq, size):
 def run_distill_stage(conn, api_key=None, poster=None, log=print):
     """Stage 2: AI, batched. Writes real, fact-grounded two-option trivia
     questions directly into questions_json -- REPLACING the generic
-    template question (fiction/nonfiction, before/after-a-year), not
-    just adding flavor text alongside it (2026-07-28 redesign, after the
-    first version showed facts next to the still-generic question and
-    Zach caught it: "I'm still getting generic facts?"). Marks
-    question_source = ENRICHED_SOURCE so this book is never re-upgraded.
-    Returns the count of books that received new questions. Loudly
-    no-ops (not a silent skip) when no Gemini key is configured, same
-    honesty rule as everywhere else a missing key/credential is handled
-    in this project."""
+    template question, not just adding flavor text alongside it (2026-07-28
+    redesign, after Zach caught the first version: "I'm still getting
+    generic facts?"). Marks question_source = ENRICHED_SOURCE so this book
+    is never re-upgraded. Returns the count of books that received new
+    questions. Loudly no-ops (not a silent skip) when no Gemini key is
+    configured, same honesty rule as everywhere else a missing
+    key/credential is handled in this project. Witnessed by
+    tests/test_book_facts.py::TestRunDistillStage::test_writes_real_questions_into_questions_json_with_injected_key_and_poster
+    and ::test_no_key_configured_is_loud_no_op."""
     todo = books_needing_distill(conn)
     log(f"[facts-batch] distill stage: {len(todo)} book(s) not yet AI-enriched")
     if not todo:

@@ -76,12 +76,8 @@ def pick_and_format_line(conn, rng=None):
 def append_thought_line(line):
     """Best-effort append to thoughts.log -- a broken write must never
     crash this loop (same convention as crt-secretary.py's
-    log_fallthrough and crt-book-answer-listen.py's announce()).
-    Previously this write sat directly in main()'s while-True loop with
-    NO try/except at all -- a single failure (disk full, permission
-    hiccup) would have silently killed this whole background idle-bait
-    loop forever, the same invisible-failure shape as the stdin-reader
-    and log_training_row bugs found in prior passes over this funnel."""
+    log_fallthrough and crt-book-answer-listen.py's announce()). Witnessed
+    by tests/test_book_idle_bait.py::TestAppendThoughtLine::test_broken_path_does_not_raise."""
     try:
         os.makedirs(os.path.dirname(THOUGHT_LOG), exist_ok=True)
         with open(THOUGHT_LOG, "a") as f:

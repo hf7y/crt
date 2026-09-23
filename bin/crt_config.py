@@ -48,10 +48,10 @@ def env_flag(name, default=False, env=None):
     and ANYTHING else -- including the empty string -- is `default`. The
     generous vocabulary is the point: the one flag this was written for
     (CRT_LOOP_GUARD_TRACEBACK) is a debugging switch a person sets by hand
-    while chasing a window that keeps dying, and `int()` of the perfectly
-    reasonable `CRT_LOOP_GUARD_TRACEBACK=true` raised -- killing all four
-    guarded windows at once, from inside the module whose entire job is
-    keeping them alive."""
+    while chasing a window that keeps dying, and a naive int() of it used to
+    kill all four guarded windows at once, from inside the module whose
+    entire job is keeping them alive. Witnessed by
+    tests/test_config_fixups_path.py::TestATypoDoesNotTakeAWindowDown::test_the_guard_that_keeps_windows_alive_does_not_kill_four_of_them."""
     raw = (os.environ if env is None else env).get(name)
     if raw is None:
         return default

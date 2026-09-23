@@ -154,13 +154,11 @@ UNSPOKEN_PREFIX = os.environ.get("CRT_UNSPOKEN_PREFIX", "(unspoken) ")
 def speak(text, device="handset"):
     """Say something out loud. Returns True only if it was actually played.
 
-    This used to discard crt-tts.py's exit status along with its stderr
-    (sh() captures both), which mattered more here than anywhere: speech is
-    this console's primary output channel, and EVERY honest-failure line the
-    last three cycles added -- BRAIN_UNREACHABLE_LINE, REPLY_UNOBSERVED_LINE,
-    route_claude_reply's "didn't catch a reply" -- is delivered through this
-    function. A dead output device therefore silenced the reports about the
-    silence, which is the worst possible place for this defect to sit."""
+    Speech is this console's primary output channel, and EVERY honest-failure
+    line this project adds is delivered through this function -- a dead
+    output device must not also silence the report about the silence.
+    Witnessed by
+    tests/test_speech_failure_visible.py::TestSecretarySurfacesUnspokenReplies::test_bad_news_survives_a_dead_speaker."""
     if not (text or "").strip():
         # crt-tts.py exits 1 on empty input, which is correct there and is
         # not a fault to report here: nothing was meant to be said.
@@ -562,17 +560,15 @@ def brain_mode():
 
 
 def capture_pane():
-    """The pane's text, or None if it could not be read (2026-07-25).
+    """The pane's text, or None if it could not be read.
 
-    None vs. "" is the whole point. Both paths used to collapse failure into
-    "", which wait_for_claude_reply() then diffed against as if it were a
-    real, empty pane -- see its docstring for what that cost. On the remote
-    path an empty response IS the failure signal: _bridge_request() returns
-    "" for a dropped tunnel or a stopped bridge, and mandark's own
-    capture_pane() returns "" when its tmux target is gone. A live Claude
-    Code pane is never legitimately empty, so nothing is lost by refusing to
-    trust an empty one, and no bridge-side change is needed to tell them
-    apart."""
+    None vs. "" is the whole point. On the remote path an empty response IS
+    the failure signal: _bridge_request() returns "" for a dropped tunnel or
+    a stopped bridge, and mandark's own capture_pane() returns "" when its
+    tmux target is gone. A live Claude Code pane is never legitimately empty,
+    so nothing is lost by refusing to trust an empty one. Witnessed by
+    tests/test_secretary.py::TestUnobservedReply::test_remote_empty_capture_is_unreadable_not_empty
+    and ::test_local_empty_pane_is_not_a_failure."""
     mode = brain_mode()
     if mode == "ssh":
         return _ssh_request("CAPTURE", CLAUDE_SSH_HOST) or None
@@ -591,18 +587,7 @@ def capture_pane():
 
 def send_to_claude(text):
     """Deliver one utterance to Claude. Returns True only if it landed.
-
-    Both halves used to discard their result (2026-07-25). On the remote
-    path that mattered most: _bridge_request() returns "" on ANY socket
-    failure, so a dropped reverse tunnel or a dead bridge on mandark made
-    this a silent no-op -- and handle() below went on to fire the
-    "thinking" earcon and sit through the full idle wait polling a socket
-    that was never going to answer, before telling the user "I sent that
-    to Claude but didn't catch a reply -- check the screen", which is
-    wrong twice over: nothing was sent, and the screen it points at is
-    blank precisely because the brain isn't there. FOCUS.md's current top
-    priority names tunnel drops as the thing to watch for; this is what
-    makes one observable instead of looking like a quiet Claude."""
+    Witnessed by tests/test_secretary.py::TestUndeliveredUtterance."""
     mode = brain_mode()
     if mode == "ssh":
         # Same one-line protocol as the socket path, same reason: whisper

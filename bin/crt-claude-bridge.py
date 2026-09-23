@@ -77,10 +77,9 @@ def write_thought(text):
 
 
 def should_switch(current, latest, last_growth, now, stale_secs=STALE_SECS):
-    """Whether to abandon `current` in favor of `latest`. Sticky by design:
-    a second, unrelated session appearing/ending in the same project dir
-    must not steal the mirror away from window 0's own session mid-flight
-    -- only reasonable when `current` itself looks dead."""
+    """Whether to abandon `current` in favor of `latest`. Sticky by design
+    -- only reasonable when `current` itself looks dead. Witnessed by
+    tests/test_claude_bridge.py::TestShouldSwitch::test_does_not_steal_focus_to_a_concurrent_session_thats_still_fresh."""
     if current is None:
         return True
     if latest == current:
