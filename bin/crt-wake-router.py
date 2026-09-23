@@ -158,10 +158,9 @@ def main(argv=None):
             "choice": choice,
             "brain_mode": mode,
             "brain_target": target,
-            # The mandark_* keys predate the dexter move and are kept so
-            # existing consumers/tests do not break. In ssh mode they
-            # describe the port-mode half only, which is now off -- read
-            # brain_mode/brain_target for the truth.
+            # The mandark_* keys predate the dexter move and describe the
+            # port-mode half only -- see
+            # tests/test_wake_router.py::test_ssh_mode_reports_false_on_the_legacy_mandark_keys
             "mandark_on": on and mode == "port",
             "mandark_port": port,
             "mandark_reachable": reachable and mode == "port",

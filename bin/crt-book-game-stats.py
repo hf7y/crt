@@ -89,9 +89,8 @@ def render_screen_summary(book_stats, training_stats, width=None):
     if training_stats["total_rounds"] == 0:
         lines.append("No spoken answers graded yet.")
     elif training_stats["stt_accuracy"] is None:
-        # Rounds exist but none of them recorded an option list to judge the
-        # transcription against (pre-2026-07-25 rows can also land here).
-        # Saying "0%" would be a lie in the direction that panics people.
+        # "0%" would be a lie in the direction that panics people -- see
+        # tests/test_book_game_stats.py::test_graded_rounds_with_no_judgeable_stt_says_na_not_zero_percent
         lines.append(f"{training_stats['total_rounds']} answer(s) graded, STT accuracy n/a")
     else:
         acc = training_stats["stt_accuracy"]

@@ -87,6 +87,18 @@ class TestCli(unittest.TestCase):
         self.assertTrue(out["mandark_on"])
         self.assertFalse(out["mandark_reachable"])
 
+    def test_ssh_mode_reports_false_on_the_legacy_mandark_keys(self):
+        # mandark_on/mandark_reachable predate the dexter move and describe
+        # the port-mode half only -- in ssh mode they must read False even
+        # though a brain IS configured (brain_mode/brain_target carry the
+        # truth there instead).
+        out = self._run({"CRT_CLAUDE_SSH_HOST": "dexter", "CRT_CLAUDE_REMOTE_PORT": "8993",
+                          "CRT_LOCAL_CLAUDE": "0"})
+        self.assertEqual(out["brain_mode"], "ssh")
+        self.assertEqual(out["brain_target"], "dexter")
+        self.assertFalse(out["mandark_on"])
+        self.assertFalse(out["mandark_reachable"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -120,6 +120,16 @@ class TestRenderScreenSummary(unittest.TestCase):
         lines = st.render_screen_summary(book_stats, training_stats, width=20)
         self.assertTrue(all(len(l) <= 20 for l in lines))
 
+    def test_graded_rounds_with_no_judgeable_stt_says_na_not_zero_percent(self):
+        # correct_stt=None (no option list recorded) must not read as a
+        # transcription failure -- rounds exist, but stt_accuracy is None.
+        book_stats = {"total": 1}
+        training_stats = st.summarize_training([{"correct_stt": None, "correct_content": True}])
+        self.assertIsNone(training_stats["stt_accuracy"])
+        lines = st.render_screen_summary(book_stats, training_stats, width=40)
+        self.assertTrue(any("STT accuracy n/a" in l for l in lines))
+        self.assertFalse(any("0%" in l for l in lines))
+
 
 class TestGenerateCandidateFixups(unittest.TestCase):
     def test_single_occurrence_not_surfaced(self):
