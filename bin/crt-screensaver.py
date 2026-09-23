@@ -248,8 +248,8 @@ def art_layout(art, width, height, reserve_caption=True):
     reserve = 2 if reserve_caption else 0
     art = art[: max(1, height - reserve)]
     # Never let a rendered line exceed the width, or it wraps on the tube
-    # (the bug that made the potato look broken): if the art is wider than
-    # the screen, drop leading cells rather than pad it off the edge.
+    # (the bug that made the potato look broken): cut_to_width() clips
+    # overflow past the edge (keeps the leading text) instead of wrapping.
     art = [caption_lib.cut_to_width(line, width) for line in art]
     return art, max(0, (height - len(art) - 1) // 2)
 
