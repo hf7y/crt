@@ -73,36 +73,22 @@ def parse_stt_log_line(line):
 def get_pending_question(conn, window_secs, now=None):
     """Returns {"isbn", "title", "question"} for the most recently SCANNED
     book if that scan was within `window_secs` of `now` (default: real
-    time), else None -- no separate 'pending' flag/state needed, this is
-    entirely derived from books.db's own timestamps, so it can never drift
-    out of sync with what actually got scanned.
+    time), else None -- entirely derived from books.db's own timestamps,
+    never a separate 'pending' flag/state to drift out of sync.
 
-    Ordered by last_scanned, not first_scanned (2026-07-25): re-scanning a
-    book already on the shelf leaves first_scanned exactly where it was --
-    register_book() caches, deliberately -- so this used to see no scan at
-    all and drop the spoken answer, or worse, pick some *other* book that
-    happened to be registered inside the window and grade the answer
-    against ITS question, writing a training row whose "expected" belongs
-    to a different book. That is a corrupted row in the file this whole
-    console exists to fill.
-
-    COALESCE, not a backfill: rows written before that column existed have
-    last_scanned NULL and still answer for their first scan.
-
-    A round is also CLOSED once it has been graded (2026-07-25, thirteenth
-    cycle): last_answered at or after this book's own scan means the answer
-    already happened, so the next utterance is not a second attempt at the
-    same question. It is compared against the SCAN, not against the clock,
-    so re-scanning the book re-opens the round without anything having to
-    clear the column.
-
-    The answered check deliberately happens AFTER `LIMIT 1`, not as a WHERE
-    clause. Filtering in SQL would make a closed round fall through to the
-    second-most-recently-scanned book, which may still be inside its own
-    window -- and grading an utterance against a book that is not the one
-    on the tube is exactly the corrupted training row the twelfth cycle
-    fixed. The most recent scan is the question on screen; if that one is
-    closed, nothing is pending."""
+    Four claims, each with its own witness rather than restated here:
+    - ORDER BY last_scanned, not first_scanned, so a rescan is seen:
+      tests/test_book_rescan_pending.py::TestRescannedBookIsPending
+    - COALESCE covers rows predating that column:
+      tests/test_book_rescan_pending.py::TestTouchScan
+      ::test_a_row_predating_the_column_still_answers_for_its_first_scan
+    - a round CLOSES once graded, and a rescan reopens it:
+      tests/test_book_answer_round_closes.py::TestOneScanIsOneRound
+      ::TestRescanReopensTheRound
+    - the answered check runs after LIMIT 1, not as a WHERE clause, so a
+      closed round can't fall through to the previous book:
+      tests/test_book_answer_round_closes.py
+      ::TestClosedRoundDoesNotFallThroughToAnotherBook"""
     now = now if now is not None else time.time()
     row = conn.execute(
         "SELECT isbn, title, questions_json, "
