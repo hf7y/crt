@@ -104,3 +104,17 @@ class TestArtLayoutCaptionReservation(unittest.TestCase):
         rows = ss._frame_rows(art, 40, 13, "wake me up", ss.CYAN, dim=True)
         self.assertFalse(any("line12" in r for r in rows),
                          "a real caption's reserved row should still cost the last art line")
+
+
+class TestArtLayoutWidthClip(unittest.TestCase):
+    def test_a_line_wider_than_the_screen_is_cut_not_wrapped(self):
+        # The live bug this guards: an over-width line reaching the tube
+        # unclipped wraps onto the next row instead of being cut.
+        art = ["x" * 50]
+        lines, _top = ss.art_layout(art, 40, 13)
+        self.assertEqual(len(lines[0]), 40)
+
+    def test_the_cut_keeps_the_leading_columns(self):
+        art = ["abcdefghij" * 5]
+        lines, _top = ss.art_layout(art, 40, 13)
+        self.assertEqual(lines[0], ("abcdefghij" * 5)[:40])
