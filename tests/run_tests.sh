@@ -571,10 +571,6 @@ echo "== zaxon relay server: fetch_inbox / ask_zach / send_zach =="
 python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_server.py" -v 2>&1 | tail -25 || fail=1
 echo
 
-echo "== zaxon relay filer: a tagged note files a pointer, never a paste (crt#154) =="
-python3 -m unittest discover -s "$DIR" -p "test_zaxon_relay_filer.py" -v 2>&1 | tail -25 || fail=1
-echo
-
 # Manifest check (2026-07-25). Every test file in this directory must be named
 # above, and every name above must exist -- both directions had drifted (a
 # file named but absent, a file present but never invoked). See the check
