@@ -311,9 +311,9 @@ class TestMarkFiled(unittest.TestCase):
     def test_reports_false_for_an_unknown_entry(self):
         self.assertEqual(server.mark_filed("nope", "hf7y/crt#42"), {"marked": False})
 
-    def test_stops_the_relay_own_filer_retrying(self):
-        # zaxon_relay_filer.file_pending() retries anything matching this
-        # exact query every ~30s until filed_issue is no longer NULL.
+    def test_clears_the_entry_from_the_unfiled_backlog_query(self):
+        # zaxon-status-collect.py's backlog count uses this exact query
+        # (crt#306); mark_filed is what stops it counting a filed entry.
         server.mark_filed(self.entry_id, "hf7y/crt#42")
         conn = db.get_conn()
         try:

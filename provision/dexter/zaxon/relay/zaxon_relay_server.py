@@ -88,7 +88,8 @@ mcp = MCPServer(
         "it hides the note from fetch_inbox for everyone else so you don't "
         "act on it twice. After filing an issue for a note, call "
         "mark_filed(entry_id, issue_ref) with the 'owner/repo#N' you filed -- "
-        "it stops the relay's own filer retrying that entry. send_zach sends "
+        "it records the entry as done so the status page's unfiled-backlog "
+        "count doesn't count it. send_zach sends "
         "one; no reply, no ticket, no slot."
     ),
     middleware=[_require_shared_secret],
