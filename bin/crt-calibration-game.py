@@ -280,19 +280,15 @@ def offer_to_save(seen, target):
 def save_fixup(fragment, target, similarity, path):
     """Record one confirmed mishear, through crt_fixups_store.update().
 
-    The write is a temp file + os.replace for two reasons that predate this
-    function's current shape: `open(path, "w")` truncates the real file
-    first, so a crash or a full disk mid-dump destroys every hand-authored
-    "confirmed" entry in a file that is tracked in git and holds human
-    judgments this project cannot re-derive; and crt-stt-solo.py re-reads
-    this file live while capture is running, so a reader can genuinely land
-    inside the window where it is half-written.
-
-    What changed 2026-07-25 is WHERE the existing entries come from. They
-    used to be read here and written back a moment later, which meant the
-    `stttrain` window's 600s merge tick could land in between and be
-    silently erased by this save -- or erase it. The entry is now added
-    inside the store's lock, to the file as it is at that instant."""
+    The atomic temp-file+replace and the lock-held read are
+    crt_fixups_store.update()'s own contract (see its docstring), not
+    restated here. What changed 2026-07-25: entries used to be read here
+    and written back a moment later, letting the `stttrain` window's 600s
+    merge tick land in between and get silently erased -- now the read
+    happens inside update()'s lock, on the file as it is at that instant.
+    See tests/test_fixups_reload.py
+    ::TestCalibrationGameWritesAtomically
+    ::test_a_save_keeps_every_entry_that_was_already_there."""
     def add(existing):
         existing[fragment] = {
             "intent": target,
