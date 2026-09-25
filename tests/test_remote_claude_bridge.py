@@ -46,7 +46,10 @@ class TestBindsToLoopbackOnly(unittest.TestCase):
 
 
 def tmux_running():
-    return subprocess.run(["tmux", "-V"], capture_output=True).returncode == 0
+    try:
+        return subprocess.run(["tmux", "-V"], capture_output=True).returncode == 0
+    except FileNotFoundError:
+        return False
 
 
 @unittest.skipUnless(tmux_running(), "tmux not available in this environment")
